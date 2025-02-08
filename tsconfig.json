@@ -1,24 +1,21 @@
 {
   "compilerOptions": {
-    "target": "es2022",
-    "module": "nodenext",
-    "lib": ["es2022"],
+    "target": "es2018",
+    "module": "commonjs",
+    "lib": ["es2018", "esnext.asynciterable"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "nodenext",
+    "moduleResolution": "node",
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
-    },
-    "typeRoots": ["./node_modules/@types", "./src/types", "./src/custom-types"],
-    "sourceMap": true,
-    "allowJs": true
+      "*": ["node_modules/*"]
+    }
   },
   "include": ["src/**/*"],
-  "exclude": ["src/tests/**/*", "src/**/*.test.ts", "src/**/*.spec.ts"]
+  "exclude": ["node_modules", "dist"]
 }
