@@ -2,9 +2,9 @@
   "name": "my-profile-ltd",
   "version": "1.0.0",
   "description": "MyProfile Backend - A secure and scalable authentication system",
-  "main": "dist/app.js",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "NODE_NO_WARNINGS=1 node dist/app.js",
+    "start": "NODE_NO_WARNINGS=1 node dist/server.js",
     "dev": "NODE_NO_WARNINGS=1 nodemon src/app.ts",
     "build": "tsc",
     "postinstall": "npm run build",
