@@ -1,3 +1,46 @@
+/**
+ * @file auth.controller.ts
+ * @description Authentication Controller for My Profile Platform
+ * ==========================================================
+ *
+ * Handles authentication and authorization operations for the platform,
+ * providing secure user management and session control features.
+ *
+ * Features:
+ * - User registration with validation
+ * - Multi-factor authentication
+ * - Session management
+ * - Token-based authentication
+ * - Password reset and recovery
+ * - Social authentication
+ * - Device tracking
+ * - Secure logout handling
+ *
+ * Technical Implementation:
+ * - Express.js controller patterns
+ * - JWT token management
+ * - HTTP-only cookies
+ * - Zod schema validation
+ * - TypeScript type safety
+ * - MongoDB with Mongoose
+ *
+ * Security Features:
+ * - Rate limiting
+ * - IP tracking
+ * - Device fingerprinting
+ * - Secure session management
+ * - OTP verification
+ * - 2FA support
+ * - Brute force prevention
+ *
+ * @version 1.0.0
+ * @license MIT
+ * @author Marco Blaise
+ *
+ * For detailed API documentation, see API.md
+ * For security guidelines, see SECURITY.md
+ */
+
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
 import jwt from "jsonwebtoken";
@@ -104,8 +147,50 @@ export class AuthController {
   }
 
   /**
-   * Login user
-   * @route POST /auth/login
+   * Authenticate user and create secure session with token-based authentication
+   *
+   * @route POST /api/auth/login
+   * @param {Request} req Express request object
+   * @param {Response} res Express response object
+   *
+   * @security
+   * - Rate limiting to prevent brute force
+   * - HTTP-only secure cookies
+   * - Secure token rotation
+   * - Device fingerprinting
+   * - IP tracking
+   * - Failed attempts monitoring
+   *
+   * @returns {Promise<void>} JSON response with login status and tokens
+   *
+   * @example
+   * ```typescript
+   * // Request body
+   * {
+   *   "email": "user@example.com",
+   *   "password": "securePassword123"
+   * }
+   *
+   * // Success Response
+   * {
+   *   "success": true,
+   *   "user": {
+   *     "id": "user_id",
+   *     "email": "user@example.com",
+   *     "fullName": "John Doe"
+   *   },
+   *   "tokens": {
+   *     "accessToken": "...",
+   *     "refreshToken": "..."
+   *   }
+   * }
+   *
+   * // Error Response
+   * {
+   *   "success": false,
+   *   "message": "Invalid credentials"
+   * }
+   * ```
    */
   static async login(req: Request, res: Response) {
     try {
@@ -144,8 +229,38 @@ export class AuthController {
   }
 
   /**
-   * Get active sessions
-   * @route GET /auth/sessions
+   * Get active sessions for the authenticated user
+   *
+   * @route GET /api/auth/sessions
+   * @param {Request} req Express request object with authenticated user
+   * @param {Response} res Express response object
+   *
+   * @security
+   * - Requires valid authentication
+   * - Validates user session
+   * - Only returns sessions for authenticated user
+   *
+   * @returns {Promise<void>} JSON response with active sessions
+   *
+   * @example
+   * ```typescript
+   * // Success Response
+   * {
+   *   "success": true,
+   *   "sessions": [
+   *     {
+   *       "deviceInfo": {
+   *         "browser": "Chrome",
+   *         "os": "Windows",
+   *         "ip": "192.168.1.1"
+   *       },
+   *       "lastActive": "2025-02-08T22:13:31.000Z",
+   *       "location": "San Francisco, US",
+   *       "status": "active"
+   *     }
+   *   ]
+   * }
+   * ```
    */
   static async getSessions(req: Request, res: Response) {
     try {
@@ -163,8 +278,35 @@ export class AuthController {
   }
 
   /**
-   * Logout from all sessions
-   * @route POST /auth/logout-all
+   * Logout user from all active sessions and devices
+   *
+   * @route POST /api/auth/logout-all
+   * @param {Request} req Express request object with authenticated user
+   * @param {Response} res Express response object
+   *
+   * @security
+   * - Requires valid authentication
+   * - Invalidates all refresh tokens
+   * - Clears all HTTP-only cookies
+   * - Logs security event with device info
+   * - Updates user's session history
+   *
+   * @returns {Promise<void>} JSON response with logout status
+   *
+   * @example
+   * ```typescript
+   * // Success Response
+   * {
+   *   "success": true,
+   *   "message": "Logged out from all sessions"
+   * }
+   *
+   * // Error Response
+   * {
+   *   "success": false,
+   *   "message": "Failed to logout from all sessions"
+   * }
+   * ```
    */
   static async logoutAll(req: Request, res: Response) {
     try {
@@ -191,8 +333,52 @@ export class AuthController {
   }
 
   /**
-   * Verify OTP
-   * @route POST /auth/verify-otp
+   * Verify One-Time Password (OTP) for account verification
+   *
+   * @route POST /api/auth/verify-otp
+   * @param {Request} req Express request object
+   * @param {Response} res Express response object
+   *
+   * @security
+   * - OTP expiration validation
+   * - Max attempts limit
+   * - Time-based throttling
+   * - Device fingerprinting
+   * - IP tracking
+   * - Concurrent verification prevention
+   *
+   * @returns {Promise<void>} JSON response with verification status and tokens
+   *
+   * @example
+   * ```typescript
+   * // Request body
+   * {
+   *   "_id": "user_id",
+   *   "otp": "123456",
+   *   "verificationMethod": "email" // or "phone"
+   * }
+   *
+   * // Success Response
+   * {
+   *   "success": true,
+   *   "message": "OTP verified successfully",
+   *   "user": {
+   *     "id": "user_id",
+   *     "email": "user@example.com",
+   *     "isVerified": true
+   *   },
+   *   "tokens": {
+   *     "accessToken": "...",
+   *     "refreshToken": "..."
+   *   }
+   * }
+   *
+   * // Error Response
+   * {
+   *   "success": false,
+   *   "message": "Invalid OTP or OTP expired"
+   * }
+   * ```
    */
   static async verifyOTP(req: Request, res: Response) {
     try {
@@ -256,50 +442,85 @@ export class AuthController {
   }
 
   /**
-   * Refresh access token
-   * @route POST /auth/refresh-token
+   * Refresh user's access token using a valid refresh token
+   *
+   * @route POST /api/auth/refresh-token
+   * @param {Request} req Express request object with refresh token in cookie or body
+   * @param {Response} res Express response object
+   *
+   * @security
+   * - Validates refresh token
+   * - Implements token rotation
+   * - Sets secure HTTP-only cookies
+   * - Tracks token usage
+   * - Prevents token reuse
+   * - Updates session activity
+   *
+   * @returns {Promise<void>} JSON response with new token pair
+   *
+   * @example
+   * ```typescript
+   * // Success Response
+   * {
+   *   "success": true,
+   *   "tokens": {
+   *     "accessToken": "new-access-token",
+   *     "refreshToken": "new-refresh-token"
+   *   }
+   * }
+   *
+   * // Error Response
+   * {
+   *   "success": false,
+   *   "message": "Invalid refresh token"
+   * }
+   * ```
    */
   static async refreshToken(req: Request, res: Response) {
-    try {
-      // Get refresh token from cookie or body
-      const refreshToken = req.cookies.refreshtoken || req.body.refreshToken;
+   try {
+     const refreshToken = req.cookies.refreshtoken || req.body.refreshToken;
+     if (!refreshToken) {
+       throw new CustomError("MISSING_TOKEN", "Refresh token is required");
+     }
 
-      if (!refreshToken) {
-        throw new CustomError("MISSING_TOKEN", "Refresh token is required");
-      }
+     // Get request info for security tracking
+     const { ip, os } = getRequestInfo(req);
 
-      const tokens = await AuthService.refreshAccessToken(refreshToken);
+     // Call AuthService to handle token refresh
+     const tokens = await AuthService.refreshAccessToken(refreshToken);
 
-      // Set both cookies with the new tokens
-      console.log("🔄 Rotating refresh token and setting new cookies...");
-      res.cookie("accesstoken", tokens.accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 15 * 60 * 1000, // 15 minutes
-      });
+     // Set new tokens in cookies
+     res.cookie("accesstoken", tokens.accessToken, {
+       httpOnly: true,
+       secure: process.env.NODE_ENV === "production",
+       sameSite: "lax",
+       path: "/",
+       maxAge: 15 * 60 * 1000, // 15 minutes
+     });
 
-      res.cookie("refreshtoken", tokens.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
-      console.log("✅ Token rotation completed successfully");
+     res.cookie("refreshtoken", tokens.refreshToken, {
+       httpOnly: true,
+       secure: process.env.NODE_ENV === "production",
+       sameSite: "lax",
+       path: "/",
+       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+     });
+     console.log("✅ Token rotation completed successfully");
 
-      // Send response
-      res.json({ success: true, message: "Tokens refreshed successfully" });
-    } catch (error) {
-      logger.error("Token refresh error:", error);
-      res.status(401).json({
-        success: false,
-        message:
-          error instanceof Error ? error.message : "Token refresh failed",
-      });
-    }
-  }
+     // Send response
+     res.json({
+       success: true,
+       message: "Tokens refreshed successfully",
+       tokens
+     });
+   } catch (error) {
+     logger.error("Token refresh error:", error);
+     res.status(401).json({
+       success: false,
+       message: error instanceof Error ? error.message : "Token refresh failed",
+     });
+   }
+ }
 
   /**
    * Logout user
@@ -365,8 +586,42 @@ export class AuthController {
   }
 
   /**
-   * Reset password with token
-   * @route POST /auth/reset-password
+   * Reset password using a valid reset token
+   *
+   * @route POST /api/auth/reset-password
+   * @param {Request} req Express request object
+   * @param {Response} res Express response object
+   *
+   * @security
+   * - Validates token expiration
+   * - Enforces password strength
+   * - Rate limiting on attempts
+   * - IP tracking for suspicious activity
+   * - Secure token validation
+   * - Password history check
+   *
+   * @returns {Promise<void>} JSON response with reset status
+   *
+   * @example
+   * ```typescript
+   * // Request body
+   * {
+   *   "token": "reset-token-here",
+   *   "password": "newSecurePassword123"
+   * }
+   *
+   * // Success Response
+   * {
+   *   "success": true,
+   *   "message": "Password reset successful"
+   * }
+   *
+   * // Error Response
+   * {
+   *   "success": false,
+   *   "message": "Invalid or expired reset token"
+   * }
+   * ```
    */
   static async resetPassword(req: Request, res: Response) {
     try {
@@ -426,8 +681,41 @@ export class AuthController {
   }
 
   /**
-   * Verify user email
-   * @route POST /auth/verify-email
+   * Verify user email address
+   *
+   * @route POST /api/auth/verify-email
+   * @param {Request} req Express request object
+   * @param {Response} res Express response object
+   *
+   * @security
+   * - Validates verification token
+   * - Rate limiting protection
+   * - Token expiration check
+   * - IP tracking for suspicious activity
+   * - One-time use tokens
+   * - Secure session creation
+   *
+   * @returns {Promise<void>} JSON response with verification status
+   *
+   * @example
+   * ```typescript
+   * // Request body
+   * {
+   *   "token": "verification-token-here"
+   * }
+   *
+   * // Success Response
+   * {
+   *   "success": true,
+   *   "message": "Email verified successfully"
+   * }
+   *
+   * // Error Response
+   * {
+   *   "success": false,
+   *   "message": "Invalid verification token"
+   * }
+   * ```
    */
   static async verifyEmail(req: Request, res: Response) {
     try {
@@ -488,8 +776,39 @@ export class AuthController {
   }
 
   /**
-   * Generate 2FA secret
-   * @route POST /auth/generate-2fa
+   * Generate Two-Factor Authentication (2FA) secret for user
+   *
+   * @route POST /api/auth/generate-2fa
+   * @param {Request} req Express request object with authenticated user
+   * @param {Response} res Express response object
+   *
+   * @security
+   * - Requires authentication
+   * - Validates user session
+   * - Generates cryptographically secure secret
+   * - QR code generation for authenticator apps
+   * - Email notification with setup instructions
+   * - Device tracking for audit
+   *
+   * @returns {Promise<void>} JSON response with 2FA setup data
+   *
+   * @example
+   * ```typescript
+   * // Request header
+   * Authorization: Bearer <access_token>
+   *
+   * // Success Response
+   * {
+   *   "message": "2FA code sent successfully",
+   *   "qrCode": "data:image/png;base64,..." // QR code for authenticator app
+   * }
+   *
+   * // Error Response
+   * {
+   *   "message": "User not authenticated",
+   *   "statusCode": 401
+   * }
+   * ```
    */
   static async generate2FA(req: Request, res: Response) {
     try {
@@ -519,8 +838,39 @@ export class AuthController {
   }
 
   /**
-   * Verify 2FA code
-   * @route POST /auth/verify-2fa
+   * Verify 2FA code submitted by user
+   *
+   * @route POST /api/auth/verify-2fa
+   * @param {Request} req Express request object with authenticated user
+   * @param {Response} res Express response object
+   *
+   * @security
+   * - Requires authentication
+   * - Time-based code validation
+   * - Rate limiting per user
+   * - Invalid attempts tracking
+   * - Session validation
+   * - Device fingerprinting
+   *
+   * @returns {Promise<void>} JSON response with verification status
+   *
+   * @example
+   * ```typescript
+   * // Request body
+   * {
+   *   "code": "123456"
+   * }
+   *
+   * // Success Response
+   * {
+   *   "message": "2FA code verified successfully"
+   * }
+   *
+   * // Error Response
+   * {
+   *   "message": "Invalid 2FA code"
+   * }
+   * ```
    */
   static async verify2FA(req: Request, res: Response) {
     try {

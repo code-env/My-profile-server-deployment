@@ -214,7 +214,7 @@ export class AuthService {
     code: string
   ): Promise<void> {
     try {
-      await WhatsAppService.sendVerificationCode(phoneNumber, code);
+      await WhatsAppService.sendOTPMessage(phoneNumber, code);
     } catch (error: any) {
       logger.error("Failed to send verification code:", error.message);
       throw new Error(

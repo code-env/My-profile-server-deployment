@@ -6,8 +6,8 @@ import { protect } from "../middleware/auth.middleware";
 import { authenticateToken } from "../middleware/authMiddleware";
 import rateLimit from "express-rate-limit";
 import { logger } from "../utils/logger";
-import EmailService from "../services/email.service"; // Import EmailService
-import WhatsAppService from "../services/whatsapp.service"; // Import WhatsAppService
+import EmailService from "../services/email.service";
+import WhatsAppService from "../services/whatsapp.service";
 
 const router = express.Router();
 
@@ -65,18 +65,16 @@ router.post("/test-email", async (req, res) => {
 router.post("/test-whatsapp", async (req, res) => {
   try {
     const testPhone = req.body.phoneNumber || "+17132021262";
-    const testMessage =
-      req.body.message ||
-      "123456 is your verification code. For your security, do not share this code.";
+    const testCode = "123456"; // Test verification code
 
-    await WhatsAppService.sendMessage(testPhone, testMessage);
+    await WhatsAppService.sendOTPMessage(testPhone, testCode);
 
     res.json({
       success: true,
       message: "Test WhatsApp message sent successfully",
       details: {
         phoneNumber: testPhone,
-        message: testMessage,
+        code: testCode,
       },
     });
   } catch (error: any) {

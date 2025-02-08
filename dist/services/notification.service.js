@@ -1,0 +1,207 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.NotificationService = exports.notificationEvents = void 0;
+const Notification_1 = require("../models/Notification");
+const User_1 = require("../models/User");
+const logger_1 = require("../utils/logger");
+const events_1 = require("events");
+exports.notificationEvents = new events_1.EventEmitter();
+class NotificationService {
+    constructor() {
+        this.io = null;
+        // Listen for notification events
+        exports.notificationEvents.on('notification:created', this.handleNotificationCreated.bind(this));
+    }
+    setSocketServer(io) {
+        this.io = io;
+    }
+    async handleNotificationCreated(notification) {
+        console.log('Entering handleNotificationCreated with notification:', notification);
+        try {
+            // Emit to connected socket if available
+            if (this.io) {
+                this.io.to(`user:${notification.recipient}`).emit('notification:new', notification);
+            }
+            // Send push notification if user has enabled them
+            await this.sendPushNotification(notification);
+        }
+        catch (error) {
+            console.error('Error in handleNotificationCreated:', error);
+            logger_1.logger.error('Error handling notification creation:', error);
+        }
+    }
+    async sendPushNotification(notification) {
+        console.log('Entering sendPushNotification with notification:', notification);
+        try {
+            const user = await User_1.User.findById(notification.recipient);
+            if (!user)
+                return;
+            // TODO: Implement push notification logic here
+            // This could integrate with Firebase Cloud Messaging, OneSignal, or other providers
+        }
+        catch (error) {
+            console.error('Error in sendPushNotification:', error);
+            logger_1.logger.error('Error sending push notification:', error);
+        }
+    }
+    async createNotification(data) {
+        console.log('Entering createNotification with data:', data);
+        try {
+            const notification = await Notification_1.Notification.create(data);
+            exports.notificationEvents.emit('notification:created', notification);
+            return notification;
+        }
+        catch (error) {
+            console.error('Error in createNotification:', error);
+            logger_1.logger.error('Error creating notification:', error);
+            throw error;
+        }
+    }
+    async getUserNotifications(userId, query) {
+        console.log('Entering getUserNotifications with userId and query:', userId, query);
+        try {
+            const { isRead, isArchived = false, limit = 10, page = 1 } = query;
+            const filter = {
+                recipient: userId,
+                isArchived,
+            };
+            if (typeof isRead === 'boolean') {
+                filter.isRead = isRead;
+            }
+            const notifications = await Notification_1.Notification.find(filter)
+                .sort({ createdAt: -1 })
+                .skip((page - 1) * limit)
+                .limit(limit)
+                .lean();
+            const total = await Notification_1.Notification.countDocuments(filter);
+            return {
+                notifications,
+                pagination: {
+                    total,
+                    pages: Math.ceil(total / limit),
+                    page,
+                    limit,
+                },
+            };
+        }
+        catch (error) {
+            console.error('Error in getUserNotifications:', error);
+            logger_1.logger.error('Error getting user notifications:', error);
+        }
+    }
+    async markAsRead(notificationId, userId) {
+        console.log('Entering markAsRead with notificationId and userId:', notificationId, userId);
+        try {
+            return Notification_1.Notification.findOneAndUpdate({ _id: notificationId, recipient: userId }, { isRead: true }, { new: true });
+        }
+        catch (error) {
+            console.error('Error in markAsRead:', error);
+            logger_1.logger.error('Error marking notification as read:', error);
+        }
+    }
+    async markAllAsRead(userId) {
+        console.log('Entering markAllAsRead with userId:', userId);
+        try {
+            return Notification_1.Notification.updateMany({ recipient: userId, isRead: false }, { isRead: true });
+        }
+        catch (error) {
+            console.error('Error in markAllAsRead:', error);
+            logger_1.logger.error('Error marking all notifications as read:', error);
+        }
+    }
+    async archiveNotification(notificationId, userId) {
+        console.log('Entering archiveNotification with notificationId and userId:', notificationId, userId);
+        try {
+            return Notification_1.Notification.findOneAndUpdate({ _id: notificationId, recipient: userId }, { isArchived: true }, { new: true });
+        }
+        catch (error) {
+            console.error('Error in archiveNotification:', error);
+            logger_1.logger.error('Error archiving notification:', error);
+        }
+    }
+    async deleteNotification(notificationId, userId) {
+        console.log('Entering deleteNotification with notificationId and userId:', notificationId, userId);
+        try {
+            return Notification_1.Notification.findOneAndDelete({ _id: notificationId, recipient: userId });
+        }
+        catch (error) {
+            console.error('Error in deleteNotification:', error);
+            logger_1.logger.error('Error deleting notification:', error);
+        }
+    }
+    // Helper method to create common notification types
+    async createProfileViewNotification(profileId, viewerId, profileOwnerId) {
+        console.log('Entering createProfileViewNotification with profileId, viewerId, and profileOwnerId:', profileId, viewerId, profileOwnerId);
+        try {
+            const viewer = await User_1.User.findById(viewerId).select('firstName lastName');
+            if (!viewer)
+                return;
+            return this.createNotification({
+                recipient: profileOwnerId,
+                type: 'profile_view',
+                title: 'New Profile View',
+                message: `${viewer.firstName} ${viewer.lastName} viewed your profile`,
+                relatedTo: {
+                    model: 'Profile',
+                    id: profileId,
+                },
+                priority: 'low',
+            });
+        }
+        catch (error) {
+            console.error('Error in createProfileViewNotification:', error);
+            logger_1.logger.error('Error creating profile view notification:', error);
+        }
+    }
+    async createConnectionRequestNotification(requesterId, recipientId) {
+        console.log('Entering createConnectionRequestNotification with requesterId and recipientId:', requesterId, recipientId);
+        try {
+            const requester = await User_1.User.findById(requesterId).select('firstName lastName');
+            if (!requester)
+                return;
+            return this.createNotification({
+                recipient: recipientId,
+                type: 'connection_request',
+                title: 'New Connection Request',
+                message: `${requester.firstName} ${requester.lastName} wants to connect with you`,
+                relatedTo: {
+                    model: 'User',
+                    id: requesterId,
+                },
+                action: {
+                    text: 'View Request',
+                    url: `/connections/requests/${requesterId}`,
+                },
+                priority: 'medium',
+            });
+        }
+        catch (error) {
+            console.error('Error in createConnectionRequestNotification:', error);
+            logger_1.logger.error('Error creating connection request notification:', error);
+        }
+    }
+    async createEndorsementNotification(endorserId, recipientId, skill) {
+        console.log('Entering createEndorsementNotification with endorserId, recipientId, and skill:', endorserId, recipientId, skill);
+        try {
+            const endorser = await User_1.User.findById(endorserId).select('firstName lastName');
+            if (!endorser)
+                return;
+            return this.createNotification({
+                recipient: recipientId,
+                type: 'endorsement_received',
+                title: 'New Skill Endorsement',
+                message: `${endorser.firstName} ${endorser.lastName} endorsed you for ${skill}`,
+                relatedTo: {
+                    model: 'User',
+                    id: endorserId,
+                },
+                priority: 'medium',
+            });
+        }
+        catch (error) {
+            console.error('Error in createEndorsementNotification:', error);
+            logger_1.logger.error('Error creating endorsement notification:', error);
+        }
+    }
+}
+exports.NotificationService = NotificationService;

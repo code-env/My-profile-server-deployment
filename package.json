@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "start": "NODE_NO_WARNINGS=1 node dist/server.js",
-    "dev": "NODE_NO_WARNINGS=1 nodemon src/app.ts",
+    "dev": "NODE_NO_WARNINGS=1 nodemon src/server.ts",
     "build": "tsc",
     "postinstall": "npm run build",
     "lint": "eslint . --ext .ts",
