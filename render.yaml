@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: my-profile-api
+    name: my-profile-server-api
     runtime: node
     buildCommand: npm install && npm run build
     startCommand: npm start
