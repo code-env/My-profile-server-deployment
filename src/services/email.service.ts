@@ -1,0 +1,149 @@
+import nodemailer from "nodemailer";
+import { config } from "../config/config";
+import { logger } from "../utils/logger";
+import fs from 'fs';
+import path from 'path';
+import Handlebars from 'handlebars';
+
+class EmailService {
+  private static transporter = nodemailer.createTransport({
+    service: "gmail",
+    host: config.SMTP_HOST,
+    port: config.SMTP_PORT,
+    secure: false,
+    auth: {
+      user: config.SMTP_USER,
+      pass: config.SMTP_PASSWORD,
+    },
+  });
+
+  private static OTP_EXPIRY_MINUTES = 15;
+
+  // Verify email connection on service initialization
+  static {
+    this.transporter
+      .verify()
+      .then(() => {
+        logger.info("✉️ Email Service Connected Successfully");
+        console.log("✉️ Email Service Connected Successfully");
+      })
+      .catch((error) => {
+        logger.error("❌ Email Service Connection Failed:", error);
+        console.error("❌ Email Service Connection Failed:", error);
+      });
+  }
+
+  private static async loadTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {
+    const templatePath = path.join(__dirname, '../templates', `${templateName}.html`);
+    const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
+    return Handlebars.compile(templateContent);
+  }
+
+  private static async sendEmail(to: string, subject: string, html: string) {
+    try {
+      await this.transporter.sendMail({
+        from: `${config.APP_NAME} <${config.SMTP_FROM}>`,
+        to,
+        subject,
+        html,
+        attachments: [{
+          filename: 'profileblack.png',
+          path: path.join(__dirname, '../../public/profileblack.png'),
+          cid: 'company-logo'
+        }]
+      });
+
+      logger.info(`Email sent successfully to ${to}`);
+    } catch (error) {
+      logger.error("Error sending email:", error);
+      throw error;
+    }
+  }
+
+  public static async sendVerificationEmail(
+    email: string,
+    code: string,
+    deviceInfo?: { ipAddress?: string; userAgent?: string }
+  ): Promise<void> {
+    try {
+      const template = await this.loadTemplate('verification-email');
+
+      // Split the code into individual digits for the template
+      const digits = code.split('');
+
+      const html = template({
+        digits,
+        ipAddress: deviceInfo?.ipAddress || 'Unknown',
+        deviceInfo: deviceInfo?.userAgent || 'Unknown Device',
+        baseUrl: config.BASE_URL || 'http://localhost:3000'
+      });
+
+      await this.sendEmail(
+        email,
+        `Verify Your Device - ${config.APP_NAME}`,
+        html
+      );
+    } catch (error) {
+      logger.error('Failed to send verification email:', error);
+      throw error;
+    }
+  }
+
+  public static async sendPasswordResetEmail(
+    email: string,
+    code: string,
+    deviceInfo?: { ipAddress?: string; userAgent?: string }
+  ): Promise<void> {
+    try {
+      const template = await this.loadTemplate('verification-email');
+
+      const digits = code.split('');
+
+      const html = template({
+        digits,
+        ipAddress: deviceInfo?.ipAddress || 'Unknown',
+        deviceInfo: deviceInfo?.userAgent || 'Unknown Device',
+        baseUrl: config.BASE_URL || 'http://localhost:3000'
+      });
+
+      await this.sendEmail(
+        email,
+        `Reset Your Password - ${config.APP_NAME}`,
+        html
+      );
+    } catch (error) {
+      logger.error('Failed to send password reset email:', error);
+      throw error;
+    }
+  }
+
+  public static async sendTwoFactorAuthEmail(
+    email: string,
+    code: string,
+    deviceInfo?: { ipAddress?: string; userAgent?: string }
+  ): Promise<void> {
+    try {
+      const template = await this.loadTemplate('verification-email');
+
+      const digits = code.split('');
+
+      const html = template({
+        digits,
+        ipAddress: deviceInfo?.ipAddress || 'Unknown',
+        deviceInfo: deviceInfo?.userAgent || 'Unknown Device',
+        baseUrl: config.BASE_URL || 'http://localhost:3000'
+      });
+
+      await this.sendEmail(
+        email,
+        `Two-Factor Authentication - ${config.APP_NAME}`,
+        html
+      );
+    } catch (error) {
+      logger.error('Failed to send 2FA email:', error);
+      throw error;
+    }
+  }
+}
+
+export default EmailService;

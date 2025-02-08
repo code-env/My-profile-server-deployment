@@ -1,0 +1,1 @@
+only superadmin can create a profile, del,update, and del user,block user, and role"user" can create profile but he has more than one profile he becomes admin of those profiles and if a user finish registering he should not be able to login if he has not verify otp "infact do whats best"

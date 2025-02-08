@@ -1,0 +1,444 @@
+{
+  "userExample": {
+    "_id": "507f1f77bcf86cd799439011",
+    "email": "john.doe@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "phoneNumber": "+1234567890",
+    "isEmailVerified": true,
+    "isPhoneVerified": true,
+    "lastLogin": "2024-12-27T22:24:00.000Z",
+    "passwordChangedAt": "2024-11-15T10:00:00.000Z",
+    "failedLoginAttempts": 0,
+    "role": "user",
+    "accountType": "free",
+    "subscription": {
+      "plan": "free",
+      "features": ["basic_profile", "limited_connections"],
+      "limitations": {
+        "maxProfiles": 1,
+        "maxGalleryItems": 10,
+        "maxFollowers": 100
+      },
+      "startDate": "2024-01-01T00:00:00.000Z"
+    },
+    "profileId": "507f1f77bcf86cd799439012",
+    "mpts": 85,
+    "profileImage": "https://example.com/images/profile.jpg",
+    "profiles": ["507f1f77bcf86cd799439012"],
+    "referralCode": "JOHNDOE2024",
+    "referrals": [],
+    "isTwoFactorEnabled": false,
+    "biometricAuth": {
+      "enabled": true,
+      "methods": ["fingerprint", "faceId"],
+      "lastUsed": "2024-12-27T22:00:00.000Z",
+      "devices": ["device1", "device2"]
+    },
+    "social": {
+      "followers": ["507f1f77bcf86cd799439020", "507f1f77bcf86cd799439021"],
+      "following": ["507f1f77bcf86cd799439022", "507f1f77bcf86cd799439023"],
+      "blockedUsers": []
+    },
+    "devices": [
+      {
+        "id": "device1",
+        "name": "iPhone 13 Pro",
+        "type": "smartphone",
+        "lastActive": "2024-12-27T23:00:00.000Z",
+        "biometricEnabled": true,
+        "trusted": true,
+        "pushToken": "fcm-token-1"
+      },
+      {
+        "id": "device2",
+        "name": "MacBook Pro",
+        "type": "laptop",
+        "lastActive": "2024-12-27T20:00:00.000Z",
+        "biometricEnabled": false,
+        "trusted": true,
+        "pushToken": "fcm-token-2"
+      }
+    ],
+    "notifications": {
+      "email": true,
+      "push": true,
+      "sms": false,
+      "marketing": false
+    }
+  },
+  "profileExample": {
+    "_id": "507f1f77bcf86cd799439012",
+    "name": "John's Professional Profile",
+    "description": "Software Engineer & Tech Consultant",
+    "profileType": "professional",
+    "owner": "507f1f77bcf86cd799439011",
+    "managers": [],
+    "claimed": true,
+    "profileImage": "https://example.com/images/professional.jpg",
+    "coverImage": "https://example.com/images/cover.jpg",
+    "connectLink": "myprofile.ltd/johndoe",
+    "verificationStatus": {
+      "isVerified": true,
+      "badge": "blue_tick",
+      "verifiedAt": "2024-11-01T10:00:00.000Z"
+    },
+    "kycVerification": {
+      "status": "verified",
+      "submittedAt": "2024-10-15T14:30:00.000Z",
+      "verifiedAt": "2024-10-20T09:15:00.000Z",
+      "expiresAt": "2025-10-20T09:15:00.000Z",
+      "documents": [
+        {
+          "type": "government_id",
+          "subType": "passport",
+          "documentNumber": "XXXXX1234",
+          "issuingCountry": "USA",
+          "documentUrl": "https://secure-storage.myprofile.ltd/docs/id-1",
+          "status": "verified",
+          "submittedAt": "2024-10-15T14:30:00.000Z",
+          "verifiedAt": "2024-10-20T09:15:00.000Z"
+        },
+        {
+          "type": "proof_of_address",
+          "subType": "utility_bill",
+          "documentUrl": "https://secure-storage.myprofile.ltd/docs/address-1",
+          "status": "verified",
+          "submittedAt": "2024-10-15T14:30:00.000Z",
+          "verifiedAt": "2024-10-20T09:15:00.000Z"
+        }
+      ],
+      "verificationLevel": "full",
+      "rejectionReason": null
+    },
+    "linkedDevices": [
+      {
+        "deviceId": "device1",
+        "permissions": ["view", "edit", "share"],
+        "addedAt": "2024-01-15T08:00:00.000Z",
+        "healthMetrics": {
+          "enabled": true,
+          "syncFrequency": "realtime",
+          "lastSync": "2024-12-27T23:00:00.000Z",
+          "metrics": ["steps", "heart_rate", "sleep"]
+        }
+      }
+    ],
+    "galleries": [
+      {
+        "name": "Portfolio",
+        "description": "My recent projects",
+        "coverImage": "https://example.com/images/portfolio-cover.jpg",
+        "isPublic": true,
+        "items": [
+          {
+            "type": "image",
+            "url": "https://example.com/images/project1.jpg",
+            "thumbnail": "https://example.com/images/project1-thumb.jpg",
+            "title": "Project Alpha",
+            "description": "Full-stack web application",
+            "metadata": {
+              "tech": ["React", "Node.js", "MongoDB"],
+              "year": 2024
+            },
+            "uploadedAt": "2024-12-01T15:30:00.000Z"
+          }
+        ]
+      }
+    ],
+    "contact": {
+      "email": "john.professional@example.com",
+      "phone": "+1234567890",
+      "address": {
+        "street": "123 Tech Street",
+        "city": "San Francisco",
+        "country": "USA",
+        "verified": true,
+        "verifiedAt": "2024-10-20T09:15:00.000Z"
+      },
+      "socialLinks": {
+        "linkedin": "linkedin.com/in/johndoe",
+        "github": "github.com/johndoe",
+        "twitter": "twitter.com/johndoe"
+      }
+    },
+    "skills": [
+      {
+        "name": "Full-stack Development",
+        "level": "expert",
+        "endorsements": 15
+      },
+      {
+        "name": "Cloud Architecture",
+        "level": "intermediate",
+        "endorsements": 8
+      }
+    ],
+    "availability": {
+      "status": "available",
+      "bookingLink": "calendly.com/johndoe",
+      "workHours": {
+        "monday": ["09:00-17:00"],
+        "tuesday": ["09:00-17:00"],
+        "wednesday": ["09:00-17:00"],
+        "thursday": ["09:00-17:00"],
+        "friday": ["09:00-15:00"]
+      }
+    },
+    "analytics": {
+      "views": 1250,
+      "connections": 45,
+      "engagement": 0.75
+    },
+    "security": {
+      "twoFactorRequired": true,
+      "ipWhitelist": ["192.168.1.1"],
+      "lastSecurityAudit": "2024-12-01T00:00:00.000Z"
+    }
+  }
+}
+
+
+{
+  "id": "1234567890abcdef12345678",
+  "name": "John Doe",
+  "description": "A brief description about John.",
+  "profileType": "personal",
+  "owner": "507f1f77bcf86cd799439011",
+  "managers": ["507f1f77bcf86cd799439012"],
+  "claimed": true,
+  "claimedBy": "507f1f77bcf86cd799439013",
+  "profileImage": "https://example.com/images/profile.jpg",
+  "coverImage": "https://example.com/images/cover.jpg",
+  "qrCode": "https://example.com/qrcode.png",
+  "connectLink": "https://example.com/connect/johndoe",
+  "verificationStatus": {
+    "isVerified": true,
+    "badge": "gold_tick",
+    "verifiedAt": "2024-12-27T23:50:00Z"
+  },
+  "kycVerification": {
+    "status": "verified",
+    "submittedAt": "2024-12-01T10:00:00Z",
+    "documents": [
+      {
+        "type": "government_id",
+        "subType": "passport",
+        "documentNumber": "A12345678",
+        "issuingCountry": "USA",
+        "documentUrl": "https://example.com/documents/passport.jpg",
+        "status": "verified",
+        "submittedAt": "2024-12-01T10:00:00Z",
+        "verifiedAt": "2024-12-02T10:00:00Z"
+      }
+    ]
+  },
+  "linkedDevices": [
+    {
+      "deviceId": "device123",
+      "permissions": ["view", "edit"],
+      "addedAt": "2024-12-20T10:00:00Z"
+    }
+  ],
+  "galleries": [
+    {
+      "name": "Vacation Photos",
+      "description": "Photos from my vacation.",
+      "coverImage": "https://example.com/images/gallery_cover.jpg",
+      "isPublic": true,
+      "items": [
+        {
+          "type": "image",
+          "url": "https://example.com/images/vacation1.jpg",
+          "thumbnail": "https://example.com/images/vacation1_thumb.jpg",
+          "title": "Beach Sunset",
+          "description": "A beautiful sunset at the beach.",
+          "metadata": {
+            "location": "Hawaii",
+            "camera": "Canon EOS 90D"
+          },
+          "uploadedAt": "2024-12-21T10:00:00Z"
+        }
+      ]
+    }
+  ],
+  "contact": {
+    "email": "johndoe@example.com",
+    "phone": "+1234567890",
+    "address": {
+      "street": "123 Main St",
+      "city": "Anytown",
+      "country": "USA",
+      "verified": true,
+      "verifiedAt": "2024-12-01T10:00:00Z"
+    },
+    "socialLinks": {
+      "website": "https://johndoe.com",
+      "facebook": "https://facebook.com/johndoe",
+      "twitter": "https://twitter.com/johndoe"
+    }
+  },
+  "skills": [
+    {
+      "name": "JavaScript",
+      "level": "expert",
+      "endorsements": 5
+    },
+    {
+      "name": "TypeScript",
+      "level": "intermediate",
+      "endorsements": 2
+    }
+  ],
+  "availability": {
+    "status": "available",
+    "bookingLink": "https://example.com/book/johndoe",
+    "workHours": {
+      "Monday": ["09:00", "17:00"],
+      "Tuesday": ["09:00", "17:00"]
+    }
+  },
+  "analytics": {
+    "views": 1000,
+    "connections": 500,
+    "engagement": 250
+  }
+}
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzZmM2Y1MWEyMmU0M2QwNThlODI1ZmQiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNzM1MzQzOTUzLCJleHAiOjE3MzUzNDQ4NTN9.K9AsObfJTtL0kT8JzLiFR3nd-ejSnxHuCDnQiFSAwDY
+
+{
+  "success": true,
+  "user": {
+    "verificationData": {
+      "attempts": 0
+    },
+    "subscription": {
+      "limitations": {
+        "maxProfiles": 1,
+        "maxGalleryItems": 10,
+        "maxFollowers": 100
+      },
+      "plan": "free",
+      "features": [],
+      "startDate": "2024-12-28T09:18:11.702Z"
+    },
+    "biometricAuth": {
+      "enabled": false,
+      "methods": [],
+      "devices": []
+    },
+    "notifications": {
+      "email": true,
+      "marketing": false,
+      "push": true,
+      "sms": false
+    },
+    "social": {
+      "followers": [],
+      "following": [],
+      "blockedUsers": []
+    },
+    "otpData": {
+      "attempts": 0
+    },
+    "referralRewards": {
+      "earnedPoints": 0,
+      "pendingPoints": 0,
+      "totalReferrals": 0,
+      "successfulReferrals": 0,
+      "referralHistory": []
+    },
+    "_id": "676fc253f8f390fd2f6cda21",
+    "email": "test@example.com",
+    "password": "$2a$10$cYTEx8wNQ9BUIn8OV/EfMeR2Fb1vTXDImOstV4TLaPFjbifieSOuG",
+    "fullName": "John Doe",
+    "username": "johndoe_123",
+    "dateOfBirth": "1990-01-01T00:00:00.000Z",
+    "countryOfResidence": "United States",
+    "phoneNumber": "+12345678901",
+    "accountType": "MYSELF",
+    "accountCategory": "PRIMARY_ACCOUNT",
+    "verificationMethod": "PHONE",
+    "isEmailVerified": false,
+    "isPhoneVerified": true,
+    "refreshTokens": [
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzZmYzI1M2Y4ZjM5MGZkMmY2Y2RhMjEiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJpYXQiOjE3MzUzNzc0OTIsImV4cCI6MTczNTk4MjI5Mn0.7XU7zTPnKSoljKOCOHUsmHU-ak7Ke-wxbKHOCkx0oEE"
+    ],
+    "lastLogin": "2024-12-28T09:18:11.684Z",
+    "failedLoginAttempts": 0,
+    "lockUntil": "2024-12-28T10:18:11.684Z",
+    "role": "user",
+    "mpts": 0,
+    "profiles": [],
+    "referrals": [],
+    "isTwoFactorEnabled": false,
+    "devices": [],
+    "createdAt": "2024-12-28T09:18:11.715Z",
+    "updatedAt": "2024-12-28T09:20:14.735Z",
+    "__v": 1
+  }
+}
+
+
+{
+  "bio": "A passionate professional",
+  "skills": ["JavaScript", "TypeScript", "Node.js"],
+  "education": [{
+    "institution": "University Name",
+    "degree": "Bachelor's in Computer Science",
+    "graduationYear": 2020
+  }],
+  "experience": [{
+    "company": "Company Name",
+    "position": "Software Developer",
+    "startDate": "2020-01-01",
+    "endDate": "2023-12-28",
+    "current": false
+  }],
+  "socialLinks": {
+    "linkedin": "https://linkedin.com/in/johndoe",
+    "github": "https://github.com/johndoe"
+  }
+}
+
+{
+  "refreshToken": "your_refresh_token_here"
+}
+
+{
+  "email": "test@example.com",
+  "password": "SecurePass123!"
+}
+
+
+
+POST /api/connections/request
+{
+  "toProfileId": "67708aa2191648914dfa79c7",
+  "connectionType": "follow",
+  "message": "I'd like to connect with you",
+  "metadata": {
+    "source": "profile_search"
+  }
+}
+
+
+PUT /api/connections/{connectionId}/status
+{
+  "status": "accepted"  // or "rejected"
+}
+
+
+GET /api/connections/pending
+
+
+GET /api/connections/stats
+
+
+DELETE /api/connections/{connectionId}
+
+
+GET /api/connections/suggestions
+
+GET /api/connections/my-connections
