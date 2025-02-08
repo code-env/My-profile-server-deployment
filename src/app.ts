@@ -133,7 +133,7 @@ app.use(cookieParser(config.COOKIE_SECRET));
 // Simple health check that returns OK status and timestamp
 // @route GET /health
 // @returns {Object} 200 - Basic health status
-app.get("/health", (req, res) => {
+app.get("/health", (req: express.Request, res: express.Response) => {
   res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
@@ -142,7 +142,7 @@ app.get("/health", (req, res) => {
 // @route GET /health/detailed
 // @returns {Object} 200 - Detailed system health information
 // @returns {Object} 500 - Server error
-app.get("/health/detailed", async (req, res) => {
+app.get("/health/detailed", async (req: express.Request, res: express.Response) => {
   try {
     const dbStatus =
       mongoose.connection.readyState === 1 ? "connected" : "disconnected";
@@ -294,13 +294,13 @@ mongoose
           });
 
           // Log HTTP/2 connection events
-          http2Server.on("session", (session) => {
+          http2Server.on("session", (session: any) => { // TODO: Define proper type when spdy types are updated
             logger.debug(
               `New HTTP/2 session established from ${session.socket.remoteAddress}`
             );
           });
 
-          http2Server.on("error", (err) => {
+          http2Server.on("error", (err: Error) => {
             logger.error("HTTP/2 server error:", err);
           });
         } else {
@@ -315,7 +315,7 @@ mongoose
           });
 
           // Log TLS connection events
-          httpsServer.on("secureConnection", (tlsSocket) => {
+          httpsServer.on("secureConnection", (tlsSocket: import('tls').TLSSocket) => {
             logger.debug(
               `New TLS connection established from ${tlsSocket.remoteAddress}`
             );
@@ -323,7 +323,7 @@ mongoose
             logger.debug(`Cipher: ${tlsSocket.getCipher().name}`);
           });
 
-          httpsServer.on("error", (err) => {
+          httpsServer.on("error", (err: Error) => {
             logger.error("HTTPS server error:", err);
           });
         }
@@ -344,7 +344,7 @@ mongoose
           );
 
           // Redirect all HTTP traffic to HTTPS
-          httpApp.use((req, res) => {
+          httpApp.use((req: express.Request, res: express.Response) => {
             logger.debug(`Redirecting HTTP request from ${req.ip} to HTTPS`);
             res.redirect(`https://${req.hostname}${req.url}`);
           });

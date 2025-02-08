@@ -65,6 +65,7 @@
     "@types/express-validator": "^3.0.2",
     "@types/geoip-lite": "^1.4.4",
     "@types/handlebars": "^4.0.40",
+    "@types/http-errors": "^2.0.4",
     "@types/ioredis": "^4.28.10",
     "@types/jest": "^29.5.11",
     "@types/jsonwebtoken": "^9.0.5",

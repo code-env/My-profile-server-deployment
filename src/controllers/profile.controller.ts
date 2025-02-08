@@ -28,7 +28,7 @@ const profileService = new ProfileService();
 export const createProfile = asyncHandler(async (req: Request, res: Response) => {
   try {
     const user = req.user as any;
-    
+
     // Check user's subscription limits
     const userDoc = await User.findById(user._id).populate('profiles');
     if (!userDoc) {
@@ -39,16 +39,16 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
       throw createHttpError(400, 'Profile limit reached for your subscription');
     }
 
-    const { 
-      name, 
-      description, 
-      profileType, 
+    const {
+      name,
+      description,
+      profileType,
       personalInfo,
       contactInfo,
       socialInfo,
       professionalInfo,
       settings,
-      forClaim 
+      forClaim
     } = req.body;
 
     // Validate required fields
@@ -106,7 +106,7 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
     });
   } catch (error) {
     logger.error('Profile creation error:', error);
-    
+
     // More detailed error handling
     if (error instanceof mongoose.Error.ValidationError) {
       const errorMessages = Object.values(error.errors).map(err => err.message);
@@ -116,9 +116,9 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
         errors: errorMessages
       });
     } else if (createHttpError.isHttpError(error)) {
-      res.status(error.status).json({
+      res.status((error as createHttpError.HttpError).status).json({
         success: false,
-        message: error.message
+        message: (error as createHttpError.HttpError).message
       });
     } else {
       res.status(500).json({
@@ -148,7 +148,7 @@ const generateSecureClaimPhrase = (): string => {
     'cat', 'dog', 'bird', 'fish', 'rabbit', 'horse',
     'sun', 'moon', 'star', 'cloud', 'rain', 'snow'
   ];
-  const selectedWords = Array.from({ length: 6 }, () => 
+  const selectedWords = Array.from({ length: 6 }, () =>
     words[Math.floor(Math.random() * words.length)]
   );
   return selectedWords.join('-');
@@ -169,7 +169,7 @@ export const createClaimableProfile = asyncHandler(async (req: Request, res: Res
 
     // Generate a unique claim phrase
     const claimPhrase = generateSecureClaimPhrase();
-    
+
     // Set claim expiration (48 hours from creation)
     const claimExpiresAt = new Date();
     claimExpiresAt.setHours(claimExpiresAt.getHours() + 48);
@@ -199,7 +199,7 @@ export const createClaimableProfile = asyncHandler(async (req: Request, res: Res
     });
 
     logger.info(`Claimable profile created: ${profile._id} by user: ${user._id}`);
-    
+
     // Return the claim phrase securely
     res.status(201).json({
       success: true,
@@ -230,7 +230,7 @@ export const claimProfile = asyncHandler(async (req: Request, res: Response) => 
     }
 
     // Find the profile with the given claim phrase
-    const profile = await ProfileModel.findOne({ 
+    const profile = await ProfileModel.findOne({
       claimPhrase,
       claimed: false,
       claimExpiresAt: { $gt: new Date() } // Check if claim hasn't expired
@@ -349,7 +349,7 @@ export const getProfileInfo = asyncHandler(async (req: Request, res: Response) =
 
     // Find profile with detailed logging
     const profile = await ProfileModel.findById(id);
-    
+
     if (!profile) {
       logger.warn(`Profile not found: ${id}`);
       throw createHttpError(404, 'Profile not found');
@@ -374,7 +374,7 @@ export const getProfileInfo = asyncHandler(async (req: Request, res: Response) =
     });
   } catch (error) {
     logger.error('Profile retrieval error:', error);
-    
+
     // More detailed error response
     if (error instanceof mongoose.Error.CastError) {
       res.status(400).json({
@@ -576,7 +576,7 @@ export const addProfileManager = asyncHandler(async (req: Request, res: Response
 export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    
+
     // Delete user and their profiles
     await ProfileModel.deleteMany({ owner: userId });
     await User.findByIdAndDelete(userId);
@@ -600,8 +600,8 @@ export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
 export const blockUser = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    
-    const user = await User.findByIdAndUpdate(userId, 
+
+    const user = await User.findByIdAndUpdate(userId,
       { isBlocked: true },
       { new: true }
     );
@@ -629,8 +629,8 @@ export const blockUser = asyncHandler(async (req: Request, res: Response) => {
 export const unblockUser = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    
-    const user = await User.findByIdAndUpdate(userId, 
+
+    const user = await User.findByIdAndUpdate(userId,
       { isBlocked: false },
       { new: true }
     );
@@ -773,10 +773,10 @@ export const updateProfileVisibility = asyncHandler(async (req: Request, res: Re
   profile.settings.visibility = visibility;
   await profile.save();
 
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: `Profile visibility updated to ${visibility}`,
-    profile 
+    profile
   });
 });
 
@@ -812,12 +812,12 @@ export const updateProfileSettings = asyncHandler(async (req: Request, res: Resp
     ...profile.settings,
     ...settings
   };
-  
+
   await profile.save();
 
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: 'Profile settings updated successfully',
-    profile 
+    profile
   });
 });

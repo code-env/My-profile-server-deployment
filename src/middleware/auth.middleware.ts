@@ -5,10 +5,12 @@ import { TokenPayload } from '../types/auth.types';
 import { IUser, User } from '../models/User';
 import { logger } from '../utils/logger';
 
+
+
 declare global {
   namespace Express {
     interface Request {
-      user?: User ;
+      user?: User;
       token?: string;
     }
   }
@@ -57,13 +59,13 @@ export const protect = async (
   } catch (error: unknown) {
   if (error instanceof jwt.JsonWebTokenError) {
     logger.warn('Invalid token:', error.message);
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid authentication token'
-      });
-    }
+    return res.status(401).json({
+      status: 'error',
+      message: 'Invalid authentication token'
+    });
+  }
 
-    logger.error('Authentication error:', error);
+  logger.error('Authentication error:', error instanceof Error ? error.message : 'Unknown error');
     return res.status(500).json({
       status: 'error',
       message: 'Internal server error during authentication'

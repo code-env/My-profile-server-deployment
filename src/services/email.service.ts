@@ -27,7 +27,7 @@ class EmailService {
         logger.info("✉️ Email Service Connected Successfully");
         console.log("✉️ Email Service Connected Successfully");
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         logger.error("❌ Email Service Connection Failed:", error);
         console.error("❌ Email Service Connection Failed:", error);
       });
@@ -54,9 +54,9 @@ class EmailService {
       });
 
       logger.info(`Email sent successfully to ${to}`);
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error("Error sending email:", error);
-      throw error;
+      throw new Error(error instanceof Error ? error.message : 'Failed to send email');
     }
   }
 
@@ -83,9 +83,9 @@ class EmailService {
         `Verify Your Device - ${config.APP_NAME}`,
         html
       );
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to send verification email:', error);
-      throw error;
+      throw new Error(error instanceof Error ? error.message : 'Failed to send verification email');
     }
   }
 
@@ -111,9 +111,9 @@ class EmailService {
         `Reset Your Password - ${config.APP_NAME}`,
         html
       );
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to send password reset email:', error);
-      throw error;
+      throw new Error(error instanceof Error ? error.message : 'Failed to send password reset email');
     }
   }
 
@@ -139,9 +139,9 @@ class EmailService {
         `Two-Factor Authentication - ${config.APP_NAME}`,
         html
       );
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to send 2FA email:', error);
-      throw error;
+      throw new Error(error instanceof Error ? error.message : 'Failed to send 2FA email');
     }
   }
 }
