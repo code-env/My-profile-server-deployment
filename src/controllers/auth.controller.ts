@@ -1,49 +1,59 @@
 /**
- * @file auth.controller.ts
- * @description Authentication Controller for My Profile Platform
- * ==========================================================
+ * @fileoverview Authentication controller for the My Profile platform.
+ * Implements authentication and authorization endpoints following OAuth 2.0 principles
+ * and industry security best practices.
  *
- * Handles authentication and authorization operations for the platform,
- * providing secure user management and session control features.
+ * @package myprofile
+ * @module auth
  *
- * Features:
- * - User registration with validation
- * - Multi-factor authentication
- * - Session management
- * - Token-based authentication
- * - Password reset and recovery
+ * This controller handles all authentication-related operations including:
+ * - User registration and verification
+ * - Login and session management
+ * - Password reset flows
+ * - Two-factor authentication (2FA)
  * - Social authentication
- * - Device tracking
- * - Secure logout handling
+ * - Token management (access/refresh)
+ * - Session tracking and security
  *
- * Technical Implementation:
- * - Express.js controller patterns
- * - JWT token management
- * - HTTP-only cookies
- * - Zod schema validation
- * - TypeScript type safety
- * - MongoDB with Mongoose
- *
- * Security Features:
- * - Rate limiting
- * - IP tracking
- * - Device fingerprinting
- * - Secure session management
- * - OTP verification
- * - 2FA support
+ * Core Security Features:
+ * - Rate limiting on sensitive endpoints
+ * - IP and device tracking
  * - Brute force prevention
+ * - Session invalidation
+ * - Token rotation
+ * - Activity logging
  *
- * @version 1.0.0
- * @license MIT
- * @author Marco Blaise
+ * Key Dependencies:
+ * - auth.service.ts: Core authentication logic
+ * - email.service.ts: Email notifications
+ * - twoFactor.service.ts: 2FA implementation
+ * - whatsapp.service.ts: OTP via WhatsApp
  *
- * For detailed API documentation, see API.md
- * For security guidelines, see SECURITY.md
+ * Architecture:
+ * - Follows Controller-Service pattern
+ * - Implements stateless authentication
+ * - Uses JWT for token-based auth
+ * - Supports multiple 2FA methods
+ *
+ * Error Handling:
+ * - Comprehensive error logging
+ * - Secure error responses
+ * - Rate limit monitoring
+ * - Failed attempt tracking
+ *
+ * Performance Considerations:
+ * - Connection pooling
+ * - Response caching where appropriate
+ * - Asynchronous operations
+ * - Optimized token validation
+ *
+ * @see {@link https://tools.ietf.org/html/rfc6749} OAuth 2.0 Spec
+ * @see {@link https://tools.ietf.org/html/rfc7519} JWT Spec
+ * @see {@link https://cloud.google.com/apis/design/errors} Google API Design Guide
  */
 
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import jwt from "jsonwebtoken";
 import { logger } from "../utils/logger";
 import { CustomError } from "../utils/errors";
 import { User } from "../models/User";
@@ -54,11 +64,100 @@ import TwoFactorService from "../services/twoFactor.service";
 import {
   registerSchema,
   loginSchema,
-  otpVerificationSchema,
 } from "../types/auth.types";
 import WhatsAppService from "../services/whatsapp.service";
 import { getRequestInfo } from "../utils/requestInfo";
 
+/**
+ * Core user interface defining essential user properties.
+ * Used throughout the authentication flow for type safety and
+ * data consistency.
+ *
+ * @interface User
+ * @property {string} id - Unique user identifier
+ * @property {string} email - User's email address
+ * @property {string} fullName - User's full name
+ * @property {string} username - User's chosen username
+ *
+ * Usage:
+ * ```typescript
+ * const user: User = {
+ *   id: '123',
+ *   email: 'user@example.com',
+ *   fullName: 'John Doe',
+ *   username: 'johndoe'
+ * };
+ * ```
+ */
+interface User {
+  id: string;
+  email: string;
+  fullName: string;
+  username: string;
+}
+
+/**
+ * Extends Express Request to include authenticated user data.
+ * This modification enables TypeScript to recognize the user object
+ * that gets attached to requests by authentication middleware.
+ *
+ * @namespace Express
+ * @interface Request
+ * @property {User} [user] - Authenticated user data
+ *
+ * Usage:
+ * ```typescript
+ * app.get('/profile', (req: Request, res: Response) => {
+ *   const user = req.user; // TypeScript knows this exists
+ * });
+ * ```
+ */
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User;
+    }
+  }
+}
+
+/**
+ * Authentication Controller Class
+ *
+ * Implements comprehensive authentication and authorization functionality
+ * following security best practices and OAuth 2.0 principles.
+ *
+ * Core Features:
+ * - User registration with validation
+ * - Multi-factor authentication
+ * - Secure session management
+ * - Password reset flows
+ * - Social authentication
+ * - Token-based authentication
+ * - Security monitoring
+ *
+ * Security Measures:
+ * - Rate limiting on sensitive endpoints
+ * - IP and device tracking
+ * - Brute force prevention
+ * - Session invalidation
+ * - Token rotation
+ * - Activity logging
+ *
+ * Implementation Notes:
+ * 1. All passwords are hashed using bcrypt
+ * 2. Tokens are signed with RS256
+ * 3. Sessions tracked with device info
+ * 4. All operations are logged
+ * 5. Errors handled securely
+ *
+ * Example Usage:
+ * ```typescript
+ * // In routes/auth.routes.ts
+ * router.post('/register', AuthController.register);
+ * router.post('/login', AuthController.login);
+ * router.post('/logout', AuthController.logout);
+ * ```
+ */
 
 // Define a User type with the required properties
 interface User {
