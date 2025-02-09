@@ -64,6 +64,8 @@ class WhatsAppService {
           headless: true,
           executablePath: process.env.CHROME_PATH || defaultChromePath,
           args: [
+            '--single-process', // Reduces resource usage
+            '--no-zygote',     // Disables zygote process
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
