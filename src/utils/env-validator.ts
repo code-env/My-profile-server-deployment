@@ -1,11 +1,64 @@
+/**
+ * @file env-validator.ts
+ * @description Environment Configuration Validation System
+ * ===================================================
+ *
+ * Advanced environment variable validation and type checking system.
+ * Ensures application configuration integrity through strict validation
+ * of required and optional environment variables.
+ *
+ * Key Features:
+ * ------------
+ * - Type-safe environment validation
+ * - Required vs optional variable handling
+ * - SSL configuration validation
+ * - Secure credential masking
+ * - Development mode debugging
+ *
+ * Variable Categories:
+ * -----------------
+ * 1. Required Core Variables
+ *    - Runtime configuration (NODE_ENV, PORT)
+ *    - Database connection (MONGODB_URI)
+ *    - Security tokens (JWT_SECRET, COOKIE_SECRET)
+ *    - Application URLs (CLIENT_URL)
+ *
+ * 2. Optional SSL Configuration
+ *    - SSL_ENABLED
+ *    - SSL_KEY_PATH
+ *    - SSL_CERT_PATH
+ *    - SSL_CHAIN_PATH
+ *    - ENABLE_HTTP2
+ *
+ * 3. Feature Flags
+ *    - WHATSAPP_ENABLED
+ *
+ * Security Considerations:
+ * ----------------------
+ * - Sensitive values are masked in logs
+ * - SSL configuration is validated as a unit
+ * - Type coercion prevention
+ *
+ * @version 1.0.0
+ * @license MIT
+ */
+
 import { logger } from './logger';
 
+/**
+ * @interface EnvVariable
+ * @description Defines the structure for environment variable validation
+ */
 interface EnvVariable {
   name: string;
   required: boolean;
   type: 'string' | 'number' | 'boolean';
 }
 
+/**
+ * Core required environment variables
+ * Critical for application functionality
+ */
 const requiredEnvVars: EnvVariable[] = [
   { name: 'NODE_ENV', required: true, type: 'string' },
   { name: 'PORT', required: true, type: 'number' },
@@ -15,6 +68,18 @@ const requiredEnvVars: EnvVariable[] = [
   { name: 'CLIENT_URL', required: true, type: 'string' },
 ];
 
+/**
+ * WhatsApp integration configuration
+ * Optional feature flag with development fallback
+ */
+const whatsappEnvVars: EnvVariable[] = [
+  { name: 'WHATSAPP_ENABLED', required: false, type: 'boolean' },
+];
+
+/**
+ * Optional SSL and HTTP/2 configuration
+ * Used for production deployments
+ */
 const optionalEnvVars: EnvVariable[] = [
   { name: 'SSL_ENABLED', required: false, type: 'boolean' },
   { name: 'SSL_KEY_PATH', required: false, type: 'string' },
@@ -26,6 +91,21 @@ const optionalEnvVars: EnvVariable[] = [
 /**
  * Validates environment variables and their types
  * @throws {Error} If required environment variables are missing or of wrong type
+ *
+ * Validation Process:
+ * 1. Checks presence of required variables
+ * 2. Validates variable types
+ * 3. Verifies SSL configuration completeness
+ * 4. Logs environment status (development only)
+ *
+ * @example
+ * try {
+ *   validateEnv();
+ *   console.log('Environment validation passed');
+ * } catch (error) {
+ *   console.error('Environment validation failed:', error.message);
+ *   process.exit(1);
+ * }
  */
 export const validateEnv = (): void => {
   const errors: string[] = [];
@@ -64,9 +144,14 @@ export const validateEnv = (): void => {
     });
   }
 
+  // Validate optional WhatsApp configuration
+  if (process.env.WHATSAPP_ENABLED === 'true') {
+    logger.info('WhatsApp service is enabled');
+  }
+
   // Log all environment variables in development
   if (process.env.NODE_ENV === 'development') {
-    const envVars = [...requiredEnvVars, ...optionalEnvVars]
+    const envVars = [...requiredEnvVars, ...optionalEnvVars, ...whatsappEnvVars]
       .map(({ name }) => ({
         name,
         set: Boolean(process.env[name]),

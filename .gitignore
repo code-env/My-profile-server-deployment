@@ -16,6 +16,7 @@ tmp/
 
 
 *.session
+saved/
 *.session-journal
 .env
 backup_before_revert/

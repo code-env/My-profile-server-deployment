@@ -56,15 +56,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppServer = void 0;
 const express_1 = __importDefault(require("express"));
-const https_1 = require("https");
 const mongoose_1 = __importDefault(require("mongoose"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const compression_1 = __importDefault(require("compression"));
-const fs_1 = __importDefault(require("fs"));
-const crypto_1 = __importDefault(require("crypto"));
-const spdy_1 = __importDefault(require("spdy"));
 const chalk_1 = __importDefault(require("chalk"));
 // Internal imports
 const config_1 = require("./config/config");
@@ -294,14 +290,8 @@ class AppServer {
             await whatsapp_service_1.default.initialize().catch((error) => {
                 log.warn('WhatsApp service initialization failed: ' + error.message);
             });
-            if (process.env.SSL_ENABLED === 'true') {
-                log.info('SSL Mode: Enabled');
-                await this.startSecureServer();
-            }
-            else {
-                log.warn('SSL Mode: Disabled (not recommended for production)');
-                await this.startHttpServer();
-            }
+            // Always use HTTP server as Render handles SSL/HTTPS
+            await this.startHttpServer();
             console.log('\n' + chalk_1.default.black(chalk_1.default.bgGreen(' SERVER READY ')));
             log.success(`API Server running on port ${config_1.config.PORT}`);
             log.info('Press CTRL+C to stop the server');
@@ -309,59 +299,6 @@ class AppServer {
         catch (error) {
             logger_1.logger.error('Server startup failed:', error);
             process.exit(1);
-        }
-    }
-    /**
-     * @private
-     * @method startSecureServer
-     * @description Initializes and starts HTTPS server with SSL/TLS support.
-     *
-     * Features:
-     * - HTTPS with modern TLS configuration
-     * - HTTP/2 support (optional)
-     * - Strong cipher suite selection
-     * - HSTS implementation
-     *
-     * @returns {Promise<void>} Resolves when secure server is started
-     * @throws {Error} If server fails to start or SSL configuration is invalid
-     *
-     * @security Critical for production environments.
-     * Ensures secure communication channel for all client-server interactions.
-     */
-    async startSecureServer() {
-        try {
-            const credentials = {
-                key: fs_1.default.readFileSync(process.env.SSL_KEY_PATH, 'utf8'),
-                cert: fs_1.default.readFileSync(process.env.SSL_CERT_PATH, 'utf8'),
-                ca: fs_1.default.readFileSync(process.env.SSL_CHAIN_PATH, 'utf8'),
-                secureOptions: crypto_1.default.constants.SSL_OP_NO_TLSv1 | crypto_1.default.constants.SSL_OP_NO_TLSv1_1,
-            };
-            if (process.env.ENABLE_HTTP2 === 'true') {
-                this.server = spdy_1.default.createServer(credentials, this.app);
-            }
-            else {
-                this.server = (0, https_1.createServer)(credentials, this.app);
-            }
-            await new Promise((resolve, reject) => {
-                this.server.listen(config_1.config.PORT, () => {
-                    const { log } = require('./utils/console-art');
-                    console.log('\n' + chalk_1.default.black(chalk_1.default.bgCyan(' SECURE SERVER ')));
-                    log.success(`🚀 Server running on port ${config_1.config.PORT}`);
-                    log.info('Security features enabled:');
-                    console.log(chalk_1.default.green('✓') + ' TLS 1.2+ only');
-                    console.log(chalk_1.default.green('✓') + ' Strong cipher suite');
-                    console.log(chalk_1.default.green('✓') + ' HSTS enabled');
-                    console.log(chalk_1.default.green('✓') + ' Strict CSP policies');
-                    if (process.env.ENABLE_HTTP2 === 'true') {
-                        console.log(chalk_1.default.green('✓') + ' HTTP/2 support');
-                    }
-                    resolve();
-                }).on('error', reject);
-            });
-        }
-        catch (error) {
-            logger_1.logger.error('Failed to start secure server:', error);
-            throw error;
         }
     }
     /**
@@ -411,42 +348,20 @@ class AppServer {
         }
     }
     async startHttpServer() {
-        if (process.env.NODE_ENV === 'production') {
-            throw new Error('HTTP server not allowed in production');
-        }
-        const tryPort = async (portNumber) => {
-            try {
-                await new Promise((resolve, reject) => {
-                    const server = this.app.listen(portNumber)
-                        .on('error', (err) => {
-                        if (err.code === 'EADDRINUSE') {
-                            logger_1.logger.warn(`Port ${portNumber} is in use, trying ${portNumber + 1}...`);
-                            server.close();
-                            tryPort(portNumber + 1).then(resolve).catch(reject);
-                        }
-                        else {
-                            reject(err);
-                        }
-                    })
-                        .on('listening', () => {
-                        this.server = server;
-                        const { log } = require('./utils/console-art');
-                        console.log('\n' + chalk_1.default.black(chalk_1.default.bgYellow(' DEV SERVER ')));
-                        log.warn('⚠️  Running in HTTP mode (not recommended for production)');
-                        log.success(`🚀 Server running on port ${portNumber}`);
-                        console.log('\n' + chalk_1.default.dim('Note: For development use only'));
-                        resolve();
-                    });
-                });
-            }
-            catch (error) {
-                if (error instanceof Error && 'code' in error && error.code === 'EADDRINUSE') {
-                    return tryPort(portNumber + 1);
+        const port = process.env.PORT || config_1.config.PORT;
+        await new Promise((resolve, reject) => {
+            this.server = this.app.listen(port, () => {
+                const { log } = require('./utils/console-art');
+                log.success(`🚀 Server running on port ${port}`);
+                if (process.env.NODE_ENV === 'production') {
+                    log.info('Running in production mode (SSL/HTTPS handled by Render)');
                 }
-                throw error;
-            }
-        };
-        await tryPort(Number(config_1.config.PORT));
+                resolve();
+            }).on('error', (err) => {
+                logger_1.logger.error('Failed to start HTTP server:', err);
+                reject(err);
+            });
+        });
     }
 }
 exports.AppServer = AppServer;

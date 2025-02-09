@@ -1,59 +1,37 @@
 services:
   - type: web
-    name: my-profile-server-api
-    runtime: node
+    name: my-profile-ltd
+    env: node
+    region: frankfurt
+    plan: starter
     buildCommand: npm install && npm run build
     startCommand: npm start
-    nodeVersion: 20.x
+    healthCheckPath: /api/auth/healthcheck
     envVars:
+      - key: NODE_VERSION
+        value: 18.19.0
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 8080
-      - key: BASE_URL
-        value: https://my-profile-server-api.onrender.com
-      - key: API_URL
-        value: https://my-profile-server-api.onrender.com
-      - key: CLIENT_URL
-        value: https://my-profile-client.onrender.com
-      - key: APP_NAME
-        value: My Profile
-      - key: MONGODB_URI
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: JWT_REFRESH_SECRET
-        sync: false
-      - key: JWT_ACCESS_EXPIRATION
-        value: 15m
-      - key: JWT_REFRESH_EXPIRATION
-        value: 1d
-      - key: COOKIE_SECRET
-        sync: false
-      - key: SSL_ENABLED
-        value: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_SERVICE
-        value: gmail
-      - key: SMTP_PORT
-        value: 587
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_FROM
-        sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: FACEBOOK_APP_ID
-        sync: false
-      - key: FACEBOOK_APP_SECRET
-        sync: false
-      - key: TEXTBELT_API_KEYS
-        sync: false
-      - key: FORCE_DEV_SMS
-        value: false
-    healthCheckPath: /api/auth/healthcheck
+      - key: CHROME_PATH
+        value: /usr/bin/google-chrome-stable
+      - key: WHATSAPP_SESSION_PATH
+        value: /data/whatsapp-sessions
+    disk:
+      name: whatsapp-sessions
+      mountPath: /data/whatsapp-sessions
+      sizeGB: 1
+    buildFilter:
+      paths:
+        - src/**/*.ts
+        - package*.json
+        - tsconfig.json
+    preBootScript: |
+      # Install Chrome
+      wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
+      echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/chrome.list
+      apt-get update
+      apt-get install -y google-chrome-stable
+
+      # Create WhatsApp sessions directory
+      mkdir -p /data/whatsapp-sessions
+      chmod 777 /data/whatsapp-sessions

@@ -13,6 +13,43 @@ import EmailService from "./email.service";
 import WhatsAppService from "./whatsapp.service";
 import { CustomError } from "../utils/errors";
 
+/**
+ * Advanced Authentication & Authorization Service
+ * ============================================
+ *
+ * Enterprise-level authentication service implementing secure user management,
+ * multi-factor authentication, and session handling with comprehensive security features.
+ *
+ * Security Features:
+ * ----------------
+ * 1. Authentication:
+ *    - Password-based (bcrypt)
+ *    - Multi-factor (Email/WhatsApp)
+ *    - JWT session management
+ *    - Account lockout
+ *
+ * 2. Account Protection:
+ *    - Brute force prevention
+ *    - Rate limiting
+ *    - Suspicious activity monitoring
+ *    - Session management
+ *
+ * 3. Verification:
+ *    - Email verification
+ *    - Phone verification
+ *    - OTP management
+ *    - 2FA support
+ *
+ * Error Handling:
+ * -------------
+ * - Custom error types
+ * - Secure error responses
+ * - Comprehensive logging
+ * - Automatic cleanup
+ *
+ * @see API.md - API Documentation
+ * @see ARCHITECTURE.md - System Design
+ */
 export class AuthService {
   public static readonly MAX_LOGIN_ATTEMPTS = 5;
   private static readonly LOCK_TIME_MINUTES = 15;

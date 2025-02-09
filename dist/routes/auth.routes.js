@@ -13,6 +13,10 @@ const logger_1 = require("../utils/logger");
 const email_service_1 = __importDefault(require("../services/email.service"));
 const whatsapp_service_1 = __importDefault(require("../services/whatsapp.service"));
 const router = express_1.default.Router();
+// Health check endpoint
+router.get("/healthcheck", (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
 //Rate limiting configuration
 const authLimiter = (0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes

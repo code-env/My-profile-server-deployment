@@ -69,7 +69,7 @@ router.post("/test-email", async (req, res) => {
 
 router.post("/test-whatsapp", async (req, res) => {
   try {
-    const testPhone = req.body.phoneNumber || "+17132021262";
+    const testPhone = req.body.phoneNumber || "+237693028598";
     const testCode = "123456"; // Test verification code
 
     await WhatsAppService.sendOTPMessage(testPhone, testCode);

@@ -10,6 +10,10 @@ const requiredEnvVars = [
     { name: 'COOKIE_SECRET', required: true, type: 'string' },
     { name: 'CLIENT_URL', required: true, type: 'string' },
 ];
+// WhatsApp environment variables are not required as we have a fallback logging mode for development
+const whatsappEnvVars = [
+    { name: 'WHATSAPP_ENABLED', required: false, type: 'boolean' },
+];
 const optionalEnvVars = [
     { name: 'SSL_ENABLED', required: false, type: 'boolean' },
     { name: 'SSL_KEY_PATH', required: false, type: 'string' },
@@ -53,9 +57,13 @@ const validateEnv = () => {
             }
         });
     }
+    // Validate optional WhatsApp configuration
+    if (process.env.WHATSAPP_ENABLED === 'true') {
+        logger_1.logger.info('WhatsApp service is enabled');
+    }
     // Log all environment variables in development
     if (process.env.NODE_ENV === 'development') {
-        const envVars = [...requiredEnvVars, ...optionalEnvVars]
+        const envVars = [...requiredEnvVars, ...optionalEnvVars, ...whatsappEnvVars]
             .map(({ name }) => ({
             name,
             set: Boolean(process.env[name]),

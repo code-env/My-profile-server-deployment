@@ -24,12 +24,19 @@ class EmailService {
     this.transporter
       .verify()
       .then(() => {
-        logger.info("✉️ Email Service Connected Successfully");
-        console.log("✉️ Email Service Connected Successfully");
+        const { log } = require('../utils/console-art');
+        const chalk = require('chalk');
+        logger.info("Email Service Connected Successfully");
+        log.success("✉️ Email Service Connected Successfully");
+        log.info('Connection Details:');
+        console.log(chalk.cyan(`   • SMTP Host: ${chalk.bold(config.SMTP_HOST)}`));
+        console.log(chalk.cyan(`   • SMTP Port: ${chalk.bold(config.SMTP_PORT)}`));
+        console.log(chalk.cyan(`   • From Address: ${chalk.bold(config.SMTP_FROM)}`));
       })
       .catch((error: unknown) => {
-        logger.error("❌ Email Service Connection Failed:", error);
-        console.error("❌ Email Service Connection Failed:", error);
+        const { log } = require('../utils/console-art');
+        logger.error("Email Service Connection Failed:", error);
+        log.error("✉️ Email Service Connection Failed: " + (error instanceof Error ? error.message : String(error)));
       });
   }
 

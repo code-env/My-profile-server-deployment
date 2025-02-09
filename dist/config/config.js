@@ -47,7 +47,7 @@ const envSchema = zod_1.z.object({
     NODE_ENV: zod_1.z
         .enum(["development", "production", "test"])
         .default("development"),
-    PORT: zod_1.z.string().default("5000"),
+    PORT: zod_1.z.coerce.number().default(8080),
     MONGODB_URI: zod_1.z.string(),
     BASE_URL: zod_1.z.string().default('http://localhost:3000'),
     API_URL: zod_1.z.string().default("http://localhost:5000"),
@@ -60,16 +60,16 @@ const envSchema = zod_1.z.object({
     JWT_REFRESH_EXPIRATION: zod_1.z.string().default("7d"),
     COOKIE_SECRET: zod_1.z.string(),
     // SSL Configuration
-    SSL_KEY_PATH: zod_1.z.string().default("ssl/private.key"),
-    SSL_CERT_PATH: zod_1.z.string().default("ssl/certificate.crt"),
-    SSL_ENABLED: zod_1.z.string().default("true"),
+    SSL_KEY_PATH: zod_1.z.string().optional(),
+    SSL_CERT_PATH: zod_1.z.string().optional(),
+    SSL_ENABLED: zod_1.z.string().default("false"),
     // Communication Services
     TWILIO_ACCOUNT_SID: zod_1.z.string().optional(),
     TWILIO_AUTH_TOKEN: zod_1.z.string().optional(),
     TWILIO_PHONE_NUMBER: zod_1.z.string().optional(),
     // Email Configuration
     SMTP_HOST: zod_1.z.string(),
-    SMTP_PORT: zod_1.z.number().default(587),
+    SMTP_PORT: zod_1.z.coerce.number().default(587),
     SMTP_USER: zod_1.z.string(),
     SMTP_PASSWORD: zod_1.z.string(),
     SMTP_FROM: zod_1.z.string(),
@@ -99,8 +99,9 @@ const envSchema = zod_1.z.object({
  * ```
  */
 const getConfig = () => {
+    var _a;
     try {
-        return envSchema.parse({
+        const parsedConfig = envSchema.parse({
             // Core Application Settings
             NODE_ENV: process.env.NODE_ENV,
             PORT: process.env.PORT,
@@ -125,7 +126,7 @@ const getConfig = () => {
             TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER,
             // Email Configuration
             SMTP_HOST: process.env.SMTP_HOST,
-            SMTP_PORT: parseInt(process.env.SMTP_PORT || "587", 10),
+            SMTP_PORT: process.env.SMTP_PORT,
             SMTP_USER: process.env.SMTP_USER,
             SMTP_PASSWORD: process.env.SMTP_PASSWORD,
             SMTP_FROM: process.env.SMTP_FROM,
@@ -136,17 +137,21 @@ const getConfig = () => {
             FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID,
             FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET,
         });
+        console.log('Configuration loaded successfully');
+        console.log('Environment:', parsedConfig.NODE_ENV);
+        console.log('Port:', parsedConfig.PORT);
+        console.log('MongoDB URI format:', ((_a = parsedConfig.MONGODB_URI.split('@')[1]) === null || _a === void 0 ? void 0 : _a.split('/')[0]) || 'Invalid URI format');
+        return parsedConfig;
     }
     catch (error) {
-        throw new Error(`Configuration validation error: ${error instanceof Error ? error.message : "Unknown error"}`);
+        console.error('Configuration validation error:', error);
+        if (error instanceof zod_1.z.ZodError) {
+            error.errors.forEach(err => {
+                console.error(`${err.path.join('.')}: ${err.message}`);
+            });
+        }
+        throw error;
     }
 };
-/**
- * Validated Configuration Instance
- * ------------------------------
- * Exports a single, validated configuration object.
- * This ensures consistent access to configuration values across the application.
- *
- * @type {ReturnType<typeof getConfig>}
- */
+// Export the config as a named export
 exports.config = getConfig();

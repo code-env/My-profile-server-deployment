@@ -30,9 +30,8 @@ ${chalk.cyan('│  ')}${chalk.bold('Development Team')}${chalk.cyan('           
 ${chalk.cyan('│  ────────────────                                                   │')}
 ${chalk.cyan('│                                                                      │')}
 ${chalk.cyan('│  ')}${chalk.white('Marco Blaise')}${chalk.cyan('                                                    │')}
-${chalk.cyan('│  ')}${chalk.dim('Lead Developer & System Architect')}${chalk.cyan('                              │')}
+${chalk.cyan('│  ')}${chalk.dim('Lead software Eng. & System Architect')}${chalk.cyan('                              │')}
 ${chalk.cyan('│                                                                      │')}
-${chalk.cyan('│  ')}${chalk.dim('[ Actively expanding - Join our innovative team ]')}${chalk.cyan('                │')}
 ${chalk.cyan('│                                                                      │')}
 ${chalk.cyan('╰──────────────────────────────────────────────────────────────────────╯')}`;
 

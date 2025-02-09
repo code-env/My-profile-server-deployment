@@ -1,0 +1,70 @@
+2025/02/09-13:23:35.655 dc09 Reusing MANIFEST /home/marco/Videos/my-profile-ltd-backup-2025-01-01/.wwebjs_auth/session-my-profile-ltd-development/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/02/09-13:23:35.657 dc09 Recovering log #841
+2025/02/09-13:23:35.680 dc09 Reusing old log /home/marco/Videos/my-profile-ltd-backup-2025-01-01/.wwebjs_auth/session-my-profile-ltd-development/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000841.log 
+2025/02/09-13:23:35.681 dc09 Delete type=2 #833
+2025/02/09-13:23:35.682 dc09 Delete type=2 #837
+2025/02/09-13:23:35.682 dc09 Delete type=2 #834
+2025/02/09-13:23:35.682 dc09 Delete type=2 #835
+2025/02/09-13:23:35.682 dc09 Delete type=2 #839
+2025/02/09-13:23:35.682 dc09 Delete type=2 #844
+2025/02/09-13:23:35.682 dc09 Delete type=2 #836
+2025/02/09-13:23:35.682 dc09 Delete type=2 #832
+2025/02/09-13:23:35.682 dc09 Delete type=2 #838
+2025/02/09-13:23:37.601 dc0b Level-0 table #859: started
+2025/02/09-13:23:37.659 dc0b Level-0 table #859: 263498 bytes OK
+2025/02/09-13:23:37.685 dc0b Delete type=0 #841
+2025/02/09-13:23:37.686 dc09 Manual compaction at level-0 from '\x00#\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00$\x00\x00\x00' @ 0 : 0; will stop at '\x00#\x00\x00\x05' @ 3499085 : 1
+2025/02/09-13:23:37.686 dc09 Compacting 1@0 + 0@1 files
+2025/02/09-13:23:37.727 dc09 Generated table #860@0: 4659 keys, 84772 bytes
+2025/02/09-13:23:37.762 dc09 Generated table #861@0: 862 keys, 45809 bytes
+2025/02/09-13:23:37.762 dc09 Compacted 1@0 + 0@1 files => 130581 bytes
+2025/02/09-13:23:37.793 dc09 compacted to: files[ 0 2 21 0 0 0 0 ]
+2025/02/09-13:23:37.794 dc09 Delete type=2 #859
+2025/02/09-13:23:37.794 dc09 Manual compaction at level-0 from '\x00#\x00\x00\x05' @ 3499085 : 1 .. '\x00$\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/02/09-13:23:40.247 dc0b Compacting 1@1 + 9@2 files
+2025/02/09-13:23:40.386 dc0b Generated table #862@1: 28767 keys, 2253274 bytes
+2025/02/09-13:23:40.567 dc0b Generated table #863@1: 28659 keys, 2271278 bytes
+2025/02/09-13:23:40.708 dc0b Generated table #864@1: 11971 keys, 2193468 bytes
+2025/02/09-13:23:40.825 dc0b Generated table #865@1: 5533 keys, 2124398 bytes
+2025/02/09-13:23:40.992 dc0b Generated table #866@1: 76991 keys, 2220884 bytes
+2025/02/09-13:23:41.202 dc0b Generated table #867@1: 102054 keys, 2251642 bytes
+2025/02/09-13:23:41.410 dc0b Generated table #868@1: 101866 keys, 2253245 bytes
+2025/02/09-13:23:41.602 dc0b Generated table #869@1: 102180 keys, 2253452 bytes
+2025/02/09-13:23:41.802 dc0b Generated table #870@1: 90223 keys, 2003363 bytes
+2025/02/09-13:23:41.802 dc0b Compacted 1@1 + 9@2 files => 19825004 bytes
+2025/02/09-13:23:41.853 dc0b compacted to: files[ 0 1 21 0 0 0 0 ]
+2025/02/09-13:23:41.853 dc0b Delete type=2 #849
+2025/02/09-13:23:41.854 dc0b Delete type=2 #855
+2025/02/09-13:23:41.854 dc0b Delete type=2 #856
+2025/02/09-13:23:41.854 dc0b Delete type=2 #804
+2025/02/09-13:23:41.854 dc0b Delete type=2 #852
+2025/02/09-13:23:41.854 dc0b Delete type=2 #853
+2025/02/09-13:23:41.854 dc0b Delete type=2 #850
+2025/02/09-13:23:41.854 dc0b Delete type=2 #861
+2025/02/09-13:23:41.854 dc0b Delete type=2 #851
+2025/02/09-13:23:41.854 dc0b Delete type=2 #854
+2025/02/09-13:23:42.296 dc0a Compacting 1@1 + 11@2 files
+2025/02/09-13:23:42.455 dc0a Generated table #871@1: 47104 keys, 2215803 bytes
+2025/02/09-13:23:42.630 dc0a Generated table #872@1: 53316 keys, 2217563 bytes
+2025/02/09-13:23:42.730 dc0a Generated table #873@1: 4182 keys, 2158889 bytes
+2025/02/09-13:23:42.839 dc0a Generated table #874@1: 1929 keys, 2150426 bytes
+2025/02/09-13:23:42.939 dc0a Generated table #875@1: 2094 keys, 2158226 bytes
+2025/02/09-13:23:43.039 dc0a Generated table #876@1: 2155 keys, 2160454 bytes
+2025/02/09-13:23:43.115 dc0a Generated table #877@1: 2228 keys, 2150288 bytes
+2025/02/09-13:23:43.207 dc0a Generated table #878@1: 3765 keys, 2161507 bytes
+2025/02/09-13:23:43.357 dc0a Generated table #879@1: 23210 keys, 2220606 bytes
+2025/02/09-13:23:43.391 dc0a Generated table #880@1: 719 keys, 71876 bytes
+2025/02/09-13:23:43.391 dc0a Compacted 1@1 + 11@2 files => 19665638 bytes
+2025/02/09-13:23:43.420 dc0a compacted to: files[ 0 0 20 0 0 0 0 ]
+2025/02/09-13:23:43.422 dc0a Delete type=2 #848
+2025/02/09-13:23:43.422 dc0a Delete type=2 #845
+2025/02/09-13:23:43.422 dc0a Delete type=2 #818
+2025/02/09-13:23:43.422 dc0a Delete type=2 #817
+2025/02/09-13:23:43.422 dc0a Delete type=2 #816
+2025/02/09-13:23:43.422 dc0a Delete type=2 #819
+2025/02/09-13:23:43.422 dc0a Delete type=2 #860
+2025/02/09-13:23:43.422 dc0a Delete type=2 #820
+2025/02/09-13:23:43.422 dc0a Delete type=2 #847
+2025/02/09-13:23:43.423 dc0a Delete type=2 #821
+2025/02/09-13:23:43.423 dc0a Delete type=2 #846
+2025/02/09-13:23:43.423 dc0a Delete type=2 #831
