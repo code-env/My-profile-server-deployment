@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Previous head section and styles remain the same -->
+<head>
+    <!-- Previous head content remains the same -->
+</head>
+<body>
+    <!-- Previous nav section remains the same -->
+
+    <main class="main">
+        <div class="endpoint" id="register">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/register</span>
+            </div>
+            <p class="endpoint-description">Register a new user account with email or phone verification.</p>
+
+            <div class="note">
+                <div class="note-title">
+                    <i class="fas fa-info-circle"></i>
+                    Important
+                </div>
+                <p>After successful registration, users must verify their account using either email or phone verification before they can access protected resources.</p>
+            </div>
+
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>
+                        <span class="parameter-name">email</span>
+                        <span class="parameter-required">required</span>
+                    </td>
+                    <td><span class="parameter-type">string</span></td>
+                    <td>Valid email address</td>
+                </tr>
+                <tr>
+                    <td>
+                        <span class="parameter-name">password</span>
+                        <span class="parameter-required">required</span>
+                    </td>
+                    <td><span class="parameter-type">string</span></td>
+                    <td>Password (min 8 chars, requires uppercase, lowercase, number)</td>
+                </tr>
+                <tr>
+                    <td>
+                        <span class="parameter-name">fullName</span>
+                        <span class="parameter-required">required</span>
+                    </td>
+                    <td><span class="parameter-type">string</span></td>
+                    <td>User's full name</td>
+                </tr>
+                <tr>
+                    <td>
+                        <span class="parameter-name">verificationMethod</span>
+                        <span class="parameter-required">required</span>
+                    </td>
+                    <td><span class="parameter-type">string</span></td>
+                    <td>Verification method ("email" or "phone")</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <button class="copy-button" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('.code').textContent)">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <pre class="code"><span class="keyword">curl</span> -X POST https://api.myprofile.ltd/api/auth/register \
+    -H <span class="string">"Content-Type: application/json"</span> \
+    -d {
+        <span class="property">"email"</span>: <span class="string">"user@example.com"</span>,
+        <span class="property">"password"</span>: <span class="string">"SecurePass123"</span>,
+        <span class="property">"fullName"</span>: <span class="string">"John Doe"</span>,
+        <span class="property">"verificationMethod"</span>: <span class="string">"email"</span>
+    }</pre>
+            </div>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <button class="copy-button">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <pre class="code">{
+    <span class="property">"success"</span>: <span class="keyword">true</span>,
+    <span class="property">"message"</span>: <span class="string">"Registration successful. Please verify your email."</span>,
+    <span class="property">"userId"</span>: <span class="string">"5f9d88b..."</span>,
+    <span class="property">"verificationMethod"</span>: <span class="string">"email"</span>,
+    <span class="property">"otpRequired"</span>: <span class="keyword">true</span>,
+    <span class="property">"otpChannel"</span>: <span class="string">"email"</span>
+}</pre>
+            </div>
+
+            <div class="section-title">Error Response</div>
+            <div class="code-block">
+                <button class="copy-button">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <pre class="code">{
+    <span class="property">"success"</span>: <span class="keyword">false</span>,
+    <span class="property">"message"</span>: <span class="string">"Email address is already registered"</span>
+}</pre>
+            </div>
+        </div>
+
+        <div class="endpoint" id="login">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/login</span>
+            </div>
+            <p class="endpoint-description">Authenticate a user and receive access tokens.</p>
+
+            <div class="note">
+                <div class="note-title">
+                    <i class="fas fa-shield-alt"></i>
+                    Security
+                </div>
+                <p>Access tokens are delivered via HTTP-only secure cookies. The refresh token has a 7-day expiration, while the access token expires in 15 minutes.</p>
+            </div>
+
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>
+                        <span class="parameter-name">email</span>
+                        <span class="parameter-required">required</span>
+                    </td>
+                    <td><span class="parameter-type">string</span></td>
+                    <td>Registered email address</td>
+                </tr>
+                <tr>
+                    <td>
+                        <span class="parameter-name">password</span>
+                        <span class="parameter-required">required</span>
+                    </td>
+                    <td><span class="parameter-type">string</span></td>
+                    <td>User's password</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <button class="copy-button">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <pre class="code"><span class="keyword">curl</span> -X POST https://api.myprofile.ltd/api/auth/login \
+    -H <span class="string">"Content-Type: application/json"</span> \
+    -d {
+        <span class="property">"email"</span>: <span class="string">"user@example.com"</span>,
+        <span class="property">"password"</span>: <span class="string">"SecurePass123"</span>
+    }</pre>
+            </div>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <button class="copy-button">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <pre class="code">{
+    <span class="property">"success"</span>: <span class="keyword">true</span>,
+    <span class="property">"user"</span>: {
+        <span class="property">"id"</span>: <span class="string">"5f9d88b..."</span>,
+        <span class="property">"email"</span>: <span class="string">"user@example.com"</span>,
+        <span class="property">"fullName"</span>: <span class="string">"John Doe"</span>
+    }
+}</pre>
+            </div>
+
+            <div class="section-title">Error Response</div>
+            <div class="code-block">
+                <button class="copy-button">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <pre class="code">{
+    <span class="property">"success"</span>: <span class="keyword">false</span>,
+    <span class="property">"message"</span>: <span class="string">"Invalid credentials"</span>
+}</pre>
+            </div>
+        </div>
+
+        <!-- More endpoints will be added here -->
+    </main>
+
+    <script>
+        // Handle copy buttons
+        document.querySelectorAll('.copy-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const code = button.parentElement.querySelector('.code').textContent;
+                navigator.clipboard.writeText(code);
+
+                // Visual feedback
+                button.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(() => {
+                    button.innerHTML = '<i class="fas fa-copy"></i>';
+                }, 2000);
+            });
+        });
+
+        // Handle navigation
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+
+                // Close mobile menu
+                document.querySelector('.nav').classList.remove('active');
+            });
+        });
+
+        // Highlight current section based on scroll
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.id;
+                    document.querySelectorAll('.nav-link').forEach(link => {
+                        link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+                    });
+                }
+            });
+        }, { threshold: 0.5 });
+
+        document.querySelectorAll('.endpoint').forEach(endpoint => {
+            observer.observe(endpoint);
+        });
+    </script>
+</body>
+</html>

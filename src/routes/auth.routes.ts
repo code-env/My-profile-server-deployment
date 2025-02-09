@@ -11,6 +11,11 @@ import WhatsAppService from "../services/whatsapp.service";
 
 const router = express.Router();
 
+// API Documentation endpoint
+router.get("/", (req, res) => {
+  res.sendFile("api-docs.html", { root: "public" });
+});
+
 // Health check endpoint
 router.get("/healthcheck", (req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
