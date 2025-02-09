@@ -1,35 +1,16 @@
-services:
-  - type: web
-    name: my-profile-ltd
-    env: node
-    region: frankfurt
-    plan: starter
-    buildCommand: npm install && npm run build
-    startCommand: npm start
-    healthCheckPath: /api/auth/healthcheck
-    envVars:
-      - key: NODE_VERSION
-        value: 18.19.0
-      - key: NODE_ENV
-        value: production
-      - key: CHROME_PATH
-        value: /usr/bin/chromium
-      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-        value: "true"
-    disk:
-      name: whatsapp-sessions
-      mountPath: /data/whatsapp-sessions
-      sizeGB: 1
-    preBootScript: |
-      apt-get update && apt-get install -y \
-        chromium \
-        fonts-liberation \
-        libnss3 \
-        libxss1 \
-        libasound2 \
-        libgbm1 \
-        xdg-utils \
-        --no-install-recommends
+preBootScript: |
+  # Install dependencies
+  apt-get update && apt-get install -y \
+    chromium \
+    fonts-liberation \
+    libnss3 \
+    libxss1 \
+    libasound2 \
+    libgbm1 \
+    xdg-utils \
+    --no-install-recommends
 
-      mkdir -p /data/whatsapp-sessions
-      chmod 777 /data/whatsapp-sessions
+  # Create and secure session directory
+  mkdir -p /data/whatsapp-sessions
+  chmod -R 777 /data/whatsapp-sessions
+  chown -R 1000:1000 /data/whatsapp-sessions
