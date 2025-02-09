@@ -16,6 +16,22 @@ class WhatsAppService {
   /**
    * Initialize WhatsApp client
    */
+  private static async cleanupSessionDirectory(sessionId: string): Promise<void> {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const sessionPath = path.join('.wwebjs_auth', `session-${sessionId}`);
+      const lockFile = path.join(sessionPath, 'SingletonLock');
+
+      if (fs.existsSync(lockFile)) {
+        logger.info('Cleaning up stale session lock file...');
+        fs.unlinkSync(lockFile);
+      }
+    } catch (error) {
+      logger.error('Error cleaning up session directory:', error);
+    }
+  }
+
   public static async initialize(): Promise<void> {
     // Skip WhatsApp initialization in production
     if (process.env.NODE_ENV === 'production') {
@@ -27,6 +43,9 @@ class WhatsAppService {
       // Create a session ID based on environment
       const sessionId = `my-profile-ltd-${process.env.NODE_ENV || 'development'}`;
       logger.info(`Initializing WhatsApp client with session ID: ${sessionId}`);
+
+      // Clean up any stale session files
+      await this.cleanupSessionDirectory(sessionId);
 
       const chromePaths = {
         linux: '/usr/bin/google-chrome-stable',
