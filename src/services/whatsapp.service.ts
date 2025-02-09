@@ -57,7 +57,7 @@ class WhatsAppService {
         fs.chmodSync(sessionPath, 0o777);
 
         await this.cleanupSessionDirectory(sessionId);
-
+//re
         const chromePaths = {
           linux: '/usr/bin/chromium',
           darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
