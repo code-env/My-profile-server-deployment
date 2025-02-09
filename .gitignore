@@ -17,5 +17,12 @@ tmp/
 *.session
 saved/
 *.session-journal
-
+.wwebjs_auth/
+.wwebjs_cache/
 backup_before_revert/
+whatsapp-sessions/
+.whatsapp-auth/
+data/whatsapp-sessions/
+*.whatsapp-session
+session-my-profile-ltd-development/
+**/session-my-profile-ltd-development/

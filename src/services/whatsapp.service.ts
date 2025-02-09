@@ -4,6 +4,8 @@ import { config } from '../config/config';
 import { logger } from '../utils/logger';
 import { Browser } from 'puppeteer';
 import chalk from 'chalk';
+import { User } from '../models/User';
+import EmailService from '../services/email.service';
 
 class WhatsAppService {
   private static client: Client | null = null;
@@ -15,6 +17,12 @@ class WhatsAppService {
    * Initialize WhatsApp client
    */
   public static async initialize(): Promise<void> {
+    // Skip WhatsApp initialization in production
+    if (process.env.NODE_ENV === 'production') {
+      logger.info('WhatsApp service disabled in production environment');
+      return;
+    }
+
     try {
       // Create a session ID based on environment
       const sessionId = `my-profile-ltd-${process.env.NODE_ENV || 'development'}`;
@@ -189,6 +197,20 @@ class WhatsAppService {
    * @param message Message content
    */
   public static async sendMessage(phoneNumber: string, message: string): Promise<void> {
+    // Prevent WhatsApp usage in production
+    if (process.env.NODE_ENV === 'production') {
+      const user = await User.findOne({ phoneNumber });
+      if (!user || !user.email) {
+        logger.error('Cannot send message: No email found for phone number:', phoneNumber);
+        throw new Error('Cannot send message: No email found for this phone number');
+      }
+
+      // Send message via email instead
+      await EmailService.sendVerificationEmail(user.email, message);
+      logger.info(`Production mode: Message sent via email to ${user.email}`);
+      return;
+    }
+
     try {
       if (!this.isReady || !this.client) {
         throw new Error('WhatsApp client is not ready. Please scan QR code first.');
@@ -224,6 +246,19 @@ class WhatsAppService {
     return phoneRegex.test(phoneNumber);
   }
 
+  private static async getEmailFromPhone(phone: string): Promise<string> {
+    try {
+      const user = await User.findOne({ phoneNumber: phone });
+      if (!user || !user.email) {
+        throw new Error('No email found for this phone number');
+      }
+      return user.email;
+    } catch (error) {
+      logger.error('Error finding email for phone number:', error);
+      throw new Error('Failed to find email for phone number');
+    }
+  }
+
   /**
    * Generate a verification code message
    * @param otp Verification code
@@ -242,8 +277,30 @@ class WhatsAppService {
     phoneNumber: string,
     otp: string
   ): Promise<void> {
-    const message = this.formatOTPMessage(otp);
-    await this.sendMessage(phoneNumber, message);
+    try {
+      // In production, always use email
+      if (process.env.NODE_ENV === 'production') {
+        // Find user's email from phone number
+        const user = await User.findOne({ phoneNumber });
+        if (!user || !user.email) {
+          logger.error('No email found for phone number:', phoneNumber);
+          throw new Error('Cannot send OTP: No email found for this phone number');
+        }
+
+        // Send OTP via email instead
+        await EmailService.sendVerificationEmail(user.email, otp);
+        logger.info(`Production mode: OTP sent via email to ${user.email}`);
+        return;
+      }
+
+      // In development, use WhatsApp
+      const message = this.formatOTPMessage(otp);
+      logger.info(`Development mode: Sending OTP via WhatsApp to ${phoneNumber}`);
+      await this.sendMessage(phoneNumber, message);
+    } catch (error) {
+      logger.error('Failed to send OTP:', error);
+      throw error;
+    }
   }
 }
 

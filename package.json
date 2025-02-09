@@ -1,5 +1,5 @@
 {
-  "name": "my-profile-ltd",
+  "name": "my-profile",
   "version": "1.0.0",
   "description": "MyProfile Backend - A secure and scalable authentication system",
   "main": "dist/server.js",
