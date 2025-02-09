@@ -49,7 +49,6 @@ const auth_routes_1 = __importDefault(require("./auth.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
 const connection_routes_1 = __importDefault(require("./connection.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
-const whatsapp_service_1 = __importDefault(require("../services/whatsapp.service"));
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -65,13 +64,6 @@ const setupRoutes = (app) => {
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     app.use('/api/connections', auth_middleware_1.protect, connection_routes_1.default);
-    // Add QR endpoint
-    app.get('/api/whatsapp/qr', (req, res) => {
-        if (process.env.NODE_ENV !== 'production') {
-            return res.status(403).json({ error: 'QR only available in production' });
-        }
-        res.json({ qr: whatsapp_service_1.default.getStoredQr() });
-    });
     // Health check endpoint
     app.get('/api/health', (req, res) => {
         res.json({ status: 'healthy', timestamp: new Date().toISOString() });

@@ -45,7 +45,6 @@ import authRoutes from './auth.routes';
 import profileRoutes from './profile.routes';
 import connectionRoutes from './connection.routes';
 import { protect } from '../middleware/auth.middleware';
-import WhatsAppService from '../services/whatsapp.service';
 
 /**
  * Configures and sets up all API routes for the application
@@ -64,14 +63,6 @@ export const setupRoutes = (app: Application): void => {
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
   app.use('/api/connections', protect, connectionRoutes);
-
-  // Add QR endpoint
-app.get('/api/whatsapp/qr', (req, res) => {
-  if (process.env.NODE_ENV !== 'production') {
-    return res.status(403).json({ error: 'QR only available in production' });
-  }
-  res.json({ qr: WhatsAppService.getStoredQr() });
-});
 
   // Health check endpoint
   app.get('/api/health', (req, res) => {
