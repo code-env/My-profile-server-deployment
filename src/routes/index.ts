@@ -52,12 +52,22 @@ import { protect } from '../middleware/auth.middleware';
  * @description Initializes routes with their respective middleware chains
  */
 export const setupRoutes = (app: Application): void => {
+  // Root route - serve landing page
+  app.get('/', (req, res) => {
+    res.sendFile('index.html', { root: 'public' });
+  });
+
   // Public routes
   app.use('/api/auth', authRoutes);
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
   app.use('/api/connections', protect, connectionRoutes);
+
+  // Health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  });
 
   // Register additional routes here
 };

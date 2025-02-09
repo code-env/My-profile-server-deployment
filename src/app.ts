@@ -178,6 +178,12 @@ export class AppServer {
     this.app.use(cookieParser(config.COOKIE_SECRET));
     this.app.use(compression());
     this.app.use(rateLimiterMiddleware);
+
+    // Serve static files from public directory
+    this.app.use(express.static('public', {
+      maxAge: '1d',
+      index: false // Don't automatically serve index.html, let routes handle it
+    }));
   }
 
   /**
