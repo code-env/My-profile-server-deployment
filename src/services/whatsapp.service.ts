@@ -21,12 +21,12 @@ class WhatsAppService {
       logger.info(`Initializing WhatsApp client with session ID: ${sessionId}`);
 
       const chromePaths = {
-        linux: '/usr/bin/google-chrome',
+        linux: '/usr/bin/google-chrome-stable',
         darwin: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         win32: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
       };
 
-      const defaultChromePath = chromePaths[process.platform as keyof typeof chromePaths] || '/usr/bin/google-chrome';
+      const defaultChromePath = chromePaths[process.platform as keyof typeof chromePaths] || '/usr/bin/google-chrome-stable';
 
       // Create WhatsApp client with LocalAuth
       this.client = new Client({
