@@ -11,6 +11,11 @@ import WhatsAppService from "../services/whatsapp.service";
 
 const router = express.Router();
 
+// Health check endpoint
+router.get("/healthcheck", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 //Rate limiting configuration
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
