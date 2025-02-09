@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile API Documentation</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/api-docs.css">
+</head>
+<body>
+    <button class="menu-toggle" onclick="document.querySelector('.nav').classList.toggle('active')">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <nav class="nav">
+        <div class="nav-header">
+            <img src="/profileblack.png" alt="My Profile API" class="nav-logo">
+            <div class="nav-title">API Reference</div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">Authentication</div>
+            <ul class="nav-items">
+                <li class="nav-item">
+                    <a href="#register" class="nav-link active">
+                        <i class="fas fa-user-plus"></i>
+                        Register
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#login" class="nav-link">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Login
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#refresh-token" class="nav-link">
+                        <i class="fas fa-sync"></i>
+                        Refresh Token
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#logout" class="nav-link">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Logout
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">Verification</div>
+            <ul class="nav-items">
+                <li class="nav-item">
+                    <a href="#verify-otp" class="nav-link">
+                        <i class="fas fa-key"></i>
+                        Verify OTP
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#verify-email" class="nav-link">
+                        <i class="fas fa-envelope"></i>
+                        Verify Email
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">Security</div>
+            <ul class="nav-items">
+                <li class="nav-item">
+                    <a href="#2fa" class="nav-link">
+                        <i class="fas fa-shield-alt"></i>
+                        Two-Factor Auth
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#reset-password" class="nav-link">
+                        <i class="fas fa-lock"></i>
+                        Reset Password
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="main">
+        <div class="endpoint" id="register">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/register</span>
+            </div>
+            <p class="endpoint-description">Register a new user account with email or phone verification.</p>
+
+            <div class="note">
+                <div class="note-title">
+                    <i class="fas fa-info-circle"></i>
+                    Important
+                </div>
+                <p>After successful registration, users must verify their account using either email or phone verification before they can access protected resources.</p>
+            </div>
+
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>
+                        <span class="parameter-name">email</span>
+                        <span class="parameter-required">required</span>
+                    </td>
+                    <td><span class="parameter-type">string</span></td>
+                    <td>Valid email address</td>
+                </tr>
+                <tr>
+                    <td>
+                        <span class="parameter-name">password</span>
+                        <span class="parameter-required">required</span>
+                    </td>
+                    <td><span class="parameter-type">string</span></td>
+                    <td>Password (min 8 chars, requires uppercase, lowercase, number)</td>
+                </tr>
+                <tr>
+                    <td>
+                        <span class="parameter-name">fullName</span>
+                        <span class="parameter-required">required</span>
+                    </td>
+                    <td><span class="parameter-type">string</span></td>
+                    <td>User's full name</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <button class="copy-button" onclick="copyCode(this)">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <pre class="code"><span class="keyword">curl</span> -X POST https://api.myprofile.ltd/api/auth/register \
+    -H <span class="string">"Content-Type: application/json"</span> \
+    -d {
+        <span class="property">"email"</span>: <span class="string">"user@example.com"</span>,
+        <span class="property">"password"</span>: <span class="string">"SecurePass123"</span>,
+        <span class="property">"fullName"</span>: <span class="string">"John Doe"</span>
+    }</pre>
+            </div>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <button class="copy-button" onclick="copyCode(this)">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <pre class="code">{
+    <span class="property">"success"</span>: <span class="keyword">true</span>,
+    <span class="property">"message"</span>: <span class="string">"Registration successful. Please verify your email."</span>,
+    <span class="property">"userId"</span>: <span class="string">"5f9d88b..."</span>
+}</pre>
+            </div>
+
+            <div class="section-title">Error Response</div>
+            <div class="code-block">
+                <button class="copy-button" onclick="copyCode(this)">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <pre class="code">{
+    <span class="property">"success"</span>: <span class="keyword">false</span>,
+    <span class="property">"message"</span>: <span class="string">"Email address is already registered"</span>
+}</pre>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Handle copy buttons
+        function copyCode(button) {
+            const code = button.parentElement.querySelector('.code').textContent;
+            navigator.clipboard.writeText(code);
+
+            // Visual feedback
+            button.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+                button.innerHTML = '<i class="fas fa-copy"></i>';
+            }, 2000);
+        }
+
+        // Handle navigation
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+
+                // Close mobile menu
+                document.querySelector('.nav').classList.remove('active');
+            });
+        });
+
+        // Highlight current section based on scroll
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.id;
+                    document.querySelectorAll('.nav-link').forEach(link => {
+                        link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+                    });
+                }
+            });
+        }, { threshold: 0.5 });
+
+        document.querySelectorAll('.endpoint').forEach(endpoint => {
+            observer.observe(endpoint);
+        });
+    </script>
+</body>
+</html>

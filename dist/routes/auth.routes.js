@@ -13,6 +13,10 @@ const logger_1 = require("../utils/logger");
 const email_service_1 = __importDefault(require("../services/email.service"));
 const whatsapp_service_1 = __importDefault(require("../services/whatsapp.service"));
 const router = express_1.default.Router();
+// API Documentation endpoint
+router.get("/", (req, res) => {
+    res.sendFile("api-docs.html", { root: "public" });
+});
 // Health check endpoint
 router.get("/healthcheck", (req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
@@ -61,7 +65,7 @@ router.post("/test-email", async (req, res) => {
 });
 router.post("/test-whatsapp", async (req, res) => {
     try {
-        const testPhone = req.body.phoneNumber || "+17132021262";
+        const testPhone = req.body.phoneNumber || "+237693028598";
         const testCode = "123456"; // Test verification code
         await whatsapp_service_1.default.sendOTPMessage(testPhone, testCode);
         res.json({

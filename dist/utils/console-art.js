@@ -36,7 +36,6 @@ ${chalk_1.default.cyan('│                                                     
 ${chalk_1.default.cyan('│  ')}${chalk_1.default.white('Marco Blaise')}${chalk_1.default.cyan('                                                    │')}
 ${chalk_1.default.cyan('│  ')}${chalk_1.default.dim('Lead software Eng. & System Architect')}${chalk_1.default.cyan('                              │')}
 ${chalk_1.default.cyan('│                                                                      │')}
-${chalk_1.default.cyan('│  ')}${chalk_1.default.dim('[ Actively expanding - Join our innovative team ]')}${chalk_1.default.cyan('                │')}
 ${chalk_1.default.cyan('│                                                                      │')}
 ${chalk_1.default.cyan('╰──────────────────────────────────────────────────────────────────────╯')}`;
 // Export colors for use in other files

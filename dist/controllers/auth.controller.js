@@ -1,45 +1,56 @@
 "use strict";
 /**
- * @file auth.controller.ts
- * @description Authentication Controller for My Profile Platform
- * ==========================================================
+ * @fileoverview Authentication controller for the My Profile platform.
+ * Implements authentication and authorization endpoints following OAuth 2.0 principles
+ * and industry security best practices.
  *
- * Handles authentication and authorization operations for the platform,
- * providing secure user management and session control features.
+ * @package myprofile
+ * @module auth
  *
- * Features:
- * - User registration with validation
- * - Multi-factor authentication
- * - Session management
- * - Token-based authentication
- * - Password reset and recovery
+ * This controller handles all authentication-related operations including:
+ * - User registration and verification
+ * - Login and session management
+ * - Password reset flows
+ * - Two-factor authentication (2FA)
  * - Social authentication
- * - Device tracking
- * - Secure logout handling
+ * - Token management (access/refresh)
+ * - Session tracking and security
  *
- * Technical Implementation:
- * - Express.js controller patterns
- * - JWT token management
- * - HTTP-only cookies
- * - Zod schema validation
- * - TypeScript type safety
- * - MongoDB with Mongoose
- *
- * Security Features:
- * - Rate limiting
- * - IP tracking
- * - Device fingerprinting
- * - Secure session management
- * - OTP verification
- * - 2FA support
+ * Core Security Features:
+ * - Rate limiting on sensitive endpoints
+ * - IP and device tracking
  * - Brute force prevention
+ * - Session invalidation
+ * - Token rotation
+ * - Activity logging
  *
- * @version 1.0.0
- * @license MIT
- * @author Marco Blaise
+ * Key Dependencies:
+ * - auth.service.ts: Core authentication logic
+ * - email.service.ts: Email notifications
+ * - twoFactor.service.ts: 2FA implementation
+ * - whatsapp.service.ts: OTP via WhatsApp
  *
- * For detailed API documentation, see API.md
- * For security guidelines, see SECURITY.md
+ * Architecture:
+ * - Follows Controller-Service pattern
+ * - Implements stateless authentication
+ * - Uses JWT for token-based auth
+ * - Supports multiple 2FA methods
+ *
+ * Error Handling:
+ * - Comprehensive error logging
+ * - Secure error responses
+ * - Rate limit monitoring
+ * - Failed attempt tracking
+ *
+ * Performance Considerations:
+ * - Connection pooling
+ * - Response caching where appropriate
+ * - Asynchronous operations
+ * - Optimized token validation
+ *
+ * @see {@link https://tools.ietf.org/html/rfc6749} OAuth 2.0 Spec
+ * @see {@link https://tools.ietf.org/html/rfc7519} JWT Spec
+ * @see {@link https://cloud.google.com/apis/design/errors} Google API Design Guide
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };

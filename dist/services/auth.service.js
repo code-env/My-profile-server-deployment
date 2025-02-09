@@ -12,6 +12,43 @@ const crypto_1 = require("../utils/crypto");
 const email_service_1 = __importDefault(require("./email.service"));
 const whatsapp_service_1 = __importDefault(require("./whatsapp.service"));
 const errors_1 = require("../utils/errors");
+/**
+ * Advanced Authentication & Authorization Service
+ * ============================================
+ *
+ * Enterprise-level authentication service implementing secure user management,
+ * multi-factor authentication, and session handling with comprehensive security features.
+ *
+ * Security Features:
+ * ----------------
+ * 1. Authentication:
+ *    - Password-based (bcrypt)
+ *    - Multi-factor (Email/WhatsApp)
+ *    - JWT session management
+ *    - Account lockout
+ *
+ * 2. Account Protection:
+ *    - Brute force prevention
+ *    - Rate limiting
+ *    - Suspicious activity monitoring
+ *    - Session management
+ *
+ * 3. Verification:
+ *    - Email verification
+ *    - Phone verification
+ *    - OTP management
+ *    - 2FA support
+ *
+ * Error Handling:
+ * -------------
+ * - Custom error types
+ * - Secure error responses
+ * - Comprehensive logging
+ * - Automatic cleanup
+ *
+ * @see API.md - API Documentation
+ * @see ARCHITECTURE.md - System Design
+ */
 class AuthService {
     static async register(user, ip, os) {
         try {

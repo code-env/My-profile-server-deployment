@@ -172,6 +172,11 @@ class AppServer {
         this.app.use((0, cookie_parser_1.default)(config_1.config.COOKIE_SECRET));
         this.app.use((0, compression_1.default)());
         this.app.use(rate_limiter_middleware_1.rateLimiterMiddleware);
+        // Serve static files from public directory
+        this.app.use(express_1.default.static('public', {
+            maxAge: '1d',
+            index: false // Don't automatically serve index.html, let routes handle it
+        }));
     }
     /**
      * @private
@@ -290,6 +295,21 @@ class AppServer {
             await whatsapp_service_1.default.initialize().catch((error) => {
                 log.warn('WhatsApp service initialization failed: ' + error.message);
             });
+            await this.initializeDatabase();
+            // Start WhatsApp service with retries
+            let attempts = 0;
+            const initWhatsApp = async () => {
+                try {
+                    await whatsapp_service_1.default.initialize();
+                }
+                catch (error) {
+                    if (attempts < 3) {
+                        attempts++;
+                        setTimeout(initWhatsApp, 5000 * attempts);
+                    }
+                }
+            };
+            await initWhatsApp();
             // Always use HTTP server as Render handles SSL/HTTPS
             await this.startHttpServer();
             console.log('\n' + chalk_1.default.black(chalk_1.default.bgGreen(' SERVER READY ')));

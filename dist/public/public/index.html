@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile - Enterprise API Platform</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --primary-dark: #185abc;
+            --secondary: #202124;
+            --success: #34a853;
+            --warning: #fbbc04;
+            --danger: #ea4335;
+            --dark: #202124;
+            --gray: #5f6368;
+            --light: #ffffff;
+            --code-bg: #283142;
+            --shadow: 0 2px 6px rgba(60,64,67,.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background: var(--light);
+            color: var(--secondary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            padding: 16px 0;
+            box-shadow: var(--shadow);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 22px;
+            font-weight: 500;
+            color: var(--secondary);
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        .logo:hover {
+            opacity: 0.8;
+        }
+
+        .logo img {
+            height: 32px;
+        }
+
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        nav a {
+            color: var(--gray);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        nav a:hover {
+            color: var(--primary);
+            background: rgba(26, 115, 232, 0.08);
+        }
+
+        nav a.btn {
+            background: var(--primary);
+            color: white;
+        }
+
+        nav a.btn:hover {
+            background: var(--primary-dark);
+            color: white;
+        }
+
+        .hero {
+            padding: 160px 0 120px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 10% 20%, rgba(26, 115, 232, 0.1) 0%, transparent 50%);
+        }
+
+        .hero h1 {
+            font-size: 56px;
+            line-height: 1.2;
+            margin-bottom: 24px;
+            color: var(--secondary);
+            max-width: 800px;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        .hero p {
+            font-size: 20px;
+            color: var(--gray);
+            margin-bottom: 40px;
+            max-width: 600px;
+            animation: fadeInUp 0.8s ease 0.2s both;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin: 64px 0;
+            animation: fadeInUp 0.8s ease 0.4s both;
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(0,0,0,0.06);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(60,64,67,.15);
+        }
+
+        .metric-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .metric-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+
+        .metric-title {
+            font-size: 16px;
+            color: var(--gray);
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-size: 48px;
+            font-weight: 700;
+            color: var(--secondary);
+            margin: 8px 0;
+        }
+
+        .metric-trend {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--success);
+            font-weight: 500;
+        }
+
+        .api-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(52, 168, 83, 0.1);
+            color: var(--success);
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 32px;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .pulse::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: var(--primary);
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(26, 115, 232, 0.2);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(2.5);
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 40px;
+            }
+            .hero p {
+                font-size: 18px;
+            }
+            nav {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container header-content">
+            <a href="/" class="logo">
+                <img src="/profileblack.png" alt="My Profile Ltd Logo">
+                My Profile
+            </a>
+            <nav>
+                <a href="/api/auth">API Reference</a>
+                <a href="/docs">Documentation</a>
+                <a href="https://github.com/Brilydal123/My-profile-server-deployment" target="_blank">GitHub</a>
+                <a href="/api/auth/login" class="btn">Developer Console</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <div class="api-status">
+                <div class="pulse"></div>
+                All Systems Operational | Platform Version 2.0
+            </div>
+            <h1>API Platform for Digital Identity</h1>
+            <p>Enterprise-grade infrastructure powered by cutting-edge technology and industry-leading security standards.</p>
+            <a href="/docs" class="btn">
+                <i class="fas fa-book"></i>
+                Explore Documentation
+            </a>
+
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <div class="metric-icon" style="background: var(--success)">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="metric-title">Security Score</div>
+                    </div>
+                    <div class="metric-value">A+</div>
+                    <div class="metric-trend">
+                        <i class="fas fa-check"></i>
+                        SOC2 Type II Certified
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <div class="metric-icon" style="background: var(--primary)">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <div class="metric-title">Response Time</div>
+                    </div>
+                    <div class="metric-value">45ms</div>
+                    <div class="metric-trend">
+                        <i class="fas fa-arrow-down"></i>
+                        -12ms improvement
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <div class="metric-icon" style="background: var(--warning)">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="metric-title">Uptime SLA</div>
+                    </div>
+                    <div class="metric-value">99.99%</div>
+                    <div class="metric-trend">
+                        <i class="fas fa-arrow-up"></i>
+                        Last 2 days
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // Dynamic timestamp updates
+        function updateTimestamp() {
+            const now = new Date();
+            document.querySelector('.api-status').innerHTML = `
+                <div class="pulse"></div>
+                All Systems Operational | Updated ${now.toLocaleTimeString()}
+            `;
+        }
+        setInterval(updateTimestamp, 5000);
+
+        // Smooth scrolling
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Animation on scroll
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = 1;
+                        entry.target.style.transform = 'translateY(0)';
+                    }
+                });
+            },
+            { threshold: 0.1 }
+        );
+
+        document.querySelectorAll('.metric-card').forEach(el => {
+            el.style.opacity = 0;
+            el.style.transform = 'translateY(20px)';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>
