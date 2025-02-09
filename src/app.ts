@@ -50,8 +50,7 @@
  * For architecture overview, see ARCHITECTURE.md
  */
 
-import express, { Application, Request, Response, NextFunction } from 'express';
-import { createServer, Server as HTTPSServer } from 'https';
+import express, { Application } from 'express';
 import { Server as HTTPServer } from 'http';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -59,10 +58,6 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import morgan from 'morgan';
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
-import spdy from 'spdy';
 import { MongoError } from 'mongodb';
 import chalk from 'chalk';
 
@@ -101,7 +96,7 @@ import WhatsAppService from './services/whatsapp.service';
  */
 export class AppServer {
   private readonly app: Application;
-  private server?: HTTPSServer | HTTPServer;
+  private server?: HTTPServer;
   private isShuttingDown: boolean = false;
 
   /**
@@ -309,13 +304,8 @@ export class AppServer {
         log.warn('WhatsApp service initialization failed: ' + error.message);
       });
 
-      if (process.env.SSL_ENABLED === 'true') {
-        log.info('SSL Mode: Enabled');
-        await this.startSecureServer();
-      } else {
-        log.warn('SSL Mode: Disabled (not recommended for production)');
-        await this.startHttpServer();
-      }
+      // Always use HTTP server as Render handles SSL/HTTPS
+      await this.startHttpServer();
 
       console.log('\n' + chalk.black(chalk.bgGreen(' SERVER READY ')));
       log.success(`API Server running on port ${config.PORT}`);
@@ -326,59 +316,6 @@ export class AppServer {
     }
   }
 
-  /**
-   * @private
-   * @method startSecureServer
-   * @description Initializes and starts HTTPS server with SSL/TLS support.
-   *
-   * Features:
-   * - HTTPS with modern TLS configuration
-   * - HTTP/2 support (optional)
-   * - Strong cipher suite selection
-   * - HSTS implementation
-   *
-   * @returns {Promise<void>} Resolves when secure server is started
-   * @throws {Error} If server fails to start or SSL configuration is invalid
-   *
-   * @security Critical for production environments.
-   * Ensures secure communication channel for all client-server interactions.
-   */
-  private async startSecureServer(): Promise<void> {
-    try {
-      const credentials = {
-        key: fs.readFileSync(process.env.SSL_KEY_PATH!, 'utf8'),
-        cert: fs.readFileSync(process.env.SSL_CERT_PATH!, 'utf8'),
-        ca: fs.readFileSync(process.env.SSL_CHAIN_PATH!, 'utf8'),
-        secureOptions: crypto.constants.SSL_OP_NO_TLSv1 | crypto.constants.SSL_OP_NO_TLSv1_1,
-      };
-
-      if (process.env.ENABLE_HTTP2 === 'true') {
-        this.server = spdy.createServer(credentials, this.app);
-      } else {
-        this.server = createServer(credentials, this.app);
-      }
-
-      await new Promise<void>((resolve, reject) => {
-        this.server!.listen(config.PORT, () => {
-          const { log } = require('./utils/console-art');
-          console.log('\n' + chalk.black(chalk.bgCyan(' SECURE SERVER ')));
-          log.success(`🚀 Server running on port ${config.PORT}`);
-          log.info('Security features enabled:');
-          console.log(chalk.green('✓') + ' TLS 1.2+ only');
-          console.log(chalk.green('✓') + ' Strong cipher suite');
-          console.log(chalk.green('✓') + ' HSTS enabled');
-          console.log(chalk.green('✓') + ' Strict CSP policies');
-          if (process.env.ENABLE_HTTP2 === 'true') {
-            console.log(chalk.green('✓') + ' HTTP/2 support');
-          }
-          resolve();
-        }).on('error', reject);
-      });
-    } catch (error) {
-      logger.error('Failed to start secure server:', error);
-      throw error;
-    }
-  }
 
   /**
    * @private
@@ -427,43 +364,22 @@ export class AppServer {
       process.exit(1);
     }
   }
+private async startHttpServer(): Promise<void> {
+  const port = process.env.PORT || config.PORT;
 
-  private async startHttpServer(): Promise<void> {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('HTTP server not allowed in production');
-    }
-
-    const tryPort = async (portNumber: number): Promise<void> => {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const server = this.app.listen(portNumber)
-            .on('error', (err: NodeJS.ErrnoException) => {
-              if (err.code === 'EADDRINUSE') {
-                logger.warn(`Port ${portNumber} is in use, trying ${portNumber + 1}...`);
-                server.close();
-                tryPort(portNumber + 1).then(resolve).catch(reject);
-              } else {
-                reject(err);
-              }
-            })
-            .on('listening', () => {
-              this.server = server;
-              const { log } = require('./utils/console-art');
-              console.log('\n' + chalk.black(chalk.bgYellow(' DEV SERVER ')));
-              log.warn('⚠️  Running in HTTP mode (not recommended for production)');
-              log.success(`🚀 Server running on port ${portNumber}`);
-              console.log('\n' + chalk.dim('Note: For development use only'));
-              resolve();
-            });
-        });
-      } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'EADDRINUSE') {
-          return tryPort(portNumber + 1);
-        }
-        throw error;
+  await new Promise<void>((resolve, reject) => {
+    this.server = this.app.listen(port, () => {
+      const { log } = require('./utils/console-art');
+      log.success(`🚀 Server running on port ${port}`);
+      if (process.env.NODE_ENV === 'production') {
+        log.info('Running in production mode (SSL/HTTPS handled by Render)');
       }
-    };
-await tryPort(Number(config.PORT));
+      resolve();
+    }).on('error', (err: Error) => {
+      logger.error('Failed to start HTTP server:', err);
+      reject(err);
+    });
+  });
 }
 }
 
