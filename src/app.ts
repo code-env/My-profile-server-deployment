@@ -309,7 +309,21 @@ export class AppServer {
       await WhatsAppService.initialize().catch((error: Error) => {
         log.warn('WhatsApp service initialization failed: ' + error.message);
       });
+      await this.initializeDatabase();
 
+       // Start WhatsApp service with retries
+  let attempts = 0;
+  const initWhatsApp = async () => {
+    try {
+      await WhatsAppService.initialize();
+    } catch (error) {
+      if (attempts < 3) {
+        attempts++;
+        setTimeout(initWhatsApp, 5000 * attempts);
+      }
+    }
+  };
+  await initWhatsApp();
       // Always use HTTP server as Render handles SSL/HTTPS
       await this.startHttpServer();
 

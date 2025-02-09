@@ -1,18 +1,35 @@
-preBootScript: |
-  # Install Chrome with corrected key handling
-  wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-  echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-  apt-get update
-  apt-get install -y google-chrome-stable
+services:
+  - type: web
+    name: my-profile-ltd
+    env: node
+    region: frankfurt
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/auth/healthcheck
+    envVars:
+      - key: NODE_VERSION
+        value: 18.19.0
+      - key: NODE_ENV
+        value: production
+      - key: CHROME_PATH
+        value: /usr/bin/chromium
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "true"
+    disk:
+      name: whatsapp-sessions
+      mountPath: /data/whatsapp-sessions
+      sizeGB: 1
+    preBootScript: |
+      apt-get update && apt-get install -y \
+        chromium \
+        fonts-liberation \
+        libnss3 \
+        libxss1 \
+        libasound2 \
+        libgbm1 \
+        xdg-utils \
+        --no-install-recommends
 
-  # Verify installation
-  ls -la /usr/bin/google-chrome-stable || (echo "Chrome install failed"; exit 1)
-  chmod +x /usr/bin/google-chrome-stable
-
-  # Install additional dependencies
-  apt-get install -y \
-    libxkbcommon0 \
-    libgbm-dev \
-    libglu1 \
-    libdrm-dev \
-    libegl1
+      mkdir -p /data/whatsapp-sessions
+      chmod 777 /data/whatsapp-sessions
