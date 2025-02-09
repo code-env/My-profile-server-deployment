@@ -44,7 +44,7 @@ const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
-  PORT: z.string().default("5000"),
+  PORT: z.coerce.number().default(8080),
   MONGODB_URI: z.string(),
   BASE_URL: z.string().default('http://localhost:3000'),
   API_URL: z.string().default("http://localhost:5000"),
@@ -59,9 +59,9 @@ const envSchema = z.object({
   COOKIE_SECRET: z.string(),
 
   // SSL Configuration
-  SSL_KEY_PATH: z.string().default("ssl/private.key"),
-  SSL_CERT_PATH: z.string().default("ssl/certificate.crt"),
-  SSL_ENABLED: z.string().default("true"),
+  SSL_KEY_PATH: z.string().optional(),
+  SSL_CERT_PATH: z.string().optional(),
+  SSL_ENABLED: z.string().default("false"),
 
   // Communication Services
   TWILIO_ACCOUNT_SID: z.string().optional(),
@@ -70,7 +70,7 @@ const envSchema = z.object({
 
   // Email Configuration
   SMTP_HOST: z.string(),
-  SMTP_PORT: z.number().default(587),
+  SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string(),
   SMTP_PASSWORD: z.string(),
   SMTP_FROM: z.string(),
@@ -103,7 +103,7 @@ const envSchema = z.object({
  */
 const getConfig = () => {
   try {
-    return envSchema.parse({
+    const parsedConfig = envSchema.parse({
       // Core Application Settings
       NODE_ENV: process.env.NODE_ENV,
       PORT: process.env.PORT,
@@ -132,7 +132,7 @@ const getConfig = () => {
 
       // Email Configuration
       SMTP_HOST: process.env.SMTP_HOST,
-      SMTP_PORT: parseInt(process.env.SMTP_PORT || "587", 10),
+      SMTP_PORT: process.env.SMTP_PORT,
       SMTP_USER: process.env.SMTP_USER,
       SMTP_PASSWORD: process.env.SMTP_PASSWORD,
       SMTP_FROM: process.env.SMTP_FROM,
@@ -144,19 +144,26 @@ const getConfig = () => {
       FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID,
       FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET,
     });
+
+    console.log('Configuration loaded successfully');
+    console.log('Environment:', parsedConfig.NODE_ENV);
+    console.log('Port:', parsedConfig.PORT);
+    console.log('MongoDB URI format:', parsedConfig.MONGODB_URI.split('@')[1]?.split('/')[0] || 'Invalid URI format');
+
+    return parsedConfig;
   } catch (error) {
-    throw new Error(
-      `Configuration validation error: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+    console.error('Configuration validation error:', error);
+    if (error instanceof z.ZodError) {
+      error.errors.forEach(err => {
+        console.error(`${err.path.join('.')}: ${err.message}`);
+      });
+    }
+    throw error;
   }
 };
 
-/**
- * Validated Configuration Instance
- * ------------------------------
- * Exports a single, validated configuration object.
- * This ensures consistent access to configuration values across the application.
- *
- * @type {ReturnType<typeof getConfig>}
- */
+// Export type for TypeScript support
+export type Config = z.infer<typeof envSchema>;
+
+// Export the config as a named export
 export const config = getConfig();
