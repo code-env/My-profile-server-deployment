@@ -219,3 +219,4 @@ class WhatsAppService {
 }
 
 export default WhatsAppService;
+//describe('WhatsAppService', () => {
