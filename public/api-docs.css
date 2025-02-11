@@ -3,12 +3,14 @@
     --primary-dark: #185abc;
     --secondary: #202124;
     --success: #34a853;
+    --success-bg: rgba(52,168,83,0.1);
     --warning: #fbbc04;
     --danger: #ea4335;
+    --danger-bg: rgba(234,67,53,0.1);
     --dark: #202124;
     --gray: #5f6368;
     --light: #ffffff;
-    --code-bg: #ebebeb;
+    --code-bg: #f8f9fa;
     --shadow: 0 2px 6px rgba(60,64,67,.15);
 }
 
@@ -158,6 +160,18 @@ body {
     color: var(--gray);
     margin-bottom: 16px;
     margin-top: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.section-title::before {
+    content: '';
+    display: block;
+    width: 16px;
+    height: 2px;
+    background: currentColor;
+    opacity: 0.5;
 }
 
 .code-block {
@@ -167,56 +181,47 @@ body {
     margin-bottom: 24px;
     overflow-x: auto;
     position: relative;
+    max-height: 400px;
+    border: 1px solid rgba(0,0,0,0.1);
 }
 
-.code-block::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 24px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 8px 8px 0 0;
+.code-block.success {
+    background: var(--success-bg);
+    border-left: 4px solid var(--success);
 }
 
-.copy-button {
-    position: absolute;
-    top: 6px;
-    right: 12px;
-    background: transparent;
-    border: none;
-    color: rgba(255,255,255,0.6);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    transition: all 0.2s;
+.code-block.error {
+    background: var(--danger-bg);
+    border-left: 4px solid var(--danger);
 }
 
-.copy-button:hover {
-    color: white;
-    background: rgba(255,255,255,0.1);
-}
-
-.code {
+.code-block pre {
+    margin: 0;
     font-family: 'Roboto Mono', monospace;
     font-size: 13px;
-    color: #e8eaed;
     line-height: 1.6;
-    margin-top: 12px;
 }
 
-.code .keyword { color: #ff79c6; }
-.code .string { color: #f1fa8c; }
-.code .number { color: #bd93f9; }
-.code .property { color: #8be9fd; }
-.code .comment { color: #6272a4; }
+.code-block code {
+    display: block;
+    color: var(--secondary);
+}
+
+/* Syntax highlighting */
+.code-block .string { color: #0b8043; }
+.code-block .number { color: #1967d2; }
+.code-block .boolean { color: #c5221f; }
+.code-block .null { color: #80868b; }
+.code-block .key { color: #a142f4; }
 
 .parameters {
     width: 100%;
     border-collapse: collapse;
     margin-bottom: 32px;
     background: white;
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 .parameters th,
@@ -230,7 +235,7 @@ body {
 .parameters th {
     font-weight: 500;
     color: var(--gray);
-    background: #f8f9fa;
+    background: var(--code-bg);
 }
 
 .parameters tr:last-child td {
@@ -243,19 +248,16 @@ body {
     font-size: 13px;
 }
 
-.parameter-required {
-    color: var(--danger);
-    font-size: 12px;
-    margin-left: 8px;
-}
-
-.parameter-type {
+.required {
     display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    background: #f1f3f4;
-    color: var(--gray);
-    font-size: 12px;
+    font-size: 11px;
+    color: var(--danger);
+    background: var(--danger-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 8px;
+    font-weight: 500;
+    text-transform: uppercase;
 }
 
 .note {
@@ -273,6 +275,53 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.responses {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 32px;
+    background: white;
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.responses th,
+.responses td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    font-size: 14px;
+}
+
+.responses th {
+    font-weight: 500;
+    color: var(--gray);
+    background: var(--code-bg);
+}
+
+.responses tr:last-child td {
+    border-bottom: none;
+}
+
+.responses td:first-child {
+    font-family: 'Roboto Mono', monospace;
+    font-weight: 500;
+}
+
+.responses tr[data-status="200"] td:first-child,
+.responses tr[data-status="201"] td:first-child {
+    color: var(--success);
+}
+
+.responses tr[data-status="400"] td:first-child,
+.responses tr[data-status="401"] td:first-child,
+.responses tr[data-status="403"] td:first-child,
+.responses tr[data-status="404"] td:first-child,
+.responses tr[data-status="429"] td:first-child,
+.responses tr[data-status="500"] td:first-child {
+    color: var(--danger);
 }
 
 @media (max-width: 1024px) {
