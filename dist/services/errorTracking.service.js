@@ -27,15 +27,17 @@ class ErrorTrackingService {
             // Store error event
             await this.storeError(errorEvent);
             // Log to audit trail
-            await auditLog_service_1.AuditLogService.log({
+            await auditLog_service_1.auditLogService.logRequest({
+                timestamp: new Date(),
                 userId: ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) || 'anonymous',
                 action: 'error_occurred',
-                resourceType: 'error',
-                resourceId: errorEvent.errorId,
-                request: req,
-                status: 'failure',
-                errorMessage: error.message,
-                metadata: { errorType: error.name }
+                details: {
+                    errorId: errorEvent.errorId,
+                    errorType: error.name,
+                    errorMessage: error.message,
+                    path: req.path,
+                    status: 'failure'
+                }
             });
             // Track error frequency
             await this.trackErrorFrequency(error.name, req.path);

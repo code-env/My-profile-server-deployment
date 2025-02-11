@@ -42,6 +42,7 @@ import connectionRoutes from './connection.routes';
 import logsRoutes from './logs.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
+import { testRoutes } from './test.routes';
 
 /**
  * Configures and sets up all API routes for the application
@@ -66,6 +67,11 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/profiles', protect, profileRoutes);
   app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/logs', logsRoutes);
+
+  // Test routes for advanced tracking (development only)
+  if (process.env.NODE_ENV !== 'production') {
+    app.use('/api', testRoutes);
+  }
 
   // Health check endpoint
   app.get('/api/health', (req, res) => {

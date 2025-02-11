@@ -1,128 +1,184 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SecurityMonitoringService = void 0;
+exports.securityMonitoringService = exports.SecurityMonitoringService = void 0;
 const logger_1 = require("../utils/logger");
-const deviceFingerprint_service_1 = require("./deviceFingerprint.service");
 const auditLog_service_1 = require("./auditLog.service");
-const ioredis_1 = require("ioredis");
-const redis = new ioredis_1.Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 class SecurityMonitoringService {
-    static async monitorRequest(req, userId) {
+    constructor(auditLogService) {
+        this.auditLogService = auditLogService;
+        this.requestCounts = new Map();
+        this.failedLogins = new Map();
+        this.activeSessions = new Map();
+    }
+    async analyzeRequest(metadata) {
         try {
-            // Analyze device and get risk score
-            const deviceInfo = await deviceFingerprint_service_1.DeviceFingerprintService.analyzeDevice(req);
-            const riskScore = deviceInfo.riskScore;
-            // Track suspicious IPs
-            const ip = req.ip;
-            await this.trackSuspiciousIP(ip);
-            // Monitor for concurrent sessions
-            if (userId) {
-                await this.checkConcurrentSessions(userId, deviceInfo.fingerprint);
-            }
-            // Generate alerts based on risk score
-            if (riskScore >= this.ALERT_THRESHOLD.HIGH) {
-                await this.generateAlert('high', 'High-risk activity detected', {
-                    userId,
-                    deviceInfo,
-                    riskScore
-                });
-            }
-            else if (riskScore >= this.ALERT_THRESHOLD.MEDIUM) {
-                await this.generateAlert('medium', 'Suspicious activity detected', {
-                    userId,
-                    deviceInfo,
-                    riskScore
-                });
-            }
-            // Log security event
-            await auditLog_service_1.AuditLogService.log({
-                userId: userId || 'anonymous',
-                action: 'security_check',
-                resourceType: 'security',
-                request: req,
-                status: 'success',
-                metadata: {
-                    riskScore,
-                    deviceInfo
-                }
-            });
-            return { riskScore, deviceInfo };
+            await Promise.all([
+                this.checkForSuspiciousPatterns(metadata),
+                this.enforceRateLimits(metadata),
+                this.trackGeoAnomalies(metadata),
+                this.monitorBruteForce(metadata),
+                this.analyzeUserBehavior(metadata)
+            ]);
         }
         catch (error) {
-            logger_1.logger.error('Security monitoring failed:', error);
+            logger_1.logger.error('Error in security analysis:', error);
             throw error;
         }
     }
-    static async trackSuspiciousIP(ip) {
-        const key = `suspicious_ip:${ip}`;
-        const attempts = await redis.incr(key);
-        await redis.expire(key, 24 * 60 * 60); // 24 hours
-        if (attempts >= 10) {
-            await this.generateAlert('high', 'Suspicious IP activity', { ip, attempts });
+    async checkForSuspiciousPatterns(metadata) {
+        const route = metadata.route || '';
+        const userInput = JSON.stringify(metadata);
+        for (const pattern of SecurityMonitoringService.SUSPICIOUS_PATTERNS) {
+            if (pattern.test(userInput)) {
+                logger_1.logger.warn('Suspicious pattern detected', {
+                    pattern: pattern.source,
+                    ip: metadata.ip,
+                    userId: metadata.userId,
+                    route
+                });
+                await this.auditLogService.logSecurity({
+                    timestamp: new Date(),
+                    type: 'SUSPICIOUS_PATTERN',
+                    severity: 'HIGH',
+                    ip: metadata.ip,
+                    userId: metadata.userId,
+                    details: {
+                        pattern: pattern.source,
+                        detectedIn: route,
+                        metadata
+                    }
+                });
+            }
         }
     }
-    static async checkConcurrentSessions(userId, deviceFingerprint) {
-        const key = `user_sessions:${userId}`;
-        const sessions = await redis.smembers(key);
-        // Add current session
-        await redis.sadd(key, deviceFingerprint);
-        await redis.expire(key, 24 * 60 * 60); // 24 hours
-        // Alert if too many concurrent sessions
-        if (sessions.length > 5) {
-            await this.generateAlert('medium', 'Multiple concurrent sessions detected', {
+    async enforceRateLimits(metadata) {
+        const { ip, userId } = metadata;
+        const key = userId || ip;
+        const currentCount = (this.requestCounts.get(key) || 0) + 1;
+        this.requestCounts.set(key, currentCount);
+        if (currentCount > SecurityMonitoringService.RATE_LIMITS.maxRequestsPerMinute) {
+            logger_1.logger.warn('Rate limit exceeded', { ip, userId, count: currentCount });
+            await this.auditLogService.logSecurity({
+                timestamp: new Date(),
+                type: 'RATE_LIMIT_EXCEEDED',
+                severity: 'MEDIUM',
+                ip,
                 userId,
-                sessionCount: sessions.length
+                details: { ip, userId, requestCount: currentCount }
+            });
+            throw new Error('Rate limit exceeded');
+        }
+        // Reset counts after 1 minute
+        setTimeout(() => {
+            this.requestCounts.delete(key);
+        }, 60000);
+    }
+    async trackGeoAnomalies(metadata) {
+        var _a, _b, _c, _d;
+        if (!metadata.userId || !metadata.geolocation)
+            return;
+        const userLastLocation = await this.getUserLastLocation(metadata.userId);
+        if (userLastLocation &&
+            this.calculateDistance(((_a = userLastLocation.ll) === null || _a === void 0 ? void 0 : _a[0]) || 0, ((_b = userLastLocation.ll) === null || _b === void 0 ? void 0 : _b[1]) || 0, ((_c = metadata.geolocation.ll) === null || _c === void 0 ? void 0 : _c[0]) || 0, ((_d = metadata.geolocation.ll) === null || _d === void 0 ? void 0 : _d[1]) || 0) > 1000) { // More than 1000km difference
+            logger_1.logger.warn('Suspicious location change detected', {
+                userId: metadata.userId,
+                oldLocation: userLastLocation,
+                newLocation: metadata.geolocation
+            });
+            await this.auditLogService.logSecurity({
+                timestamp: new Date(),
+                type: 'GEO_ANOMALY',
+                severity: 'HIGH',
+                ip: metadata.ip,
+                userId: metadata.userId,
+                details: {
+                    userId: metadata.userId,
+                    previousLocation: userLastLocation,
+                    currentLocation: metadata.geolocation
+                }
             });
         }
     }
-    static async generateAlert(type, message, details) {
-        const alert = {
-            type,
-            message,
-            details,
-            timestamp: new Date()
-        };
-        // Store alert in Redis for real-time monitoring
-        await redis.lpush('security_alerts', JSON.stringify(alert));
-        await redis.ltrim('security_alerts', 0, 999); // Keep last 1000 alerts
-        // Log alert
-        if (type === 'high') {
-            logger_1.logger.error(`🚨 SECURITY ALERT: ${message}`, details);
-        }
-        else if (type === 'medium') {
-            logger_1.logger.warn(`⚠️ SECURITY WARNING: ${message}`, details);
-        }
-        else {
-            logger_1.logger.info(`ℹ️ SECURITY NOTICE: ${message}`, details);
-        }
-        // Implement notification system for high-priority alerts
-        if (type === 'high') {
-            await this.notifySecurityTeam(alert);
+    async monitorBruteForce(metadata) {
+        if (metadata.statusCode === 401) {
+            const key = metadata.ip;
+            const failCount = (this.failedLogins.get(key) || 0) + 1;
+            this.failedLogins.set(key, failCount);
+            if (failCount >= SecurityMonitoringService.RATE_LIMITS.maxFailedLogins) {
+                logger_1.logger.warn('Possible brute force attack detected', {
+                    ip: metadata.ip,
+                    userId: metadata.userId,
+                    failCount
+                });
+                await this.auditLogService.logSecurity({
+                    timestamp: new Date(),
+                    type: 'BRUTE_FORCE_ATTEMPT',
+                    severity: 'HIGH',
+                    ip: metadata.ip,
+                    userId: metadata.userId,
+                    details: { ip: metadata.ip, failedAttempts: failCount }
+                });
+            }
+            // Reset count after 30 minutes
+            setTimeout(() => {
+                this.failedLogins.delete(key);
+            }, 30 * 60 * 1000);
         }
     }
-    static async notifySecurityTeam(alert) {
-        // Implement your notification logic here (email, SMS, Slack, etc.)
-        logger_1.logger.info('Security team notified of high-priority alert', alert);
+    async analyzeUserBehavior(metadata) {
+        if (!metadata.userId || !metadata.sessionId)
+            return;
+        const userSessions = this.activeSessions.get(metadata.userId) || new Set();
+        userSessions.add(metadata.sessionId);
+        this.activeSessions.set(metadata.userId, userSessions);
+        if (userSessions.size > SecurityMonitoringService.RATE_LIMITS.maxConcurrentSessions) {
+            logger_1.logger.warn('Multiple concurrent sessions detected', {
+                userId: metadata.userId,
+                sessionCount: userSessions.size
+            });
+            await this.auditLogService.logSecurity({
+                timestamp: new Date(),
+                type: 'CONCURRENT_SESSIONS',
+                severity: 'MEDIUM',
+                ip: metadata.ip,
+                userId: metadata.userId,
+                details: {
+                    userId: metadata.userId,
+                    sessionCount: userSessions.size
+                }
+            });
+        }
     }
-    // Get recent security alerts
-    static async getRecentAlerts(limit = 100) {
-        const alerts = await redis.lrange('security_alerts', 0, limit - 1);
-        return alerts.map((alert) => JSON.parse(alert));
+    async getUserLastLocation(userId) {
+        // Implement this method to fetch user's last known location from your database
+        return null;
     }
-    // Get security metrics
-    static async getSecurityMetrics() {
-        const now = Date.now();
-        const hourAgo = now - 60 * 60 * 1000;
-        return {
-            highRiskAlerts: await redis.llen('security_alerts:high'),
-            suspiciousIPs: await redis.keys('suspicious_ip:*'),
-            recentFailedLogins: await redis.zcount('failed_logins', hourAgo, now)
-        };
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Radius of the earth in km
+        const dLat = this.deg2rad(lat2 - lat1);
+        const dLon = this.deg2rad(lon2 - lon1);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance in km
+    }
+    deg2rad(deg) {
+        return deg * (Math.PI / 180);
     }
 }
 exports.SecurityMonitoringService = SecurityMonitoringService;
-SecurityMonitoringService.ALERT_THRESHOLD = {
-    HIGH: 80,
-    MEDIUM: 50,
-    LOW: 30
+SecurityMonitoringService.SUSPICIOUS_PATTERNS = [
+    /union\s+select/i,
+    /exec(\s|\+)/i,
+    /<script>/i,
+    /javascript:/i,
+    /onload=/i,
+    /onerror=/i
+];
+SecurityMonitoringService.RATE_LIMITS = {
+    maxRequestsPerMinute: 100,
+    maxFailedLogins: 5,
+    maxConcurrentSessions: 5
 };
+exports.securityMonitoringService = new SecurityMonitoringService(new auditLog_service_1.AuditLogService());

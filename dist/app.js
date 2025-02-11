@@ -61,6 +61,7 @@ const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const compression_1 = __importDefault(require("compression"));
+const morgan_1 = __importDefault(require("morgan"));
 const chalk_1 = __importDefault(require("chalk"));
 // Internal imports
 const config_1 = require("./config/config");
@@ -72,6 +73,7 @@ const rate_limiter_middleware_1 = require("./middleware/rate-limiter.middleware"
 const performance_middleware_1 = require("./middleware/performance.middleware");
 const env_validator_1 = require("./utils/env-validator");
 const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"));
+const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
 /**
  * @class AppServer
  * @description Core server application class that manages the Express application lifecycle,
@@ -168,6 +170,17 @@ class AppServer {
             exposedHeaders: ['Content-Range', 'X-Content-Range'],
             maxAge: 600,
         }));
+        // Add advanced tracking middleware after security headers but before routes
+        // Configure morgan with advanced tracking format
+        const morganFormat = ':method :url :status :response-time ms - :res[content-length] - IP: :remote-addr - :user-agent';
+        this.app.use((0, morgan_1.default)(morganFormat, {
+            stream: {
+                write: (message) => {
+                    logger_1.logger.http(message.trim());
+                }
+            }
+        }));
+        this.app.use(advanced_tracking_middleware_1.advancedTrackingMiddleware);
         this.app.use(express_1.default.json({ limit: '10mb' }));
         this.app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
         this.app.use((0, cookie_parser_1.default)(config_1.config.COOKIE_SECRET));

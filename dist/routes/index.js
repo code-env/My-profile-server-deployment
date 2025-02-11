@@ -45,6 +45,7 @@ const profile_routes_1 = __importDefault(require("./profile.routes"));
 const connection_routes_1 = __importDefault(require("./connection.routes"));
 const logs_routes_1 = __importDefault(require("./logs.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
+const test_routes_1 = require("./test.routes");
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -65,6 +66,10 @@ const setupRoutes = (app) => {
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     app.use('/api/connections', auth_middleware_1.protect, connection_routes_1.default);
     app.use('/api/logs', logs_routes_1.default);
+    // Test routes for advanced tracking (development only)
+    if (process.env.NODE_ENV !== 'production') {
+        app.use('/api', test_routes_1.testRoutes);
+    }
     // Health check endpoint
     app.get('/api/health', (req, res) => {
         res.json({ status: 'healthy', timestamp: new Date().toISOString() });

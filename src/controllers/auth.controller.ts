@@ -66,7 +66,7 @@ import {
   loginSchema,
 } from "../types/auth.types";
 import WhatsAppService from "../services/whatsapp.service";
-import { getRequestInfo } from "../utils/requestInfo";
+import { getClientInfo } from "../utils/controllerUtils";
 
 /**
  * Core user interface defining essential user properties.
@@ -219,11 +219,10 @@ export class AuthController {
         loginHistory: [], // Added missing property
         securityQuestions: [], // Added missing property
       };
-      // Get request info for security tracking
-      const { ip, os } = getRequestInfo(req);
-      console.log("🔐 Registration request from:", ip, os);
+      const clientInfo = await getClientInfo(req);
+      console.log("🔐 Registration request from:", clientInfo.ip, clientInfo.os);
 
-      const result: any = await AuthService.register(user, ip, os);
+      const result: any = await AuthService.register(user, clientInfo.ip, clientInfo.os);
 
       res.status(201).json({
         success: true,
@@ -583,7 +582,7 @@ export class AuthController {
      }
 
      // Get request info for security tracking
-     const { ip, os } = getRequestInfo(req);
+     const clientInfo = await getClientInfo(req);
 
      // Call AuthService to handle token refresh
      const tokens = await AuthService.refreshAccessToken(refreshToken);
@@ -662,12 +661,11 @@ export class AuthController {
       const resetToken = randomBytes(32).toString("hex");
       await AuthService.setResetToken(email, resetToken);
 
-      // Get request info for security tracking
-      const { ip, os } = getRequestInfo(req);
+      const clientInfo = await getClientInfo(req);
 
       // Send reset email
       const resetUrl = `${config.CLIENT_URL}/reset-password?token=${resetToken}`;
-      await EmailService.sendPasswordResetEmail(email, resetToken, { ipAddress: ip, userAgent: os });
+      await EmailService.sendPasswordResetEmail(email, resetToken, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
 
       res.json({
         success: true,
@@ -758,8 +756,7 @@ export class AuthController {
         throw new CustomError("MISSING_EMAIL", "Email is required");
       }
 
-      // Get request info for security tracking
-      const { ip, os } = getRequestInfo(req);
+      const clientInfo = await getClientInfo(req);
 
       // Logic to resend verification email
       const result = await AuthService.resendVerification(email);
@@ -827,7 +824,7 @@ export class AuthController {
       }
 
       // Get request info for security tracking
-      const { ip, os } = getRequestInfo(req);
+      const clientInfo = await getClientInfo(req);
 
       // First find user by verification token
       const user:any = await User.findOne({ 'verificationData.token': token });
@@ -921,10 +918,10 @@ export class AuthController {
       const secretData = await TwoFactorService.generateSecret(userId);
 
       // Get request info for security tracking
-      const { ip, os } = getRequestInfo(req);
+      const clientInfo = await getClientInfo(req);
 
       // Send 2FA code via email with security info
-      await EmailService.sendTwoFactorAuthEmail(user.email, secretData.secret, { ipAddress: ip, userAgent: os });
+      await EmailService.sendTwoFactorAuthEmail(user.email, secretData.secret, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
 
       res.status(200).json({
         message: "2FA code sent successfully",
@@ -1063,7 +1060,7 @@ export class AuthController {
       const otp = generateOTP(6);
 
       // Get request info for security tracking
-      const { ip, os } = getRequestInfo(req);
+      const clientInfo = await getClientInfo(req);
 
       // Update user's verification data
       user.verificationData = {
@@ -1079,7 +1076,7 @@ export class AuthController {
 
       // Send OTP based on verification method
       if (verificationMethod.toLowerCase() === "email") {
-        await EmailService.sendVerificationEmail(user.email, otp, { ipAddress: ip, userAgent: os });
+        await EmailService.sendVerificationEmail(user.email, otp, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
         logger.info(`🟣 Registration OTP (Email): ${otp}`);
       } else if (
         verificationMethod.toLowerCase() === "phone" &&

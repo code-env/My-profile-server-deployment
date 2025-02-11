@@ -1,153 +1,151 @@
 "use strict";
 /**
- * @file env-validator.ts
- * @description Environment Configuration Validation System
- * ===================================================
- *
- * Advanced environment variable validation and type checking system.
- * Ensures application configuration integrity through strict validation
- * of required and optional environment variables.
- *
- * Key Features:
- * ------------
- * - Type-safe environment validation
- * - Required vs optional variable handling
- * - SSL configuration validation
- * - Secure credential masking
- * - Development mode debugging
- *
- * Variable Categories:
- * -----------------
- * 1. Required Core Variables
- *    - Runtime configuration (NODE_ENV, PORT)
- *    - Database connection (MONGODB_URI)
- *    - Security tokens (JWT_SECRET, COOKIE_SECRET)
- *    - Application URLs (CLIENT_URL)
- *
- * 2. Optional SSL Configuration
- *    - SSL_ENABLED
- *    - SSL_KEY_PATH
- *    - SSL_CERT_PATH
- *    - SSL_CHAIN_PATH
- *    - ENABLE_HTTP2
- *
- * 3. Feature Flags
- *    - WHATSAPP_ENABLED
- *
- * Security Considerations:
- * ----------------------
- * - Sensitive values are masked in logs
- * - SSL configuration is validated as a unit
- * - Type coercion prevention
- *
- * @version 1.0.0
- * @license MIT
+ * Environment Variable Validation
+ * =============================
+ * Validates and enforces required environment variables for the application
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateEnv = void 0;
-const logger_1 = require("./logger");
-/**
- * Core required environment variables
- * Critical for application functionality
- */
-const requiredEnvVars = [
-    { name: 'NODE_ENV', required: true, type: 'string' },
-    { name: 'PORT', required: true, type: 'number' },
-    { name: 'MONGODB_URI', required: true, type: 'string' },
-    { name: 'JWT_SECRET', required: true, type: 'string' },
-    { name: 'COOKIE_SECRET', required: true, type: 'string' },
-    { name: 'CLIENT_URL', required: true, type: 'string' },
+exports.validateEnv = validateEnv;
+exports.getEnvStatus = getEnvStatus;
+const envVars = [
+    {
+        name: 'NODE_ENV',
+        required: true,
+        type: 'string',
+        validate: (value) => ['development', 'production', 'test'].includes(value)
+    },
+    {
+        name: 'PORT',
+        required: true,
+        type: 'number',
+        default: '3000',
+        validate: (value) => parseInt(value) > 0 && parseInt(value) < 65536
+    },
+    {
+        name: 'LOG_LEVEL',
+        required: true,
+        type: 'string',
+        default: 'info',
+        validate: (value) => ['error', 'warn', 'info', 'debug'].includes(value)
+    },
+    {
+        name: 'LOG_FORMAT',
+        required: false,
+        type: 'string',
+        default: 'json',
+        validate: (value) => ['json', 'text'].includes(value)
+    },
+    {
+        name: 'ENABLE_REQUEST_LOGGING',
+        required: false,
+        type: 'boolean',
+        default: 'true'
+    },
+    {
+        name: 'MAX_REQUEST_SIZE',
+        required: false,
+        type: 'string',
+        default: '10mb',
+        validate: (value) => /^\d+mb$/.test(value)
+    },
+    {
+        name: 'RATE_LIMIT_WINDOW',
+        required: false,
+        type: 'number',
+        default: '900000', // 15 minutes in ms
+        validate: (value) => parseInt(value) > 0
+    },
+    {
+        name: 'RATE_LIMIT_MAX',
+        required: false,
+        type: 'number',
+        default: '100',
+        validate: (value) => parseInt(value) > 0
+    },
+    {
+        name: 'ENABLE_SECURITY_TRACKING',
+        required: false,
+        type: 'boolean',
+        default: 'true'
+    },
+    {
+        name: 'ENABLE_PERFORMANCE_TRACKING',
+        required: false,
+        type: 'boolean',
+        default: 'true'
+    }
 ];
 /**
- * WhatsApp integration configuration
- * Optional feature flag with development fallback
+ * Validates environment variables
+ * @throws Error if required variables are missing or invalid
  */
-const whatsappEnvVars = [
-    { name: 'WHATSAPP_ENABLED', required: false, type: 'boolean' },
-];
-/**
- * Optional SSL and HTTP/2 configuration
- * Used for production deployments
- */
-const optionalEnvVars = [
-    { name: 'SSL_ENABLED', required: false, type: 'boolean' },
-    { name: 'SSL_KEY_PATH', required: false, type: 'string' },
-    { name: 'SSL_CERT_PATH', required: false, type: 'string' },
-    { name: 'SSL_CHAIN_PATH', required: false, type: 'string' },
-    { name: 'ENABLE_HTTP2', required: false, type: 'boolean' },
-];
-/**
- * Validates environment variables and their types
- * @throws {Error} If required environment variables are missing or of wrong type
- *
- * Validation Process:
- * 1. Checks presence of required variables
- * 2. Validates variable types
- * 3. Verifies SSL configuration completeness
- * 4. Logs environment status (development only)
- *
- * @example
- * try {
- *   validateEnv();
- *   console.log('Environment validation passed');
- * } catch (error) {
- *   console.error('Environment validation failed:', error.message);
- *   process.exit(1);
- * }
- */
-const validateEnv = () => {
+function validateEnv() {
     const errors = [];
-    // Validate required environment variables
-    requiredEnvVars.forEach(({ name, type }) => {
-        const value = process.env[name];
-        if (!value) {
-            errors.push(`Missing required environment variable: ${name}`);
+    envVars.forEach((envVar) => {
+        const value = process.env[envVar.name];
+        // Check if required variable is missing
+        if (envVar.required && !value && !envVar.default) {
+            errors.push(`Missing required environment variable: ${envVar.name}`);
+            return;
+        }
+        // Use default value if provided and value is missing
+        const finalValue = value || envVar.default;
+        // Skip validation if value is not required and not provided
+        if (!finalValue && !envVar.required) {
             return;
         }
         // Type validation
-        switch (type) {
-            case 'number':
-                if (isNaN(Number(value))) {
-                    errors.push(`Environment variable ${name} must be a number`);
-                }
-                break;
-            case 'boolean':
-                if (value !== 'true' && value !== 'false') {
-                    errors.push(`Environment variable ${name} must be a boolean`);
-                }
-                break;
+        if (envVar.type) {
+            let typedValue;
+            switch (envVar.type) {
+                case 'number':
+                    typedValue = parseInt(finalValue);
+                    if (isNaN(typedValue)) {
+                        errors.push(`Environment variable ${envVar.name} must be a number`);
+                    }
+                    break;
+                case 'boolean':
+                    if (!['true', 'false'].includes(finalValue.toLowerCase())) {
+                        errors.push(`Environment variable ${envVar.name} must be a boolean`);
+                    }
+                    break;
+                case 'string':
+                    if (typeof finalValue !== 'string') {
+                        errors.push(`Environment variable ${envVar.name} must be a string`);
+                    }
+                    break;
+            }
+        }
+        // Custom validation
+        if (envVar.validate && !envVar.validate(finalValue)) {
+            errors.push(`Invalid value for environment variable: ${envVar.name}`);
         }
     });
-    // Validate SSL configuration
-    if (process.env.SSL_ENABLED === 'true') {
-        const sslVars = ['SSL_KEY_PATH', 'SSL_CERT_PATH'];
-        sslVars.forEach(varName => {
-            if (!process.env[varName]) {
-                errors.push(`SSL is enabled but ${varName} is missing`);
-            }
-        });
-    }
-    // Validate optional WhatsApp configuration
-    if (process.env.WHATSAPP_ENABLED === 'true') {
-        logger_1.logger.info('WhatsApp service is enabled');
-    }
-    // Log all environment variables in development
-    if (process.env.NODE_ENV === 'development') {
-        const envVars = [...requiredEnvVars, ...optionalEnvVars, ...whatsappEnvVars]
-            .map(({ name }) => ({
-            name,
-            set: Boolean(process.env[name]),
-            value: name.includes('SECRET') || name.includes('KEY')
-                ? '********'
-                : process.env[name],
-        }));
-        logger_1.logger.debug('Environment variables:', envVars);
-    }
-    // Throw error if any validation failed
     if (errors.length > 0) {
-        logger_1.logger.error('Environment validation failed:', errors);
         throw new Error(`Environment validation failed:\n${errors.join('\n')}`);
     }
-    logger_1.logger.info('Environment validation passed');
-};
-exports.validateEnv = validateEnv;
+    // Set default values
+    envVars.forEach((envVar) => {
+        if (!process.env[envVar.name] && envVar.default) {
+            process.env[envVar.name] = envVar.default;
+        }
+    });
+}
+/**
+ * Get all environment variables with their current values
+ * Useful for debugging and logging
+ */
+function getEnvStatus() {
+    const status = {};
+    envVars.forEach((envVar) => {
+        const value = process.env[envVar.name] || envVar.default;
+        if (value !== undefined) {
+            status[envVar.name] = envVar.type === 'boolean'
+                ? value.toLowerCase() === 'true'
+                : envVar.type === 'number'
+                    ? parseInt(value)
+                    : value;
+        }
+    });
+    return status;
+}

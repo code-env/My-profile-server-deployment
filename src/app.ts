@@ -71,6 +71,7 @@ import { rateLimiterMiddleware } from './middleware/rate-limiter.middleware';
 import { monitorPerformance } from './middleware/performance.middleware';
 import { validateEnv } from './utils/env-validator';
 import WhatsAppService from './services/whatsapp.service';
+import { advancedTrackingMiddleware } from './middleware/advanced-tracking.middleware';
 
 /**
  * @class AppServer
@@ -174,6 +175,18 @@ export class AppServer {
       maxAge: 600,
     }));
 
+    // Add advanced tracking middleware after security headers but before routes
+    // Configure morgan with advanced tracking format
+    const morganFormat = ':method :url :status :response-time ms - :res[content-length] - IP: :remote-addr - :user-agent';
+    this.app.use(morgan(morganFormat, {
+      stream: {
+        write: (message: string) => {
+          logger.http(message.trim());
+        }
+      }
+    }));
+
+    this.app.use(advancedTrackingMiddleware);
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     this.app.use(cookieParser(config.COOKIE_SECRET));

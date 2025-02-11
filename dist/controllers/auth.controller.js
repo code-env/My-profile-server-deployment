@@ -68,7 +68,7 @@ const config_1 = require("../config/config");
 const twoFactor_service_1 = __importDefault(require("../services/twoFactor.service"));
 const auth_types_1 = require("../types/auth.types");
 const whatsapp_service_1 = __importDefault(require("../services/whatsapp.service"));
-const requestInfo_1 = require("../utils/requestInfo");
+const controllerUtils_1 = require("../utils/controllerUtils");
 class AuthController {
     /**
      * Register a new user
@@ -112,10 +112,9 @@ class AuthController {
                 loginHistory: [], // Added missing property
                 securityQuestions: [], // Added missing property
             };
-            // Get request info for security tracking
-            const { ip, os } = (0, requestInfo_1.getRequestInfo)(req);
-            console.log("🔐 Registration request from:", ip, os);
-            const result = await auth_service_1.AuthService.register(user, ip, os);
+            const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
+            console.log("🔐 Registration request from:", clientInfo.ip, clientInfo.os);
+            const result = await auth_service_1.AuthService.register(user, clientInfo.ip, clientInfo.os);
             res.status(201).json({
                 success: true,
                 message: "Registration successful. Please verify your email.",
@@ -453,7 +452,7 @@ class AuthController {
                 throw new errors_1.CustomError("MISSING_TOKEN", "Refresh token is required");
             }
             // Get request info for security tracking
-            const { ip, os } = (0, requestInfo_1.getRequestInfo)(req);
+            const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
             // Call AuthService to handle token refresh
             const tokens = await auth_service_1.AuthService.refreshAccessToken(refreshToken);
             // Set new tokens in cookies
@@ -523,11 +522,10 @@ class AuthController {
             }
             const resetToken = (0, crypto_1.randomBytes)(32).toString("hex");
             await auth_service_1.AuthService.setResetToken(email, resetToken);
-            // Get request info for security tracking
-            const { ip, os } = (0, requestInfo_1.getRequestInfo)(req);
+            const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
             // Send reset email
             const resetUrl = `${config_1.config.CLIENT_URL}/reset-password?token=${resetToken}`;
-            await email_service_1.default.sendPasswordResetEmail(email, resetToken, { ipAddress: ip, userAgent: os });
+            await email_service_1.default.sendPasswordResetEmail(email, resetToken, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
             res.json({
                 success: true,
                 message: "Password reset instructions sent to your email",
@@ -610,8 +608,7 @@ class AuthController {
             if (!email) {
                 throw new errors_1.CustomError("MISSING_EMAIL", "Email is required");
             }
-            // Get request info for security tracking
-            const { ip, os } = (0, requestInfo_1.getRequestInfo)(req);
+            const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
             // Logic to resend verification email
             const result = await auth_service_1.AuthService.resendVerification(email);
             res.json({
@@ -676,7 +673,7 @@ class AuthController {
                 });
             }
             // Get request info for security tracking
-            const { ip, os } = (0, requestInfo_1.getRequestInfo)(req);
+            const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
             // First find user by verification token
             const user = await User_1.User.findOne({ 'verificationData.token': token });
             if (!user) {
@@ -762,9 +759,9 @@ class AuthController {
             // Generate 2FA secret
             const secretData = await twoFactor_service_1.default.generateSecret(userId);
             // Get request info for security tracking
-            const { ip, os } = (0, requestInfo_1.getRequestInfo)(req);
+            const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
             // Send 2FA code via email with security info
-            await email_service_1.default.sendTwoFactorAuthEmail(user.email, secretData.secret, { ipAddress: ip, userAgent: os });
+            await email_service_1.default.sendTwoFactorAuthEmail(user.email, secretData.secret, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
             res.status(200).json({
                 message: "2FA code sent successfully",
                 qrCode: secretData.qrCode
@@ -899,7 +896,7 @@ class AuthController {
             // Generate new OTP
             const otp = generateOTP(6);
             // Get request info for security tracking
-            const { ip, os } = (0, requestInfo_1.getRequestInfo)(req);
+            const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
             // Update user's verification data
             user.verificationData = {
                 otp,
@@ -910,7 +907,7 @@ class AuthController {
             await user.save();
             // Send OTP based on verification method
             if (verificationMethod.toLowerCase() === "email") {
-                await email_service_1.default.sendVerificationEmail(user.email, otp, { ipAddress: ip, userAgent: os });
+                await email_service_1.default.sendVerificationEmail(user.email, otp, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
                 logger_1.logger.info(`🟣 Registration OTP (Email): ${otp}`);
             }
             else if (verificationMethod.toLowerCase() === "phone" &&

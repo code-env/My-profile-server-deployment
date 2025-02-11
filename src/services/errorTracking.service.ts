@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import { Redis } from 'ioredis';
-import { AuditLogService } from './auditLog.service';
+import { auditLogService } from './auditLog.service';
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
@@ -45,15 +45,17 @@ export class ErrorTrackingService {
       await this.storeError(errorEvent);
 
       // Log to audit trail
-      await AuditLogService.log({
+      await auditLogService.logRequest({
+        timestamp: new Date(),
         userId: (req as any).user?.id || 'anonymous',
         action: 'error_occurred',
-        resourceType: 'error',
-        resourceId: errorEvent.errorId,
-        request: req,
-        status: 'failure',
-        errorMessage: error.message,
-        metadata: { errorType: error.name }
+        details: {
+          errorId: errorEvent.errorId,
+          errorType: error.name,
+          errorMessage: error.message,
+          path: req.path,
+          status: 'failure'
+        }
       });
 
       // Track error frequency
@@ -75,7 +77,7 @@ export class ErrorTrackingService {
 
   private static sanitizeRequestBody(body: any): any {
     if (!body) return body;
-    
+
     const sensitiveFields = ['password', 'token', 'secret', 'apiKey', 'credit_card'];
     const sanitized = { ...body };
 
@@ -118,7 +120,7 @@ export class ErrorTrackingService {
   private static async trackErrorFrequency(errorType: string, path: string) {
     const now = Date.now();
     const key = `error_frequency:${errorType}:${path}`;
-    
+
     await redis.zadd('error_timestamps', now, `${errorType}:${path}`);
     await redis.incr(key);
     await redis.expire(key, 60 * 60); // 1 hour
@@ -127,7 +129,7 @@ export class ErrorTrackingService {
   private static async checkErrorThreshold(errorType: string, path: string) {
     const key = `error_frequency:${errorType}:${path}`;
     const count = await redis.get(key);
-    
+
     if (count && parseInt(count) > 10) {
       logger.error(`High error frequency detected for ${errorType} at ${path}`);
       // Implement notification system here
@@ -164,14 +166,14 @@ export class ErrorTrackingService {
   private static async getMostFrequentErrors(limit: number) {
     const errors = await redis.zrevrange('error_timestamps', 0, limit - 1, 'WITHSCORES');
     const result: any[] = [];
-    
+
     for (let i = 0; i < errors.length; i += 2) {
       result.push({
         error: errors[i],
         count: parseInt(errors[i + 1])
       });
     }
-    
+
     return result;
   }
 }
