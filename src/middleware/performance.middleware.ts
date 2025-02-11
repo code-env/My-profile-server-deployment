@@ -11,6 +11,7 @@ interface PerformanceMetrics {
   timestamp: string;
   userAgent?: string;
   userId?: string;
+  host?: string;
 }
 
 /**
@@ -20,10 +21,10 @@ export const monitorPerformance = () => {
   return (req: Request, res: Response, next: NextFunction): void => {
     const start = process.hrtime();
 
-    // Capture response metrics when the response is finished
+    // Capture the response
     res.on('finish', () => {
       const [seconds, nanoseconds] = process.hrtime(start);
-      const duration = seconds * 1000 + nanoseconds / 1e6; // Convert to milliseconds
+      const duration = Math.round(seconds * 1000 + nanoseconds / 1e6); // Convert to milliseconds
 
       const metrics: PerformanceMetrics = {
         path: req.path,
@@ -33,18 +34,21 @@ export const monitorPerformance = () => {
         timestamp: new Date().toISOString(),
         userAgent: req.get('user-agent'),
         userId: (req as any).user?._id?.toString(),
+        host: req.get('host') || req.hostname
       };
 
-      // Log slow responses
+      // Log API access with http level
+      if (req.path.startsWith('/api/')) {
+        logger.http(`${req.method} ${req.path} ${res.statusCode} ${duration}ms`, { host: metrics.host });
+      }
+
+      // Log slow responses with warn level
       if (duration > SLOW_RESPONSE_THRESHOLD) {
         logger.warn('Slow response detected:', {
           ...metrics,
           threshold: SLOW_RESPONSE_THRESHOLD,
         });
       }
-
-      // Always log performance metrics in debug level
-      logger.debug('Request performance metrics:', metrics);
     });
 
     next();

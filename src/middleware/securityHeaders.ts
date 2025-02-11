@@ -3,9 +3,21 @@ import helmet from 'helmet';
 
 export const configureSecurityHeaders = () => {
   return [
-    // Basic security headers
-    helmet(),
-    
+    // Configure helmet with relaxed CSP for development
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "https:"],
+          fontSrc: ["'self'"],
+          frameAncestors: ["'none'"],
+          formAction: ["'self'"]
+        }
+      }
+    }),
+
     // Custom security headers
     (req: Request, res: Response, next: NextFunction) => {
       // Strict Transport Security

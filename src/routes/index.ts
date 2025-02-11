@@ -3,11 +3,6 @@
  * @description Central Route Configuration & Management
  * =================================================
  *
- * Core routing module that orchestrates all API endpoints and their middleware chains.
- * This module serves as the central hub for route registration and organization,
- * implementing a modular approach to route management.
- *
- * Design Principles:
  * ----------------
  * - Separation of Concerns: Routes are modularized by domain
  * - Security First: Protected routes enforce authentication
@@ -44,7 +39,9 @@ import { Application } from 'express';
 import authRoutes from './auth.routes';
 import profileRoutes from './profile.routes';
 import connectionRoutes from './connection.routes';
+import logsRoutes from './logs.routes';
 import { protect } from '../middleware/auth.middleware';
+import { requireRole } from '../middleware/roleMiddleware';
 
 /**
  * Configures and sets up all API routes for the application
@@ -57,12 +54,18 @@ export const setupRoutes = (app: Application): void => {
     res.sendFile('index.html', { root: 'public' });
   });
 
+  // Admin logs page
+  app.get('/admin/logs', (req, res) => {
+    res.sendFile('admin-logs.html', { root: 'public' });
+  });
+
   // Public routes
   app.use('/api/auth', authRoutes);
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
   app.use('/api/connections', protect, connectionRoutes);
+  app.use('/api/logs', logsRoutes);
 
   // Health check endpoint
   app.get('/api/health', (req, res) => {

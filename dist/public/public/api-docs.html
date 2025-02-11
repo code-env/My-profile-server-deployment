@@ -17,76 +17,62 @@
         <div class="nav-header">
             <img src="/profileblack.png" alt="My Profile API" class="nav-logo">
             <div class="nav-title">API Reference</div>
+            <div class="version">v1.0</div>
         </div>
 
         <div class="nav-section">
             <div class="nav-section-title">Authentication</div>
             <ul class="nav-items">
-                <li class="nav-item">
-                    <a href="#register" class="nav-link active">
-                        <i class="fas fa-user-plus"></i>
-                        Register
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#login" class="nav-link">
-                        <i class="fas fa-sign-in-alt"></i>
-                        Login
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#refresh-token" class="nav-link">
-                        <i class="fas fa-sync"></i>
-                        Refresh Token
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#logout" class="nav-link">
-                        <i class="fas fa-sign-out-alt"></i>
-                        Logout
-                    </a>
-                </li>
+                <li class="nav-item"><a href="#register" class="nav-link"><i class="fas fa-user-plus"></i>Register</a></li>
+                <li class="nav-item"><a href="#login" class="nav-link"><i class="fas fa-sign-in-alt"></i>Login</a></li>
+                <li class="nav-item"><a href="#refresh-token" class="nav-link"><i class="fas fa-sync"></i>Refresh Token</a></li>
+                <li class="nav-item"><a href="#logout" class="nav-link"><i class="fas fa-sign-out-alt"></i>Logout</a></li>
+                <li class="nav-item"><a href="#logout-all" class="nav-link"><i class="fas fa-power-off"></i>Logout All</a></li>
+                <li class="nav-item"><a href="#sessions" class="nav-link"><i class="fas fa-list"></i>Sessions</a></li>
             </ul>
         </div>
 
         <div class="nav-section">
             <div class="nav-section-title">Verification</div>
             <ul class="nav-items">
-                <li class="nav-item">
-                    <a href="#verify-otp" class="nav-link">
-                        <i class="fas fa-key"></i>
-                        Verify OTP
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#verify-email" class="nav-link">
-                        <i class="fas fa-envelope"></i>
-                        Verify Email
-                    </a>
-                </li>
+                <li class="nav-item"><a href="#verify-otp" class="nav-link"><i class="fas fa-key"></i>Verify OTP</a></li>
+                <li class="nav-item"><a href="#resend-otp" class="nav-link"><i class="fas fa-redo"></i>Resend OTP</a></li>
+                <li class="nav-item"><a href="#verify-email" class="nav-link"><i class="fas fa-envelope"></i>Verify Email</a></li>
+                <li class="nav-item"><a href="#resend-verification" class="nav-link"><i class="fas fa-paper-plane"></i>Resend Verification</a></li>
             </ul>
         </div>
 
         <div class="nav-section">
             <div class="nav-section-title">Security</div>
             <ul class="nav-items">
-                <li class="nav-item">
-                    <a href="#2fa" class="nav-link">
-                        <i class="fas fa-shield-alt"></i>
-                        Two-Factor Auth
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="#reset-password" class="nav-link">
-                        <i class="fas fa-lock"></i>
-                        Reset Password
-                    </a>
-                </li>
+                <li class="nav-item"><a href="#2fa-generate" class="nav-link"><i class="fas fa-shield-alt"></i>Generate 2FA</a></li>
+                <li class="nav-item"><a href="#2fa-verify" class="nav-link"><i class="fas fa-check-circle"></i>Verify 2FA</a></li>
+                <li class="nav-item"><a href="#2fa-disable" class="nav-link"><i class="fas fa-times-circle"></i>Disable 2FA</a></li>
+                <li class="nav-item"><a href="#forgot-password" class="nav-link"><i class="fas fa-key"></i>Forgot Password</a></li>
+                <li class="nav-item"><a href="#reset-password" class="nav-link"><i class="fas fa-lock"></i>Reset Password</a></li>
             </ul>
         </div>
     </nav>
 
     <main class="main">
+        <div class="api-intro">
+            <h1>My Profile Authentication API</h1>
+            <p>This documentation covers all authentication endpoints for the My Profile platform. All endpoints follow OAuth 2.0 principles and implement industry security best practices.</p>
+
+            <div class="security-note">
+                <h3>🔐 Security Features</h3>
+                <ul>
+                    <li>Rate limiting on sensitive endpoints</li>
+                    <li>JWT-based authentication with token rotation</li>
+                    <li>Two-factor authentication support</li>
+                    <li>IP and device tracking</li>
+                    <li>Brute force prevention</li>
+                    <li>Session management</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Register Endpoint -->
         <div class="endpoint" id="register">
             <div class="endpoint-header">
                 <span class="method post">POST</span>
@@ -94,12 +80,115 @@
             </div>
             <p class="endpoint-description">Register a new user account with email or phone verification.</p>
 
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">email</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Valid email address</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">password</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Min 8 chars, must include uppercase, lowercase, number, special char</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">fullName</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Full name (min 2 characters)</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">username</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Username (letters, numbers, underscores only)</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">accountType</span><span class="required">required</span></td>
+                    <td>enum</td>
+                    <td>"MYSELF" or "SOMEONE_ELSE"</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">dateOfBirth</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>ISO date format</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">countryOfResidence</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Country name</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">verificationMethod</span><span class="required">required</span></td>
+                    <td>enum</td>
+                    <td>"EMAIL" or "PHONE"</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/register \
+-H "Content-Type: application/json" \
+-d {
+    "email": "user@example.com",
+    "password": "SecureP@ss123",
+    "fullName": "John Doe",
+    "username": "johndoe",
+    "accountType": "MYSELF",
+    "dateOfBirth": "1990-01-01",
+    "countryOfResidence": "United States",
+    "verificationMethod": "EMAIL"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <pre><code>{
+    "success": true,
+    "message": "Registration successful",
+    "userId": "5f9d88b...",
+    "verificationMethod": "EMAIL",
+    "otpRequired": true,
+    "otpChannel": "email"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Error Responses</div>
+            <table class="responses">
+                <tr>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>400</td>
+                    <td>Invalid input data</td>
+                </tr>
+                <tr>
+                    <td>409</td>
+                    <td>Email already registered</td>
+                </tr>
+                <tr>
+                    <td>429</td>
+                    <td>Too many requests</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Login Endpoint -->
+        <div class="endpoint" id="login">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/login</span>
+            </div>
+            <p class="endpoint-description">Authenticate user and receive access/refresh tokens.</p>
+
             <div class="note">
-                <div class="note-title">
-                    <i class="fas fa-info-circle"></i>
-                    Important
-                </div>
-                <p>After successful registration, users must verify their account using either email or phone verification before they can access protected resources.</p>
+                <i class="fas fa-shield-alt"></i>
+                <strong>Rate Limiting:</strong> 5 attempts per 15 minutes
             </div>
 
             <div class="section-title">Request Parameters</div>
@@ -110,95 +199,511 @@
                     <th>Description</th>
                 </tr>
                 <tr>
-                    <td>
-                        <span class="parameter-name">email</span>
-                        <span class="parameter-required">required</span>
-                    </td>
-                    <td><span class="parameter-type">string</span></td>
-                    <td>Valid email address</td>
+                    <td><span class="parameter-name">email</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>User's email address</td>
                 </tr>
                 <tr>
-                    <td>
-                        <span class="parameter-name">password</span>
-                        <span class="parameter-required">required</span>
-                    </td>
-                    <td><span class="parameter-type">string</span></td>
-                    <td>Password (min 8 chars, requires uppercase, lowercase, number)</td>
-                </tr>
-                <tr>
-                    <td>
-                        <span class="parameter-name">fullName</span>
-                        <span class="parameter-required">required</span>
-                    </td>
-                    <td><span class="parameter-type">string</span></td>
-                    <td>User's full name</td>
+                    <td><span class="parameter-name">password</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>User's password</td>
                 </tr>
             </table>
 
             <div class="section-title">Example Request</div>
             <div class="code-block">
-                <button class="copy-button" onclick="copyCode(this)">
-                    <i class="fas fa-copy"></i>
-                </button>
-                <pre class="code"><span class="keyword">curl</span> -X POST https://api.myprofile.ltd/api/auth/register \
-    -H <span class="string">"Content-Type: application/json"</span> \
-    -d {
-        <span class="property">"email"</span>: <span class="string">"user@example.com"</span>,
-        <span class="property">"password"</span>: <span class="string">"SecurePass123"</span>,
-        <span class="property">"fullName"</span>: <span class="string">"John Doe"</span>
-    }</pre>
+                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/login \
+-H "Content-Type: application/json" \
+-d {
+    "email": "user@example.com",
+    "password": "SecureP@ss123"
+}</code></pre>
             </div>
 
             <div class="section-title">Success Response</div>
             <div class="code-block">
-                <button class="copy-button" onclick="copyCode(this)">
-                    <i class="fas fa-copy"></i>
-                </button>
-                <pre class="code">{
-    <span class="property">"success"</span>: <span class="keyword">true</span>,
-    <span class="property">"message"</span>: <span class="string">"Registration successful. Please verify your email."</span>,
-    <span class="property">"userId"</span>: <span class="string">"5f9d88b..."</span>
-}</pre>
+                <pre><code>{
+    "success": true,
+    "user": {
+        "id": "5f9d88b...",
+        "email": "user@example.com",
+        "fullName": "John Doe"
+    },
+    "tokens": {
+        "accessToken": "eyJhbG...",
+        "refreshToken": "eyJhbG..."
+    }
+}</code></pre>
             </div>
 
-            <div class="section-title">Error Response</div>
-            <div class="code-block">
-                <button class="copy-button" onclick="copyCode(this)">
-                    <i class="fas fa-copy"></i>
-                </button>
-                <pre class="code">{
-    <span class="property">"success"</span>: <span class="keyword">false</span>,
-    <span class="property">"message"</span>: <span class="string">"Email address is already registered"</span>
-}</pre>
+            <div class="section-title">Error Responses</div>
+            <table class="responses">
+                <tr>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>400</td>
+                    <td>Invalid credentials</td>
+                </tr>
+                <tr>
+                    <td>429</td>
+                    <td>Too many login attempts</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Refresh Token Endpoint -->
+        <div class="endpoint" id="refresh-token">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/refresh-token</span>
             </div>
+            <p class="endpoint-description">Get new access token using refresh token.</p>
+
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">refreshToken</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Valid refresh token</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/refresh-token \
+-H "Content-Type: application/json" \
+-d {
+    "refreshToken": "eyJhbG..."
+}</code></pre>
+            </div>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <pre><code>{
+    "success": true,
+    "tokens": {
+        "accessToken": "eyJhbG...",
+        "refreshToken": "eyJhbG..."
+    }
+}</code></pre>
+            </div>
+        </div>
+
+        <!-- Verify OTP Endpoint -->
+        <div class="endpoint" id="verify-otp">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/verify-otp</span>
+            </div>
+            <p class="endpoint-description">Verify One-Time Password (OTP) for account verification.</p>
+
+            <div class="note">
+                <div class="note-title">
+                    <i class="fas fa-shield-alt"></i>
+                    Security
+                </div>
+                <p>Maximum attempts: 3<br>
+                OTP expires in: 10 minutes<br>
+                Rate limited: 3 attempts per 15 minutes</p>
+            </div>
+
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">_id</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>User ID received during registration</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">otp</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>6-digit verification code</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">verificationMethod</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>"email" or "phone"</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/verify-otp \
+-H "Content-Type: application/json" \
+-d {
+    "_id": "5f9d88b...",
+    "otp": "123456",
+    "verificationMethod": "email"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <pre><code>{
+    "success": true,
+    "message": "OTP verified successfully",
+    "user": {
+        "id": "5f9d88b...",
+        "email": "user@example.com",
+        "isVerified": true
+    },
+    "tokens": {
+        "accessToken": "eyJhbG...",
+        "refreshToken": "eyJhbG..."
+    }
+}</code></pre>
+            </div>
+
+            <div class="section-title">Error Responses</div>
+            <table class="responses">
+                <tr>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>400</td>
+                    <td>Invalid or expired OTP</td>
+                </tr>
+                <tr>
+                    <td>429</td>
+                    <td>Too many verification attempts</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- 2FA Generate Endpoint -->
+        <div class="endpoint" id="2fa-generate">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/2fa/generate</span>
+            </div>
+            <p class="endpoint-description">Generate Two-Factor Authentication (2FA) secret for user.</p>
+
+            <div class="note">
+                <div class="note-title">
+                    <i class="fas fa-lock"></i>
+                    Authentication Required
+                </div>
+                <p>This endpoint requires a valid access token.</p>
+            </div>
+
+            <div class="section-title">Headers</div>
+            <table class="parameters">
+                <tr>
+                    <th>Header</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Authorization</td>
+                    <td>Bearer {accessToken}</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <pre><code>{
+    "success": true,
+    "secret": "JBSWY3DPEHPK3PXP",
+    "qrCode": "data:image/png;base64,...",
+    "message": "Scan the QR code with your authenticator app"
+}</code></pre>
+            </div>
+        </div>
+
+        <!-- 2FA Verify Endpoint -->
+        <div class="endpoint" id="2fa-verify">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/2fa/verify</span>
+            </div>
+            <p class="endpoint-description">Verify 2FA code and enable two-factor authentication.</p>
+
+            <div class="note">
+                <div class="note-title">
+                    <i class="fas fa-lock"></i>
+                    Authentication Required
+                </div>
+                <p>This endpoint requires a valid access token.</p>
+            </div>
+
+            <div class="section-title">Headers</div>
+            <table class="parameters">
+                <tr>
+                    <th>Header</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Authorization</td>
+                    <td>Bearer {accessToken}</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">code</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>6-digit 2FA code from authenticator app</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/2fa/verify \
+-H "Authorization: Bearer {accessToken}" \
+-H "Content-Type: application/json" \
+-d {
+    "code": "123456"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <pre><code>{
+    "success": true,
+    "message": "2FA enabled successfully",
+    "backupCodes": [
+        "1234-5678",
+        "2345-6789",
+        "3456-7890"
+    ]
+}</code></pre>
+            </div>
+
+            <div class="section-title">Error Responses</div>
+            <table class="responses">
+                <tr>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>400</td>
+                    <td>Invalid 2FA code</td>
+                </tr>
+                <tr>
+                    <td>401</td>
+                    <td>Unauthorized - Invalid or expired token</td>
+                </tr>
+                <tr>
+                    <td>429</td>
+                    <td>Too many verification attempts</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- 2FA Disable Endpoint -->
+        <div class="endpoint" id="2fa-disable">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/2fa/disable</span>
+            </div>
+            <p class="endpoint-description">Disable two-factor authentication for the user account.</p>
+
+            <div class="note">
+                <div class="note-title">
+                    <i class="fas fa-lock"></i>
+                    Authentication Required
+                </div>
+                <p>This endpoint requires a valid access token.</p>
+            </div>
+
+            <div class="section-title">Headers</div>
+            <table class="parameters">
+                <tr>
+                    <th>Header</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Authorization</td>
+                    <td>Bearer {accessToken}</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">currentPassword</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>User's current password for verification</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/2fa/disable \
+-H "Authorization: Bearer {accessToken}" \
+-H "Content-Type: application/json" \
+-d {
+    "currentPassword": "SecureP@ss123"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <pre><code>{
+    "success": true,
+    "message": "2FA disabled successfully"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Error Responses</div>
+            <table class="responses">
+                <tr>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>400</td>
+                    <td>Invalid password</td>
+                </tr>
+                <tr>
+                    <td>401</td>
+                    <td>Unauthorized - Invalid or expired token</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Forgot Password Endpoint -->
+        <div class="endpoint" id="forgot-password">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/forgot-password</span>
+            </div>
+            <p class="endpoint-description">Request a password reset link.</p>
+
+            <div class="note">
+                <div class="note-title">
+                    <i class="fas fa-shield-alt"></i>
+                    Rate Limited
+                </div>
+                <p>Maximum 3 requests per hour per email address.</p>
+            </div>
+
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">email</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Registered email address</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/forgot-password \
+-H "Content-Type: application/json" \
+-d {
+    "email": "user@example.com"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <pre><code>{
+    "success": true,
+    "message": "If an account exists with this email, password reset instructions have been sent"
+}</code></pre>
+            </div>
+        </div>
+
+        <!-- Reset Password Endpoint -->
+        <div class="endpoint" id="reset-password">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/reset-password</span>
+            </div>
+            <p class="endpoint-description">Reset password using reset token.</p>
+
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">token</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Reset token from email</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">password</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>New password (must meet password requirements)</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/reset-password \
+-H "Content-Type: application/json" \
+-d {
+    "token": "eyJhbG...",
+    "password": "NewSecureP@ss123"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Success Response</div>
+            <div class="code-block">
+                <pre><code>{
+    "success": true,
+    "message": "Password reset successful"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Error Responses</div>
+            <table class="responses">
+                <tr>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>400</td>
+                    <td>Invalid or expired reset token</td>
+                </tr>
+                <tr>
+                    <td>400</td>
+                    <td>Password does not meet requirements</td>
+                </tr>
+            </table>
         </div>
     </main>
 
     <script>
-        // Handle copy buttons
-        function copyCode(button) {
-            const code = button.parentElement.querySelector('.code').textContent;
-            navigator.clipboard.writeText(code);
-
-            // Visual feedback
-            button.innerHTML = '<i class="fas fa-check"></i>';
-            setTimeout(() => {
-                button.innerHTML = '<i class="fas fa-copy"></i>';
-            }, 2000);
-        }
-
-        // Handle navigation
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', () => {
                 document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
                 link.classList.add('active');
-
-                // Close mobile menu
-                document.querySelector('.nav').classList.remove('active');
             });
         });
 
-        // Highlight current section based on scroll
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
