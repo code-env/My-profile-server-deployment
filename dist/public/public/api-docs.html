@@ -9,9 +9,15 @@
     <link rel="stylesheet" href="/api-docs.css">
 </head>
 <body>
-    <button class="menu-toggle" onclick="document.querySelector('.nav').classList.toggle('active')">
-        <i class="fas fa-bars"></i>
+    <button class="menu-toggle" onclick="toggleMenu()">
+        <div class="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
     </button>
+
+    <div class="overlay" onclick="toggleMenu()"></div>
 
     <nav class="nav">
         <div class="nav-header">
@@ -113,6 +119,15 @@
                     <td>"MYSELF" or "SOMEONE_ELSE"</td>
                 </tr>
                 <tr>
+                    <td><span class="parameter-name">phoneNumber</span><span class="required">required</span></td>
+                    <td>string</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">accountCategory</span><span class="required">required</span></td>
+                    <td>enum</td>
+                    <td>"PRIMARY_ACCOUNT" or "SECONDARY_ACCOUNT"</td>
+                </tr>
+                <tr>
                     <td><span class="parameter-name">dateOfBirth</span><span class="required">required</span></td>
                     <td>string</td>
                     <td>ISO date format</td>
@@ -131,18 +146,20 @@
 
             <div class="section-title">Example Request</div>
             <div class="code-block">
-                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/register \
--H "Content-Type: application/json" \
--d {
-    "email": "user@example.com",
-    "password": "SecureP@ss123",
-    "fullName": "John Doe",
-    "username": "johndoe",
-    "accountType": "MYSELF",
-    "dateOfBirth": "1990-01-01",
-    "countryOfResidence": "United States",
-    "verificationMethod": "EMAIL"
-}</code></pre>
+                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/register
+                    -H "Content-Type: application/json"
+                    -d '{
+                        "email": "user@example.com",
+                        "password": "SecureP@ss123",
+                        "fullName": "John Doe",
+                        "username": "johndoe",
+                        "accountType": "MYSELF",
+                        "dateOfBirth": "1990-01-01",
+                        "phoneNumber": "+237693028598",
+                        "countryOfResidence": "United States",
+                        "verificationMethod": "EMAIL",
+                        "accountCategory": "PRIMARY_ACCOUNT"
+                    }'</code></pre>
             </div>
 
             <div class="section-title">Success Response (200 OK)</div>
@@ -749,13 +766,27 @@
     </main>
 
     <script>
+        function toggleMenu() {
+            document.body.classList.toggle('menu-active');
+            document.querySelector('.menu-toggle').classList.toggle('menu-active');
+        }
+
+        // Close menu when clicking a link on mobile
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', () => {
+                if (window.innerWidth <= 1024) {
+                    document.body.classList.remove('menu-active');
+                    document.querySelector('.menu-toggle').classList.remove('menu-active');
+                }
                 document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
                 link.classList.add('active');
             });
         });
 
+        // Close menu when clicking overlay
+        document.querySelector('.overlay').addEventListener('click', toggleMenu);
+
+        // Intersection Observer for scroll spy
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
@@ -770,6 +801,13 @@
         document.querySelectorAll('.endpoint').forEach(endpoint => {
             observer.observe(endpoint);
         });
+
+        // Prevent body scroll when menu is open on mobile
+        document.addEventListener('touchmove', function(e) {
+            if (document.body.classList.contains('menu-active')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
     </script>
 </body>
 </html>
