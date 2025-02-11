@@ -71,7 +71,7 @@ const getTrackingData = async (req, res) => {
             filteredData = filteredData.filter(data => data.ip === query.ip);
         }
         if (query.country) {
-            filteredData = filteredData.filter(data => data.geo.country === query.country);
+            filteredData = filteredData.filter(data => { var _a; return ((_a = data.geo) === null || _a === void 0 ? void 0 : _a.country) === query.country; });
         }
         if (query.browser) {
             filteredData = filteredData.filter(data => data.browser.name.toLowerCase().includes(query.browser.toLowerCase()));
@@ -100,7 +100,8 @@ const getTrackingData = async (req, res) => {
             totalRequests: filteredData.length,
             uniqueIPs: new Set(filteredData.map(data => data.ip)).size,
             countries: Object.entries(filteredData.reduce((acc, data) => {
-                const country = data.geo.country || 'Unknown';
+                var _a;
+                const country = ((_a = data.geo) === null || _a === void 0 ? void 0 : _a.country) || 'Unknown';
                 acc[country] = (acc[country] || 0) + 1;
                 return acc;
             }, {})),
@@ -152,7 +153,7 @@ const getTrackingAnalytics = async (req, res) => {
             overview: {
                 totalRequests: relevantData.length,
                 uniqueIPs: new Set(relevantData.map(data => data.ip)).size,
-                uniqueCountries: new Set(relevantData.map(data => data.geo.country)).size,
+                uniqueCountries: new Set(relevantData.map(data => { var _a; return ((_a = data.geo) === null || _a === void 0 ? void 0 : _a.country) || 'Unknown'; })).size,
                 averageResponseTime: relevantData.reduce((acc, data) => acc + (data.responseTime || 0), 0) / relevantData.length
             },
             security: {
@@ -162,7 +163,8 @@ const getTrackingAnalytics = async (req, res) => {
                 torRequests: relevantData.filter(data => data.security.isTor).length
             },
             topCountries: Object.entries(relevantData.reduce((acc, data) => {
-                const country = data.geo.country || 'Unknown';
+                var _a;
+                const country = ((_a = data.geo) === null || _a === void 0 ? void 0 : _a.country) || 'Unknown';
                 acc[country] = (acc[country] || 0) + 1;
                 return acc;
             }, {})).sort((a, b) => b[1] - a[1]).slice(0, 10),

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Advanced Logging Dashboard</title>
+  <link rel="stylesheet" href="/public/logs.css">
+</head>
+<body>
+  <header>
+    <h1>Advanced Request Logging Dashboard</h1>
+    <div class="real-time-status">
+      <span id="connectionStatus">⚪ Connecting...</span>
+      <span id="requestCount">Total Requests: 0</span>
+    </div>
+  </header>
+
+  <section class="controls">
+    <div class="search-filters">
+      <input type="text" id="search" placeholder="Search logs..." />
+      <select id="filterMethod">
+        <option value="">All Methods</option>
+        <option value="GET">GET</option>
+        <option value="POST">POST</option>
+        <option value="PUT">PUT</option>
+        <option value="DELETE">DELETE</option>
+      </select>
+      <select id="filterStatus">
+        <option value="">All Status</option>
+        <option value="2xx">2xx Success</option>
+        <option value="3xx">3xx Redirection</option>
+        <option value="4xx">4xx Client Error</option>
+        <option value="5xx">5xx Server Error</option>
+      </select>
+      <div class="date-range">
+        <input type="datetime-local" id="startDate" />
+        <span>to</span>
+        <input type="datetime-local" id="endDate" />
+      </div>
+    </div>
+    <div class="view-controls">
+      <button id="toggleRealTime">Pause Real-Time</button>
+      <button id="exportLogs">Export Logs</button>
+      <button id="clearFilters">Clear Filters</button>
+    </div>
+  </section>
+
+  <section class="analytics-panel">
+    <div class="metric-card">
+      <h3>Response Times</h3>
+      <canvas id="responseTimeChart"></canvas>
+    </div>
+    <div class="metric-card">
+      <h3>Status Codes Distribution</h3>
+      <canvas id="statusChart"></canvas>
+    </div>
+    <div class="metric-card">
+      <h3>Top Endpoints</h3>
+      <div id="topEndpoints"></div>
+    </div>
+  </section>
+
+  <section class="logs-container">
+    <table id="logsTable">
+      <thead>
+        <tr>
+          <th data-sort="timestamp">Date/Time ↕</th>
+          <th data-sort="method">Method ↕</th>
+          <th data-sort="status">Status ↕</th>
+          <th data-sort="responseTime">Response Time (ms) ↕</th>
+          <th data-sort="ip">IP Address ↕</th>
+          <th>Location</th>
+          <th>OS</th>
+          <th>Browser</th>
+          <th>Device</th>
+          <th data-sort="url">URL ↕</th>
+          <th>User ID</th>
+          <th>Request Headers</th>
+          <th>Request Body</th>
+          <th>Response Headers</th>
+          <th>Response Body</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Log entries will be dynamically injected here -->
+      </tbody>
+    </table>
+  </section>
+
+  <div id="detailsModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Request Details</h2>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="request">Request</button>
+        <button class="tab-btn" data-tab="response">Response</button>
+        <button class="tab-btn" data-tab="timeline">Timeline</button>
+        <button class="tab-btn" data-tab="context">Context</button>
+      </div>
+      <div class="tab-content">
+        <!-- Tab content will be dynamically populated -->
+      </div>
+    </div>
+  </div>
+
+  <script src="/public/chart.umd.min.js"></script>
+  <script src="/public/logs.js"></script>
+  <script>
+    // Initialize once Chart.js is loaded
+    window.addEventListener('load', function() {
+      if (typeof Chart !== 'undefined') {
+        initCharts();
+        fetchInitialLogs();
+      } else {
+        console.error('Chart.js failed to load');
+      }
+    });
+  </script>
+</body>
+</html>

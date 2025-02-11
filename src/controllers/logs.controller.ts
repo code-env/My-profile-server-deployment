@@ -86,7 +86,7 @@ export const getTrackingData = async (req: Request, res: Response) => {
       filteredData = filteredData.filter(data => data.ip === query.ip);
     }
     if (query.country) {
-      filteredData = filteredData.filter(data => data.geo.country === query.country);
+      filteredData = filteredData.filter(data => data.geo?.country === query.country);
     }
     if (query.browser) {
       filteredData = filteredData.filter(data => data.browser.name.toLowerCase().includes(query.browser!.toLowerCase()));
@@ -118,7 +118,7 @@ export const getTrackingData = async (req: Request, res: Response) => {
       uniqueIPs: new Set(filteredData.map(data => data.ip)).size,
       countries: Object.entries(
         filteredData.reduce((acc: any, data) => {
-          const country = data.geo.country || 'Unknown';
+          const country = data.geo?.country || 'Unknown';
           acc[country] = (acc[country] || 0) + 1;
           return acc;
         }, {})
@@ -176,7 +176,7 @@ export const getTrackingAnalytics = async (req: Request, res: Response) => {
       overview: {
         totalRequests: relevantData.length,
         uniqueIPs: new Set(relevantData.map(data => data.ip)).size,
-        uniqueCountries: new Set(relevantData.map(data => data.geo.country)).size,
+        uniqueCountries: new Set(relevantData.map(data => data.geo?.country || 'Unknown')).size,
         averageResponseTime: relevantData.reduce((acc, data: any) => acc + (data.responseTime || 0), 0) / relevantData.length
       },
       security: {
@@ -187,7 +187,7 @@ export const getTrackingAnalytics = async (req: Request, res: Response) => {
       },
       topCountries: Object.entries(
         relevantData.reduce((acc: any, data) => {
-          const country = data.geo.country || 'Unknown';
+          const country = data.geo?.country || 'Unknown';
           acc[country] = (acc[country] || 0) + 1;
           return acc;
         }, {})

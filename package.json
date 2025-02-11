@@ -63,8 +63,10 @@
     "speakeasy": "^2.0.0",
     "twilio": "^5.4.0",
     "ua-parser-js": "^2.0.2",
+    "uuid": "^11.0.5",
     "whatsapp-web.js": "^1.26.0",
     "winston": "^3.11.0",
+    "ws": "^8.18.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
@@ -93,6 +95,7 @@
     "@types/speakeasy": "^2.0.10",
     "@types/twilio": "^3.19.3",
     "@types/ua-parser-js": "^0.7.39",
+    "@types/ws": "^8.5.14",
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
     "eslint": "^8.56.0",

@@ -50,7 +50,7 @@ exports.logger = winston_1.default.createLogger({
             level: 'error',
             format: winston_1.default.format.combine(winston_1.default.format.timestamp(), winston_1.default.format.json())
         }),
-        // Write all logs with importance level of 'info' or less to combined.log
+        // Write all logs with importance level of info or less to combined.log
         new winston_1.default.transports.File({
             filename: path_1.default.join(logsDir, 'combined.log'),
             format: winston_1.default.format.combine(winston_1.default.format.timestamp(), winston_1.default.format.json())

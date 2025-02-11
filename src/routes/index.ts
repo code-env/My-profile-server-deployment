@@ -57,7 +57,7 @@ export const setupRoutes = (app: Application): void => {
 
   // Admin logs page
   app.get('/admin/logs', (req, res) => {
-    res.sendFile('admin-logs.html', { root: 'public' });
+    res.sendFile('logs.html', { root: 'public' });
   });
 
   // Public routes

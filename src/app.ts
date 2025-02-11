@@ -133,6 +133,12 @@ export class AppServer {
    * thoroughly reviewed and tested.
    */
   private configureMiddleware(): void {
+    // Serve static files from public directory before security middleware
+    this.app.use('/public', express.static('public', {
+      maxAge: '1d',
+      index: false
+    }));
+
     this.app.use(monitorPerformance());
     this.app.use(helmet({
       contentSecurityPolicy: {
@@ -142,7 +148,7 @@ export class AppServer {
           scriptSrcAttr: ["'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'"],
+          connectSrc: ["'self'", "ws:", "wss:"],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
           mediaSrc: ["'self'"],
@@ -194,10 +200,6 @@ export class AppServer {
     this.app.use(rateLimiterMiddleware);
 
     // Serve static files from public directory
-    this.app.use(express.static('public', {
-      maxAge: '1d',
-      index: false // Don't automatically serve index.html, let routes handle it
-    }));
   }
 
   /**
@@ -403,6 +405,8 @@ private async startHttpServer(): Promise<void> {
 
   await new Promise<void>((resolve, reject) => {
     this.server = this.app.listen(port, () => {
+      const { initializeWebSocket } = require('./utils/websocket');
+      initializeWebSocket(this.server);
       const { log } = require('./utils/console-art');
       log.success(`🚀 Server running on port ${port}`);
       if (process.env.NODE_ENV === 'production') {
