@@ -145,8 +145,8 @@
 }</code></pre>
             </div>
 
-            <div class="section-title">Success Response</div>
-            <div class="code-block">
+            <div class="section-title">Success Response (200 OK)</div>
+            <div class="code-block success">
                 <pre><code>{
     "success": true,
     "message": "Registration successful",
@@ -158,20 +158,33 @@
             </div>
 
             <div class="section-title">Error Responses</div>
+            <div class="code-block error">
+                <pre><code>{
+    "success": false,
+    "error": {
+        "code": "VALIDATION_ERROR",
+        "message": "Invalid input data",
+        "details": {
+            "email": "Must be a valid email address",
+            "password": "Must meet password requirements"
+        }
+    }
+}</code></pre>
+            </div>
             <table class="responses">
                 <tr>
                     <th>Status</th>
                     <th>Description</th>
                 </tr>
-                <tr>
+                <tr data-status="400">
                     <td>400</td>
                     <td>Invalid input data</td>
                 </tr>
-                <tr>
+                <tr data-status="409">
                     <td>409</td>
                     <td>Email already registered</td>
                 </tr>
-                <tr>
+                <tr data-status="429">
                     <td>429</td>
                     <td>Too many requests</td>
                 </tr>
@@ -220,8 +233,8 @@
 }</code></pre>
             </div>
 
-            <div class="section-title">Success Response</div>
-            <div class="code-block">
+            <div class="section-title">Success Response (200 OK)</div>
+            <div class="code-block success">
                 <pre><code>{
     "success": true,
     "user": {
@@ -237,16 +250,25 @@
             </div>
 
             <div class="section-title">Error Responses</div>
+            <div class="code-block error">
+                <pre><code>{
+    "success": false,
+    "error": {
+        "code": "INVALID_CREDENTIALS",
+        "message": "Invalid email or password"
+    }
+}</code></pre>
+            </div>
             <table class="responses">
                 <tr>
                     <th>Status</th>
                     <th>Description</th>
                 </tr>
-                <tr>
+                <tr data-status="400">
                     <td>400</td>
                     <td>Invalid credentials</td>
                 </tr>
-                <tr>
+                <tr data-status="429">
                     <td>429</td>
                     <td>Too many login attempts</td>
                 </tr>
@@ -284,8 +306,8 @@
 }</code></pre>
             </div>
 
-            <div class="section-title">Success Response</div>
-            <div class="code-block">
+            <div class="section-title">Success Response (200 OK)</div>
+            <div class="code-block success">
                 <pre><code>{
     "success": true,
     "tokens": {
@@ -294,6 +316,27 @@
     }
 }</code></pre>
             </div>
+
+            <div class="section-title">Error Responses</div>
+            <div class="code-block error">
+                <pre><code>{
+    "success": false,
+    "error": {
+        "code": "INVALID_TOKEN",
+        "message": "Invalid or expired refresh token"
+    }
+}</code></pre>
+            </div>
+            <table class="responses">
+                <tr>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+                <tr data-status="401">
+                    <td>401</td>
+                    <td>Invalid or expired refresh token</td>
+                </tr>
+            </table>
         </div>
 
         <!-- Verify OTP Endpoint -->
@@ -349,8 +392,8 @@
 }</code></pre>
             </div>
 
-            <div class="section-title">Success Response</div>
-            <div class="code-block">
+            <div class="section-title">Success Response (200 OK)</div>
+            <div class="code-block success">
                 <pre><code>{
     "success": true,
     "message": "OTP verified successfully",
@@ -367,16 +410,25 @@
             </div>
 
             <div class="section-title">Error Responses</div>
+            <div class="code-block error">
+                <pre><code>{
+    "success": false,
+    "error": {
+        "code": "INVALID_OTP",
+        "message": "Invalid or expired OTP code"
+    }
+}</code></pre>
+            </div>
             <table class="responses">
                 <tr>
                     <th>Status</th>
                     <th>Description</th>
                 </tr>
-                <tr>
+                <tr data-status="400">
                     <td>400</td>
                     <td>Invalid or expired OTP</td>
                 </tr>
-                <tr>
+                <tr data-status="429">
                     <td>429</td>
                     <td>Too many verification attempts</td>
                 </tr>
@@ -662,7 +714,7 @@
 
             <div class="section-title">Example Request</div>
             <div class="code-block">
-                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/reset-password \
+                <pre><code>curl -X POST https://api.myprofile.ltd/api/auth/reset-password \
 -H "Content-Type: application/json" \
 -d {
     "token": "eyJhbG...",
