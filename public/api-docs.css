@@ -22,7 +22,7 @@
 }
 
 body {
-    background: #f8f9fa;
+    background: red;
     color: var(--secondary);
     line-height: 1.6;
 }
