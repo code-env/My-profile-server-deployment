@@ -21,7 +21,6 @@
  * @requires ./app
  *
  * @version 1.0.0
- * @license MIT
  * @author Marco Blaise
  * @copyright 2025 My Profile
  *

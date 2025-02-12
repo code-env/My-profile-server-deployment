@@ -105,11 +105,15 @@ export class AppServer {
   /**
    * @constructor
    * @description Initializes the Express application and configures core middleware and routes.
-   * The constructor follows a specific order of operations to ensure proper server setup:
+   *
+   * Initialization Sequence:
    * 1. Create Express application
-   * 2. Configure middleware
-   * 3. Set up routes
+   * 2. Configure middleware stack
+   * 3. Set up route handlers
    * 4. Initialize error handling
+   *
+   * @example
+   * const server = new AppServer();
    */
   constructor() {
     this.app = express();
@@ -121,18 +125,29 @@ export class AppServer {
   /**
    * @private
    * @method configureMiddleware
-   * @description Configures essential middleware for security, performance, and functionality.
-   * Sets up:
-   * - Performance monitoring
-   * - Security headers (Helmet)
-   * - CORS with whitelist
-   * - Body parsing
-   * - Cookie parsing
-   * - Response compression
-   * - Rate limiting
+   * @description Configures essential middleware for security, performance, and functionality
    *
-   * @security This method implements critical security middleware. Modifications should be
-   * thoroughly reviewed and tested.
+   * Middleware Stack:
+   * 1. Static file serving
+   * 2. Performance monitoring
+   * 3. Security headers (Helmet)
+   * 4. CORS with whitelist
+   * 5. Body/Cookie parsing
+   * 6. Compression
+   * 7. Request logging
+   *
+   * Static File Configuration:
+   * - Cache control
+   * - MIME type handling
+   * - Security headers
+   *
+   * Security Settings:
+   * - CSP directives
+   * - CORS restrictions
+   * - XSS protection
+   * - Frame guards
+   *
+   * @security Critical security component - modify with caution
    */
   private configureMiddleware(): void {
     // Serve static files from public directory before security middleware
@@ -216,10 +231,22 @@ export class AppServer {
   /**
    * @private
    * @method configureRoutes
-   * @description Sets up application routes and middleware.
-   * Routes are modularized and imported from the routes directory.
+   * @description Sets up application routes and API endpoints
    *
-   * @see setupRoutes
+   * Route Categories:
+   * - Authentication routes
+   * - Profile management
+   * - User connections
+   * - Analytics endpoints
+   * - Admin functions
+   *
+   * Features:
+   * - Modular routing
+   * - Input validation
+   * - Error boundaries
+   * - Response formatting
+   *
+   * @security Routes should validate authentication and authorization
    */
   private configureRoutes(): void {
     setupRoutes(this.app);
@@ -306,6 +333,25 @@ export class AppServer {
     logger.info(`License validated for employee: ${validationResult}`);
   }
 
+  /**
+   * @private
+   * @method initializeDatabase
+   * @description Establishes MongoDB connection with retry mechanism
+   *
+   * Connection Features:
+   * - Connection pooling
+   * - Automatic retries
+   * - Timeout handling
+   * - Error logging
+   *
+   * Configuration:
+   * - Pool size: 2-10 connections
+   * - Connect timeout: 10s
+   * - Socket timeout: 45s
+   * - Server selection: 10s
+   *
+   * @throws {Error} If connection fails after max retries
+   */
   private async initializeDatabase(): Promise<void> {
     const maxRetries = 5;
     let retryCount = 0;
