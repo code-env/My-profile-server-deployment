@@ -30,11 +30,14 @@ async function setupAdminLicense(): Promise<void> {
 
     const license = licenseManager.generateLicense(ADMIN_DETAILS, companySecret);
 
+    // Install the license
+    licenseManager.installLicense(license);
+
     // Save license key to file
     const configPath = path.join(process.cwd(), '.env.license');
     fs.writeFileSync(configPath, `LICENSE_KEY=${license}\n`);
 
-    // Validate the license
+    // Now validate the installed license
     const validation = licenseManager.validateLicense(companySecret);
 
     if (!validation.isValid || !validation.employee) {
