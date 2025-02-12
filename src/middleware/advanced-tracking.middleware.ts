@@ -199,7 +199,7 @@ export const advancedTrackingMiddleware = async (req: Request, res: Response, ne
     // Send to security monitoring
     const metadata: IRequestMetadata = {
       ip: requestInfo.ip,
-      userId: req.user?.id,
+      userId: req.user?._id?.toString(),
       sessionId: requestInfo.sessionID,
       route: req.route?.path,
       statusCode: res.statusCode,

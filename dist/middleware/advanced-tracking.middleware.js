@@ -192,7 +192,7 @@ const advancedTrackingMiddleware = async (req, res, next) => {
     // Capture response info
     const originalEnd = res.end;
     res.end = function (chunk, encoding, callback) {
-        var _a, _b, _c;
+        var _a, _b, _c, _d;
         const responseTime = Date.now() - startTime;
         requestInfo.responseTime = responseTime;
         requestInfo.security.responseCode = res.statusCode;
@@ -201,13 +201,13 @@ const advancedTrackingMiddleware = async (req, res, next) => {
         // Send to security monitoring
         const metadata = {
             ip: requestInfo.ip,
-            userId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.id,
+            userId: (_b = (_a = req.user) === null || _a === void 0 ? void 0 : _a._id) === null || _b === void 0 ? void 0 : _b.toString(),
             sessionId: requestInfo.sessionID,
-            route: (_b = req.route) === null || _b === void 0 ? void 0 : _b.path,
+            route: (_c = req.route) === null || _c === void 0 ? void 0 : _c.path,
             statusCode: res.statusCode,
             geolocation: {
                 ...requestInfo.geo,
-                ll: ((_c = requestInfo.geo.ll) === null || _c === void 0 ? void 0 : _c.length) >= 2 ? [requestInfo.geo.ll[0], requestInfo.geo.ll[1]] : undefined
+                ll: ((_d = requestInfo.geo.ll) === null || _d === void 0 ? void 0 : _d.length) >= 2 ? [requestInfo.geo.ll[0], requestInfo.geo.ll[1]] : undefined
             }
         };
         securityMonitoring_service_1.securityMonitoringService.analyzeRequest(metadata).catch(error => {
