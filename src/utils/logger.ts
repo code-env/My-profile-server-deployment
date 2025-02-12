@@ -42,83 +42,34 @@ export const logger = winston.createLogger({
   format: customFormat,
   defaultMeta: { service: 'my-profile-api' },
   transports: [
-    // Write all logs with importance level of 'error' or less to error.log
-    new winston.transports.File({
-      filename: path.join(logsDir, 'error.log'),
-      level: 'error',
+    // Console transport for all environments
+    new winston.transports.Console({
       format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      )
-    }),
-
-    // Write all logs with importance level of info or less to combined.log
-    new winston.transports.File({
-      filename: path.join(logsDir, 'combined.log'),
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      )
-    }),
-
-    // Write detailed access logs to access.log
-    new winston.transports.File({
-      filename: path.join(logsDir, 'access.log'),
-      level: 'http',
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      )
-    }),
-
-    // Write all logs to all.log with full details
-    new winston.transports.File({
-      filename: path.join(logsDir, 'all.log'),
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.printf(({ timestamp, level, message, ...metadata }) => {
-          let logMessage = `${timestamp} ${level}: ${message}`;
-
-          // Add detailed metadata if available
-          if (metadata && Object.keys(metadata).length > 0) {
-            // Remove the metadata property that winston adds
-            delete metadata.metadata;
-
-            // Stringify the remaining metadata with proper formatting
-            const details = JSON.stringify(metadata, null, 2);
-            if (details !== '{}') {
-              logMessage += `\nDetails: ${details}`;
-            }
-          }
-
-          return logMessage;
-        })
+        winston.format.colorize(),
+        winston.format.simple()
       )
     })
   ]
 });
 
-// Add console logging in development
+// Only add file transports in development
 if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple(),
-      winston.format.printf(({ timestamp, level, message, ...metadata }) => {
-        let logMessage = `${timestamp} ${level}: ${message}`;
+  logger.add(new winston.transports.File({
+    filename: path.join(logsDir, 'error.log'),
+    level: 'error'
+  }));
 
-        // Add metadata in development for debugging
-        if (metadata && Object.keys(metadata).length > 0) {
-          delete metadata.metadata;
-          const details = JSON.stringify(metadata, null, 2);
-          if (details !== '{}') {
-            logMessage += `\nDetails: ${details}`;
-          }
-        }
+  logger.add(new winston.transports.File({
+    filename: path.join(logsDir, 'combined.log')
+  }));
 
-        return logMessage;
-      })
-    )
+  logger.add(new winston.transports.File({
+    filename: path.join(logsDir, 'access.log'),
+    level: 'http'
+  }));
+
+  logger.add(new winston.transports.File({
+    filename: path.join(logsDir, 'all.log')
   }));
 }
 

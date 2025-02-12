@@ -5,7 +5,6 @@
 // State management
 let logs = [];
 let isRealTime = true;
-console.log("recieving js file")
 let sortConfig = { field: 'timestamp', direction: 'desc' };
 let filters = {
   search: '',
@@ -19,31 +18,77 @@ let filters = {
 let responseTimeChart;
 let statusChart;
 
+// Get the base API URL from the current window location
+const baseApiUrl = window.location.origin;
+
 // WebSocket connection
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const ws = new WebSocket(`${wsProtocol}//${window.location.host}`);
+const wsUrl = `${wsProtocol}//${window.location.host}`;
+let ws = null;
 const connectionStatus = document.getElementById('connectionStatus');
 const requestCount = document.getElementById('requestCount');
 
-// WebSocket error handling
-ws.onerror = (error) => {
-  console.error('WebSocket error:', error);
-  if (connectionStatus) {
-    connectionStatus.textContent = '🔴 Error';
-    connectionStatus.style.color = '#e74c3c';
+// WebSocket connection management
+function connectWebSocket() {
+  if (ws) {
+    ws.close();
   }
-};
 
-if (connectionStatus) {
+  ws = new WebSocket(wsUrl);
+
+  ws.onerror = (error) => {
+    console.error('WebSocket error:', error);
+    updateConnectionStatus('error');
+  };
+
   ws.onopen = () => {
-    connectionStatus.textContent = '🟢 Connected';
-    connectionStatus.style.color = '#2ecc71';
+    updateConnectionStatus('connected');
   };
 
   ws.onclose = () => {
-    connectionStatus.textContent = '🔴 Disconnected';
-    connectionStatus.style.color = '#e74c3c';
+    updateConnectionStatus('disconnected');
+    // Try to reconnect after 5 seconds
+    setTimeout(connectWebSocket, 5000);
   };
+
+  ws.onmessage = (event) => {
+    if (!isRealTime) return;
+
+    try {
+      const log = JSON.parse(event.data);
+      if (isValidLogEntry(log)) {
+        logs.unshift(log);
+        if (logs.length > 1000) { // Keep max 1000 logs in memory
+          logs.pop();
+        }
+        updateUI();
+        updateCharts();
+      } else {
+        console.error('Invalid log entry:', log);
+      }
+    } catch (error) {
+      console.error('Error processing log:', error);
+    }
+  };
+}
+
+function updateConnectionStatus(status) {
+  if (!connectionStatus) return;
+
+  switch (status) {
+    case 'connected':
+      connectionStatus.textContent = '🟢 Connected';
+      connectionStatus.style.color = '#2ecc71';
+      break;
+    case 'disconnected':
+      connectionStatus.textContent = '🔴 Disconnected';
+      connectionStatus.style.color = '#e74c3c';
+      break;
+    case 'error':
+      connectionStatus.textContent = '🔴 Error';
+      connectionStatus.style.color = '#e74c3c';
+      break;
+  }
 }
 
 // Validation functions
@@ -58,23 +103,6 @@ function isValidDate(dateStr) {
   const date = new Date(dateStr);
   return date instanceof Date && !isNaN(date);
 }
-
-ws.onmessage = (event) => {
-  if (!isRealTime) return;
-
-  try {
-    const log = JSON.parse(event.data);
-    if (isValidLogEntry(log)) {
-      logs.unshift(log);
-      updateUI();
-      updateCharts();
-    } else {
-      console.error('Invalid log entry:', log);
-    }
-  } catch (error) {
-    console.error('Error processing log:', error);
-  }
-};
 
 // Event Listeners
 const searchInput = document.getElementById('search');
@@ -212,7 +240,7 @@ function renderTable(logs) {
       <tr onclick="showDetails('${log.fingerprint}')">
         <td>${formatDate(log.timestamp)}</td>
         <td>${log.method}</td>
-        <td>${formatStatus(log.security?.statusCode || 200)}</td>
+        <td>${formatStatus(log.status)}</td>
         <td>${log.responseTime || 0}ms</td>
         <td>${log.ip}</td>
         <td>${log.geo?.city ? `${log.geo.city}, ${log.geo.country}` : 'N/A'}</td>
@@ -222,9 +250,6 @@ function renderTable(logs) {
         <td>${log.url}</td>
         <td>${log.sessionID || 'Anonymous'}</td>
         <td>${formatJSON(log.headers || {})}</td>
-        <td>N/A</td>
-        <td>N/A</td>
-        <td>N/A</td>
       </tr>
     `).join('');
   }
@@ -281,7 +306,7 @@ function initCharts() {
 }
 
 function updateCharts() {
-  if (!responseTimeChart || !statusChart) return;
+  if (!chartsInitialized || !responseTimeChart || !statusChart) return;
 
   // Update response time chart
   const recentLogs = logs.slice(0, 50).reverse();
@@ -375,14 +400,14 @@ function showDetails(fingerprint) {
       <h3>Performance Details</h3>
       <pre>${JSON.stringify({
         responseTime: log.responseTime + 'ms',
-        status: log.security?.statusCode || 200
+        status: log.status
       }, null, 2)}</pre>
     `,
-    timeline: `
-      <h3>Security Timeline</h3>
+    security: `
+      <h3>Security Details</h3>
       <div class="timeline">
         <div class="timeline-item">
-          <span class="time">Security Score: ${log.security?.threatScore || 0}/100</span>
+          <span class="time">Threat Score: ${log.security?.threatScore || 0}/100</span>
           <span class="event">Threat Assessment</span>
         </div>
         <div class="timeline-item">
@@ -420,8 +445,8 @@ function showDetails(fingerprint) {
   };
 
   const activeTab = modal.querySelector('.tab-btn.active');
-  if (activeTab && typeof activeTab.click === 'function') {
-    activeTab.click();
+  if (activeTab && typeof activeTab.dataset.tab === 'string') {
+    content.innerHTML = tabContent[activeTab.dataset.tab] || '';
   }
   modal.style.display = 'block';
 }
@@ -429,7 +454,7 @@ function showDetails(fingerprint) {
 function exportLogs() {
   const filteredLogs = filterLogs();
   const csv = [
-    Object.keys(filteredLogs[0]).join(','),
+    Object.keys(filteredLogs[0] || {}).join(','),
     ...filteredLogs.map(log => Object.values(log).join(','))
   ].join('\n');
 
@@ -473,13 +498,15 @@ function clearFilters() {
 // Initialize
 async function fetchInitialLogs() {
   try {
-    const response = await fetch('https://my-profile-server-api.onrender.com/api/logs/tracking');
-    if (!response.ok) throw new Error('Failed to fetch logs');
+    const response = await fetch(`${baseApiUrl}/api/logs/tracking`);
+    if (!response.ok) throw new Error(`Failed to fetch logs: ${response.statusText}`);
     const data = await response.json();
-    logs = data.data || [];
+    logs = Array.isArray(data.data) ? data.data : [];
+    console.log('Loaded initial logs:', logs.length);
     updateUI();
   } catch (error) {
     console.error('Error fetching logs:', error);
+    logs = [];
   }
 }
 
@@ -487,31 +514,14 @@ let chartsInitialized = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    connectWebSocket();
     await fetchInitialLogs();
     if (window.Chart) {
       initCharts();
       chartsInitialized = true;
+      updateCharts();
     }
-    updateUI();
   } catch (error) {
     console.error('Failed to initialize dashboard:', error);
   }
 });
-
-function updateCharts() {
-  if (!chartsInitialized || !responseTimeChart || !statusChart) return;
-  // ... rest of updateCharts function unchanged
-}
-
-async function fetchInitialLogs() {
-  try {
-    const response = await fetch('https://my-profile-server-api.onrender.com/api/logs/tracking');
-    if (!response.ok) throw new Error(`Failed to fetch logs: ${response.statusText}`);
-    const data = await response.json();
-    logs = Array.isArray(data.data) ? data.data : [];
-    console.log('Loaded initial logs:', logs.length);
-  } catch (error) {
-    console.error('Error fetching logs:', error);
-    logs = [];
-  }
-}
