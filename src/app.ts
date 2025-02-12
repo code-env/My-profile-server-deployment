@@ -138,7 +138,16 @@ export class AppServer {
     // Serve static files from public directory before security middleware
     this.app.use('/public', express.static('public', {
       maxAge: '1d',
-      index: false
+      index: false,
+      setHeaders: (res, path) => {
+        if (path.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css');
+        } else if (path.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        } else if (path.endsWith('.png')) {
+          res.setHeader('Content-Type', 'image/png');
+        }
+      }
     }));
 
     this.app.use(monitorPerformance());
@@ -148,10 +157,10 @@ export class AppServer {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
           scriptSrcAttr: ["'unsafe-inline'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https:", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
           imgSrc: ["'self'", 'data:', 'https:'],
           connectSrc: ["'self'", "ws:", "wss:"],
-          fontSrc: ["'self'"],
+          fontSrc: ["'self'", "https:", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
           objectSrc: ["'none'"],
           mediaSrc: ["'self'"],
           frameSrc: ["'none'"],
