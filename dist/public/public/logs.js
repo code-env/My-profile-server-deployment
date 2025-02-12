@@ -473,7 +473,7 @@ function clearFilters() {
 // Initialize
 async function fetchInitialLogs() {
   try {
-    const response = await fetch('/api/logs/tracking');
+    const response = await fetch('http://localhost:5000/api/logs/tracking');
     if (!response.ok) throw new Error('Failed to fetch logs');
     const data = await response.json();
     logs = data.data || [];
@@ -505,7 +505,7 @@ function updateCharts() {
 
 async function fetchInitialLogs() {
   try {
-    const response = await fetch('/logs/tracking');
+    const response = await fetch('http://localhost:5000/api/logs/tracking');
     if (!response.ok) throw new Error(`Failed to fetch logs: ${response.statusText}`);
     const data = await response.json();
     logs = Array.isArray(data.data) ? data.data : [];

@@ -72,6 +72,8 @@ import { monitorPerformance } from './middleware/performance.middleware';
 import { validateEnv } from './utils/env-validator';
 import WhatsAppService from './services/whatsapp.service';
 import { advancedTrackingMiddleware } from './middleware/advanced-tracking.middleware';
+import { licenseConfig } from './config/license.config';
+import { licenseService } from './services/license.service';
 
 /**
  * @class AppServer
@@ -262,6 +264,39 @@ export class AppServer {
    * @example
    * await this.initializeDatabase();
    */
+  /**
+   * @private
+   * @method validateLicense
+   * @description Validates the hardware-locked license before allowing server startup
+   * @throws {Error} If license validation fails
+   */
+  private async validateLicense(): Promise<void> {
+    const licenseKey = process.env.LICENSE_KEY;
+    const deviceId = require('os').hostname();
+    const ipAddress = '127.0.0.1'; // Local server
+
+    if (!licenseKey) {
+      throw new Error('LICENSE_KEY environment variable is required');
+    }
+
+    if (!process.env.COMPANY_SECRET) {
+      throw new Error('COMPANY_SECRET environment variable is required');
+    }
+
+    // Validate license
+    const validationResult = await licenseService.validateLicense(
+      licenseKey,
+      deviceId,
+      ipAddress
+    );
+
+    if (!validationResult.isValid) {
+      throw new Error(`License validation failed: ${validationResult.error}`);
+    }
+
+    logger.info(`License validated for employee: ${validationResult}`);
+  }
+
   private async initializeDatabase(): Promise<void> {
     const maxRetries = 5;
     let retryCount = 0;

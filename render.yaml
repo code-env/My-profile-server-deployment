@@ -1,16 +1,46 @@
-preBootScript: |
-  # Install dependencies
-  apt-get update && apt-get install -y \
-    chromium \
-    fonts-liberation \
-    libnss3 \
-    libxss1 \
-    libasound2 \
-    libgbm1 \
-    xdg-utils \
-    --no-install-recommends
-
-  # Create and secure session directory
-  mkdir -p /data/whatsapp-sessions
-  chmod -R 777 /data/whatsapp-sessions
-  chown -R 1000:1000 /data/whatsapp-sessions
+# Render configuration
+services:
+  - type: web
+    name: my-profile-server
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      - key: COMPANY_SECRET
+        sync: false  # Indicates this needs to be set manually in Render dashboard
+      - key: LICENSE_KEY
+        sync: false  # Indicates this needs to be set manually in Render dashboard
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: COOKIE_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: FACEBOOK_APP_ID
+        sync: false
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+      - key: TEXTBELT_API_KEYS
+        sync: false
+    healthCheckPath: /
+    autoDeploy: true

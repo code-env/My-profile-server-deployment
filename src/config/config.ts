@@ -50,7 +50,7 @@ const envSchema = z.object({
   API_URL: z.string().default("http://localhost:5000"),
   CLIENT_URL: z.string().default("http://localhost:3000"),
   APP_NAME: z.string().default("MyProfile"),
-
+  COMPANY_SECRET: z.string(),
   // Security & Authentication
   JWT_SECRET: z.string(),
   JWT_REFRESH_SECRET: z.string(),
@@ -112,7 +112,7 @@ const getConfig = () => {
       API_URL: process.env.API_URL,
       CLIENT_URL: process.env.CLIENT_URL,
       APP_NAME: process.env.APP_NAME,
-
+      COMPANY_SECRET: process.env.COMPANY_SECRET,
       // Security & Authentication
       JWT_SECRET: process.env.JWT_SECRET,
       JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,

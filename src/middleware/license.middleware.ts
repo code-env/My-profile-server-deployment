@@ -1,0 +1,95 @@
+import { Request, Response, NextFunction } from 'express';
+import { licenseManager } from '../utils/license-manager';
+import { logger } from '../utils/logger';
+
+/**
+ * Middleware to validate license before processing requests
+ */
+export const validateLicenseMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const companySecret = process.env.COMPANY_SECRET;
+    if (!companySecret) {
+      logger.error('Company secret not found in environment variables');
+      return res.status(500).json({
+        error: 'License validation failed: Missing company secret'
+      });
+    }
+
+    const validation = licenseManager.validateLicense(companySecret);
+
+    if (!validation.isValid) {
+      logger.error('License validation failed:', validation.error);
+      return res.status(403).json({
+        error: `License validation failed: ${validation.error}`
+      });
+    }
+
+    // Add license info to request for logging/tracking
+    if (validation.employee) {
+      req.employee = {
+        employeeId: validation.employee.employeeId,
+        name: validation.employee.name,
+        email: validation.employee.email,
+        department: validation.employee.department,
+        issuedAt: validation.employee.issuedAt,
+        expiresAt: validation.employee.expiresAt
+      };
+    }
+    next();
+
+  } catch (error) {
+    logger.error('Error in license validation:', error);
+    res.status(500).json({
+      error: 'License validation failed: Internal server error'
+    });
+  }
+};
+
+/**
+ * Function to validate license on server startup
+ */
+export const validateLicenseOnStartup = (): boolean => {
+  try {
+    const companySecret = process.env.COMPANY_SECRET;
+    if (!companySecret) {
+      logger.error('❌ License validation failed: Company secret not found');
+      return false;
+    }
+
+    const validation = licenseManager.validateLicense(companySecret);
+
+    if (!validation.isValid) {
+      logger.error(`❌ License validation failed: ${validation.error}`);
+      return false;
+    }
+
+    if (validation.employee) {
+      logger.info('✅ License validated successfully');
+      logger.info(`Licensed to: ${validation.employee.name} (${validation.employee.email})`);
+      logger.info(`Department: ${validation.employee.department}`);
+      logger.info(`Expires: ${new Date(validation.employee.expiresAt).toLocaleDateString()}`);
+    }
+
+    return true;
+
+  } catch (error) {
+    logger.error('❌ Error validating license:', error);
+    return false;
+  }
+};
+
+// Extend Express Request type to include employee info
+declare global {
+  namespace Express {
+    interface Request {
+      employee?: {
+        employeeId: string;
+        name: string;
+        email: string;
+        department: string;
+        issuedAt: string;
+        expiresAt: string;
+      };
+    }
+  }
+}

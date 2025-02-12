@@ -74,6 +74,7 @@ const performance_middleware_1 = require("./middleware/performance.middleware");
 const env_validator_1 = require("./utils/env-validator");
 const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"));
 const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
+const license_service_1 = require("./services/license.service");
 /**
  * @class AppServer
  * @description Core server application class that manages the Express application lifecycle,
@@ -249,6 +250,29 @@ class AppServer {
      * @example
      * await this.initializeDatabase();
      */
+    /**
+     * @private
+     * @method validateLicense
+     * @description Validates the hardware-locked license before allowing server startup
+     * @throws {Error} If license validation fails
+     */
+    async validateLicense() {
+        const licenseKey = process.env.LICENSE_KEY;
+        const deviceId = require('os').hostname();
+        const ipAddress = '127.0.0.1'; // Local server
+        if (!licenseKey) {
+            throw new Error('LICENSE_KEY environment variable is required');
+        }
+        if (!process.env.COMPANY_SECRET) {
+            throw new Error('COMPANY_SECRET environment variable is required');
+        }
+        // Validate license
+        const validationResult = await license_service_1.licenseService.validateLicense(licenseKey, deviceId, ipAddress);
+        if (!validationResult.isValid) {
+            throw new Error(`License validation failed: ${validationResult.error}`);
+        }
+        logger_1.logger.info(`License validated for employee: ${validationResult}`);
+    }
     async initializeDatabase() {
         var _a;
         const maxRetries = 5;

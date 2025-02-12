@@ -2,7 +2,7 @@ import axios from 'axios';
 import { logger } from '../utils/logger';
 
 async function testAdvancedTracking() {
-  const baseURL = 'http://localhost:3000';
+  const baseURL = 'http://localhost:5000';
   console.log('🔍 Starting advanced tracking test suite...\n');
 
   try {

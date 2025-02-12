@@ -53,6 +53,7 @@ const envSchema = zod_1.z.object({
     API_URL: zod_1.z.string().default("http://localhost:5000"),
     CLIENT_URL: zod_1.z.string().default("http://localhost:3000"),
     APP_NAME: zod_1.z.string().default("MyProfile"),
+    COMPANY_SECRET: zod_1.z.string(),
     // Security & Authentication
     JWT_SECRET: zod_1.z.string(),
     JWT_REFRESH_SECRET: zod_1.z.string(),
@@ -110,6 +111,7 @@ const getConfig = () => {
             API_URL: process.env.API_URL,
             CLIENT_URL: process.env.CLIENT_URL,
             APP_NAME: process.env.APP_NAME,
+            COMPANY_SECRET: process.env.COMPANY_SECRET,
             // Security & Authentication
             JWT_SECRET: process.env.JWT_SECRET,
             JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
