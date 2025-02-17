@@ -2,12 +2,19 @@ import { Server as HTTPServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { DetailedRequestInfo } from './requestInfo';
 import { logger } from './logger';
+import { Express } from 'express';
 
 let wss: WebSocketServer;
 const clients = new Set<WebSocket>();
 
-export const initializeWebSocket = (server: HTTPServer) => {
-  wss = new WebSocket.Server({ server });
+export const initializeWebSocket = (server: HTTPServer, app: Express) => {
+  wss = new WebSocketServer({
+    server,
+    path: '/ws/logs' // Add specific path for logs WebSocket
+  });
+
+  // Store WSS instance in app.locals for middleware access
+  app.locals.wss = wss;
 
   wss.on('connection', (ws) => {
     clients.add(ws);

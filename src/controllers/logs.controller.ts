@@ -77,11 +77,20 @@ interface TrackingQuery {
 
 export const getTrackingData = async (req: Request, res: Response) => {
   try {
-    const query: TrackingQuery = req.query;
+    // For initial load, return all logs without filtering
+    if (!Object.keys(req.query).length) {
+      return res.json({
+        total: trackingCache.length,
+        page: 1,
+        limit: trackingCache.length,
+        data: trackingCache
+      });
+    }
 
+    const query: TrackingQuery = req.query;
     let filteredData = [...trackingCache];
 
-    // Apply filters
+    // Apply filters only if query parameters exist
     if (query.ip) {
       filteredData = filteredData.filter(data => data.ip === query.ip);
     }
@@ -106,41 +115,45 @@ export const getTrackingData = async (req: Request, res: Response) => {
       });
     }
 
-    // Handle pagination
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const startIdx = (page - 1) * limit;
     const endIdx = startIdx + limit;
 
-    // Generate analytics
-    const analytics = {
-      totalRequests: filteredData.length,
-      uniqueIPs: new Set(filteredData.map(data => data.ip)).size,
-      countries: Object.entries(
-        filteredData.reduce((acc: any, data) => {
-          const country = data.geo?.country || 'Unknown';
-          acc[country] = (acc[country] || 0) + 1;
-          return acc;
-        }, {})
-      ),
-      browsers: Object.entries(
-        filteredData.reduce((acc: any, data) => {
-          const browser = data.browser.name;
-          acc[browser] = (acc[browser] || 0) + 1;
-          return acc;
-        }, {})
-      ),
-      averageThreatScore: filteredData.reduce((acc, data) => acc + data.security.threatScore, 0) / filteredData.length,
-      highThreatRequests: filteredData.filter(data => data.security.threatScore > 70).length
-    };
-
-    res.json({
+    // Only include analytics if specifically requested
+    const includeAnalytics = req.query.includeAnalytics === 'true';
+    const response: any = {
       total: filteredData.length,
       page,
       limit,
-      analytics,
       data: filteredData.slice(startIdx, endIdx)
-    });
+    };
+
+    if (includeAnalytics) {
+      response.analytics = {
+        totalRequests: filteredData.length,
+        uniqueIPs: new Set(filteredData.map(data => data.ip)).size,
+        countries: Object.entries(
+          filteredData.reduce((acc: any, data) => {
+            const country = data.geo?.country || 'Unknown';
+            acc[country] = (acc[country] || 0) + 1;
+            return acc;
+          }, {})
+        ),
+        browsers: Object.entries(
+          filteredData.reduce((acc: any, data) => {
+            const browser = data.browser.name;
+            acc[browser] = (acc[browser] || 0) + 1;
+            return acc;
+          }, {})
+        ),
+        averageThreatScore: filteredData.length ?
+          filteredData.reduce((acc, data) => acc + data.security.threatScore, 0) / filteredData.length : 0,
+        highThreatRequests: filteredData.filter(data => data.security.threatScore > 70).length
+      };
+    }
+
+    res.json(response);
   } catch (error) {
     logger.error('Error retrieving tracking data:', error);
     res.status(500).json({ error: 'Failed to retrieve tracking data' });

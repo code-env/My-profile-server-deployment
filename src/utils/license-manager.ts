@@ -34,14 +34,15 @@ export class LicenseManager {
     const networkInterfaces = os.networkInterfaces();
     let macAddress = '';
 
-    // Get first non-internal MAC address
-    Object.values(networkInterfaces).forEach(interfaces => {
-      interfaces?.forEach(details => {
-        if (!details.internal && !macAddress) {
-          macAddress = details.mac;
-        }
-      });
-    });
+    // Get all non-internal MAC addresses
+    const macAddresses = Object.values(networkInterfaces)
+      .flatMap(interfaces => interfaces || [])
+      .filter(details => !details.internal && details.mac)
+      .map(details => details.mac)
+      .sort(); // Sort for consistency
+
+    // Use the first MAC address after sorting
+    macAddress = macAddresses[0] || '';
 
     return {
       cpu: os.cpus()[0]?.model || '',

@@ -496,7 +496,7 @@ private async startHttpServer(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     this.server = this.app.listen(port, () => {
       const { initializeWebSocket } = require('./utils/websocket');
-      initializeWebSocket(this.server);
+      initializeWebSocket(this.server, this.app);
       const { log } = require('./utils/console-art');
       log.success(`🚀 Server running on port ${port}`);
       if (process.env.NODE_ENV === 'production') {
