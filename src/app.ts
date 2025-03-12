@@ -60,6 +60,7 @@ import compression from 'compression';
 import morgan from 'morgan';
 import { MongoError } from 'mongodb';
 import chalk from 'chalk';
+import { licenseManager } from './utils/license-manager';
 
 // Internal imports
 import { config } from './config/config';
@@ -320,11 +321,7 @@ export class AppServer {
     }
 
     // Validate license
-    const validationResult = await licenseService.validateLicense(
-      licenseKey,
-      deviceId,
-      ipAddress
-    );
+    const validationResult = licenseManager.validateLicense(process.env.COMPANY_SECRET!);
 
     if (!validationResult.isValid) {
       throw new Error(`License validation failed: ${validationResult.error}`);

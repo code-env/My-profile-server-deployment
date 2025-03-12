@@ -87,3 +87,17 @@ export interface OTPVerificationResponse {
   tokens?: AuthTokens;
   otpChannel?: OTPChannel;
 }
+
+export interface SanitizedUser {
+  id: string;
+  email: string;
+  username: string;
+  fullName: string;
+  role: string;
+  isEmailVerified: boolean;
+  isPhoneVerified: boolean;
+  profilePicture?: string;
+  registrationStep: string;
+  verificationMethod: string;
+  lastLogin?: Date;
+}
