@@ -63,7 +63,7 @@ export const setupRoutes = (app: Application): void => {
 
   // Public routes
   app.use('/api/auth', authRoutes);
-  app.use('/api/user',userRoutes)
+  app.use('/api/users',userRoutes)
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);

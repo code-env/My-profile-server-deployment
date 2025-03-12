@@ -4,6 +4,6 @@ import { ChatUserControllers } from '../controllers/user.controller';
 
 
 const router = express.Router();
-router.get('/allusers', ChatUserControllers.GetAllUsers);
+router.get('/', ChatUserControllers.GetAllUsers);
 
 export default router;
