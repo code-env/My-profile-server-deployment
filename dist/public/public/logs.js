@@ -5,7 +5,6 @@
 // State management
 let logs = [];
 let isRealTime = true;
-console.log("recieving js file")
 let sortConfig = { field: 'timestamp', direction: 'desc' };
 let filters = {
   search: '',
@@ -19,31 +18,92 @@ let filters = {
 let responseTimeChart;
 let statusChart;
 
-// WebSocket connection
+// Get the base API URL from the current window location
+const baseApiUrl = window.location.origin;
+
+// WebSocket connection with specific path
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const ws = new WebSocket(`${wsProtocol}//${window.location.host}`);
+const wsUrl = `${wsProtocol}//${window.location.host}/ws/logs`; // Updated WebSocket URL
+let ws = null;
 const connectionStatus = document.getElementById('connectionStatus');
 const requestCount = document.getElementById('requestCount');
 
-// WebSocket error handling
-ws.onerror = (error) => {
-  console.error('WebSocket error:', error);
-  if (connectionStatus) {
-    connectionStatus.textContent = '🔴 Error';
-    connectionStatus.style.color = '#e74c3c';
+// WebSocket connection management
+function connectWebSocket() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    return; // Already connected
   }
-};
 
-if (connectionStatus) {
-  ws.onopen = () => {
-    connectionStatus.textContent = '🟢 Connected';
-    connectionStatus.style.color = '#2ecc71';
+  if (ws) {
+    ws.close();
+  }
+
+  console.log('Connecting to WebSocket...', wsUrl);
+  ws = new WebSocket(wsUrl);
+
+  ws.onerror = (error) => {
+    console.error('WebSocket error:', error);
+    updateConnectionStatus('error');
   };
+
+  ws.onopen = () => {
+    console.log('WebSocket connected');
+    updateConnectionStatus('connected');
+  };
+
+  let reconnectAttempts = 0;
+  const maxReconnectAttempts = 5;
 
   ws.onclose = () => {
-    connectionStatus.textContent = '🔴 Disconnected';
-    connectionStatus.style.color = '#e74c3c';
+    updateConnectionStatus('disconnected');
+    reconnectAttempts++;
+
+    if (reconnectAttempts <= maxReconnectAttempts) {
+      console.log(`WebSocket reconnecting... Attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
+      // Exponential backoff for reconnection
+      setTimeout(connectWebSocket, Math.min(1000 * Math.pow(2, reconnectAttempts), 30000));
+    } else {
+      console.log('Max reconnection attempts reached. Please refresh the page.');
+    }
   };
+
+  ws.onmessage = (event) => {
+    try {
+      const log = JSON.parse(event.data);
+      if (isValidLogEntry(log)) {
+        logs.unshift(log);
+        if (logs.length > 1000) { // Keep max 1000 logs in memory
+          logs.pop();
+        }
+        // Always update UI for new logs regardless of real-time setting
+        updateUI();
+        updateCharts();
+      } else {
+        console.error('Invalid log entry:', log);
+      }
+    } catch (error) {
+      console.error('Error processing log:', error);
+    }
+  };
+}
+
+function updateConnectionStatus(status) {
+  if (!connectionStatus) return;
+
+  switch (status) {
+    case 'connected':
+      connectionStatus.textContent = '🟢 Connected';
+      connectionStatus.style.color = '#2ecc71';
+      break;
+    case 'disconnected':
+      connectionStatus.textContent = '🔴 Disconnected';
+      connectionStatus.style.color = '#e74c3c';
+      break;
+    case 'error':
+      connectionStatus.textContent = '🔴 Error';
+      connectionStatus.style.color = '#e74c3c';
+      break;
+  }
 }
 
 // Validation functions
@@ -58,23 +118,6 @@ function isValidDate(dateStr) {
   const date = new Date(dateStr);
   return date instanceof Date && !isNaN(date);
 }
-
-ws.onmessage = (event) => {
-  if (!isRealTime) return;
-
-  try {
-    const log = JSON.parse(event.data);
-    if (isValidLogEntry(log)) {
-      logs.unshift(log);
-      updateUI();
-      updateCharts();
-    } else {
-      console.error('Invalid log entry:', log);
-    }
-  } catch (error) {
-    console.error('Error processing log:', error);
-  }
-};
 
 // Event Listeners
 const searchInput = document.getElementById('search');
@@ -163,34 +206,72 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
 
 // UI Updates
 function updateUI() {
-  const filteredLogs = filterLogs();
-  const sortedLogs = sortLogs(filteredLogs);
-  renderTable(sortedLogs);
-  updateAnalytics(filteredLogs);
-  if (requestCount) {
-    requestCount.textContent = `Total Requests: ${logs.length}`;
+  try {
+    console.log('Updating UI with logs count:', logs.length);
+
+    // Update request count first
+    if (requestCount) {
+      requestCount.textContent = `Total Requests: ${logs.length}`;
+    }
+
+    // Get filtered and sorted logs
+    const filteredLogs = filterLogs();
+    console.log('Filtered logs count:', filteredLogs.length);
+    const sortedLogs = sortLogs(filteredLogs);
+
+    // Render table
+    renderTable(sortedLogs);
+
+    // Update analytics only if charts are initialized
+    if (chartsInitialized) {
+      updateAnalytics(filteredLogs);
+      updateCharts();
+    }
+
+    // Update connection status display
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      updateConnectionStatus('connected');
+    }
+  } catch (error) {
+    console.error('Error updating UI:', error);
+    // Attempt recovery by clearing filters
+    clearFilters();
   }
 }
 
 function filterLogs() {
+  // If no filters are active, return all logs
+  if (!filters.search && !filters.method && !filters.status && !filters.startDate && !filters.endDate) {
+    return logs;
+  }
+
   return logs.filter(log => {
+    // Search filter
     const matchesSearch = !filters.search ||
-      Object.values(log).some(val =>
-        String(val).toLowerCase().includes(filters.search)
-      );
+      Object.entries(log).some(([key, val]) => {
+        // Only search through specific fields
+        if (['method', 'url', 'ip', 'browser', 'os'].includes(key)) {
+          return String(val).toLowerCase().includes(filters.search.toLowerCase());
+        }
+        return false;
+      });
 
-    const matchesMethod = !filters.method ||
-      log.method === filters.method;
+    // Method filter
+    const matchesMethod = !filters.method || log.method === filters.method;
 
+    // Status filter
     const matchesStatus = !filters.status ||
-      String(log.status).startsWith(filters.status[0]);
+      (log.status && String(log.status).startsWith(filters.status[0]));
 
-    const logDate = new Date(log.timestamp);
-    const startDate = filters.startDate ? new Date(filters.startDate) : null;
-    const endDate = filters.endDate ? new Date(filters.endDate) : null;
-
-    const matchesDateRange = (!startDate || logDate >= startDate) &&
-      (!endDate || logDate <= endDate);
+    // Date range filter
+    let matchesDateRange = true;
+    if (filters.startDate || filters.endDate) {
+      const logDate = new Date(log.timestamp);
+      const startDate = filters.startDate ? new Date(filters.startDate) : null;
+      const endDate = filters.endDate ? new Date(filters.endDate) : null;
+      matchesDateRange = (!startDate || logDate >= startDate) &&
+        (!endDate || logDate <= endDate);
+    }
 
     return matchesSearch && matchesMethod && matchesStatus && matchesDateRange;
   });
@@ -207,26 +288,70 @@ function sortLogs(logs) {
 
 function renderTable(logs) {
   const tbody = document.querySelector('#logsTable tbody');
-  if (tbody) {
-    tbody.innerHTML = logs.map(log => `
-      <tr onclick="showDetails('${log.fingerprint}')">
-        <td>${formatDate(log.timestamp)}</td>
-        <td>${log.method}</td>
-        <td>${formatStatus(log.security?.statusCode || 200)}</td>
-        <td>${log.responseTime || 0}ms</td>
-        <td>${log.ip}</td>
-        <td>${log.geo?.city ? `${log.geo.city}, ${log.geo.country}` : 'N/A'}</td>
-        <td>${log.os?.name} ${log.os?.version || ''}</td>
-        <td>${log.browser?.name} ${log.browser?.version || ''}</td>
-        <td>${log.device?.type || 'N/A'} ${log.device?.brand || ''} ${log.device?.model || ''}</td>
-        <td>${log.url}</td>
-        <td>${log.sessionID || 'Anonymous'}</td>
-        <td>${formatJSON(log.headers || {})}</td>
-        <td>N/A</td>
-        <td>N/A</td>
-        <td>N/A</td>
-      </tr>
-    `).join('');
+  if (!tbody) {
+    console.error('Table body element not found');
+    return;
+  }
+
+  try {
+    console.log('Rendering table with', logs.length, 'logs');
+
+    if (!Array.isArray(logs) || logs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="12">No logs to display</td></tr>';
+      return;
+    }
+
+    const rows = logs.map(log => {
+      try {
+        if (!log) return '';
+
+        // Safely access nested properties
+        const timestamp = log.timestamp ? formatDate(log.timestamp) : 'Invalid Date';
+        const method = log.method || 'Unknown';
+        const status = typeof log.status === 'number' ? formatStatus(log.status) : 'Unknown';
+        const responseTime = typeof log.responseTime === 'number' ? `${log.responseTime}ms` : '0ms';
+        const ip = log.ip || 'Unknown';
+        const geo = log.geo || {};
+        const location = geo.city ? `${geo.city}, ${geo.country}` : 'N/A';
+        const os = log.os || {};
+        const browser = log.browser || {};
+        const device = log.device || {};
+        const url = log.url || 'Unknown';
+        const sessionId = log.sessionID || 'Anonymous';
+        const headers = log.headers ? formatJSON(log.headers) : 'N/A';
+
+        return `
+          <tr onclick="showDetails('${log.fingerprint || ''}')">
+            <td>${timestamp}</td>
+            <td>${method}</td>
+            <td>${status}</td>
+            <td>${responseTime}</td>
+            <td>${ip}</td>
+            <td>${location}</td>
+            <td>${os.name || 'Unknown'} ${os.version || ''}</td>
+            <td>${browser.name || 'Unknown'} ${browser.version || ''}</td>
+            <td>${device.type || 'N/A'} ${device.brand || ''} ${device.model || ''}</td>
+            <td>${url}</td>
+            <td>${sessionId}</td>
+            <td>${headers}</td>
+          </tr>
+        `;
+      } catch (error) {
+        console.error('Error rendering log row:', error, log);
+        return '';
+      }
+    }).filter(row => row !== ''); // Remove any failed rows
+
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="12">Error rendering logs</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.join('');
+    console.log('Table rendered successfully');
+  } catch (error) {
+    console.error('Error in renderTable:', error);
+    tbody.innerHTML = '<tr><td colspan="12">Error rendering table data</td></tr>';
   }
 }
 
@@ -281,7 +406,7 @@ function initCharts() {
 }
 
 function updateCharts() {
-  if (!responseTimeChart || !statusChart) return;
+  if (!chartsInitialized || !responseTimeChart || !statusChart) return;
 
   // Update response time chart
   const recentLogs = logs.slice(0, 50).reverse();
@@ -375,14 +500,14 @@ function showDetails(fingerprint) {
       <h3>Performance Details</h3>
       <pre>${JSON.stringify({
         responseTime: log.responseTime + 'ms',
-        status: log.security?.statusCode || 200
+        status: log.status
       }, null, 2)}</pre>
     `,
-    timeline: `
-      <h3>Security Timeline</h3>
+    security: `
+      <h3>Security Details</h3>
       <div class="timeline">
         <div class="timeline-item">
-          <span class="time">Security Score: ${log.security?.threatScore || 0}/100</span>
+          <span class="time">Threat Score: ${log.security?.threatScore || 0}/100</span>
           <span class="event">Threat Assessment</span>
         </div>
         <div class="timeline-item">
@@ -420,8 +545,8 @@ function showDetails(fingerprint) {
   };
 
   const activeTab = modal.querySelector('.tab-btn.active');
-  if (activeTab && typeof activeTab.click === 'function') {
-    activeTab.click();
+  if (activeTab && typeof activeTab.dataset.tab === 'string') {
+    content.innerHTML = tabContent[activeTab.dataset.tab] || '';
   }
   modal.style.display = 'block';
 }
@@ -429,7 +554,7 @@ function showDetails(fingerprint) {
 function exportLogs() {
   const filteredLogs = filterLogs();
   const csv = [
-    Object.keys(filteredLogs[0]).join(','),
+    Object.keys(filteredLogs[0] || {}).join(','),
     ...filteredLogs.map(log => Object.values(log).join(','))
   ].join('\n');
 
@@ -473,45 +598,37 @@ function clearFilters() {
 // Initialize
 async function fetchInitialLogs() {
   try {
-    const response = await fetch('http://localhost:5000/api/logs/tracking');
-    if (!response.ok) throw new Error('Failed to fetch logs');
+    console.log('Fetching initial logs...');
+    const response = await fetch(`${baseApiUrl}/api/logs/tracking`);
+    if (!response.ok) throw new Error(`Failed to fetch logs: ${response.statusText}`);
     const data = await response.json();
-    logs = data.data || [];
+    logs = Array.isArray(data.data) ? data.data : [];
+    console.log('Loaded initial logs:', logs.length);
     updateUI();
+    updateCharts();
   } catch (error) {
     console.error('Error fetching logs:', error);
+    logs = [];
+    // Retry after 5 seconds
+    setTimeout(fetchInitialLogs, 5000);
   }
 }
+
+// Add periodic refresh of initial logs
+setInterval(fetchInitialLogs, 30000); // Refresh every 30 seconds
 
 let chartsInitialized = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    connectWebSocket();
     await fetchInitialLogs();
     if (window.Chart) {
       initCharts();
       chartsInitialized = true;
+      updateCharts();
     }
-    updateUI();
   } catch (error) {
     console.error('Failed to initialize dashboard:', error);
   }
 });
-
-function updateCharts() {
-  if (!chartsInitialized || !responseTimeChart || !statusChart) return;
-  // ... rest of updateCharts function unchanged
-}
-
-async function fetchInitialLogs() {
-  try {
-    const response = await fetch('http://localhost:5000/api/logs/tracking');
-    if (!response.ok) throw new Error(`Failed to fetch logs: ${response.statusText}`);
-    const data = await response.json();
-    logs = Array.isArray(data.data) ? data.data : [];
-    console.log('Loaded initial logs:', logs.length);
-  } catch (error) {
-    console.error('Error fetching logs:', error);
-    logs = [];
-  }
-}

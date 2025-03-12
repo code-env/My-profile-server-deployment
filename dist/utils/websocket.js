@@ -5,8 +5,13 @@ const ws_1 = require("ws");
 const logger_1 = require("./logger");
 let wss;
 const clients = new Set();
-const initializeWebSocket = (server) => {
-    wss = new ws_1.WebSocket.Server({ server });
+const initializeWebSocket = (server, app) => {
+    wss = new ws_1.WebSocketServer({
+        server,
+        path: '/ws/logs' // Add specific path for logs WebSocket
+    });
+    // Store WSS instance in app.locals for middleware access
+    app.locals.wss = wss;
     wss.on('connection', (ws) => {
         clients.add(ws);
         logger_1.logger.info('New WebSocket client connected');

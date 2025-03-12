@@ -15,6 +15,7 @@ const configureSecurityHeaders = () => {
                     scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
                     styleSrc: ["'self'", "'unsafe-inline'", "https:", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
                     imgSrc: ["'self'", "data:", "https:"],
+                    connectSrc: ["'self'", "ws:", "wss:"], // Added WebSocket support
                     fontSrc: ["'self'", "https:", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
                     frameAncestors: ["'none'"],
                     formAction: ["'self'"]
@@ -30,6 +31,7 @@ const configureSecurityHeaders = () => {
                 "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
                 "style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com https://cdnjs.cloudflare.com; " +
                 "img-src 'self' data: https:; " +
+                "connect-src 'self' ws: wss:; " + // Added WebSocket support
                 "font-src 'self' https: https://fonts.gstatic.com https://cdnjs.cloudflare.com; " +
                 "frame-ancestors 'none'; " +
                 "form-action 'self'");
