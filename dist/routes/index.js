@@ -41,6 +41,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.setupRoutes = void 0;
 const auth_routes_1 = __importDefault(require("./auth.routes"));
+const user_routes_1 = __importDefault(require("./user.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
 const connection_routes_1 = __importDefault(require("./connection.routes"));
 const logs_routes_1 = __importDefault(require("./logs.routes"));
@@ -62,6 +63,7 @@ const setupRoutes = (app) => {
     });
     // Public routes
     app.use('/api/auth', auth_routes_1.default);
+    app.use('/api/user', user_routes_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     app.use('/api/connections', auth_middleware_1.protect, connection_routes_1.default);

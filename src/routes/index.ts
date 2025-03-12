@@ -37,6 +37,7 @@
 
 import { Application } from 'express';
 import authRoutes from './auth.routes';
+import userRoutes from './user.routes'
 import profileRoutes from './profile.routes';
 import connectionRoutes from './connection.routes';
 import logsRoutes from './logs.routes';
@@ -62,6 +63,7 @@ export const setupRoutes = (app: Application): void => {
 
   // Public routes
   app.use('/api/auth', authRoutes);
+  app.use('/api/user',userRoutes)
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
