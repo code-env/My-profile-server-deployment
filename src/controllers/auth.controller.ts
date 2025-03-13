@@ -870,7 +870,7 @@ export class AuthController {
       });
     }
   }
-
+  
   /**
    * Generate Two-Factor Authentication (2FA) secret for user
    *
