@@ -107,6 +107,7 @@ export interface IUser extends Document {
   lastLogin?: Date;
   failedLoginAttempts: number;
   lockUntil: Date;
+  signupType: 'email' | 'google' | 'facebook';
   googleId?: string;
   facebookId?: string;
   role: 'superadmin' | 'admin' | 'user';
@@ -173,6 +174,11 @@ const userSchema = new Schema<IUser>(
       type: String,
       enum: ['MYSELF', 'SOMEONE_ELSE'],
       required: true,
+    },
+    signupType: {
+      type: String,
+      enum: ['email', 'google', 'facebook'],
+      default: 'email',
     },
     accountCategory: {
       type: String,
