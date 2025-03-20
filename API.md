@@ -136,6 +136,8 @@ Authorization: Bearer <token>
 }
 ```
 
+
+
 ### Logout All Sessions
 ```http
 POST /auth/logout-all
@@ -956,7 +958,9 @@ interface ProcessingResult {
 }
 ```
 
+
 ## SDKs & Libraries
+
 
 ### Official SDKs
 - [JavaScript/TypeScript](https://github.com/myprofile/js-sdk)
@@ -975,6 +979,7 @@ interface ProcessingResult {
 - Cache responses when possible
 - Monitor rate limit headers
 - Use bulk operations when available
+
 
 ### Security
 - Store tokens securely
