@@ -108,6 +108,46 @@
             color: white;
         }
 
+        .mobile-menu-button {
+            display: none;
+            font-size: 24px;
+            background: none;
+            border: none;
+            color: var(--secondary);
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: 70px;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .mobile-menu.active {
+            display: block;
+        }
+
+        .mobile-menu a {
+            display: block;
+            padding: 12px 16px;
+            color: var(--gray);
+            text-decoration: none;
+            font-weight: 500;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .mobile-menu a:hover {
+            background: rgba(26, 115, 232, 0.08);
+            color: var(--primary);
+        }
+
         .hero {
             padding: 160px 0 120px;
             background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
@@ -249,12 +289,23 @@
             border-radius: 4px;
             font-weight: 500;
             transition: all 0.2s;
+            margin-right: 16px;
         }
 
         .btn:hover {
             background: var(--primary-dark);
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(26, 115, 232, 0.2);
+        }
+
+        .btn-secondary {
+            background: var(--light);
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(26, 115, 232, 0.08);
         }
 
         @keyframes fadeInUp {
@@ -289,6 +340,9 @@
             nav {
                 display: none;
             }
+            .mobile-menu-button {
+                display: block;
+            }
         }
     </style>
 </head>
@@ -299,12 +353,21 @@
                 <img src="/public/profileblack.png" alt="My Profile Ltd Logo">
                 My Profile
             </a>
+            <button class="mobile-menu-button">
+                <i class="fas fa-bars"></i>
+            </button>
             <nav>
                 <a href="/api/auth">API Reference</a>
                 <a href="/docs">Documentation</a>
                 <a href="https://github.com/Brilydal123/My-profile-server-deployment" target="_blank">GitHub</a>
                 <a href="/api/auth/login" class="btn">Developer Console</a>
             </nav>
+        </div>
+        <div class="mobile-menu">
+            <a href="/api/auth">API Reference</a>
+            <a href="/docs">Documentation</a>
+            <a href="https://github.com/Brilydal123/My-profile-server-deployment" target="_blank">GitHub</a>
+            <a href="/api/auth/login" class="btn">Developer Console</a>
         </div>
     </header>
 
@@ -316,10 +379,16 @@
             </div>
             <h1>API Platform for Digital Identity</h1>
             <p>Enterprise-grade infrastructure powered by cutting-edge technology and industry-leading security standards.</p>
-            <a href="/api/auth" class="btn">
-                <i class="fas fa-book"></i>
-                Explore Documentation
-            </a>
+            <div>
+                <a href="/api/auth" class="btn">
+                    <i class="fas fa-book"></i>
+                    Explore Documentation
+                </a>
+                <a href="/api/auth/login" class="btn btn-secondary">
+                    <i class="fas fa-terminal"></i>
+                    Developer Console
+                </a>
+            </div>
 
             <div class="metrics-grid">
                 <div class="metric-card">
@@ -375,6 +444,25 @@
             `;
         }
         setInterval(updateTimestamp, 5000);
+
+        // Mobile menu toggle
+        const mobileMenuButton = document.querySelector('.mobile-menu-button');
+        const mobileMenu = document.querySelector('.mobile-menu');
+
+        mobileMenuButton.addEventListener('click', () => {
+            mobileMenu.classList.toggle('active');
+            mobileMenuButton.innerHTML = mobileMenu.classList.contains('active')
+                ? '<i class="fas fa-times"></i>'
+                : '<i class="fas fa-bars"></i>';
+        });
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!mobileMenu.contains(e.target) && !mobileMenuButton.contains(e.target)) {
+                mobileMenu.classList.remove('active');
+                mobileMenuButton.innerHTML = '<i class="fas fa-bars"></i>';
+            }
+        });
 
         // Smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
