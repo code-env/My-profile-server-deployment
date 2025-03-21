@@ -167,28 +167,59 @@ class AuthService {
                         // Optionally, you can choose to throw an error or continue
                     }
                 }
+                // Replace the direct user object with a sanitized version
+                const sanitizedUser = {
+                    id: user._id,
+                    email: user.email,
+                    verificationData: user.verificationData,
+                    username: user.username,
+                    fullName: user.fullName,
+                    role: user.role,
+                    isEmailVerified: user.isEmailVerified,
+                    isPhoneVerified: user.isPhoneVerified,
+                    profilePicture: user.profilePicture,
+                    registrationStep: user.registrationStep,
+                    verificationMethod: user.verificationMethod,
+                    lastLogin: user.lastLogin
+                };
                 return {
                     success: true,
                     message: "OTP sent for verification",
-                    otpRequired: true,
+                    otpRequired: !user.isEmailVerified,
                     verificationMethod: user.verificationMethod,
-                    user,
-                    otpChannel: "email",
+                    user: sanitizedUser,
+                    otpChannel: user.otpChannel
                 };
             }
             // If no 2FA, generate tokens and complete login
             const tokens = this.generateTokens(user._id.toString(), user.email);
+            console.log(user);
             // Clear old refresh tokens and set the new one
             user.refreshTokens = [tokens.refreshToken];
             user.lastLogin = new Date();
             await user.save();
+            const sanitizedUser = {
+                id: user._id,
+                email: user.email,
+                verificationData: user.verificationData,
+                username: user.username,
+                fullName: user.fullName,
+                role: user.role,
+                isEmailVerified: user.isEmailVerified,
+                isPhoneVerified: user.isPhoneVerified,
+                profilePicture: user.profilePicture,
+                registrationStep: user.registrationStep,
+                verificationMethod: user.verificationMethod,
+                lastLogin: user.lastLogin
+            };
             return {
                 success: true,
                 message: "Login successful",
                 tokens,
-                user,
+                user: sanitizedUser,
+                otpRequired: !user.isEmailVerified,
                 verificationMethod: user.verificationMethod,
-                otpRequired: false,
+                // otpRequired: false,
             };
         }
         catch (error) {

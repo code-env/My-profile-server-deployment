@@ -63,6 +63,7 @@ const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const compression_1 = __importDefault(require("compression"));
 const morgan_1 = __importDefault(require("morgan"));
 const chalk_1 = __importDefault(require("chalk"));
+const license_manager_1 = require("./utils/license-manager");
 // Internal imports
 const config_1 = require("./config/config");
 const logger_1 = require("./utils/logger");
@@ -74,7 +75,6 @@ const performance_middleware_1 = require("./middleware/performance.middleware");
 const env_validator_1 = require("./utils/env-validator");
 const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"));
 const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
-const license_service_1 = require("./services/license.service");
 /**
  * @class AppServer
  * @description Core server application class that manages the Express application lifecycle,
@@ -305,7 +305,7 @@ class AppServer {
             throw new Error('COMPANY_SECRET environment variable is required');
         }
         // Validate license
-        const validationResult = await license_service_1.licenseService.validateLicense(licenseKey, deviceId, ipAddress);
+        const validationResult = license_manager_1.licenseManager.validateLicense(process.env.COMPANY_SECRET);
         if (!validationResult.isValid) {
             throw new Error(`License validation failed: ${validationResult.error}`);
         }

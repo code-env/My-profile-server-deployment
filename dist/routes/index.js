@@ -63,7 +63,7 @@ const setupRoutes = (app) => {
     });
     // Public routes
     app.use('/api/auth', auth_routes_1.default);
-    app.use('/api/user', user_routes_1.default);
+    app.use('/api/users', user_routes_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     app.use('/api/connections', auth_middleware_1.protect, connection_routes_1.default);
