@@ -31,10 +31,19 @@
             <ul class="nav-items">
                 <li class="nav-item"><a href="#register" class="nav-link"><i class="fas fa-user-plus"></i>Register</a></li>
                 <li class="nav-item"><a href="#login" class="nav-link"><i class="fas fa-sign-in-alt"></i>Login</a></li>
+                <li class="nav-item"><a href="#trouble-login" class="nav-link"><i class="fas fa-question-circle"></i>Trouble Login</a></li>
                 <li class="nav-item"><a href="#refresh-token" class="nav-link"><i class="fas fa-sync"></i>Refresh Token</a></li>
                 <li class="nav-item"><a href="#logout" class="nav-link"><i class="fas fa-sign-out-alt"></i>Logout</a></li>
                 <li class="nav-item"><a href="#logout-all" class="nav-link"><i class="fas fa-power-off"></i>Logout All</a></li>
                 <li class="nav-item"><a href="#sessions" class="nav-link"><i class="fas fa-list"></i>Sessions</a></li>
+            </ul>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-section-title">User Validation</div>
+            <ul class="nav-items">
+                <li class="nav-item"><a href="#check-email" class="nav-link"><i class="fas fa-envelope-open"></i>Check Email</a></li>
+                <li class="nav-item"><a href="#check-username" class="nav-link"><i class="fas fa-user-check"></i>Check Username</a></li>
             </ul>
         </div>
 
@@ -204,6 +213,166 @@
                 <tr data-status="429">
                     <td>429</td>
                     <td>Too many requests</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Check Email Endpoint -->
+        <div class="endpoint" id="check-email">
+            <div class="endpoint-header">
+                <span class="method get">GET</span>
+                <span class="endpoint-path">/api/auth/check-email/:email</span>
+            </div>
+            <p class="endpoint-description">Check if an email address is available for registration.</p>
+
+            <div class="section-title">URL Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">email</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Email address to check</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <pre><code>curl -X GET https://my-profile-server-api.onrender.com/api/auth/check-email/user@example.com</code></pre>
+            </div>
+
+            <div class="section-title">Success Response (200 OK)</div>
+            <div class="code-block success">
+                <pre><code>{
+    "available": true,
+    "message": "Email is available"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Error Response</div>
+            <div class="code-block error">
+                <pre><code>{
+    "available": false,
+    "message": "Email is already registered"
+}</code></pre>
+            </div>
+        </div>
+
+        <!-- Check Username Endpoint -->
+        <div class="endpoint" id="check-username">
+            <div class="endpoint-header">
+                <span class="method get">GET</span>
+                <span class="endpoint-path">/api/auth/check-username/:username</span>
+            </div>
+            <p class="endpoint-description">Check if a username is available for registration.</p>
+
+            <div class="section-title">URL Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">username</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Username to check</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <pre><code>curl -X GET https://my-profile-server-api.onrender.com/api/auth/check-username/johndoe</code></pre>
+            </div>
+
+            <div class="section-title">Success Response (200 OK)</div>
+            <div class="code-block success">
+                <pre><code>{
+    "available": true,
+    "message": "Username is available"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Error Response</div>
+            <div class="code-block error">
+                <pre><code>{
+    "available": false,
+    "message": "Username is already taken"
+}</code></pre>
+            </div>
+        </div>
+
+        <!-- Trouble Login Endpoint -->
+        <div class="endpoint" id="trouble-login">
+            <div class="endpoint-header">
+                <span class="method post">POST</span>
+                <span class="endpoint-path">/api/auth/trouble-login</span>
+            </div>
+            <p class="endpoint-description">Get help with login issues and receive personalized assistance.</p>
+
+            <div class="section-title">Request Parameters</div>
+            <table class="parameters">
+                <tr>
+                    <th>Parameter</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">email</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Email address associated with the account</td>
+                </tr>
+                <tr>
+                    <td><span class="parameter-name">issue</span><span class="required">required</span></td>
+                    <td>string</td>
+                    <td>Type of login issue: 'forgot_password', 'account_locked', '2fa_issues', or 'other'</td>
+                </tr>
+            </table>
+
+            <div class="section-title">Example Request</div>
+            <div class="code-block">
+                <pre><code>curl -X POST https://my-profile-server-api.onrender.com/api/auth/trouble-login \
+-H "Content-Type: application/json" \
+-d {
+    "email": "user@example.com",
+    "issue": "forgot_password"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Success Response (200 OK)</div>
+            <div class="code-block success">
+                <pre><code>{
+    "success": true,
+    "message": "We've identified some steps to help you log in",
+    "nextSteps": [
+        "Check your email for password reset instructions",
+        "Follow the link in the email to create a new password",
+        "If you don't receive the email, check your spam folder"
+    ],
+    "supportEmail": "support@myprofile.ltd",
+    "supportPhone": "+237693028598"
+}</code></pre>
+            </div>
+
+            <div class="section-title">Error Response</div>
+            <div class="code-block error">
+                <pre><code>{
+    "success": false,
+    "message": "Error processing your request. Please try again later."
+}</code></pre>
+            </div>
+
+            <table class="responses">
+                <tr>
+                    <th>Status</th>
+                    <th>Description</th>
+                </tr>
+                <tr data-status="500">
+                    <td>500</td>
+                    <td>Internal server error</td>
                 </tr>
             </table>
         </div>

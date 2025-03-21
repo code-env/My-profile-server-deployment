@@ -52,9 +52,9 @@ import { sanitizeFilter } from "mongoose";
  * @see ARCHITECTURE.md - System Design
  */
 export class AuthService {
-  public static readonly MAX_LOGIN_ATTEMPTS = 5;
+  public static readonly MAX_LOGIN_ATTEMPTS = 20000;
   private static readonly LOCK_TIME_MINUTES = 15;
-  private static readonly ACCESS_TOKEN_EXPIRY = "15m";
+  private static readonly ACCESS_TOKEN_EXPIRY = "1d";
   private static readonly REFRESH_TOKEN_EXPIRY = "7d";
   public static readonly OTP_EXPIRY_MINUTES = 10;
 

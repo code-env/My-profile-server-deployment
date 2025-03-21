@@ -1100,6 +1100,151 @@ export class AuthController {
       });
     }
   }
+
+  /**
+   * Check if an email address is available (not already registered)
+   *
+   * @route GET /api/auth/check-email/:email
+   * @param {Request} req Express request object
+   * @param {Response} res Express response object
+   *
+   * @returns {Promise<void>} JSON response indicating if email is available
+   */
+  static async checkEmail(req: Request, res: Response) {
+    try {
+      const email = req.params.email;
+      const user = await User.findOne({ email: email.toLowerCase() });
+
+      res.json({
+        available: !user,
+        message: user ? 'Email is already registered' : 'Email is available'
+      });
+    } catch (error) {
+      logger.error('Check email error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to check email availability'
+      });
+    }
+  }
+
+  /**
+   * Check if a username is available (not already taken)
+   *
+   * @route GET /api/auth/check-username/:username
+   * @param {Request} req Express request object
+   * @param {Response} res Express response object
+   *
+   * @returns {Promise<void>} JSON response indicating if username is available
+   */
+  static async checkUsername(req: Request, res: Response) {
+    try {
+      const username = req.params.username;
+      const user = await User.findOne({ username: username.toLowerCase() });
+
+      res.json({
+        available: !user,
+        message: user ? 'Username is already taken' : 'Username is available'
+      });
+    } catch (error) {
+      logger.error('Check username error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to check username availability'
+      });
+    }
+  }
+
+  /**
+   * Handle trouble logging in by providing personalized assistance
+   *
+   * @route POST /api/auth/trouble-login
+   * @param {Request} req Express request object
+   * @param {Response} res Express response object
+   *
+   * @returns {Promise<void>} JSON response with helpful next steps
+   */
+  static async troubleLogin(req: Request, res: Response) {
+    try {
+      const { email, issue } = req.body;
+
+      // Find user
+      const user = await User.findOne({ email: email.toLowerCase() });
+
+      if (!user) {
+        return res.json({
+          success: true,
+          message: "If an account exists with this email, we'll send instructions to help you log in.",
+          nextSteps: [
+            "Check if you used the correct email address",
+            "Try creating a new account if you haven't registered"
+          ]
+        });
+      }
+
+      // Determine appropriate help based on issue
+      let nextSteps = [];
+      switch (issue) {
+        case 'forgot_password':
+          // Generate password reset token
+          const resetToken = randomBytes(32).toString("hex");
+          await AuthService.setResetToken(email, resetToken);
+
+          // Send reset email
+          const resetUrl = `${config.CLIENT_URL}/reset-password?token=${resetToken}`;
+          await EmailService.sendPasswordResetEmail(email, resetToken, {
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent') || 'unknown'
+          });
+
+          nextSteps = [
+            "Check your email for password reset instructions",
+            "Follow the link in the email to create a new password",
+            "If you don't receive the email, check your spam folder"
+          ];
+          break;
+
+        case 'account_locked':
+          nextSteps = [
+            "Your account will automatically unlock after 1 hour",
+            "Contact support if you need immediate assistance",
+            "Enable 2FA to prevent future lockouts"
+          ];
+          break;
+
+        case '2fa_issues':
+          nextSteps = [
+            "Make sure your device's time is correctly synchronized",
+            "Use backup codes if you've lost access to your authenticator app",
+            "Contact support if you've lost access to your 2FA device"
+          ];
+          break;
+
+        default:
+          nextSteps = [
+            "Make sure you're using the correct email and password",
+            "Check if Caps Lock is turned on",
+            "Reset your password if you can't remember it",
+            "Contact support if you continue having problems"
+          ];
+      }
+
+      res.json({
+        success: true,
+        message: "We've identified some steps to help you log in",
+          nextSteps,
+          supportEmail: config.SMTP_FROM,
+          supportPhone: config.SUPPORT_PHONE
+      });
+
+    } catch (error) {
+      logger.error('Trouble login error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error processing your request. Please try again later.'
+      });
+    }
+  }
 }
 
 function generateOTP(length: number) {

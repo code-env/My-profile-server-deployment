@@ -38,9 +38,14 @@ router.post("/login", AuthController.login);
 router.post("/refresh-token", AuthController.refreshToken);
 router.post("/logout", authenticateToken, AuthController.logout);
 router.post("/logout-all", authenticateToken, AuthController.logoutAll);
+router.post("/trouble-login", AuthController.troubleLogin);
 router.get("/sessions", authenticateToken, AuthController.getSessions);
 router.post("/forgot-password", AuthController.forgotPassword);
 router.post("/reset-password", AuthController.resetPassword);
+
+// User validation endpoints
+router.get("/check-email/:email", AuthController.checkEmail);
+router.get("/check-username/:username", AuthController.checkUsername);
 
 // Unified OTP verification route
 router.post("/verify-otp", AuthController.verifyOTP);

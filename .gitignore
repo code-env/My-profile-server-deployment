@@ -4,8 +4,7 @@ dist/
 build/
 
 # Environment and License files
-.env
-.env.*
+
 !.env.example
 .license
 .env.license
