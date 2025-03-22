@@ -90,6 +90,8 @@ class EmailService {
         `Verify Your Device - ${config.APP_NAME}`,
         html
       );
+
+      logger.info(`Verification email sent to ${email}`);
     } catch (error: unknown) {
       logger.error('Failed to send verification email:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to send verification email');

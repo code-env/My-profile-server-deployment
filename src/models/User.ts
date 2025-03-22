@@ -189,6 +189,7 @@ const userSchema = new Schema<IUser>(
       type: String,
       enum: ['PHONE', 'EMAIL'],
       required: true,
+      default: 'EMAIL',
     },
     isEmailVerified: {
       type: Boolean,
