@@ -38,12 +38,16 @@
 import { Application } from 'express';
 import authRoutes from './auth.routes';
 import userRoutes from './user.routes'
+import socialRoutes from './socials.auth.route'
 import profileRoutes from './profile.routes';
 import connectionRoutes from './connection.routes';
 import logsRoutes from './logs.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
+import newSocialRoutes from "./new.auth.routes"
+import session from 'express-session';
+import passport from 'passport';
 
 /**
  * Configures and sets up all API routes for the application
@@ -51,9 +55,16 @@ import { testRoutes } from './test.routes';
  * @description Initializes routes with their respective middleware chains
  */
 export const setupRoutes = (app: Application): void => {
+
+
   // Root route - serve landing page
   app.get('/', (req, res) => {
     res.sendFile('index.html', { root: 'public' });
+  });
+
+  //auth test
+  app.get('/socials', (req, res) => {
+    res.sendFile('authtest.html', { root: 'public' });
   });
 
   // Admin logs page
@@ -61,9 +72,23 @@ export const setupRoutes = (app: Application): void => {
     res.sendFile('logs.html', { root: 'public' });
   });
 
+  app.use(
+    session({
+      secret: "some secret, here top secret",
+      resave: false,
+      saveUninitialized: true,
+    })
+  );
+  
+  app.use(passport.initialize());
+  app.use(passport.session());
+  
+
   // Public routes
   app.use('/api/auth', authRoutes);
   app.use('/api/users',userRoutes)
+  // app.use('/api/sauth', socialRoutes)
+  app.use('/api/sauth', newSocialRoutes)
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);

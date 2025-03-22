@@ -79,6 +79,11 @@ const userSchema = new mongoose_1.Schema({
         enum: ['MYSELF', 'SOMEONE_ELSE'],
         required: true,
     },
+    signupType: {
+        type: String,
+        enum: ['email', 'google', 'facebook'],
+        default: 'email',
+    },
     accountCategory: {
         type: String,
         enum: ['PRIMARY_ACCOUNT', 'SECONDARY_ACCOUNT'],
