@@ -5,6 +5,49 @@ import { Strategy as FacebookStrategy } from 'passport-facebook';
 import { User, IUser } from '../models/User';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
+import { OAuth2Client } from 'google-auth-library';
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+export const googleMobileCallback = async (req: Request, res: Response) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) return res.status(400).json({ error: 'idToken is required' });
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: "124684938199-e7ocs5m4npm1hm31i5e0j5sbqk9m62m9.apps.googleusercontent.com",
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload) return res.status(401).json({ error: 'Invalid ID token' });
+
+    let user = await User.findOne({ email: payload.email });
+    if (!user) {
+      user = new User({
+        googleId: payload.sub,
+        email: payload.email,
+        fullName: payload.name,
+        username: payload.email?.split('@')[0],
+        signupType: 'google',
+        isEmailVerified: true,
+        profileImage: payload.picture,
+        refreshTokens: [],
+      });
+      await user.save();
+    }
+
+    const { accessToken, refreshToken } = generateTokens(user.id.toString(), user.email);
+    user.refreshTokens.push(refreshToken);
+    await user.save();
+
+    res.json({ accessToken, refreshToken, user });
+  } catch (err: any) {
+    logger.error('Google Mobile authentication failed:', err);
+    res.status(401).json({ error: 'Google authentication failed', message: err.message });
+  }
+};
+
 
 passport.use(
   new GoogleStrategy(
@@ -194,6 +237,7 @@ const refreshAccessToken = async (refreshToken: string) => {
 
 // Google OAuth2 consent screen
 export const googleConsent = passport.authenticate('google', { scope: ['profile', 'email'] });
+
 
 
 
