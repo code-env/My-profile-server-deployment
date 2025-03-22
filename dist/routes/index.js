@@ -57,6 +57,10 @@ const setupRoutes = (app) => {
     app.get('/', (req, res) => {
         res.sendFile('index.html', { root: 'public' });
     });
+    //auth test
+    app.get('/socials', (req, res) => {
+        res.sendFile('authtest.html', { root: 'public' });
+    });
     // Admin logs page
     app.get('/admin/logs', (req, res) => {
         res.sendFile('logs.html', { root: 'public' });
