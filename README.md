@@ -117,11 +117,7 @@ Use these credentials in development:
   "email": "test@myprofile.ltd",
   "password": "Test@123456"
 }
-Common Integration Issues
-CORS Issues:
 
-Frontend domain must be whitelisted
-Contact support to add your domain
 Token Issues:
 
 Always check token expiration
