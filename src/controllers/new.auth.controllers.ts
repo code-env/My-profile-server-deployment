@@ -180,7 +180,7 @@ passport.deserializeUser(async (id: string, done) => {
 // Generate access and refresh tokens
 const generateTokens = (userId: string, email: string) => {
   const accessToken = jwt.sign({ userId, email }, process.env.JWT_SECRET!, {
-    expiresIn: '15m', 
+    expiresIn: '1h', 
   });
 
   const refreshToken = jwt.sign(
@@ -221,7 +221,7 @@ const refreshAccessToken = async (refreshToken: string) => {
     const accessToken = jwt.sign(
       { userId: user.id.toString(), email: user.email },
       process.env.JWT_SECRET!,
-      { expiresIn: '15m' }
+      { expiresIn: '1h' }
     );
 
     user.refreshTokens = user.refreshTokens.filter((token) => token !== refreshToken);

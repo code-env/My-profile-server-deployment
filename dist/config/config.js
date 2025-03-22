@@ -54,6 +54,8 @@ const envSchema = zod_1.z.object({
     CLIENT_URL: zod_1.z.string().default("http://localhost:3000"),
     APP_NAME: zod_1.z.string().default("MyProfile"),
     COMPANY_SECRET: zod_1.z.string(),
+    SUPPORT_EMAIL: zod_1.z.string().default("support@myprofile.ltd"),
+    SUPPORT_PHONE: zod_1.z.string().default("+237693028598"),
     // Security & Authentication
     JWT_SECRET: zod_1.z.string(),
     JWT_REFRESH_SECRET: zod_1.z.string(),

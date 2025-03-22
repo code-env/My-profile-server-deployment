@@ -96,7 +96,7 @@ Password Reset: 3 requests per hour
 OTP Verification: 3 attempts per code
 Token Management:
 
-Access tokens expire in 15 minutes
+Access tokens expire in 1 hour
 Refresh tokens expire in 7 days
 Store tokens in httpOnly cookies
 Password Requirements:

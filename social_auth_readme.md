@@ -76,3 +76,42 @@ Flutter will send the Facebook `accessToken` to this endpoint.
   "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2N2RlMzhiOGM4NDk1NjgzNTA2MGFlYjEiLCJlbWFpbCI6ImxvbmZvbnl1eXJvbWFyaWNAZ21haWwuY29tIiwidHlwZSI6InJlZnJlc2giLCJpYXQiOjE3NDI2MjIwNjYsImV4cCI6MTc0MzIyNjg2Nn0.4v_tMAySVCvSm4LxNcuE3llXSeFOti0K2SNdYRmKqfE"
 }
 ```
+
+
+### Get new access token using refresh token.
+
+POST /api/auth/refresh-token
+```
+**Request Body:**
+```json
+{
+    "refreshToken": "eyJhbG..."
+}
+```
+
+**Responsed body:**
+```json
+{
+    "success": true,
+    "tokens": {
+        "accessToken": "eyJhbG...",
+        "refreshToken": "eyJhbG..."
+    }
+}
+```
+
+### Get new access token using refresh token.
+
+DELETE /api/user/delete/{id}
+**Request Body:**
+```json
+{
+    "success": true,
+    "tokens": {
+        "accessToken": "eyJhbG...",
+        "refreshToken": "eyJhbG..."
+    }
+}
+```
+
+
