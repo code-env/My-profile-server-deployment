@@ -32,19 +32,19 @@ function validateLicense() {
       process.exit(1);
     }
 
-    // const validation = licenseManager.validateLicense(companySecret);
+    const validation = licenseManager.validateLicense(companySecret);
     
-    let validation = licenseManager.validateLicense(companySecret);
-    validation.isValid = true
-    validation.employee = {
-      name: "John Doe",
-      email: "",
-      department: "Engineering",
-      issuedAt: "2021-09-01T00:00:00.000Z",
-      expiresAt: "2022-09-01T00:00:00.000Z",
-      employeeId:"123456",
-      hardwareFingerprint:"123456"
-    }
+    // let validation = licenseManager.validateLicense(companySecret);
+    // validation.isValid = true
+    // validation.employee = {
+    //   name: "John Doe",
+    //   email: "",
+    //   department: "Engineering",
+    //   issuedAt: "2021-09-01T00:00:00.000Z",
+    //   expiresAt: "2022-09-01T00:00:00.000Z",
+    //   employeeId:"123456",
+    //   hardwareFingerprint:"123456"
+    // }
 
     if (!validation.isValid || !validation.employee) {
       console.error(chalk.red(`\n✖ License Invalid: ${validation.error}`));

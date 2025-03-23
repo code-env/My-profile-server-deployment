@@ -1082,9 +1082,9 @@ export class AuthController {
    */
   static async resendOTP(req: Request, res: Response) {
     try {
-      const { _id } = req.body;
+      const { _id, verificationMethod} = req.body;
 
-      if (!_id) {
+      if (!_id || !verificationMethod) {
         return res.status(400).json({
           success: false,
           message: "Missing required fields: _id",
@@ -1100,7 +1100,11 @@ export class AuthController {
         });
       }
 
-      // Generate new OTP
+
+
+      user.verificationMethod = verificationMethod;
+
+    // Generate new OTP
       const otp = generateOTP(6);
 
       console.log("🔐 Resending OTP:", otp);
@@ -1136,6 +1140,7 @@ export class AuthController {
         success: true,
         message: `OTP resent successfully via ${user.verificationMethod}:  ${user.verificationMethod.toLowerCase() === "phone" ? user.phoneNumber : user.email} `,
         userId: user._id,
+        otp:otp
       });
     } catch (error) {
       logger.error("Resend OTP error:", error);
