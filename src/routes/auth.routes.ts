@@ -23,8 +23,8 @@ router.get("/healthcheck", (req, res) => {
 
 //Rate limiting configuration
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 requests per windowMs
+  windowMs: 240 * 60 * 1000, // 15 minutes: @Brilydal123 TODO: Change this to 15 minutes later
+  max: 50, // Limit each IP to 5 requests per windowMs, @Brilydal123 TODO: Change this to 5 later
   message: "Too many attempts from this IP, please try again after 15 minutes",
 });
 
