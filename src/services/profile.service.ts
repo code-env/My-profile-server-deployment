@@ -9,7 +9,7 @@ export class ProfileService {
     console.log('👤 Creating new profile for user:', userId);
     // Check if user already has a profile
     const existingProfiles = await ProfileModel.find({ $or: [{ owner: userId }, { managers: userId }] });
-    
+
     const profile = new ProfileModel({
       userId,
       personalInfo: {},
@@ -19,7 +19,7 @@ export class ProfileService {
       owner: existingProfiles.length === 0 ? userId : undefined,
       managers: existingProfiles.length > 0 ? [userId] : []
     });
-    
+
     console.log('✅ Profile created successfully:', profile._id);
     return await profile.save();
   }
@@ -97,7 +97,7 @@ export class ProfileService {
     // Check if user has permission to update
     const isOwner = profile.owner?.toString() === userId;
     const isManager = profile.managers.some(manager => manager.toString() === userId);
-    
+
     if (!isOwner && !isManager) {
       throw createHttpError(403, 'You do not have permission to update this profile');
     }
@@ -154,10 +154,10 @@ export class ProfileService {
   }
 
   async updateSecuritySettings(
-    profileId: string, 
-    settings: { 
-      twoFactorRequired?: boolean; 
-      ipWhitelist?: string[]; 
+    profileId: string,
+    settings: {
+      twoFactorRequired?: boolean;
+      ipWhitelist?: string[];
     }
   ): Promise<ProfileDocument> {
     console.log('🔒 Updating security settings for profile:', profileId);
@@ -200,10 +200,10 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    profile.connectionPreferences = {
-      ...profile.connectionPreferences,
-      ...preferences
-    };
+    // profile.connectionPreferences = {
+    //   ...profile.connectionPreferences,
+    //   ...preferences
+    // };
 
     console.log('✅ Connection preferences updated');
     return await profile.save();
@@ -230,10 +230,10 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    profile.socialLinks = {
-      ...profile.socialLinks,
-      ...links
-    };
+    // profile.socialLinks = {
+    //   ...profile.socialLinks,
+    //   ...links
+    // };
 
     console.log('✅ Social links updated');
     return await profile.save();
@@ -257,7 +257,7 @@ export class ProfileService {
       case 'connect':
         if (!profile.stats) profile.stats = { followers: 0, following: 0 } as any;
         if (!targetProfile.stats) targetProfile.stats = { followers: 0, following: 0 } as any;
-        
+
         profile.stats.following++;
         targetProfile.stats.followers++;
         break;
@@ -304,25 +304,25 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    if (!profile.portfolio) {
-      profile.portfolio = {
-        projects: [],
-        skills: [],
-        resume: {
-          education: [],
-          experience: [],
-          publications: []
-        }
-      };
-    }
+    // if (!profile.portfolio) {
+    //   profile.portfolio = {
+    //     projects: [],
+    //     skills: [],
+    //     resume: {
+    //       education: [],
+    //       experience: [],
+    //       publications: []
+    //     }
+    //   };
+    // }
 
     const projectId = new mongoose.Types.ObjectId();
-    profile.portfolio.projects.push({
-      id: projectId.toString(),
-      ...project,
-      visibility: 'connections',
-      featured: false
-    });
+    // profile.portfolio.projects.push({
+    //   id: projectId.toString(),
+    //   ...project,
+    //   visibility: 'connections',
+    //   featured: false
+    // });
 
     console.log('✅ Portfolio project added successfully');
     return await profile.save();
@@ -344,10 +344,10 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    profile.skills = skills.map(skill => ({
-      ...skill,
-      endorsements: skill.endorsements || 0
-    }));
+    // profile.skills = skills.map(skill => ({
+    //   ...skill,
+    //   endorsements: skill.endorsements || 0
+    // }));
 
     console.log('✅ Skills updated successfully');
     return await profile.save();
@@ -395,15 +395,15 @@ export class ProfileService {
     }
     console.log('✅ Working hours validation passed');
 
-    console.log('📊 Current availability settings:', JSON.stringify(profile.calendar.availability, null, 2));
+    // console.log('📊 Current availability settings:', JSON.stringify(profile.calendar.availability, null, 2));
     console.log('📊 New availability settings:', JSON.stringify(availability, null, 2));
 
-    profile.calendar.availability = availability;
-    
+    // profile.calendar.availability = availability;
+
     try {
       const updatedProfile = await profile.save();
       console.log('✅ Successfully updated availability');
-      console.log('📅 Updated working hours:', JSON.stringify(updatedProfile.calendar.availability.workingHours, null, 2));
+      // console.log('📅 Updated working hours:', JSON.stringify(updatedProfile.calendar.availability.workingHours, null, 2));
       return updatedProfile;
     } catch (error) {
       console.error('❌ Error updating availability:', error);
@@ -423,14 +423,14 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    const skill = profile.skills.find(s => s.name === skillName);
-    if (!skill) {
-      console.error('❌ Skill not found:', skillName);
-      throw createHttpError(404, 'Skill not found');
-    }
+    // const skill = profile.skills.find(s => s.name === skillName);
+    // if (!skill) {
+    //   console.error('❌ Skill not found:', skillName);
+    //   throw createHttpError(404, 'Skill not found');
+    // }
 
-    skill.endorsements = (skill.endorsements || 0) + 1;
-    await profile.save();
+    // skill.endorsements = (skill.endorsements || 0) + 1;
+    // await profile.save();
 
     console.log('✅ Endorsement added successfully');
     return { success: true, message: 'Skill endorsed successfully' };

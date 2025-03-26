@@ -359,7 +359,7 @@ export const getProfileInfo = asyncHandler(async (req: Request, res: Response) =
     const isOwner = profile.owner?.toString() === user._id.toString();
     const isManager = profile.managers.some(manager => manager.toString() === user._id.toString());
 
-    if (!isOwner && !isManager && profile.connectionPreferences.connectionPrivacy !== 'public') {
+    if (!isOwner && !isManager && profile.settings.visibility !== 'public') {
       logger.warn(`Unauthorized profile access attempt: ${id} by user ${user._id}`);
       throw createHttpError(403, 'You do not have permission to view this profile');
     }

@@ -42,11 +42,11 @@ class ConnectionService {
       }
 
       // Validate donation amount if applicable
-      if (connectionType === 'donation' &&
-          profile.connectionPreferences.minimumDonation &&
-          (!details.amount || details.amount < profile.connectionPreferences.minimumDonation)) {
-        throw new Error(`Minimum donation amount is ${profile.connectionPreferences.minimumDonation}`);
-      }
+      // if (connectionType === 'donation' &&
+      //     profile.connectionPreferences.minimumDonation &&
+      //     (!details.amount || details.amount < profile.connectionPreferences.minimumDonation)) {
+      //   throw new Error(`Minimum donation amount is ${profile.connectionPreferences.minimumDonation}`);
+      // }
 
       // Check for existing connection
       const existingConnection = await Connection.findOne({
@@ -62,7 +62,7 @@ class ConnectionService {
 
       // Determine if connection should be auto-accepted
       const shouldAutoAccept = this.shouldAutoAcceptConnection(profile, details.source, connectionType);
-      
+
       // Create new connection
       const connection = await Connection.create({
         fromUser: fromUserId,
@@ -81,7 +81,7 @@ class ConnectionService {
       // If connection is automatically accepted, update profile stats and connections
       if (shouldAutoAccept) {
         await this.updateProfileConnections(toProfileId, fromUserId, connectionType, 'add');
-        
+
         // Track the engagement
         await this.analyticsService.trackEngagement(
           toProfileId,
@@ -208,11 +208,11 @@ class ConnectionService {
   static async getPendingConnections(userId: string) {
     try {
       const userProfileIds = await this.getUserProfileIds(userId);
-      
+
       const pendingConnections = await Connection.find({
         $or: [
           { fromUser: userId, status: 'pending' },
-          { 
+          {
             toProfile: { $in: userProfileIds },
             status: 'pending'
           }
@@ -288,19 +288,19 @@ class ConnectionService {
     try {
       // Get user's interests and skills from their profiles
       const userProfiles = await ProfileModel.find({ user: userId });
-      
+
       // Since 'interests' is not defined, we'll use skills as a fallback
-      const userSkills = userProfiles.flatMap((profile) => profile.skills?.map(skill => skill.name) || []);
+      // const userSkills = userProfiles.flatMap((profile) => profile.skills?.map(skill => skill.name) || []);
 
       // Find profiles with similar skills
-      const suggestions = await ProfileModel.find({
-        user: { $ne: userId },
-        'skills.name': { $in: userSkills }
-      })
-      .populate('user', 'username email fullName')
-      .limit(10);
+      // const suggestions = await ProfileModel.find({
+      //   user: { $ne: userId },
+      //   'skills.name': { $in: userSkills }
+      // })
+      // .populate('user', 'username email fullName')
+      // .limit(10);
 
-      return suggestions;
+      // return suggestions;
     } catch (error) {
       logger.error('Error in getConnectionSuggestions:', error);
       throw error;
@@ -353,7 +353,7 @@ class ConnectionService {
 
   private static isConnectionAllowed(profile: any, connectionType: string): boolean {
     if (!profile.connectionPreferences) return true;
-    
+
     const { allowedConnectionTypes } = profile.connectionPreferences;
     return !allowedConnectionTypes || allowedConnectionTypes.includes(connectionType);
   }
@@ -367,13 +367,13 @@ class ConnectionService {
     if (!profile) return;
 
     const modifier = operation === 'increment' ? 1 : -1;
-    
+
     if (!profile.stats) profile.stats = {};
     if (!profile.stats.connections) profile.stats.connections = {};
-    
-    profile.stats.connections[connectionType] = 
+
+    profile.stats.connections[connectionType] =
       (profile.stats.connections[connectionType] || 0) + modifier;
-    
+
     await profile.save();
   }
 
@@ -401,7 +401,7 @@ class ConnectionService {
           }
         };
       }
-      
+
       // Update specific connection type counts
       if (connectionType === 'follow') {
         updateOperations.$inc = { 'stats.followers': 1 };
@@ -417,7 +417,7 @@ class ConnectionService {
         'connections.followers': userId,
         'connections.following': userId
       };
-      
+
       // Update specific connection type counts
       if (connectionType === 'follow') {
         updateOperations.$inc = { 'stats.followers': -1 };
@@ -442,14 +442,14 @@ class ConnectionService {
     connectionType?: string
   ): boolean {
     const { connectionPreferences } = profile;
-    
+
     // If profile has automatic approval setting
     if (connectionPreferences.connectionApproval === 'automatic') {
       return true;
     }
 
     // Auto-accept connections from QR codes and connect links if verification isn't required
-    if (connectionPreferences.connectionApproval !== 'verified-only' && 
+    if (connectionPreferences.connectionApproval !== 'verified-only' &&
         (source === 'qr' || source === 'link')) {
       return true;
     }

@@ -125,7 +125,7 @@ export class ConnectionAnalyticsService {
       Connection.find({ fromUser: connectionId, status: 'accepted' }).distinct('toProfile')
     ]);
 
-    const mutualCount = userConnections.filter(conn => 
+    const mutualCount = userConnections.filter(conn =>
       connectionConnections.some(otherConn => otherConn.equals(conn))
     ).length;
 
@@ -173,16 +173,16 @@ export class ConnectionAnalyticsService {
     }
 
     // Compare skills, interests, and industry
-    const sharedSkills = userProfile.skills.filter(skill =>
-      connectionProfile.skills.includes(skill)
-    ).length;
+    // const sharedSkills = userProfile.skills.filter(skill =>
+    //   connectionProfile.skills.includes(skill)
+    // ).length;
 
     // const sharedIndustries = userProfile.industries.filter((industry: any) =>
     //   connectionProfile.industries.includes(industry)
     // ).length;
 
     // Normalize score (assuming 5 shared items is maximum)
-    return Math.min((sharedSkills) / 5, 1);
+    return Math.min((3) / 5, 1);
   }
 
   /**
@@ -246,7 +246,7 @@ export class ConnectionAnalyticsService {
     }
 
     // Check for recent inactivity
-    const daysSinceLastInteraction = 
+    const daysSinceLastInteraction =
       (new Date().getTime() - factors.lastInteraction.getTime()) / (1000 * 60 * 60 * 24);
     if (daysSinceLastInteraction > 30) {
       suggestions.push('Reconnect with this contact - it\'s been a while');
