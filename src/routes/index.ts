@@ -44,6 +44,7 @@ import logsRoutes from './logs.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
+import { enforceLicenseValidation } from '../middleware/enforce-license.middleware';
 
 /**
  * Configures and sets up all API routes for the application
@@ -51,6 +52,9 @@ import { testRoutes } from './test.routes';
  * @description Initializes routes with their respective middleware chains
  */
 export const setupRoutes = (app: Application): void => {
+  // Apply license validation enforcement globally
+  app.use(enforceLicenseValidation);
+
   // Root route - serve landing page
   app.get('/', (req, res) => {
     res.sendFile('index.html', { root: 'public' });

@@ -203,312 +203,8 @@ interface ICustomization {
   };
 }
 
-export interface IProfile extends Document {
-  name: string;
-  description?: string;
-  profileType: 'personal' | 'group' | 'community' | 'school' | 'business' | 'social';
-  owner: mongoose.Types.ObjectId;
-  managers: mongoose.Types.ObjectId[];
-  claimPhrase?: string;
-  claimed: boolean;
-  claimedBy?: mongoose.Types.ObjectId;
-  claimedAt?: Date;
-  claimExpiresAt?: Date;
-  profileImage?: string;
-  coverImage?: string;
-  qrCode?: string;
-  connectLink: string;
-  verificationStatus: IVerificationStatus;
-  kycVerification: IKYCVerification;
-  linkedDevices: ILinkedDevice[];
-  galleries: IGallery[];
-  contact: IContact;
-  skills: ISkill[];
-  availability: IAvailability;
-  analytics: IAnalytics;
-  security: ISecurity;
-  stats: IStats;
-  socialLinks: ISocialLinks;
-  connectionPreferences: IConnectionPreferences;
-  settings: ISettings;
-  badges: IBadge[];
-  verifications: IVerifications;
-  customization: ICustomization;
-  calendar: {
-    events: {
-      id: string;
-      title: string;
-      description?: string;
-      startDate: Date;
-      endDate: Date;
-      allDay: boolean;
-      recurring?: {
-        pattern: 'daily' | 'weekly' | 'monthly' | 'yearly';
-        interval: number;
-        endAfter?: number;
-        endDate?: Date;
-      };
-      location?: {
-        name: string;
-        address: string;
-        coordinates?: {
-          lat: number;
-          lng: number;
-        };
-        virtual?: boolean;
-        meetingLink?: string;
-      };
-      attendees?: {
-        userId: mongoose.Types.ObjectId;
-        status: 'pending' | 'accepted' | 'declined';
-        role: 'organizer' | 'attendee' | 'optional';
-      }[];
-      reminders: {
-        type: 'email' | 'notification' | 'sms';
-        before: number; // minutes
-      }[];
-      category?: string;
-      visibility: 'public' | 'private' | 'connections';
-    }[];
-    availability: {
-      workingHours: {
-        day: number; // 0-6 for Sunday-Saturday
-        start: string; // HH:mm format
-        end: string;
-        available: boolean;
-      }[];
-      timeZone: string;
-      bufferTime: number; // minutes between meetings
-      defaultMeetingDuration: number; // minutes
-    };
-  };
-  portfolio: {
-    projects: {
-      id: string;
-      title: string;
-      description: string;
-      shortDescription: string;
-      thumbnail: string;
-      images: string[];
-      videos?: string[];
-      category: string;
-      tags: string[];
-      technologies: string[];
-      url?: string;
-      githubUrl?: string;
-      startDate: Date;
-      endDate?: Date;
-      status: 'in-progress' | 'completed' | 'on-hold';
-      visibility: 'public' | 'private' | 'connections';
-      collaborators?: {
-        userId: mongoose.Types.ObjectId;
-        role: string;
-        contribution: string;
-      }[];
-      metrics?: {
-        views: number;
-        likes: number;
-        shares: number;
-      };
-      featured: boolean;
-    }[];
-    skills: {
-      category: string;
-      name: string;
-      level: number; // 1-5
-      yearsOfExperience: number;
-      certifications?: {
-        name: string;
-        issuer: string;
-        date: Date;
-        expiryDate?: Date;
-        credentialUrl?: string;
-        verified: boolean;
-      }[];
-      endorsements?: {
-        userId: mongoose.Types.ObjectId;
-        comment?: string;
-        date: Date;
-      }[];
-    }[];
-    resume: {
-      education: {
-        institution: string;
-        degree: string;
-        field: string;
-        startDate: Date;
-        endDate?: Date;
-        grade?: string;
-        activities?: string[];
-        achievements?: string[];
-        verified: boolean;
-      }[];
-      experience: {
-        company: string;
-        position: string;
-        location: string;
-        startDate: Date;
-        endDate?: Date;
-        current: boolean;
-        description: string;
-        achievements: string[];
-        skills: string[];
-        references?: {
-          name: string;
-          position: string;
-          company: string;
-          contact: string;
-          verified: boolean;
-        }[];
-      }[];
-      publications: {
-        title: string;
-        publisher: string;
-        date: Date;
-        url?: string;
-        doi?: string;
-        authors: string[];
-        citations?: number;
-        verified: boolean;
-      }[];
-    };
-  };
-  monetization: {
-    services: {
-      id: string;
-      name: string;
-      description: string;
-      price: number;
-      currency: string;
-      duration?: number; // minutes
-      availability: number; // slots available
-      bookingWindow: {
-        min: number; // minimum hours before
-        max: number; // maximum days ahead
-      };
-      cancellationPolicy: {
-        allowedUntil: number; // hours before
-        refundPercentage: number;
-      };
-      requirements?: string[];
-      tags: string[];
-      category: string;
-      visibility: 'public' | 'private' | 'connections';
-    }[];
-    products: {
-      id: string;
-      name: string;
-      description: string;
-      price: number;
-      currency: string;
-      inventory?: number;
-      digital: boolean;
-      downloadUrl?: string;
-      shipping?: {
-        weight: number;
-        dimensions: {
-          length: number;
-          width: number;
-          height: number;
-        };
-        restrictions?: string[];
-      };
-      variations?: {
-        name: string;
-        options: {
-          name: string;
-          price: number;
-          inventory?: number;
-        }[];
-      }[];
-    }[];
-    subscriptions: {
-      id: string;
-      name: string;
-      description: string;
-      price: number;
-      currency: string;
-      interval: 'monthly' | 'yearly';
-      features: string[];
-      trialDays?: number;
-      active: boolean;
-    }[];
-    donations: {
-      enabled: boolean;
-      suggestedAmounts: number[];
-      minimumAmount: number;
-      currency: string;
-      goals?: {
-        id: string;
-        title: string;
-        description: string;
-        amount: number;
-        currentAmount: number;
-        deadline?: Date;
-        completed: boolean;
-      }[];
-    };
-  };
-  personalInfo?: {
-    firstName?: string;
-    lastName?: string;
-    dateOfBirth?: string;
-    gender?: string;
-    nationality?: string;
-    languages?: string[];
-  };
-  contactInfo?: {
-    email?: string;
-    phone?: string;
-    address?: {
-      street?: string;
-      city?: string;
-      state?: string;
-      country?: string;
-      postalCode?: string;
-    };
-  };
-  socialInfo?: {
-    linkedin?: string;
-    twitter?: string;
-    website?: string;
-  };
-  professionalInfo?: {
-    title?: string;
-    company?: string;
-    industry?: string;
-    skills?: string[];
-    experience?: string;
-  };
-  connections: {
-    connected: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-    following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-    lastConnections: [{ 
-      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-      connectionType: String,
-      connectedAt: { type: Date, default: Date }
-    }],
-  },
-  privacySettings: {
-    visibility: {
-      type: String,
-      enum: ['public', 'private', 'connections'],
-      default: 'public'
-    },
-    searchable: {
-      type: Boolean,
-      default: true
-    },
-    showContactInfo: {
-      type: Boolean,
-      default: false
-    },
-    showSocialLinks: {
-      type: Boolean,
-      default: true
-    }
-  },
+// Define interface for instance methods
+interface IProfileMethods {
   generateQRCode(): Promise<string>;
   isVerified(): boolean;
   calculateEngagement(): number;
@@ -538,7 +234,65 @@ export interface IProfile extends Document {
   addRecurringEvent(eventData: any): Promise<boolean>;
 }
 
-// Create the Mongoose schema
+export interface IProfile extends Document, IProfileMethods {
+  name: string;
+  description?: string;
+  profileType: 'personal' | 'business' | 'medical' | 'academic';
+  owner: mongoose.Types.ObjectId;
+  managers: mongoose.Types.ObjectId[];
+  claimPhrase?: string;
+  claimed: boolean;
+  claimedBy?: mongoose.Types.ObjectId;
+  claimedAt?: Date;
+  claimExpiresAt?: Date;
+  profileImage?: string;
+  coverImage?: string;
+  qrCode?: string;
+  connectLink: string;
+  verificationStatus: IVerificationStatus;
+  kycVerification: IKYCVerification;
+  linkedDevices: ILinkedDevice[];
+  galleries: IGallery[];
+  // Core fields that apply to all profiles
+  analytics: IAnalytics;
+  security: ISecurity;
+  stats: IStats;
+  settings: ISettings;
+  badges: IBadge[];
+  verifications: IVerifications;
+  customization: ICustomization;
+  connections: {
+    connected: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    lastConnections: [{
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      connectionType: String,
+      connectedAt: { type: Date, default: Date }
+    }],
+  },
+  privacySettings: {
+    visibility: {
+      type: String,
+      enum: ['public', 'private', 'connections'],
+      default: 'public'
+    },
+    searchable: {
+      type: Boolean,
+      default: true
+    },
+    showContactInfo: {
+      type: Boolean,
+      default: false
+    },
+    showSocialLinks: {
+      type: Boolean,
+      default: true
+    }
+  },
+}
+
+// Create the Mongoose schema with discriminator key
 const profileSchema = new Schema<IProfile>(
   {
     name: { type: String, required: true, trim: true, index: true },
@@ -546,7 +300,7 @@ const profileSchema = new Schema<IProfile>(
     profileType: {
       type: String,
       required: true,
-      enum: ['personal', 'group', 'community', 'school', 'business', 'social'],
+      enum: ['personal', 'business', 'medical', 'academic'],
       index: true,
     },
     owner: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -639,35 +393,6 @@ const profileSchema = new Schema<IProfile>(
         uploadedAt: { type: Date, default: Date.now },
       }],
     }],
-    contact: {
-      email: String,
-      phone: String,
-      address: {
-        street: String,
-        city: String,
-        country: String,
-        verified: { type: Boolean, default: false },
-        verifiedAt: Date,
-      },
-      socialLinks: { type: Map, of: String },
-    },
-    skills: [{
-      name: String,
-      level: {
-        type: String,
-        enum: ['beginner', 'intermediate', 'expert'],
-      },
-      endorsements: { type: Number, default: 0 },
-    }],
-    availability: {
-      status: {
-        type: String,
-        enum: ['available', 'busy', 'away'],
-        default: 'available',
-      },
-      bookingLink: String,
-      workHours: { type: Map, of: [String] },
-    },
     analytics: {
       views: { type: Number, default: 0 },
       connections: { type: Number, default: 0 },
@@ -698,68 +423,7 @@ const profileSchema = new Schema<IProfile>(
         totalViews: 0,
         monthlyViews: 0,
         engagement: 0,
-      },
-    },
-    socialLinks: {
-      website: String,
-      facebook: String,
-      twitter: String,
-      instagram: String,
-      linkedin: String,
-      github: String,
-      youtube: String,
-      tiktok: String,
-    },
-    connectionPreferences: {
-      allowFollowers: { type: Boolean, default: true },
-      allowEmployment: { type: Boolean, default: true },
-      allowDonations: { type: Boolean, default: false },
-      allowCollaboration: { type: Boolean, default: true },
-      minimumDonation: Number,
-      employmentTypes: [String],
-      collaborationTypes: [String],
-      connectionPrivacy: {
-        type: String,
-        enum: ['public', 'private', 'mutual'],
-        default: 'public',
-      },
-      connectionApproval: {
-        type: String,
-        enum: ['automatic', 'manual', 'verified-only'],
-        default: 'automatic',
-      },
-    },
-    settings: {
-      visibility: {
-        type: String,
-        enum: ['public', 'private', 'connections'],
-        default: 'public',
-      },
-      allowComments: { type: Boolean, default: true },
-      allowMessages: { type: Boolean, default: true },
-      autoAcceptConnections: { type: Boolean, default: false },
-      emailNotifications: {
-        connections: { type: Boolean, default: true },
-        messages: { type: Boolean, default: true },
-        comments: { type: Boolean, default: true },
-        mentions: { type: Boolean, default: true },
-        updates: { type: Boolean, default: true },
-      },
-      language: { type: String, default: 'en' },
-      theme: {
-        type: String,
-        enum: ['light', 'dark', 'system'],
-        default: 'system',
-      },
-      accessibility: {
-        highContrast: { type: Boolean, default: false },
-        fontSize: {
-          type: String,
-          enum: ['small', 'medium', 'large'],
-          default: 'medium',
-        },
-        reduceMotion: { type: Boolean, default: false },
-      },
+      }
     },
     badges: [{
       id: String,
@@ -811,7 +475,7 @@ const profileSchema = new Schema<IProfile>(
       connected: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
       followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
       following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-      lastConnections: [{ 
+      lastConnections: [{
         user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         connectionType: String,
         connectedAt: { type: Date, default: Date.now }
@@ -836,41 +500,11 @@ const profileSchema = new Schema<IProfile>(
         default: true
       }
     },
-    personalInfo: {
-      firstName: String,
-      lastName: String,
-      dateOfBirth: String,
-      gender: String,
-      nationality: String,
-      languages: [String],
-    },
-    contactInfo: {
-      email: String,
-      phone: String,
-      address: {
-        street: String,
-        city: String,
-        state: String,
-        country: String,
-        postalCode: String,
-      },
-    },
-    socialInfo: {
-      linkedin: String,
-      twitter: String,
-      website: String,
-    },
-    professionalInfo: {
-      title: String,
-      company: String,
-      industry: String,
-      skills: [String],
-      experience: String,
-    },
-   
+
   },
   {
     timestamps: true,
+    discriminatorKey: 'profileType'
   }
 );
 
@@ -902,20 +536,20 @@ profileSchema.methods.calculateEngagement = function(): number {
   const views = this.stats.totalViews || 0;
   const connections = this.stats.followers || 0;
   const interactions = (this.stats.employmentRequests || 0) + (this.stats.collaborationRequests || 0);
-  
+
   // Simple engagement calculation formula
   return Math.round((views + connections * 2 + interactions * 3) / 100);
 };
 
 profileSchema.methods.getPublicProfile = function(): Partial<IProfile> {
   const publicProfile = this.toObject();
-  
+
   // Remove sensitive information
   delete publicProfile.security;
   delete publicProfile.kycVerification;
   delete publicProfile.claimPhrase;
   delete publicProfile.settings.emailNotifications;
-  
+
   return publicProfile;
 };
 
@@ -1002,5 +636,59 @@ profileSchema.pre('save', async function(next) {
   next();
 });
 
-// Create and export the model
-export const ProfileModel = mongoose.model<IProfile>('Profile', profileSchema);
+// Define interface for instance methods
+interface IProfileMethods {
+  generateQRCode(): Promise<string>;
+  isVerified(): boolean;
+  calculateEngagement(): number;
+  getPublicProfile(): Partial<IProfile>;
+  getAvailableSlots(startDate: Date, endDate: Date): Promise<Array<{ start: Date; end: Date }>>;
+  checkAvailability(startTime: Date, endTime: Date): Promise<boolean>;
+  getFeaturedProjects(limit?: number): Promise<any[]>;
+  getSkillsByCategory(): Promise<Record<string, ISkill[]>>;
+  calculateEarnings(startDate: Date, endDate: Date): Promise<{
+    total: number;
+    breakdown: {
+      services: number;
+      products: number;
+      subscriptions: number;
+      donations: number;
+    };
+  }>;
+  checkServiceAvailability(serviceId: string, date: Date): Promise<{
+    available: boolean;
+    nextAvailable?: Date;
+    slots?: Array<{ start: Date; end: Date }>;
+  }>;
+  generateThemeCSS(): string;
+  trackPageView(country: string, device: string): Promise<void>;
+  validateServiceBooking(serviceId: string, date: Date, options: Record<string, any>): boolean;
+  addEndorsement(skillId: string, userId: mongoose.Types.ObjectId, comment?: string): Promise<boolean>;
+  addRecurringEvent(eventData: any): Promise<boolean>;
+}
+
+// Define interface for model type
+export interface IProfileModel extends Model<IProfile, {}, IProfileMethods> {}
+
+
+// Create the base model
+export const ProfileModel = mongoose.model<IProfile, IProfileModel>('Profile', profileSchema);
+
+// Create discriminator model types
+export type PersonalProfileModel = Model<IProfile & {subtype: 'Personal'}>;
+export type BusinessProfileModel = Model<IProfile & {subtype: 'Business'}>;
+export type MedicalProfileModel = Model<IProfile & {subtype: 'Medical'}>;
+export type AcademicProfileModel = Model<IProfile & {subtype: 'Academic'}>;
+
+
+// Register discriminators for different profile types
+import PersonalProfileSchema from './profile-types/personal-profile';
+import BusinessProfileSchema from './profile-types/business-profile';
+import MedicalProfileSchema from './profile-types/medical-profile';
+import AcademicProfileSchema from './profile-types/academic-profile';
+
+// Create and export discriminator models
+export const PersonalProfile = ProfileModel.discriminator<IProfile & {subtype: 'Personal'}>('personal', PersonalProfileSchema) as PersonalProfileModel;
+export const BusinessProfile = ProfileModel.discriminator<IProfile & {subtype: 'Business'}>('business', BusinessProfileSchema) as BusinessProfileModel;
+export const MedicalProfile = ProfileModel.discriminator<IProfile & {subtype: 'Medical'}>('medical', MedicalProfileSchema) as MedicalProfileModel;
+export const AcademicProfile = ProfileModel.discriminator<IProfile & {subtype: 'Academic'}>('academic', AcademicProfileSchema) as AcademicProfileModel;

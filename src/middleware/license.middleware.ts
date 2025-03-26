@@ -6,6 +6,15 @@ import { logger } from '../utils/logger';
  * Middleware to validate license before processing requests
  */
 export const validateLicenseMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  // Enforce license check at runtime to prevent bypass attempts
+  const moduleExports = require.cache[require.resolve('../utils/license-manager')];
+  if (!moduleExports || !moduleExports.exports.licenseManager) {
+    logger.error('Critical security error: License manager module tampering detected');
+    return res.status(500).json({
+      error: 'Security violation: System integrity compromised'
+    });
+  }
+
   try {
     const companySecret = process.env.COMPANY_SECRET;
     if (!companySecret) {
@@ -15,7 +24,19 @@ export const validateLicenseMiddleware = (req: Request, res: Response, next: Nex
       });
     }
 
+    // Perform license validation with integrity check
     const validation = licenseManager.validateLicense(companySecret);
+
+    // Additional runtime integrity check
+    if (process.mainModule?.children.some(child =>
+      child.filename.includes('license-manager') &&
+      !child.exports.validateLicense
+    )) {
+      logger.error('License validation integrity compromised');
+      return res.status(500).json({
+        error: 'Security violation: License validation integrity check failed'
+      });
+    }
 
     if (!validation.isValid) {
       logger.error('License validation failed:', validation.error);
@@ -26,15 +47,19 @@ export const validateLicenseMiddleware = (req: Request, res: Response, next: Nex
 
     // Add license info to request for logging/tracking
     if (validation.employee) {
-      req.employee = {
+      // Use Object.freeze to prevent runtime modification
+      req.employee = Object.freeze({
         employeeId: validation.employee.employeeId,
         name: validation.employee.name,
         email: validation.employee.email,
         department: validation.employee.department,
         issuedAt: validation.employee.issuedAt,
         expiresAt: validation.employee.expiresAt
-      };
+      });
     }
+
+    // Add runtime check to ensure middleware wasn't bypassed
+    req.licenseValidated = true;
     next();
 
   } catch (error) {
@@ -78,7 +103,7 @@ export const validateLicenseOnStartup = (): boolean => {
   }
 };
 
-// Extend Express Request type to include employee info
+// Extend Express Request type to include employee info and license validation status
 declare global {
   namespace Express {
     interface Request {
@@ -90,6 +115,7 @@ declare global {
         issuedAt: string;
         expiresAt: string;
       };
+      licenseValidated?: boolean;
     }
   }
 }

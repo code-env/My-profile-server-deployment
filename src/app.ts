@@ -71,6 +71,7 @@ import { errorHandler } from './middleware/error-middleware';
 import { rateLimiterMiddleware } from './middleware/rate-limiter.middleware';
 import { monitorPerformance } from './middleware/performance.middleware';
 import { validateEnv } from './utils/env-validator';
+import { validateLicenseMiddleware } from './middleware/license.middleware';
 import WhatsAppService from './services/whatsapp.service';
 import { advancedTrackingMiddleware } from './middleware/advanced-tracking.middleware';
 import { licenseConfig } from './config/license.config';
@@ -165,6 +166,9 @@ export class AppServer {
         }
       }
     }));
+
+    // Validate license before any other middleware
+    this.app.use(validateLicenseMiddleware);
 
     this.app.use(monitorPerformance());
     this.app.use(helmet({
@@ -401,6 +405,9 @@ export class AppServer {
    */
   public async start(): Promise<void> {
     try {
+      // Validate license before server starts
+      await this.validateLicense();
+
       const { log, serverStartupArt } = require('./utils/console-art');
 
       console.log(serverStartupArt);
