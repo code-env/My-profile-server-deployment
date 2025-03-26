@@ -19,6 +19,19 @@ class LicenseService {
       employeeId: string;
     };
   }> {
+    // Skip validation in production
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        isValid: true,
+        employeeInfo: {
+          name: 'Production User',
+          email: 'production@system.local',
+          department: 'Production',
+          employeeId: 'PROD-0001'
+        }
+      };
+    }
+
     try {
       const companySecret = process.env.COMPANY_SECRET;
       if (!companySecret) {

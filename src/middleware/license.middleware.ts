@@ -8,6 +8,8 @@ import { logger } from '../utils/logger';
 export const validateLicenseMiddleware = (req: Request, res: Response, next: NextFunction) => {
   // Skip license validation in production
   if (process.env.NODE_ENV === 'production') {
+    // Set license as validated in production
+    (req as any).licenseValidated = true;
     return next();
   }
 
