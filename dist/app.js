@@ -73,6 +73,7 @@ const error_middleware_1 = require("./middleware/error-middleware");
 const rate_limiter_middleware_1 = require("./middleware/rate-limiter.middleware");
 const performance_middleware_1 = require("./middleware/performance.middleware");
 const env_validator_1 = require("./utils/env-validator");
+const license_middleware_1 = require("./middleware/license.middleware");
 const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"));
 const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
 /**
@@ -162,6 +163,8 @@ class AppServer {
                 }
             }
         }));
+        // Validate license before any other middleware
+        this.app.use(license_middleware_1.validateLicenseMiddleware);
         this.app.use((0, performance_middleware_1.monitorPerformance)());
         this.app.use((0, helmet_1.default)({
             contentSecurityPolicy: {
@@ -382,6 +385,8 @@ class AppServer {
      */
     async start() {
         try {
+            // Validate license before server starts
+            await this.validateLicense();
             const { log, serverStartupArt } = require('./utils/console-art');
             console.log(serverStartupArt);
             log.highlight('Starting ODIN API Server...');

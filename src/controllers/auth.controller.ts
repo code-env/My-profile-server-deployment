@@ -294,9 +294,9 @@ export class AuthController {
     try {
       const validatedData = await loginSchema.parseAsync(req.body);
       const { identifier, password } = validatedData;
-  
+
       const result = await AuthService.login({ identifier, password }, req);
-  
+
       if (result.success == false) {
         res.status(401).json({
           success: false,
@@ -304,21 +304,39 @@ export class AuthController {
             id: result.userId,
           },
           message: "Invalid credentials",
-        
         });
-  
+        return;
       }
+
+      // Generate tokens
+      const tokens = AuthService.generateTokens(result.userId!, result.userId!);
+
+      // Set tokens in HTTP-only cookies
+      res.cookie("accesstoken", tokens.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 15 * 60 * 1000, // 15 minutes
+      });
+
+      res.cookie("refreshtoken", tokens.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
 
       res.status(200).json({
         success: true,
         user: {
           id: result.userId,
         },
-        message: "Valid credentials",
-      
+        message: "Login successful",
       });
-  
-     
+
+
     } catch (error) {
       logger.error("Login error:", error);
       res.status(400).json({
@@ -914,7 +932,7 @@ export class AuthController {
       });
     }
   }
-  
+
   /**
    * Generate Two-Factor Authentication (2FA) secret for user
    *
@@ -1178,7 +1196,7 @@ export class AuthController {
       await user.save();
 
       // Send OTP based on verification method
-  
+
       res.json({
         success: true,
         message: `OTP verification method sent,  ${verificationMethod}`,

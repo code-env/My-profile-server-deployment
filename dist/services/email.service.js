@@ -48,6 +48,7 @@ class EmailService {
                 baseUrl: config_1.config.BASE_URL || 'http://localhost:3000'
             });
             await this.sendEmail(email, `Verify Your Device - ${config_1.config.APP_NAME}`, html);
+            logger_1.logger.info(`Verification email sent to ${email}`);
         }
         catch (error) {
             logger_1.logger.error('Failed to send verification email:', error);

@@ -106,12 +106,14 @@ class ConnectionAnalyticsService {
             return 0;
         }
         // Compare skills, interests, and industry
-        const sharedSkills = userProfile.skills.filter(skill => connectionProfile.skills.includes(skill)).length;
+        // const sharedSkills = userProfile.skills.filter(skill =>
+        //   connectionProfile.skills.includes(skill)
+        // ).length;
         // const sharedIndustries = userProfile.industries.filter((industry: any) =>
         //   connectionProfile.industries.includes(industry)
         // ).length;
         // Normalize score (assuming 5 shared items is maximum)
-        return Math.min((sharedSkills) / 5, 1);
+        return Math.min((3) / 5, 1);
     }
     /**
      * Calculate engagement duration score (0-1)

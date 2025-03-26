@@ -23,8 +23,8 @@ router.get("/healthcheck", (req, res) => {
 });
 //Rate limiting configuration
 const authLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // Limit each IP to 5 requests per windowMs
+    windowMs: 240 * 60 * 1000, // 15 minutes: @Brilydal123 TODO: Change this to 15 minutes later
+    max: 50, // Limit each IP to 5 requests per windowMs, @Brilydal123 TODO: Change this to 5 later
     message: "Too many attempts from this IP, please try again after 15 minutes",
 });
 router.use("/login", authLimiter);
@@ -46,6 +46,7 @@ router.get("/check-username/:username", auth_controller_1.AuthController.checkUs
 // Unified OTP verification route
 router.post("/verify-otp", auth_controller_1.AuthController.verifyOTP);
 router.post("/resend-otp", auth_controller_1.AuthController.resendOTP);
+router.post("/select-otp-method", auth_controller_1.AuthController.selectOTPMethod);
 // Email verification
 router.post("/verify-email", auth_controller_1.AuthController.verifyEmail);
 router.post("/resend-verification", auth_controller_1.AuthController.resendVerification);

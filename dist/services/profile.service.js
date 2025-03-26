@@ -177,10 +177,10 @@ class ProfileService {
             console.error('❌ Profile not found:', profileId);
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        profile.connectionPreferences = {
-            ...profile.connectionPreferences,
-            ...preferences
-        };
+        // profile.connectionPreferences = {
+        //   ...profile.connectionPreferences,
+        //   ...preferences
+        // };
         console.log('✅ Connection preferences updated');
         return await profile.save();
     }
@@ -192,10 +192,10 @@ class ProfileService {
             console.error('❌ Profile not found:', profileId);
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        profile.socialLinks = {
-            ...profile.socialLinks,
-            ...links
-        };
+        // profile.socialLinks = {
+        //   ...profile.socialLinks,
+        //   ...links
+        // };
         console.log('✅ Social links updated');
         return await profile.save();
     }
@@ -239,24 +239,24 @@ class ProfileService {
             console.error('❌ Profile not found:', profileId);
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        if (!profile.portfolio) {
-            profile.portfolio = {
-                projects: [],
-                skills: [],
-                resume: {
-                    education: [],
-                    experience: [],
-                    publications: []
-                }
-            };
-        }
+        // if (!profile.portfolio) {
+        //   profile.portfolio = {
+        //     projects: [],
+        //     skills: [],
+        //     resume: {
+        //       education: [],
+        //       experience: [],
+        //       publications: []
+        //     }
+        //   };
+        // }
         const projectId = new mongoose_1.default.Types.ObjectId();
-        profile.portfolio.projects.push({
-            id: projectId.toString(),
-            ...project,
-            visibility: 'connections',
-            featured: false
-        });
+        // profile.portfolio.projects.push({
+        //   id: projectId.toString(),
+        //   ...project,
+        //   visibility: 'connections',
+        //   featured: false
+        // });
         console.log('✅ Portfolio project added successfully');
         return await profile.save();
     }
@@ -268,10 +268,10 @@ class ProfileService {
             console.error('❌ Profile not found:', profileId);
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        profile.skills = skills.map(skill => ({
-            ...skill,
-            endorsements: skill.endorsements || 0
-        }));
+        // profile.skills = skills.map(skill => ({
+        //   ...skill,
+        //   endorsements: skill.endorsements || 0
+        // }));
         console.log('✅ Skills updated successfully');
         return await profile.save();
     }
@@ -296,13 +296,13 @@ class ProfileService {
             throw (0, http_errors_1.default)(400, 'Invalid working hours format');
         }
         console.log('✅ Working hours validation passed');
-        console.log('📊 Current availability settings:', JSON.stringify(profile.calendar.availability, null, 2));
+        // console.log('📊 Current availability settings:', JSON.stringify(profile.calendar.availability, null, 2));
         console.log('📊 New availability settings:', JSON.stringify(availability, null, 2));
-        profile.calendar.availability = availability;
+        // profile.calendar.availability = availability;
         try {
             const updatedProfile = await profile.save();
             console.log('✅ Successfully updated availability');
-            console.log('📅 Updated working hours:', JSON.stringify(updatedProfile.calendar.availability.workingHours, null, 2));
+            // console.log('📅 Updated working hours:', JSON.stringify(updatedProfile.calendar.availability.workingHours, null, 2));
             return updatedProfile;
         }
         catch (error) {
@@ -317,13 +317,13 @@ class ProfileService {
             console.error('❌ Profile not found:', profileId);
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        const skill = profile.skills.find(s => s.name === skillName);
-        if (!skill) {
-            console.error('❌ Skill not found:', skillName);
-            throw (0, http_errors_1.default)(404, 'Skill not found');
-        }
-        skill.endorsements = (skill.endorsements || 0) + 1;
-        await profile.save();
+        // const skill = profile.skills.find(s => s.name === skillName);
+        // if (!skill) {
+        //   console.error('❌ Skill not found:', skillName);
+        //   throw createHttpError(404, 'Skill not found');
+        // }
+        // skill.endorsements = (skill.endorsements || 0) + 1;
+        // await profile.save();
         console.log('✅ Endorsement added successfully');
         return { success: true, message: 'Skill endorsed successfully' };
     }

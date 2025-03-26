@@ -47,6 +47,7 @@ const connection_routes_1 = __importDefault(require("./connection.routes"));
 const logs_routes_1 = __importDefault(require("./logs.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
+const enforce_license_middleware_1 = require("../middleware/enforce-license.middleware");
 const new_auth_routes_1 = __importDefault(require("./new.auth.routes"));
 const express_session_1 = __importDefault(require("express-session"));
 const passport_1 = __importDefault(require("passport"));
@@ -56,6 +57,8 @@ const passport_1 = __importDefault(require("passport"));
  * @description Initializes routes with their respective middleware chains
  */
 const setupRoutes = (app) => {
+    // Apply license validation enforcement globally
+    app.use(enforce_license_middleware_1.enforceLicenseValidation);
     // Root route - serve landing page
     app.get('/', (req, res) => {
         res.sendFile('index.html', { root: 'public' });

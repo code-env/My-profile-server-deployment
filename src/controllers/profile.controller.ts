@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { ProfileModel } from '../models/profile.model';
+import { ProfileModel, PersonalProfile, BusinessProfile, MedicalProfile, AcademicProfile } from '../models/profile.model';
 import { User } from '../models/User';
 import { logger } from '../utils/logger';
 import { isValidObjectId } from 'mongoose';
@@ -42,18 +42,24 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
     const {
       name,
       description,
-      profileType,
-      personalInfo,
-      contactInfo,
-      socialInfo,
-      professionalInfo,
+      type,
+      role,
+      details,
+      categories,
+      format,
       settings,
       forClaim
     } = req.body;
 
     // Validate required fields
-    if (!name || !profileType) {
-      throw createHttpError(400, 'Please provide name and profile type');
+    if (!name || !type || !type.category || !type.subtype) {
+      throw createHttpError(400, 'Please provide name, type category, and subtype');
+    }
+
+    // Validate profile type
+    const validTypes = ['personal', 'business', 'academic', 'medical'];
+    if (!validTypes.includes(type.subtype.toLowerCase())) {
+      throw createHttpError(400, `Profile type must be one of: Personal, Business, Academic, Medical`);
     }
 
     // Generate unique connect link
@@ -62,32 +68,63 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
     // Generate claim phrase if profile is for claiming
     const claimPhrase = forClaim ? generateClaimPhrase() : undefined;
 
-    // Create profile with all provided information
-    const profile:any = await ProfileModel.create({
+    // Create base profile data
+    const profileData = {
       name,
       description: description || '',
-      profileType,
+      type,
+      role: role || 'Owner',
+      details,
       owner: user._id,
       managers: [user._id],
       connectLink,
-      claimed: !forClaim, // Set claimed to false if it's for claiming
+      claimed: !forClaim,
       claimPhrase,
-      personalInfo: personalInfo || {},
-      contactInfo: contactInfo || {},
-      socialInfo: socialInfo || {},
-      professionalInfo: professionalInfo || {},
+      categories: categories || {
+        about: { enabled: true },
+        contact: { enabled: true },
+        social: { enabled: true }
+      },
+      format: format || {
+        cardImage: { type: 'default' },
+        logo: { enabled: false },
+        layout: 'default'
+      },
       settings: {
-        visibility: settings?.visibility || 'public', // Default to public if not specified
+        visibility: settings?.visibility || 'public',
         allowComments: settings?.allowComments ?? true,
         allowMessages: settings?.allowMessages ?? true,
         autoAcceptConnections: settings?.autoAcceptConnections ?? false
       },
-      status: 'active',
-      profileImage: process.env.DEFAULT_PROFILE_IMAGE || 'https://via.placeholder.com/150'
-    });
+      completion: 0,
+      isActive: true
+    };
+
+    // Create profile using discriminator
+    let profile;
+    switch (type.subtype) {
+      case 'personal':
+      case 'Personal':
+        profile = await PersonalProfile.create(profileData);
+        break;
+      case 'business':
+      case 'Business':
+        profile = await BusinessProfile.create(profileData);
+        break;
+      case 'academic':
+      case 'Academic':
+        profile = await AcademicProfile.create(profileData);
+        break;
+      case 'medical':
+      case 'Medical':
+        profile = await MedicalProfile.create(profileData);
+        break;
+      default:
+        throw createHttpError(400, 'Invalid profile type');
+    }
 
     // Add profile to user's profiles
-    userDoc.profiles.push(profile._id);
+    userDoc.profiles.push(profile._id as mongoose.Types.ObjectId);
     await userDoc.save();
 
     // Check if user should be promoted to admin

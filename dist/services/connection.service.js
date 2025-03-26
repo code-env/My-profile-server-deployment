@@ -23,11 +23,11 @@ class ConnectionService {
                 throw new Error(`This profile does not accept ${connectionType} connections`);
             }
             // Validate donation amount if applicable
-            if (connectionType === 'donation' &&
-                profile.connectionPreferences.minimumDonation &&
-                (!details.amount || details.amount < profile.connectionPreferences.minimumDonation)) {
-                throw new Error(`Minimum donation amount is ${profile.connectionPreferences.minimumDonation}`);
-            }
+            // if (connectionType === 'donation' &&
+            //     profile.connectionPreferences.minimumDonation &&
+            //     (!details.amount || details.amount < profile.connectionPreferences.minimumDonation)) {
+            //   throw new Error(`Minimum donation amount is ${profile.connectionPreferences.minimumDonation}`);
+            // }
             // Check for existing connection
             const existingConnection = await Connection_1.Connection.findOne({
                 fromUser: fromUserId,
@@ -236,15 +236,15 @@ class ConnectionService {
             // Get user's interests and skills from their profiles
             const userProfiles = await profile_model_1.ProfileModel.find({ user: userId });
             // Since 'interests' is not defined, we'll use skills as a fallback
-            const userSkills = userProfiles.flatMap((profile) => { var _a; return ((_a = profile.skills) === null || _a === void 0 ? void 0 : _a.map(skill => skill.name)) || []; });
+            // const userSkills = userProfiles.flatMap((profile) => profile.skills?.map(skill => skill.name) || []);
             // Find profiles with similar skills
-            const suggestions = await profile_model_1.ProfileModel.find({
-                user: { $ne: userId },
-                'skills.name': { $in: userSkills }
-            })
-                .populate('user', 'username email fullName')
-                .limit(10);
-            return suggestions;
+            // const suggestions = await ProfileModel.find({
+            //   user: { $ne: userId },
+            //   'skills.name': { $in: userSkills }
+            // })
+            // .populate('user', 'username email fullName')
+            // .limit(10);
+            // return suggestions;
         }
         catch (error) {
             logger_1.logger.error('Error in getConnectionSuggestions:', error);

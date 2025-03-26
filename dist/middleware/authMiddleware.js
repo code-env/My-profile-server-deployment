@@ -13,7 +13,7 @@ const authenticateToken = async (req, res, next) => {
     var _a;
     try {
         // Get token from cookie or Authorization header
-        const token = req.cookies.accessToken || ((_a = req.header('Authorization')) === null || _a === void 0 ? void 0 : _a.replace('Bearer ', ''));
+        const token = req.cookies.accesstoken || ((_a = req.header('Authorization')) === null || _a === void 0 ? void 0 : _a.replace('Bearer ', ''));
         if (!token) {
             throw new errors_1.CustomError('UNAUTHORIZED', 'Authentication required');
         }
@@ -46,7 +46,7 @@ const optionalAuth = async (req, res, next) => {
     var _a;
     try {
         // Get token from cookie or Authorization header
-        const token = req.cookies.accessToken || ((_a = req.header('Authorization')) === null || _a === void 0 ? void 0 : _a.replace('Bearer ', ''));
+        const token = req.cookies.accesstoken || ((_a = req.header('Authorization')) === null || _a === void 0 ? void 0 : _a.replace('Bearer ', ''));
         if (!token) {
             // If no token, continue without authentication
             return next();

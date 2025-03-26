@@ -8,7 +8,7 @@ import { CustomError } from '../utils/errors';
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Get token from cookie or Authorization header
-    const token = req.cookies.accessToken || req.header('Authorization')?.replace('Bearer ', '');
+    const token = req.cookies.accesstoken || req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
       throw new CustomError('UNAUTHORIZED', 'Authentication required');
@@ -16,10 +16,10 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
     // Verify token
     const decoded = jwt.verify(token, config.JWT_SECRET) as any;
-    
+
     // Find user
     const user = await User.findById(decoded.userId);
-    
+
     if (!user) {
       throw new CustomError('UNAUTHORIZED', 'User not found');
     }
@@ -32,9 +32,9 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     if (error instanceof jwt.JsonWebTokenError) {
       res.status(401).json({ success: false, message: 'Invalid token' });
     } else {
-      res.status(401).json({ 
-        success: false, 
-        message: error instanceof Error ? error.message : 'Authentication failed' 
+      res.status(401).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Authentication failed'
       });
     }
   }
@@ -43,7 +43,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Get token from cookie or Authorization header
-    const token = req.cookies.accessToken || req.header('Authorization')?.replace('Bearer ', '');
+    const token = req.cookies.accesstoken || req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
       // If no token, continue without authentication
@@ -52,15 +52,15 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 
     // Verify token
     const decoded = jwt.verify(token, config.JWT_SECRET) as any;
-    
+
     // Find user
     const user = await User.findById(decoded.userId);
-    
+
     if (user) {
       // If user found, attach to request
       req.user = user;
     }
-    
+
     next();
   } catch (error) {
     // If token verification fails, continue without authentication
@@ -130,7 +130,7 @@ export const verifyOTP = async (req: Request, res: Response, next: NextFunction)
 };
 
 export const requireVerified = async (req: Request, res: Response, next: NextFunction) => {
- 
+
   try {
     const userre:any = req.user;
     const user:any = await User.findById(userre?._id);

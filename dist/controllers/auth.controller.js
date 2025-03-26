@@ -183,27 +183,42 @@ class AuthController {
     static async login(req, res) {
         try {
             const validatedData = await auth_types_1.loginSchema.parseAsync(req.body);
-            const result = await auth_service_1.AuthService.login(validatedData, req);
-            // Set tokens in HTTP-only cookies
-            if (result.tokens) {
-                console.log("🍪 Setting auth cookies...");
-                res.cookie("accesstoken", result.tokens.accessToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === "production",
-                    sameSite: "lax",
-                    path: "/",
-                    maxAge: 15 * 60 * 1000, // 15 minutes
+            const { identifier, password } = validatedData;
+            const result = await auth_service_1.AuthService.login({ identifier, password }, req);
+            if (result.success == false) {
+                res.status(401).json({
+                    success: false,
+                    user: {
+                        id: result.userId,
+                    },
+                    message: "Invalid credentials",
                 });
-                res.cookie("refreshtoken", result.tokens.refreshToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === "production",
-                    sameSite: "lax",
-                    path: "/",
-                    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-                });
-                console.log("✅ Auth cookies set successfully");
+                return;
             }
-            res.json(result);
+            // Generate tokens
+            const tokens = auth_service_1.AuthService.generateTokens(result.userId, result.userId);
+            // Set tokens in HTTP-only cookies
+            res.cookie("accesstoken", tokens.accessToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                path: "/",
+                maxAge: 15 * 60 * 1000, // 15 minutes
+            });
+            res.cookie("refreshtoken", tokens.refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                path: "/",
+                maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            });
+            res.status(200).json({
+                success: true,
+                user: {
+                    id: result.userId,
+                },
+                message: "Login successful",
+            });
         }
         catch (error) {
             logger_1.logger.error("Login error:", error);
@@ -213,6 +228,38 @@ class AuthController {
             });
         }
     }
+    // static async login(req: Request, res: Response) {
+    //   try {
+    //     const validatedData = await loginSchema.parseAsync(req.body);
+    //     const result = await AuthService.login(validatedData, req);
+    //     // Set tokens in HTTP-only cookies
+    //     if (result.tokens) {
+    //       console.log("🍪 Setting auth cookies...");
+    //       res.cookie("accesstoken", result.tokens.accessToken, {
+    //         httpOnly: true,
+    //         secure: process.env.NODE_ENV === "production",
+    //         sameSite: "lax",
+    //         path: "/",
+    //         maxAge: 15 * 60 * 1000, // 15 minutes
+    //       });
+    //       res.cookie("refreshtoken", result.tokens.refreshToken, {
+    //         httpOnly: true,
+    //         secure: process.env.NODE_ENV === "production",
+    //         sameSite: "lax",
+    //         path: "/",
+    //         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    //       });
+    //       console.log("✅ Auth cookies set successfully");
+    //     }
+    //     res.json(result);
+    //   } catch (error) {
+    //     logger.error("Login error:", error);
+    //     res.status(400).json({
+    //       success: false,
+    //       message: error instanceof Error ? error.message : "Login failed",
+    //     });
+    //   }
+    // }
     /**
      * Get active sessions for the authenticated user
      *
@@ -362,6 +409,7 @@ class AuthController {
      * ```
      */
     static async verifyOTP(req, res) {
+        var _a, _b, _c, _d;
         try {
             const { _id, otp, verificationMethod } = req.body;
             if (!_id || !otp || !verificationMethod) {
@@ -393,8 +441,13 @@ class AuthController {
                 return res.json({
                     success: true,
                     message: "OTP verified successfully",
-                    user: result.user,
                     tokens,
+                    user: {
+                        _id: (_a = result.user) === null || _a === void 0 ? void 0 : _a._id,
+                        email: (_b = result.user) === null || _b === void 0 ? void 0 : _b.email,
+                        username: (_c = result.user) === null || _c === void 0 ? void 0 : _c.username,
+                        fullname: (_d = result.user) === null || _d === void 0 ? void 0 : _d.fullName,
+                    }
                 });
             }
             return res.status(400).json({
@@ -882,7 +935,7 @@ class AuthController {
             if (!_id || !verificationMethod) {
                 return res.status(400).json({
                     success: false,
-                    message: "Missing required fields: _id or verificationMethod",
+                    message: "Missing required fields: _id",
                 });
             }
             // Find user
@@ -893,8 +946,10 @@ class AuthController {
                     message: "User not found",
                 });
             }
+            user.verificationMethod = verificationMethod;
             // Generate new OTP
             const otp = generateOTP(6);
+            console.log("🔐 Resending OTP:", otp);
             // Get request info for security tracking
             const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
             // Update user's verification data
@@ -906,19 +961,20 @@ class AuthController {
             };
             await user.save();
             // Send OTP based on verification method
-            if (verificationMethod.toLowerCase() === "email") {
+            if (user.verificationMethod.toLowerCase() === "email") {
                 await email_service_1.default.sendVerificationEmail(user.email, otp, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
                 logger_1.logger.info(`🟣 Registration OTP (Email): ${otp}`);
             }
-            else if (verificationMethod.toLowerCase() === "phone" &&
+            else if (user.verificationMethod.toLowerCase() === "phone" &&
                 user.phoneNumber) {
                 await whatsapp_service_1.default.sendOTPMessage(user.phoneNumber, otp);
                 logger_1.logger.info(`🟣 Registration OTP (Phone): ${otp}`);
             }
             res.json({
                 success: true,
-                message: `OTP resent successfully via ${verificationMethod}`,
+                message: `OTP resent successfully via ${user.verificationMethod}:  ${user.verificationMethod.toLowerCase() === "phone" ? user.phoneNumber : user.email} `,
                 userId: user._id,
+                otp: otp
             });
         }
         catch (error) {
@@ -926,6 +982,41 @@ class AuthController {
             res.status(400).json({
                 success: false,
                 message: error instanceof Error ? error.message : "Failed to resend OTP",
+            });
+        }
+    }
+    static async selectOTPMethod(req, res) {
+        try {
+            const { _id, verificationMethod } = req.body;
+            if (!_id || !verificationMethod) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Missing required fields: _id or verificationMethod",
+                });
+            }
+            // Find user
+            const user = await User_1.User.findById(_id);
+            if (!user) {
+                return res.status(400).json({
+                    success: false,
+                    message: "User not found",
+                });
+            }
+            // Update user's verification data
+            user.verificationMethod = verificationMethod;
+            await user.save();
+            // Send OTP based on verification method
+            res.json({
+                success: true,
+                message: `OTP verification method sent,  ${verificationMethod}`,
+                userId: user._id,
+            });
+        }
+        catch (error) {
+            logger_1.logger.error("Error sending OPT verification method:", error);
+            res.status(400).json({
+                success: false,
+                message: error instanceof Error ? error.message : "Failed to send OTP verification method",
             });
         }
     }

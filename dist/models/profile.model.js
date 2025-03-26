@@ -36,17 +36,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ProfileModel = void 0;
+exports.AcademicProfile = exports.MedicalProfile = exports.BusinessProfile = exports.PersonalProfile = exports.ProfileModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const qrcode_1 = __importDefault(require("qrcode"));
-// Create the Mongoose schema
+// Create the Mongoose schema with discriminator key
 const profileSchema = new mongoose_1.Schema({
     name: { type: String, required: true, trim: true, index: true },
     description: { type: String, trim: true },
     profileType: {
         type: String,
         required: true,
-        enum: ['personal', 'group', 'community', 'school', 'business', 'social'],
+        enum: ['personal', 'business', 'medical', 'academic'],
         index: true,
     },
     owner: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -139,35 +139,6 @@ const profileSchema = new mongoose_1.Schema({
                     uploadedAt: { type: Date, default: Date.now },
                 }],
         }],
-    contact: {
-        email: String,
-        phone: String,
-        address: {
-            street: String,
-            city: String,
-            country: String,
-            verified: { type: Boolean, default: false },
-            verifiedAt: Date,
-        },
-        socialLinks: { type: Map, of: String },
-    },
-    skills: [{
-            name: String,
-            level: {
-                type: String,
-                enum: ['beginner', 'intermediate', 'expert'],
-            },
-            endorsements: { type: Number, default: 0 },
-        }],
-    availability: {
-        status: {
-            type: String,
-            enum: ['available', 'busy', 'away'],
-            default: 'available',
-        },
-        bookingLink: String,
-        workHours: { type: Map, of: [String] },
-    },
     analytics: {
         views: { type: Number, default: 0 },
         connections: { type: Number, default: 0 },
@@ -198,68 +169,7 @@ const profileSchema = new mongoose_1.Schema({
             totalViews: 0,
             monthlyViews: 0,
             engagement: 0,
-        },
-    },
-    socialLinks: {
-        website: String,
-        facebook: String,
-        twitter: String,
-        instagram: String,
-        linkedin: String,
-        github: String,
-        youtube: String,
-        tiktok: String,
-    },
-    connectionPreferences: {
-        allowFollowers: { type: Boolean, default: true },
-        allowEmployment: { type: Boolean, default: true },
-        allowDonations: { type: Boolean, default: false },
-        allowCollaboration: { type: Boolean, default: true },
-        minimumDonation: Number,
-        employmentTypes: [String],
-        collaborationTypes: [String],
-        connectionPrivacy: {
-            type: String,
-            enum: ['public', 'private', 'mutual'],
-            default: 'public',
-        },
-        connectionApproval: {
-            type: String,
-            enum: ['automatic', 'manual', 'verified-only'],
-            default: 'automatic',
-        },
-    },
-    settings: {
-        visibility: {
-            type: String,
-            enum: ['public', 'private', 'connections'],
-            default: 'public',
-        },
-        allowComments: { type: Boolean, default: true },
-        allowMessages: { type: Boolean, default: true },
-        autoAcceptConnections: { type: Boolean, default: false },
-        emailNotifications: {
-            connections: { type: Boolean, default: true },
-            messages: { type: Boolean, default: true },
-            comments: { type: Boolean, default: true },
-            mentions: { type: Boolean, default: true },
-            updates: { type: Boolean, default: true },
-        },
-        language: { type: String, default: 'en' },
-        theme: {
-            type: String,
-            enum: ['light', 'dark', 'system'],
-            default: 'system',
-        },
-        accessibility: {
-            highContrast: { type: Boolean, default: false },
-            fontSize: {
-                type: String,
-                enum: ['small', 'medium', 'large'],
-                default: 'medium',
-            },
-            reduceMotion: { type: Boolean, default: false },
-        },
+        }
     },
     badges: [{
             id: String,
@@ -336,39 +246,9 @@ const profileSchema = new mongoose_1.Schema({
             default: true
         }
     },
-    personalInfo: {
-        firstName: String,
-        lastName: String,
-        dateOfBirth: String,
-        gender: String,
-        nationality: String,
-        languages: [String],
-    },
-    contactInfo: {
-        email: String,
-        phone: String,
-        address: {
-            street: String,
-            city: String,
-            state: String,
-            country: String,
-            postalCode: String,
-        },
-    },
-    socialInfo: {
-        linkedin: String,
-        twitter: String,
-        website: String,
-    },
-    professionalInfo: {
-        title: String,
-        company: String,
-        industry: String,
-        skills: [String],
-        experience: String,
-    },
 }, {
     timestamps: true,
+    discriminatorKey: 'profileType'
 });
 // Indexes for better query performance
 profileSchema.index({ name: 'text', description: 'text' });
@@ -469,5 +349,15 @@ profileSchema.pre('save', async function (next) {
     }
     next();
 });
-// Create and export the model
+// Create the base model
 exports.ProfileModel = mongoose_1.default.model('Profile', profileSchema);
+// Register discriminators for different profile types
+const personal_profile_1 = __importDefault(require("./profile-types/personal-profile"));
+const business_profile_1 = __importDefault(require("./profile-types/business-profile"));
+const medical_profile_1 = __importDefault(require("./profile-types/medical-profile"));
+const academic_profile_1 = __importDefault(require("./profile-types/academic-profile"));
+// Create and export discriminator models
+exports.PersonalProfile = exports.ProfileModel.discriminator('personal', personal_profile_1.default);
+exports.BusinessProfile = exports.ProfileModel.discriminator('business', business_profile_1.default);
+exports.MedicalProfile = exports.ProfileModel.discriminator('medical', medical_profile_1.default);
+exports.AcademicProfile = exports.ProfileModel.discriminator('academic', academic_profile_1.default);

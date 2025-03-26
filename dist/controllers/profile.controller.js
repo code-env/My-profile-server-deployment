@@ -29,38 +29,73 @@ exports.createProfile = (0, express_async_handler_1.default)(async (req, res) =>
         if (userDoc.profiles.length >= (((_b = (_a = userDoc.subscription) === null || _a === void 0 ? void 0 : _a.limitations) === null || _b === void 0 ? void 0 : _b.maxProfiles) || Infinity) && user.role !== 'superadmin') {
             throw (0, http_errors_1.default)(400, 'Profile limit reached for your subscription');
         }
-        const { name, description, profileType, personalInfo, contactInfo, socialInfo, professionalInfo, settings, forClaim } = req.body;
+        const { name, description, type, role, details, categories, format, settings, forClaim } = req.body;
         // Validate required fields
-        if (!name || !profileType) {
-            throw (0, http_errors_1.default)(400, 'Please provide name and profile type');
+        if (!name || !type || !type.category || !type.subtype) {
+            throw (0, http_errors_1.default)(400, 'Please provide name, type category, and subtype');
+        }
+        // Validate profile type
+        const validTypes = ['personal', 'business', 'academic', 'medical'];
+        if (!validTypes.includes(type.subtype.toLowerCase())) {
+            throw (0, http_errors_1.default)(400, `Profile type must be one of: Personal, Business, Academic, Medical`);
         }
         // Generate unique connect link
         const connectLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/connect/${Math.random().toString(36).substring(2, 15)}`;
         // Generate claim phrase if profile is for claiming
         const claimPhrase = forClaim ? generateClaimPhrase() : undefined;
-        // Create profile with all provided information
-        const profile = await profile_model_1.ProfileModel.create({
+        // Create base profile data
+        const profileData = {
             name,
             description: description || '',
-            profileType,
+            type,
+            role: role || 'Owner',
+            details,
             owner: user._id,
             managers: [user._id],
             connectLink,
-            claimed: !forClaim, // Set claimed to false if it's for claiming
+            claimed: !forClaim,
             claimPhrase,
-            personalInfo: personalInfo || {},
-            contactInfo: contactInfo || {},
-            socialInfo: socialInfo || {},
-            professionalInfo: professionalInfo || {},
+            categories: categories || {
+                about: { enabled: true },
+                contact: { enabled: true },
+                social: { enabled: true }
+            },
+            format: format || {
+                cardImage: { type: 'default' },
+                logo: { enabled: false },
+                layout: 'default'
+            },
             settings: {
-                visibility: (settings === null || settings === void 0 ? void 0 : settings.visibility) || 'public', // Default to public if not specified
+                visibility: (settings === null || settings === void 0 ? void 0 : settings.visibility) || 'public',
                 allowComments: (_c = settings === null || settings === void 0 ? void 0 : settings.allowComments) !== null && _c !== void 0 ? _c : true,
                 allowMessages: (_d = settings === null || settings === void 0 ? void 0 : settings.allowMessages) !== null && _d !== void 0 ? _d : true,
                 autoAcceptConnections: (_e = settings === null || settings === void 0 ? void 0 : settings.autoAcceptConnections) !== null && _e !== void 0 ? _e : false
             },
-            status: 'active',
-            profileImage: process.env.DEFAULT_PROFILE_IMAGE || 'https://via.placeholder.com/150'
-        });
+            completion: 0,
+            isActive: true
+        };
+        // Create profile using discriminator
+        let profile;
+        switch (type.subtype) {
+            case 'personal':
+            case 'Personal':
+                profile = await profile_model_1.PersonalProfile.create(profileData);
+                break;
+            case 'business':
+            case 'Business':
+                profile = await profile_model_1.BusinessProfile.create(profileData);
+                break;
+            case 'academic':
+            case 'Academic':
+                profile = await profile_model_1.AcademicProfile.create(profileData);
+                break;
+            case 'medical':
+            case 'Medical':
+                profile = await profile_model_1.MedicalProfile.create(profileData);
+                break;
+            default:
+                throw (0, http_errors_1.default)(400, 'Invalid profile type');
+        }
         // Add profile to user's profiles
         userDoc.profiles.push(profile._id);
         await userDoc.save();
@@ -301,7 +336,7 @@ exports.getProfileInfo = (0, express_async_handler_1.default)(async (req, res) =
         // Optional: Add additional permission checks if needed
         const isOwner = ((_a = profile.owner) === null || _a === void 0 ? void 0 : _a.toString()) === user._id.toString();
         const isManager = profile.managers.some(manager => manager.toString() === user._id.toString());
-        if (!isOwner && !isManager && profile.connectionPreferences.connectionPrivacy !== 'public') {
+        if (!isOwner && !isManager && profile.settings.visibility !== 'public') {
             logger_1.logger.warn(`Unauthorized profile access attempt: ${id} by user ${user._id}`);
             throw (0, http_errors_1.default)(403, 'You do not have permission to view this profile');
         }
