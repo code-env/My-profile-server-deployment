@@ -312,6 +312,12 @@ export class AppServer {
    * @throws {Error} If license validation fails
    */
   private async validateLicense(): Promise<void> {
+    // Skip license validation in production
+    if (process.env.NODE_ENV === 'production') {
+      logger.info('✅ License validation skipped in production environment');
+      return;
+    }
+
     const licenseKey = process.env.LICENSE_KEY;
     const deviceId = require('os').hostname();
     const ipAddress = '127.0.0.1'; // Local server
@@ -405,9 +411,6 @@ export class AppServer {
    */
   public async start(): Promise<void> {
     try {
-      // Validate license before server starts
-      await this.validateLicense();
-
       const { log, serverStartupArt } = require('./utils/console-art');
 
       console.log(serverStartupArt);
