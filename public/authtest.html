@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OAuth2 Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      max-width: 600px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>OAuth2 Test</h1>
+  <button id="google-login">Sign in with Google</button>
+  <button id="facebook-login">Sign in with Facebook</button>
+  <pre id="response"></pre>
+
+  <script>
+    // Replace with your backend URL
+    const backendUrl = 'https://friendly-memory-v5rv64x7jrj2jv7-5000.app.github.dev/';
+
+    // Redirect to Google OAuth2 consent screen
+    document.getElementById('google-login').addEventListener('click', () => {
+      window.location.href = `${backendUrl}api/sauth/google`;
+    });
+
+    // Redirect to Facebook OAuth2 consent screen
+    document.getElementById('facebook-login').addEventListener('click', () => {
+      window.location.href = `${backendUrl}api/sauth/facebook`;
+    });
+
+    // Handle the callback from Google or Facebook
+    const urlParams = new URLSearchParams(window.location.search);
+    // const code = urlParams.get('code');
+    const code = "4%2F0AQSTgQHwVGXiZSQtTic5o-4Utg4G-Ed2B9CrJRMCmeWPqk8GkjG7NP6LuzjWFzkRtC_NaA"
+    const provider = urlParams.get('provider'); // 'google' or 'facebook'
+
+    console.log('code:', code);
+    if (code) {
+      // Send the authorization code to your backend
+      fetch(`${backendUrl}api/sauth/google/callback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code }),
+      })
+        .then(response => response.json())
+        .then(data => {
+         console.log("data here gotten:", data)
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          document.getElementById('response').textContent = 'Authentication failed. Check the console for details.';
+        });
+    }
+  </script>
+</body>
+</html>

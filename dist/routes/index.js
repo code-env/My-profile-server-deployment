@@ -47,6 +47,9 @@ const connection_routes_1 = __importDefault(require("./connection.routes"));
 const logs_routes_1 = __importDefault(require("./logs.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
+const new_auth_routes_1 = __importDefault(require("./new.auth.routes"));
+const express_session_1 = __importDefault(require("express-session"));
+const passport_1 = __importDefault(require("passport"));
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -57,13 +60,26 @@ const setupRoutes = (app) => {
     app.get('/', (req, res) => {
         res.sendFile('index.html', { root: 'public' });
     });
+    //auth test
+    app.get('/socials', (req, res) => {
+        res.sendFile('authtest.html', { root: 'public' });
+    });
     // Admin logs page
     app.get('/admin/logs', (req, res) => {
         res.sendFile('logs.html', { root: 'public' });
     });
+    app.use((0, express_session_1.default)({
+        secret: "some secret, here top secret",
+        resave: false,
+        saveUninitialized: true,
+    }));
+    app.use(passport_1.default.initialize());
+    app.use(passport_1.default.session());
     // Public routes
     app.use('/api/auth', auth_routes_1.default);
     app.use('/api/users', user_routes_1.default);
+    // app.use('/api/sauth', socialRoutes)
+    app.use('/api/sauth', new_auth_routes_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     app.use('/api/connections', auth_middleware_1.protect, connection_routes_1.default);

@@ -48,4 +48,34 @@ export class ChatUserControllers {
       });
     }
   }
+
+  /**
+   * Delete user by ID
+   * @route PUT /auth/users/:id
+   * @param req - Express request object
+   * @param res - Express response object
+   */
+  static async DeleteUserById(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+
+      
+      const user = await User.findByIdAndDelete(id);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      res.status(200).json({ success: true, message: "User deleted successfully" });
+    } catch (error: any) {
+      console.error(error.message);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : "Failed to delete user",
+      });
+    }
+  }
 }
