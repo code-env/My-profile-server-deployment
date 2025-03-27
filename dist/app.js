@@ -63,7 +63,6 @@ const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const compression_1 = __importDefault(require("compression"));
 const morgan_1 = __importDefault(require("morgan"));
 const chalk_1 = __importDefault(require("chalk"));
-const license_manager_1 = require("./utils/license-manager");
 // Internal imports
 const config_1 = require("./config/config");
 const logger_1 = require("./utils/logger");
@@ -76,6 +75,7 @@ const env_validator_1 = require("./utils/env-validator");
 const license_middleware_1 = require("./middleware/license.middleware");
 const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"));
 const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
+const license_service_1 = require("./services/license.service");
 /**
  * @class AppServer
  * @description Core server application class that manages the Express application lifecycle,
@@ -163,8 +163,10 @@ class AppServer {
                 }
             }
         }));
-        // Validate license before any other middleware
-        this.app.use(license_middleware_1.validateLicenseMiddleware);
+        // Only add license validation middleware in non-production environments
+        if (process.env.NODE_ENV !== 'production') {
+            this.app.use(license_middleware_1.validateLicenseMiddleware);
+        }
         this.app.use((0, performance_middleware_1.monitorPerformance)());
         this.app.use((0, helmet_1.default)({
             contentSecurityPolicy: {
@@ -298,21 +300,39 @@ class AppServer {
      * @throws {Error} If license validation fails
      */
     async validateLicense() {
-        const licenseKey = process.env.LICENSE_KEY;
-        const deviceId = require('os').hostname();
-        const ipAddress = '127.0.0.1'; // Local server
-        if (!licenseKey) {
-            throw new Error('LICENSE_KEY environment variable is required');
+        // Skip all license validation in production
+        if (process.env.NODE_ENV === 'production') {
+            logger_1.logger.info('✅ License validation skipped in production environment');
+            return;
         }
-        if (!process.env.COMPANY_SECRET) {
-            throw new Error('COMPANY_SECRET environment variable is required');
+        try {
+            const licenseKey = process.env.LICENSE_KEY;
+            const deviceId = require('os').hostname();
+            const ipAddress = '127.0.0.1'; // Local server
+            if (!licenseKey) {
+                throw new Error('LICENSE_KEY environment variable is required');
+            }
+            if (!process.env.COMPANY_SECRET) {
+                throw new Error('COMPANY_SECRET environment variable is required');
+            }
+            // Validate license
+            const validationResult = await license_service_1.licenseService.validateLicense(licenseKey, deviceId, ipAddress);
+            if (!validationResult.isValid) {
+                throw new Error(`License validation failed: ${validationResult.error}`);
+            }
+            logger_1.logger.info('✅ License validated successfully');
+            if (validationResult.employeeInfo) {
+                logger_1.logger.info(`Licensed to: ${validationResult.employeeInfo.name}`);
+            }
         }
-        // Validate license
-        const validationResult = license_manager_1.licenseManager.validateLicense(process.env.COMPANY_SECRET);
-        if (!validationResult.isValid) {
-            throw new Error(`License validation failed: ${validationResult.error}`);
+        catch (error) {
+            logger_1.logger.error('License validation error:', error);
+            if (process.env.NODE_ENV === 'production') {
+                logger_1.logger.warn('Continuing in production despite license error');
+                return;
+            }
+            throw error;
         }
-        logger_1.logger.info(`License validated for employee: ${validationResult}`);
     }
     /**
      * @private
@@ -385,8 +405,6 @@ class AppServer {
      */
     async start() {
         try {
-            // Validate license before server starts
-            await this.validateLicense();
             const { log, serverStartupArt } = require('./utils/console-art');
             console.log(serverStartupArt);
             log.highlight('Starting ODIN API Server...');

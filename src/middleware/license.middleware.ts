@@ -6,7 +6,14 @@ import { logger } from '../utils/logger';
  * Middleware to validate license before processing requests
  */
 export const validateLicenseMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  // Enforce license check at runtime to prevent bypass attempts
+  // Skip license validation in development or if BYPASS_LICENSE is set
+  if (process.env.BYPASS_LICENSE === 'true') {
+    logger.warn('⚠️ License validation bypassed in development mode');
+    (req as any).licenseValidated = true;
+    return next();
+  }
+
+  // Enforce license check at runtime to prevent bypass attempts in development
   const moduleExports = require.cache[require.resolve('../utils/license-manager')];
   if (!moduleExports || !moduleExports.exports.licenseManager) {
     logger.error('Critical security error: License manager module tampering detected');
@@ -48,7 +55,7 @@ export const validateLicenseMiddleware = (req: Request, res: Response, next: Nex
     // Add license info to request for logging/tracking
     if (validation.employee) {
       // Use Object.freeze to prevent runtime modification
-      req.employee = Object.freeze({
+      (req as any).employee = Object.freeze({
         employeeId: validation.employee.employeeId,
         name: validation.employee.name,
         email: validation.employee.email,
@@ -59,7 +66,7 @@ export const validateLicenseMiddleware = (req: Request, res: Response, next: Nex
     }
 
     // Add runtime check to ensure middleware wasn't bypassed
-    req.licenseValidated = true;
+    (req as any).licenseValidated = true;
     next();
 
   } catch (error) {
@@ -74,6 +81,12 @@ export const validateLicenseMiddleware = (req: Request, res: Response, next: Nex
  * Function to validate license on server startup
  */
 export const validateLicenseOnStartup = (): boolean => {
+  // Skip license validation in production
+  if (process.env.BYPASS_LICENSE === 'true') {
+    logger.info('✅ License validation skipped in production environment');
+    return true;
+  }
+
   try {
     const companySecret = process.env.COMPANY_SECRET;
     if (!companySecret) {

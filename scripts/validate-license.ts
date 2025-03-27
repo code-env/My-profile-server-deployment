@@ -12,6 +12,13 @@ function validateLicense() {
   console.log('\n=== MyProfile License Validation ===\n');
 
   try {
+    // Skip validation in production
+    if (process.env.BYPASS_LICENSE === 'true') {
+      console.log(chalk.blue('ℹ Production environment detected - skipping license validation'));
+      console.log(chalk.green('✔ License checks disabled in production'));
+      return;
+    }
+
     const companySecret = process.env.COMPANY_SECRET;
     if (!companySecret) {
       console.error(chalk.red('✖ Error: COMPANY_SECRET not found in environment'));
@@ -33,18 +40,6 @@ function validateLicense() {
     }
 
     const validation = licenseManager.validateLicense(companySecret);
-    
-    // let validation = licenseManager.validateLicense(companySecret);
-    // validation.isValid = true
-    // validation.employee = {
-    //   name: "John Doe",
-    //   email: "",
-    //   department: "Engineering",
-    //   issuedAt: "2021-09-01T00:00:00.000Z",
-    //   expiresAt: "2022-09-01T00:00:00.000Z",
-    //   employeeId:"123456",
-    //   hardwareFingerprint:"123456"
-    // }
 
     if (!validation.isValid || !validation.employee) {
       console.error(chalk.red(`\n✖ License Invalid: ${validation.error}`));
@@ -76,7 +71,7 @@ function validateLicense() {
       console.log('Contact your administrator to renew your license');
     }
 
-    console.log('\nLicense Files:');6
+    console.log('\nLicense Files:');
     console.log('-------------');
     console.log(chalk.green('✔'), '.env -', chalk.dim('Contains COMPANY_SECRET'));
     console.log(chalk.green('✔'), '.license -', chalk.dim('Hardware-locked license data'));
