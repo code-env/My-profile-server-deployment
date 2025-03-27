@@ -238,6 +238,7 @@ export interface IProfile extends Document, IProfileMethods {
   name: string;
   description?: string;
   profileType: 'personal' | 'business' | 'medical' | 'academic';
+  profileCategory:'Functional' | 'Individual' | 'Group',
   owner: mongoose.Types.ObjectId;
   managers: mongoose.Types.ObjectId[];
   claimPhrase?: string;
@@ -301,6 +302,12 @@ const profileSchema = new Schema<IProfile>(
       type: String,
       required: true,
       enum: ['personal', 'business', 'medical', 'academic'],
+      index: true,
+    },
+    profileCategory: {
+      type: String,
+      required: true,
+      enum: ['Functional', 'Group', 'Individual', 'academic',],
       index: true,
     },
     owner: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
