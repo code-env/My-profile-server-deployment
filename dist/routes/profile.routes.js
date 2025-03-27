@@ -4,7 +4,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const authMiddleware_1 = require("../middleware/authMiddleware");
 const roleMiddleware_1 = require("../middleware/roleMiddleware");
 const profile_service_1 = require("../services/profile.service");
 const profile_controller_1 = require("../controllers/profile.controller");
@@ -12,9 +11,10 @@ const router = express_1.default.Router();
 // Initialize ProfileService
 const profileService = new profile_service_1.ProfileService();
 // Apply authentication middleware to all routes
-router.use(authMiddleware_1.authenticateToken);
+// router.use(authenticateToken);
 // Profile creation and claiming
-router.post('/create-profile', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.createProfile);
+// requireRole(['user', 'superadmin', 'admin'])
+router.post('/create-profile', profile_controller_1.createProfile);
 router.post('/create-claimable', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.createClaimableProfile);
 router.post('/claim', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.claimProfile);
 // Profile management

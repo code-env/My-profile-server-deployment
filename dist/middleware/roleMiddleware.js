@@ -9,6 +9,11 @@ const requireRole = (roles) => {
     return async (req, res, next) => {
         try {
             const user = req.user;
+            // const user = {
+            //     "_id":"67deb94fd0eac9122a27148b",
+            //     "role":"user",
+            //     "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+            //   }
             if (!user) {
                 throw new errors_1.CustomError('UNAUTHORIZED', 'Authentication required');
             }

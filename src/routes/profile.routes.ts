@@ -30,7 +30,7 @@ const profileService = new ProfileService();
 
 // Profile creation and claiming
 // requireRole(['user', 'superadmin', 'admin'])
-router.post('/create-profile', createProfile);
+router.post('/create-profile',requireRole(['user', 'superadmin', 'admin']), createProfile);
 router.post('/create-claimable', requireRole(['user', 'superadmin', 'admin']), createClaimableProfile);
 router.post('/claim', requireRole(['user', 'superadmin', 'admin']), claimProfile);
 
