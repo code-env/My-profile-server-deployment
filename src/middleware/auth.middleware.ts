@@ -22,40 +22,40 @@ export const protect = async (
   next: NextFunction
 ): Promise<Response | void> => {
   try {
-    // const token = extractToken(req);
-    // logger.debug('Processing authentication token');
+    const token = extractToken(req);
+    logger.debug('Processing authentication token');
 
-    // if (!token) {
-    //   logger.warn('Authentication failed: No token provided');
-    //   return res.status(401).json({
-    //     status: 'error',
-    //     message: 'Authentication required'
-    //   });
-    // }
+    if (!token) {
+      logger.warn('Authentication failed: No token provided');
+      return res.status(401).json({
+        status: 'error',
+        message: 'Authentication required'
+      });
+    }
 
-    // const decoded = jwt.verify(token, config.JWT_SECRET) as TokenPayload;
+    const decoded = jwt.verify(token, config.JWT_SECRET) as TokenPayload;
 
-    // if (!decoded.userId) {
-    //   logger.warn('Authentication failed: Invalid token payload');
-    //   return res.status(401).json({
-    //     status: 'error',
-    //     message: 'Invalid authentication token'
-    //   });
-    // }
+    if (!decoded.userId) {
+      logger.warn('Authentication failed: Invalid token payload');
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid authentication token'
+      });
+    }
 
-    // const user = await User.findById(decoded.userId).select('-password');
+    const user = await User.findById(decoded.userId).select('-password');
 
-    // if (!user) {
-    //   logger.error(`User not found for ID: ${decoded.userId}`);
-    //   return res.status(401).json({
-    //     status: 'error',
-    //     message: 'User no longer exists'
-    //   });
-    // }
+    if (!user) {
+      logger.error(`User not found for ID: ${decoded.userId}`);
+      return res.status(401).json({
+        status: 'error',
+        message: 'User no longer exists'
+      });
+    }
 
-    // req.user = user;
-    // req.token = token;
-    console.log("protected")
+    req.user = user;
+    req.token = token;
+    // console.log("protected")
     next();
   } catch (error: unknown) {
   if (error instanceof jwt.JsonWebTokenError) {

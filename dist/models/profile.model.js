@@ -49,6 +49,12 @@ const profileSchema = new mongoose_1.Schema({
         enum: ['personal', 'business', 'medical', 'academic'],
         index: true,
     },
+    profileCategory: {
+        type: String,
+        required: true,
+        enum: ['Functional', 'Group', 'Individual', 'academic',],
+        index: true,
+    },
     owner: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     managers: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
     claimPhrase: { type: String, sparse: true, unique: true },
