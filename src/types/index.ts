@@ -1,6 +1,6 @@
 import { Request } from 'express';
 import { Document } from 'mongoose';
-import { IProfile } from '../models/profile.model';
+import { IProfile } from '../interfaces/profile.interface';
 
 export type Role = 'superadmin' | 'admin' | 'user';
 

@@ -643,37 +643,6 @@ profileSchema.pre('save', async function(next) {
   next();
 });
 
-// Define interface for instance methods
-interface IProfileMethods {
-  generateQRCode(): Promise<string>;
-  isVerified(): boolean;
-  calculateEngagement(): number;
-  getPublicProfile(): Partial<IProfile>;
-  getAvailableSlots(startDate: Date, endDate: Date): Promise<Array<{ start: Date; end: Date }>>;
-  checkAvailability(startTime: Date, endTime: Date): Promise<boolean>;
-  getFeaturedProjects(limit?: number): Promise<any[]>;
-  getSkillsByCategory(): Promise<Record<string, ISkill[]>>;
-  calculateEarnings(startDate: Date, endDate: Date): Promise<{
-    total: number;
-    breakdown: {
-      services: number;
-      products: number;
-      subscriptions: number;
-      donations: number;
-    };
-  }>;
-  checkServiceAvailability(serviceId: string, date: Date): Promise<{
-    available: boolean;
-    nextAvailable?: Date;
-    slots?: Array<{ start: Date; end: Date }>;
-  }>;
-  generateThemeCSS(): string;
-  trackPageView(country: string, device: string): Promise<void>;
-  validateServiceBooking(serviceId: string, date: Date, options: Record<string, any>): boolean;
-  addEndorsement(skillId: string, userId: mongoose.Types.ObjectId, comment?: string): Promise<boolean>;
-  addRecurringEvent(eventData: any): Promise<boolean>;
-}
-
 // Define interface for model type
 export interface IProfileModel extends Model<IProfile, {}, IProfileMethods> {}
 
@@ -693,6 +662,7 @@ import PersonalProfileSchema from './profile-types/personal-profile';
 import BusinessProfileSchema from './profile-types/business-profile';
 import MedicalProfileSchema from './profile-types/medical-profile';
 import AcademicProfileSchema from './profile-types/academic-profile';
+import { IProfile, ISkill, IProfileMethods } from '../interfaces/profile.interface';
 
 // Create and export discriminator models
 export const PersonalProfile = ProfileModel.discriminator<IProfile & {subtype: 'Personal'}>('personal', PersonalProfileSchema) as PersonalProfileModel;
