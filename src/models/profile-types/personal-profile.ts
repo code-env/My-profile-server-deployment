@@ -24,7 +24,7 @@ const PersonalProfileSchema = new Schema({
       },
       quotes: {
         enabled: { type: Boolean, default: true },
-        content: [String]
+           content: [Object]
       },
       biography: {
         enabled: { type: Boolean, default: true },
@@ -32,11 +32,11 @@ const PersonalProfileSchema = new Schema({
       },
       needsAndWishlist: {
         enabled: { type: Boolean, default: true },
-        content: [String]
+           content: [Object]
       },
       hobbies: {
         enabled: { type: Boolean, default: true },
-        content: [String]
+           content: [Object]
       }
     },
     contact: {
@@ -47,15 +47,15 @@ const PersonalProfileSchema = new Schema({
       },
       modeOfContact: {
         enabled: { type: Boolean, default: true },
-        content: [String]
+           content: [Object]
       },
       messagingApps: {
         enabled: { type: Boolean, default: true },
-        content: [String]
+        content: [Object]
       },
       contactApps: {
         enabled: { type: Boolean, default: true },
-        content: [String]
+           content: [Object]
       },
       emergency: {
         enabled: { type: Boolean, default: true },
@@ -70,7 +70,7 @@ const PersonalProfileSchema = new Schema({
       },
       websites: {
         enabled: { type: Boolean, default: true },
-        content: [String]
+           content: [Object]
       },
       celebrations: {
         enabled: { type: Boolean, default: true },

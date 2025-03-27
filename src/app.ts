@@ -167,8 +167,10 @@ export class AppServer {
       }
     }));
 
-    // Validate license before any other middleware
-    this.app.use(validateLicenseMiddleware);
+    // Only add license validation middleware in non-production environments
+    if (process.env.NODE_ENV !== 'production') {
+      this.app.use(validateLicenseMiddleware);
+    }
 
     this.app.use(monitorPerformance());
     this.app.use(helmet({
@@ -312,26 +314,44 @@ export class AppServer {
    * @throws {Error} If license validation fails
    */
   private async validateLicense(): Promise<void> {
-    const licenseKey = process.env.LICENSE_KEY;
-    const deviceId = require('os').hostname();
-    const ipAddress = '127.0.0.1'; // Local server
-
-    if (!licenseKey) {
-      throw new Error('LICENSE_KEY environment variable is required');
+    // Skip all license validation in production
+    if ( process.env.BYPASS_LICENSE === 'true') {
+      logger.info('✅ License validation skipped in production environment');
+      return;
     }
 
-    if (!process.env.COMPANY_SECRET) {
-      throw new Error('COMPANY_SECRET environment variable is required');
+    try {
+      const licenseKey = process.env.LICENSE_KEY;
+      const deviceId = require('os').hostname();
+      const ipAddress = '127.0.0.1'; // Local server
+
+      if (!licenseKey) {
+        throw new Error('LICENSE_KEY environment variable is required');
+      }
+
+      if (!process.env.COMPANY_SECRET) {
+        throw new Error('COMPANY_SECRET environment variable is required');
+      }
+
+      // Validate license
+      const validationResult = await licenseService.validateLicense(licenseKey, deviceId, ipAddress);
+
+      if (!validationResult.isValid) {
+        throw new Error(`License validation failed: ${validationResult.error}`);
+      }
+
+      logger.info('✅ License validated successfully');
+      if (validationResult.employeeInfo) {
+        logger.info(`Licensed to: ${validationResult.employeeInfo.name}`);
+      }
+    } catch (error) {
+      logger.error('License validation error:', error);
+      if ( process.env.BYPASS_LICENSE === 'true') {
+        logger.warn('Continuing in production despite license error');
+        return;
+      }
+      throw error;
     }
-
-    // Validate license
-    const validationResult = licenseManager.validateLicense(process.env.COMPANY_SECRET!);
-
-    if (!validationResult.isValid) {
-      throw new Error(`License validation failed: ${validationResult.error}`);
-    }
-
-    logger.info(`License validated for employee: ${validationResult}`);
   }
 
   /**
@@ -405,9 +425,6 @@ export class AppServer {
    */
   public async start(): Promise<void> {
     try {
-      // Validate license before server starts
-      await this.validateLicense();
-
       const { log, serverStartupArt } = require('./utils/console-art');
 
       console.log(serverStartupArt);
