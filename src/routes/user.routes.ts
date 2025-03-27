@@ -1,10 +1,11 @@
 import express from 'express';
-import { ChatUserControllers } from '../controllers/user.controller';
+import { UserControllers } from '../controllers/user.controller';
 
 
 const router = express.Router();
-router.get('/', ChatUserControllers.GetAllUsers);
-router.delete('/delete/:id', ChatUserControllers.DeleteUserById);
-router.get('/:id', ChatUserControllers.GetUserById);
+router.get('/', UserControllers.GetAllUsers);
+router.delete('/delete/:id', UserControllers.DeleteUserById);
+router.post('/generate-username', UserControllers.GenerateUsername);
+router.get('/:id', UserControllers.GetUserById);
 
 export default router;

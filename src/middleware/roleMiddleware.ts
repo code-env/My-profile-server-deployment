@@ -9,6 +9,12 @@ export const requireRole = (roles: Role[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = req.user as any;
+      // const user = {
+      //     "_id":"67deb94fd0eac9122a27148b",
+      //     "role":"user",
+      //     "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+      //   }
+      
       
       if (!user) {
         throw new CustomError('UNAUTHORIZED', 'Authentication required');
@@ -36,6 +42,7 @@ export const requireRole = (roles: Role[]) => {
 export const checkProfileOwnership = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = req.user as any;
+   
     const profileId = req.params.id;
 
     if (!profileId) {

@@ -27,7 +27,12 @@ const profileService = new ProfileService();
 // @access  Private
 export const createProfile = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const user = req.user as any;
+    // const user = req.user as any;
+    const user = {
+      "_id":"67deb94fd0eac9122a27148b",
+      "role":"user",
+      "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+    }
 
     // Check user's subscription limits
     const userDoc = await User.findById(user._id).populate('profiles');
@@ -35,9 +40,9 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
       throw createHttpError(404, 'User not found');
     }
 
-    if (userDoc.profiles.length >= (userDoc.subscription?.limitations?.maxProfiles || Infinity) && user.role !== 'superadmin') {
-      throw createHttpError(400, 'Profile limit reached for your subscription');
-    }
+    // if (userDoc.profiles.length >= (userDoc.subscription?.limitations?.maxProfiles || Infinity) && user.role !== 'superadmin') {
+    //   throw createHttpError(400, 'Profile limit reached for your subscription');
+    // }
 
     const {
       name,
@@ -57,9 +62,14 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
     }
 
     // Validate profile type
-    const validTypes = ['personal', 'business', 'academic', 'medical'];
-    if (!validTypes.includes(type.subtype.toLowerCase())) {
+    const validsubTypes = ['personal', 'business', 'academic', 'medical'];
+    const validCategory = ["individual", "functional", "group"]
+
+    if (!validsubTypes.includes(type.subtype.toLowerCase())) {
       throw createHttpError(400, `Profile type must be one of: Personal, Business, Academic, Medical`);
+    }
+    if (!validCategory.includes(type.category.toLowerCase())) {
+      throw createHttpError(400, `Profile category must be one of: Individual, Functional, Group`);
     }
 
     // Generate unique connect link
@@ -74,6 +84,7 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
       description: description || '',
       type,
       role: role || 'Owner',
+      profileCategory:type.category,
       details,
       owner: user._id,
       managers: [user._id],
@@ -190,6 +201,31 @@ const generateSecureClaimPhrase = (): string => {
   );
   return selectedWords.join('-');
 };
+
+/**
+ * Recursively flattens an object into dot notation key/value pairs.
+ * Nested objects (except arrays and Date objects) are flattened recursively.
+ * @param obj - The object to flatten.
+ * @param prefix - The prefix for nested keys.
+ * @returns A flattened object with dot notation keys.
+ */
+function buildUpdateQuery(obj: Record<string, any>, prefix = ''): Record<string, any> {
+  let result: Record<string, any> = {};
+  for (const key in obj) {
+    if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
+    const value = obj[key];
+    const newKey = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+      Object.assign(result, buildUpdateQuery(value, newKey));
+    } else {
+      result[newKey] = value;
+    }
+  }
+  console.log("result here:", result)
+  return result;
+}
+
+
 
 // @desc    Create a profile for claiming
 // @route   POST /api/profiles/create-claimable
@@ -376,8 +412,12 @@ export const updateSocialInfo = asyncHandler(async (req: Request, res: Response)
 export const getProfileInfo = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const user = req.user as RequestUser;
-
+    // const user = req.user as RequestUser; 
+    const user = {
+      "_id":"67deb94fd0eac9122a27148b",
+      "role":"user",
+      "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+    }
     // Validate ObjectId
     if (!isValidObjectId(id)) {
       logger.warn(`Invalid profile ID: ${id}`);
@@ -477,6 +517,80 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
   logger.info(`Profile updated: ${id} by user: ${user._id}`);
   res.json(updatedProfile);
 });
+
+
+// export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
+//   const { id } = req.params;
+//   const updates = req.body;
+//   const user =  {
+//     _id:"67deb94fd0eac9122a27148b",
+//     role:"user",
+//     token:"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+//   }
+
+//   // Validate profile ID
+//   if (!isValidObjectId(id)) {
+//     throw createHttpError(400, 'Invalid profile ID');
+//   }
+
+//   // Find profile and check permissions
+//   const profile = await ProfileModel.findById(id);
+//   if (!profile) {
+//     throw createHttpError(404, 'Profile not found');
+//   }
+
+//   // const user = req.user as RequestUser;
+//   // if (!profile.managers.includes(user._id) && !profile.owner.equals(user._id) && user.role !== 'superadmin') {
+//   //   throw createHttpError(403, 'You do not have permission to update this profile');
+//   // }
+
+//   // Remove protected fields from updates
+//   delete updates.owner;
+//   delete updates.managers;
+//   delete updates.claimed;
+//   delete updates.claimedBy;
+//   delete updates.qrCode;
+
+//   // Flatten the update payload into dot notation
+//   const flattenedUpdates = buildUpdateQuery(updates);
+
+//   // Separate scalar updates from array updates
+//   const setUpdates: Record<string, any> = {};
+//   const arrayUpdates: Record<string, any[]> = {};
+
+//   Object.entries(flattenedUpdates).forEach(([key, value]) => {
+//     if (Array.isArray(value)) {
+//       arrayUpdates[key] = value;
+//     } else {
+//       setUpdates[key] = value;
+//     }
+//   });
+
+//   // Build the final update query:
+//   // - $set for scalar and nested field updates.
+//   // - $addToSet with $each for arrays to merge new items.
+//   const finalUpdateQuery: Record<string, any> = {};
+//   if (Object.keys(setUpdates).length > 0) {
+//     finalUpdateQuery.$set = setUpdates;
+//   }
+//   if (Object.keys(arrayUpdates).length > 0) {
+//     const addToSet: Record<string, any> = {};
+//     for (const [key, arr] of Object.entries(arrayUpdates)) {
+//       addToSet[key] = { $each: arr };
+//     }
+//     finalUpdateQuery.$addToSet = addToSet;
+//   }
+
+//   // Perform the update using the combined query
+//   const updatedProfile = await ProfileModel.findByIdAndUpdate(
+//     id,
+//     finalUpdateQuery,
+//     { new: true, runValidators: true }
+//   );
+// console.log("updates made: ")
+//   logger.info(`Profile updated: ${id} by user: ${user._id}`);
+//   res.json(updatedProfile);
+// });
 
 // @desc    Delete a profile
 // @route   DELETE /api/profiles/:id
