@@ -992,7 +992,7 @@ export const getUserProfilesGrouped = asyncHandler(async (req: Request, res: Res
     matchQuery.profileCategory = { $regex: `^${filter}$`, $options: "i" };
   }
 
-  // Build the aggregation pipeline
+  //Aggregation pipeline
   const pipeline = [
     { $match: matchQuery },
     {
