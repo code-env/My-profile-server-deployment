@@ -22,7 +22,7 @@ const profileSchema = new Schema<IProfile>(
     profileCategory: {
       type: String,
       required: true,
-      enum: ['Functional', 'Group', 'Individual', 'academic',],
+      enum: ['functional', 'group', 'individual', 'academic',],
       index: true,
     },
     owner: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
