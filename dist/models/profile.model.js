@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AcademicProfile = exports.MedicalProfile = exports.BusinessProfile = exports.PersonalProfile = exports.ProfileModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const qrcode_1 = __importDefault(require("qrcode"));
+// Base interfaces without Document extension
 // Create the Mongoose schema with discriminator key
 const profileSchema = new mongoose_1.Schema({
     name: { type: String, required: true, trim: true, index: true },

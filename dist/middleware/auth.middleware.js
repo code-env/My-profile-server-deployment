@@ -10,34 +10,34 @@ const User_1 = require("../models/User");
 const logger_1 = require("../utils/logger");
 const protect = async (req, res, next) => {
     try {
-        // const token = extractToken(req);
-        // logger.debug('Processing authentication token');
-        // if (!token) {
-        //   logger.warn('Authentication failed: No token provided');
-        //   return res.status(401).json({
-        //     status: 'error',
-        //     message: 'Authentication required'
-        //   });
-        // }
-        // const decoded = jwt.verify(token, config.JWT_SECRET) as TokenPayload;
-        // if (!decoded.userId) {
-        //   logger.warn('Authentication failed: Invalid token payload');
-        //   return res.status(401).json({
-        //     status: 'error',
-        //     message: 'Invalid authentication token'
-        //   });
-        // }
-        // const user = await User.findById(decoded.userId).select('-password');
-        // if (!user) {
-        //   logger.error(`User not found for ID: ${decoded.userId}`);
-        //   return res.status(401).json({
-        //     status: 'error',
-        //     message: 'User no longer exists'
-        //   });
-        // }
-        // req.user = user;
-        // req.token = token;
-        console.log("protected");
+        const token = extractToken(req);
+        logger_1.logger.debug('Processing authentication token');
+        if (!token) {
+            logger_1.logger.warn('Authentication failed: No token provided');
+            return res.status(401).json({
+                status: 'error',
+                message: 'Authentication required'
+            });
+        }
+        const decoded = jsonwebtoken_1.default.verify(token, config_1.config.JWT_SECRET);
+        if (!decoded.userId) {
+            logger_1.logger.warn('Authentication failed: Invalid token payload');
+            return res.status(401).json({
+                status: 'error',
+                message: 'Invalid authentication token'
+            });
+        }
+        const user = await User_1.User.findById(decoded.userId).select('-password');
+        if (!user) {
+            logger_1.logger.error(`User not found for ID: ${decoded.userId}`);
+            return res.status(401).json({
+                status: 'error',
+                message: 'User no longer exists'
+            });
+        }
+        req.user = user;
+        req.token = token;
+        // console.log("protected")
         next();
     }
     catch (error) {

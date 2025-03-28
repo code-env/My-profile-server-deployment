@@ -2,11 +2,13 @@ import mongoose, { Document } from 'mongoose';
 
 
 // Base interfaces without Document extension
+
 interface IVerificationStatus {
   isVerified: boolean;
   badge: 'blue_tick' | 'gold_tick' | 'none';
   verifiedAt?: Date;
 }
+
 interface IKYCDocument {
   type: 'government_id' | 'proof_of_address' | 'business_registration';
   subType: string;
@@ -17,6 +19,7 @@ interface IKYCDocument {
   submittedAt: Date;
   verifiedAt?: Date;
 }
+
 interface IKYCVerification {
   status: 'pending' | 'verified' | 'rejected';
   submittedAt: Date;
@@ -26,6 +29,7 @@ interface IKYCVerification {
   verificationLevel: 'basic' | 'full' | 'enhanced';
   rejectionReason?: string;
 }
+
 interface ILinkedDevice {
   deviceId: string;
   permissions: Array<'view' | 'edit' | 'share'>;
@@ -37,6 +41,7 @@ interface ILinkedDevice {
     metrics: string[];
   };
 }
+
 interface IGalleryItem {
   type: 'image' | 'video' | 'document';
   url: string;
@@ -46,6 +51,7 @@ interface IGalleryItem {
   metadata?: Record<string, any>;
   uploadedAt: Date;
 }
+
 interface IGallery {
   name: string;
   description?: string;
@@ -53,6 +59,7 @@ interface IGallery {
   isPublic: boolean;
   items: IGalleryItem[];
 }
+
 interface IContact {
   email: string;
   phone: string;
@@ -65,26 +72,31 @@ interface IContact {
   };
   socialLinks: Record<string, string>;
 }
+
 export interface ISkill {
   name: string;
   level: 'beginner' | 'intermediate' | 'expert';
   endorsements: number;
 }
+
 interface IAvailability {
   status: 'available' | 'busy' | 'away';
   bookingLink?: string;
   workHours: Record<string, string[]>;
 }
+
 interface IAnalytics {
   views: number;
   connections: number;
   engagement: number;
 }
+
 interface ISecurity {
   twoFactorRequired: boolean;
   ipWhitelist: string[];
   lastSecurityAudit: Date;
 }
+
 interface IStats {
   followers: number;
   following: number;
@@ -95,6 +107,7 @@ interface IStats {
   monthlyViews: number;
   engagement: number;
 }
+
 interface ISocialLinks {
   website?: string;
   facebook?: string;
@@ -105,6 +118,7 @@ interface ISocialLinks {
   youtube?: string;
   tiktok?: string;
 }
+
 interface IConnectionPreferences {
   allowFollowers: boolean;
   allowEmployment: boolean;
@@ -116,6 +130,7 @@ interface IConnectionPreferences {
   connectionPrivacy: 'public' | 'private' | 'mutual';
   connectionApproval: 'automatic' | 'manual' | 'verified-only';
 }
+
 interface ISettings {
   visibility: 'public' | 'private' | 'connections';
   allowComments: boolean;
@@ -136,6 +151,7 @@ interface ISettings {
     reduceMotion: boolean;
   };
 }
+
 interface IBadge {
   id: string;
   name: string;
@@ -144,6 +160,7 @@ interface IBadge {
   earnedAt: Date;
   category: string;
 }
+
 interface IVerifications {
   email: boolean;
   phone: boolean;
@@ -155,6 +172,7 @@ interface IVerifications {
     verifiedAt?: Date;
   }>;
 }
+
 interface ICustomization {
   theme: {
     primary: string;
@@ -181,13 +199,14 @@ interface ICustomization {
     }>;
   };
 }
+
 // Define interface for instance methods
 export interface IProfileMethods {
   generateQRCode(): Promise<string>;
   isVerified(): boolean;
   calculateEngagement(): number;
   getPublicProfile(): Partial<IProfile>;
-  getAvailableSlots(startDate: Date, endDate: Date): Promise<Array<{ start: Date; end: Date; }>>;
+  getAvailableSlots(startDate: Date, endDate: Date): Promise<Array<{ start: Date; end: Date }>>;
   checkAvailability(startTime: Date, endTime: Date): Promise<boolean>;
   getFeaturedProjects(limit?: number): Promise<any[]>;
   getSkillsByCategory(): Promise<Record<string, ISkill[]>>;
@@ -203,7 +222,7 @@ export interface IProfileMethods {
   checkServiceAvailability(serviceId: string, date: Date): Promise<{
     available: boolean;
     nextAvailable?: Date;
-    slots?: Array<{ start: Date; end: Date; }>;
+    slots?: Array<{ start: Date; end: Date }>;
   }>;
   generateThemeCSS(): string;
   trackPageView(country: string, device: string): Promise<void>;
@@ -216,6 +235,7 @@ export interface IProfile extends Document, IProfileMethods {
   name: string;
   description?: string;
   profileType: 'personal' | 'business' | 'medical' | 'academic';
+  profileCategory:'Functional' | 'Individual' | 'Group',
   owner: mongoose.Types.ObjectId;
   managers: mongoose.Types.ObjectId[];
   claimPhrase?: string;
@@ -240,32 +260,32 @@ export interface IProfile extends Document, IProfileMethods {
   verifications: IVerifications;
   customization: ICustomization;
   connections: {
-    connected: [{ type: mongoose.Schema.Types.ObjectId; ref: 'User'; }];
-    followers: [{ type: mongoose.Schema.Types.ObjectId; ref: 'User'; }];
-    following: [{ type: mongoose.Schema.Types.ObjectId; ref: 'User'; }];
+    connected: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     lastConnections: [{
-      user: { type: mongoose.Schema.Types.ObjectId; ref: 'User'; };
-      connectionType: String;
-      connectedAt: { type: Date; default: Date; };
-    }];
-  };
+      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      connectionType: String,
+      connectedAt: { type: Date, default: Date }
+    }],
+  },
   privacySettings: {
     visibility: {
-      type: String;
-      enum: ['public', 'private', 'connections'];
-      default: 'public';
-    };
+      type: String,
+      enum: ['public', 'private', 'connections'],
+      default: 'public'
+    },
     searchable: {
-      type: Boolean;
-      default: true;
-    };
+      type: Boolean,
+      default: true
+    },
     showContactInfo: {
-      type: Boolean;
-      default: false;
-    };
+      type: Boolean,
+      default: false
+    },
     showSocialLinks: {
-      type: Boolean;
-      default: true;
-    };
-  };
+      type: Boolean,
+      default: true
+    }
+  },
 }

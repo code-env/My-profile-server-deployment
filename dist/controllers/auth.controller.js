@@ -422,12 +422,11 @@ class AuthController {
             const result = await auth_service_1.AuthService.verifyOTPResponse(_id, otp, verificationMethod.toLowerCase());
             if (result.success) {
                 // Generate tokens only after successful verification
-                const tokens = auth_service_1.AuthService.generateTokens(result.user.email, _id);
+                const tokens = auth_service_1.AuthService.generateTokens(_id, result.user.email);
                 // Set cookies
                 res.cookie("accesstoken", tokens.accessToken, {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === "production",
-                    sameSite: "lax",
                     path: "/",
                     maxAge: 15 * 60 * 1000, // 15 minutes
                 });
