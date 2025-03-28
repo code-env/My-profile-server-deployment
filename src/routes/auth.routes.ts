@@ -49,8 +49,8 @@ router.get("/check-email/:email", AuthController.checkEmail);
 router.get("/check-username/:username", AuthController.checkUsername);
 
 // Unified OTP verification route
-router.post("/verify-otp/", AuthController.verifyOTP);
-router.post("/resend-otp/", AuthController.resendOTP);
+router.post("/verify-otp", AuthController.verifyOTP);
+router.post("/resend-otp", AuthController.resendOTP);
 router.post("/select-otp-method", AuthController.selectOTPMethod);
 
 // Email verification
