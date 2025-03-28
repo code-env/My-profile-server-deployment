@@ -44,8 +44,8 @@ router.post("/reset-password", auth_controller_1.AuthController.resetPassword);
 router.get("/check-email/:email", auth_controller_1.AuthController.checkEmail);
 router.get("/check-username/:username", auth_controller_1.AuthController.checkUsername);
 // Unified OTP verification route
-router.post("/verify-otp", auth_controller_1.AuthController.verifyOTP);
-router.post("/resend-otp", auth_controller_1.AuthController.resendOTP);
+router.post("/verify-otp/", auth_controller_1.AuthController.verifyOTP);
+router.post("/resend-otp/", auth_controller_1.AuthController.resendOTP);
 router.post("/select-otp-method", auth_controller_1.AuthController.selectOTPMethod);
 // Email verification
 router.post("/verify-email", auth_controller_1.AuthController.verifyEmail);
