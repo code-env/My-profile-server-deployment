@@ -17,7 +17,9 @@ import {
   claimProfile,
   updateProfileVisibility,
   updateProfileSettings,
-  createClaimableProfile
+  createClaimableProfile,
+  getUserProfilesGrouped,
+
 } from '../controllers/profile.controller';
 
 const router = express.Router();
@@ -34,6 +36,7 @@ router.post('/create-profile',requireRole(['user', 'superadmin', 'admin']), crea
 router.post('/create-claimable', requireRole(['user', 'superadmin', 'admin']), createClaimableProfile);
 router.post('/claim', requireRole(['user', 'superadmin', 'admin']), claimProfile);
 
+router.get('/user-profiles', getUserProfilesGrouped)
 // Profile management
 router.route('/:id')
   .get(checkProfileOwnership, getProfileInfo)
