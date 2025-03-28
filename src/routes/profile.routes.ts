@@ -17,7 +17,7 @@ import {
   claimProfile,
   updateProfileVisibility,
   updateProfileSettings,
-  createClaimableProfile
+  createClaimableProfile,
   getUserProfilesGrouped,
 
 } from '../controllers/profile.controller';

@@ -972,12 +972,12 @@ export const updateProfileSettings = asyncHandler(async (req: Request, res: Resp
 // @route   GET /api/profiles/user-profiles?category= individual | functional | group
 // @access  Private
 export const getUserProfilesGrouped = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  // const user = {
-  //   _id: "67e41de4bc8ce32407f11e1c",
-  //   role: "user",
-  //   token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-  // };
-  const user = req.user as RequestUser;
+  const user = {
+    _id: "67e41de4bc8ce32407f11e1c",
+    role: "user",
+    token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+  };
+  // const user = req.user as RequestUser;
 
   if (!user) {
     throw createHttpError(401, 'Unauthorized');
