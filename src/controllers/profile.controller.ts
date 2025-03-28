@@ -27,13 +27,14 @@ const profileService = new ProfileService();
 // @access  Private
 export const createProfile = asyncHandler(async (req: Request, res: Response) => {
   try {
-    // const user = req.user as any;
-    const user = {
-      "_id":"67deb94fd0eac9122a27148b",
-      "role":"user",
-      "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-    }
+    const user = req.user as any;
+    // const user = {
+    //   "_id":"67e41de4bc8ce32407f11e1c",
+    //   "role":"user",
+    //   "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+    // }
 
+    
     // Check user's subscription limits
     const userDoc = await User.findById(user._id).populate('profiles');
     if (!userDoc) {
@@ -84,7 +85,7 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
       description: description || '',
       type,
       role: role || 'Owner',
-      profileCategory:type.category,
+      profileCategory:type.category.toLocaleLowerCase(),
       details,
       owner: user._id,
       managers: [user._id],
@@ -997,6 +998,7 @@ export const getUserProfilesGrouped = asyncHandler(async (req: Request, res: Res
     { $match: matchQuery },
     {
       $project: {
+        _id: 1,
         name: 1,
         details: 1,
         type: 1,
@@ -1007,7 +1009,7 @@ export const getUserProfilesGrouped = asyncHandler(async (req: Request, res: Res
     {
       $group: {
         _id: "$type.category",
-        profiles: { $push: { name: "$name", details:"$details",type: "$type", createdAt: "$createdAt" } }
+        profiles: { $push: { _id:"$_id", name: "$name", details:"$details",type: "$type", createdAt: "$createdAt" } }
       }
     }
   ];
