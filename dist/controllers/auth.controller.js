@@ -196,7 +196,12 @@ class AuthController {
                 return;
             }
             // Generate tokens
-            const tokens = auth_service_1.AuthService.generateTokens(result.userId, result.userId);
+            // Fetch user to get email
+            const user = await User_1.User.findById(result.userId).select('email');
+            if (!user) {
+                throw new Error('User not found');
+            }
+            const tokens = auth_service_1.AuthService.generateTokens(result.userId, user.email);
             // Set tokens in HTTP-only cookies
             res.cookie("accesstoken", tokens.accessToken, {
                 httpOnly: true,
@@ -430,14 +435,14 @@ class AuthController {
                         httpOnly: true,
                         secure: process.env.NODE_ENV === "production",
                         path: "/",
-                        maxAge: 15 * 60 * 1000, // 15 minutes
+                        maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
                     });
                     res.cookie("refreshtoken", tokens.refreshToken, {
                         httpOnly: true,
                         secure: process.env.NODE_ENV === "production",
                         sameSite: "lax",
                         path: "/",
-                        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+                        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
                     });
                     return res.json({
                         success: true,
@@ -536,14 +541,14 @@ class AuthController {
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
-                maxAge: 15 * 60 * 1000, // 15 minutes
+                maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
             });
             res.cookie("refreshtoken", tokens.refreshToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
-                maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+                maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
             });
             console.log("✅ Token rotation completed successfully");
             // Send response
@@ -768,7 +773,7 @@ class AuthController {
                     secure: process.env.NODE_ENV === "production",
                     sameSite: "lax",
                     path: "/",
-                    maxAge: 15 * 60 * 1000, // 15 minutes
+                    maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
                 });
                 // Send success response
                 return res.status(200).json({

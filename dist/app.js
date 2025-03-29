@@ -312,13 +312,8 @@ class AppServer {
      */
     async validateLicense() {
         // Skip all license validation in production
-<<<<<<< HEAD
         if (process.env.BYPASS_LICENSE === "true") {
             logger_1.logger.info("✅ License validation skipped in production environment");
-=======
-        if (process.env.BYPASS_LICENSE === 'true') {
-            logger_1.logger.info('✅ License validation skipped in production environment');
->>>>>>> 59ac3a64161c63c3bb3cf407987000fbd8a3db0d
             return;
         }
         try {
@@ -342,15 +337,9 @@ class AppServer {
             }
         }
         catch (error) {
-<<<<<<< HEAD
             logger_1.logger.error("License validation error:", error);
             if (process.env.BYPASS_LICENSE === "true") {
                 logger_1.logger.warn("Continuing in production despite license error");
-=======
-            logger_1.logger.error('License validation error:', error);
-            if (process.env.BYPASS_LICENSE === 'true') {
-                logger_1.logger.warn('Continuing in production despite license error');
->>>>>>> 59ac3a64161c63c3bb3cf407987000fbd8a3db0d
                 return;
             }
             throw error;

@@ -53,7 +53,7 @@ const profileSchema = new mongoose_1.Schema({
     profileCategory: {
         type: String,
         required: true,
-        enum: ['Functional', 'Group', 'Individual', 'academic',],
+        enum: ['functional', 'group', 'individual', 'academic',],
         index: true,
     },
     owner: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, index: true },

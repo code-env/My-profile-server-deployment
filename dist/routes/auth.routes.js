@@ -99,12 +99,30 @@ router.post("/2fa/validate", auth_controller_1.AuthController.validate2FA);
 // User management routes
 router.get("/user/:id", async (req, res) => {
     try {
+        // Add debug logging
+        console.log('Received request for user:', req.params.id);
+        console.log('Authorization header:', req.headers.authorization);
         const user = await auth_service_1.AuthService.getUser(req.params.id);
-        res.status(200).json({ success: true, user });
+        // Ensure we're returning the expected fields
+        const sanitizedUser = {
+            _id: user._id,
+            email: user.email,
+            username: user.username || user.email.split('@')[0],
+            profileImage: user.profileImage
+        };
+        console.log('Returning user data:', sanitizedUser);
+        res.status(200).json({
+            success: true,
+            user: sanitizedUser
+        });
     }
     catch (error) {
-        logger_1.logger.error("Get user error:", error);
-        res.status(500).json({ success: false, message: "Failed to get user." });
+        console.error("Get user error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to get user.",
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
     }
 });
 router.put("/user/:id", async (req, res) => {
