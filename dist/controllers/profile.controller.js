@@ -843,6 +843,7 @@ exports.getUserProfilesGrouped = (0, express_async_handler_1.default)(async (req
             $project: {
                 _id: 1,
                 name: 1,
+                owner: 1,
                 details: 1,
                 type: 1,
                 createdAt: 1,
@@ -852,7 +853,8 @@ exports.getUserProfilesGrouped = (0, express_async_handler_1.default)(async (req
         {
             $group: {
                 _id: "$type.category",
-                profiles: { $push: { _id: "$_id", name: "$name", details: "$details", type: "$type", createdAt: "$createdAt" } }
+                profiles: { $push: { _id: "$_id", name: "$name", details: "$details", type: "$type", owner: "$owner", createdAt: "$createdAt" } }
+
             }
         }
     ];
@@ -918,7 +920,15 @@ function buildUpdateQuery(obj, prefix = '') {
  */
 exports.updateProfileNew = (0, express_async_handler_1.default)(async (req, res) => {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = {
+        "categories": {
+            "about": {
+                "interestAndGoals": {
+                    "content": "my first profile created"
+                }
+            }
+        }
+    };
     // Validate profile ID
     if (!(0, mongoose_1.isValidObjectId)(id)) {
         throw (0, http_errors_1.default)(400, 'Invalid profile ID');
@@ -939,11 +949,11 @@ exports.updateProfileNew = (0, express_async_handler_1.default)(async (req, res)
     //   throw createHttpError(403, 'You do not have permission to update this profile');
     // }
     // Remove protected fields from updates
-    delete updates.owner;
-    delete updates.managers;
-    delete updates.claimed;
-    delete updates.claimedBy;
-    delete updates.qrCode;
+    // delete updates.owner;
+    // delete updates.managers;
+    // delete updates.claimed;
+    // delete updates.claimedBy;
+    // delete updates.qrCode;
     // Flatten the update payload into dot notation
     const flattenedUpdates = buildUpdateQuery(updates);
     // Separate scalar updates from array updates
