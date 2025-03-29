@@ -14,7 +14,7 @@ exports.registerSchema = zod_1.z.object({
     fullName: zod_1.z.string().min(2, 'Full name must be at least 2 characters'),
     username: zod_1.z.string()
         .min(3, 'Username must be at least 3 characters')
-        .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
+        .regex(/^[a-zA-Z0-9_~]+$/, 'Username can only contain letters, numbers, underscores, and the ~ symbol'),
     accountType: zod_1.z.enum(['MYSELF', 'SOMEONE_ELSE']),
     dateOfBirth: zod_1.z.string(),
     countryOfResidence: zod_1.z.string(),
