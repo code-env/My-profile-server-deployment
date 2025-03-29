@@ -54,8 +54,8 @@ import { sanitizeFilter } from "mongoose";
 export class AuthService {
   public static readonly MAX_LOGIN_ATTEMPTS = 20000;
   private static readonly LOCK_TIME_MINUTES = 15;
-  private static readonly ACCESS_TOKEN_EXPIRY = "1h";
-  private static readonly REFRESH_TOKEN_EXPIRY = "7d";
+  private static readonly ACCESS_TOKEN_EXPIRY = "24h";    // Increased
+  private static readonly REFRESH_TOKEN_EXPIRY = "30d";   // Increased
   public static readonly OTP_EXPIRY_MINUTES = 10;
 
   static async register(

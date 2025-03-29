@@ -56,8 +56,8 @@ const envSchema = z.object({
   // Security & Authentication
   JWT_SECRET: z.string(),
   JWT_REFRESH_SECRET: z.string(),
-  JWT_ACCESS_EXPIRATION: z.string().default("15m"),
-  JWT_REFRESH_EXPIRATION: z.string().default("7d"),
+  JWT_ACCESS_EXPIRATION: z.string().default("24h"),  // Increased
+  JWT_REFRESH_EXPIRATION: z.string().default("30d"), // Increased
   COOKIE_SECRET: z.string(),
 
   // SSL Configuration

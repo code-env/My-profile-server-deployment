@@ -317,7 +317,7 @@ export class AuthController {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 15 * 60 * 1000, // 15 minutes
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
       });
 
       res.cookie("refreshtoken", tokens.refreshToken, {
@@ -325,7 +325,7 @@ export class AuthController {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
 
       res.status(200).json({
