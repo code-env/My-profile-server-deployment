@@ -539,44 +539,44 @@ export class AuthController {
     try {
       const { _id, otp, verificationMethod } = req.body;
       const motive = req.body.motive || "login"; // Default to "login"
-  
+
       if (!_id || !otp || !verificationMethod) {
         return res.status(400).json({
           success: false,
           message: "Missing required fields: _id, otp, or verificationMethod",
         });
       }
-  
+
       // Call the verifyOTP method
       const result = await AuthService.verifyOTPResponse(
         _id,
         otp,
         verificationMethod.toLowerCase()
       );
-  
+
       if (result.success) {
         const user = result.user;
-  
+
         // If motive is "login", return full user details with tokens
         if (motive === "login") {
           const tokens = AuthService.generateTokens(_id, user!.email);
-  
+
           // Set cookies
-          res.cookie("accesstoken", tokens.accessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            path: "/",
-            maxAge: 15 * 60 * 1000, // 15 minutes
-          });
-  
-          res.cookie("refreshtoken", tokens.refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-          });
-  
+      res.cookie("accesstoken", tokens.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
+      });
+
+      res.cookie("refreshtoken", tokens.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
+      });
+
           return res.json({
             success: true,
             message: "OTP verified successfully",
@@ -589,7 +589,7 @@ export class AuthController {
             }
           });
         }
-  
+
         // Handle other motives
         let responseUser = {};
         switch (motive) {
@@ -605,14 +605,14 @@ export class AuthController {
           default:
             responseUser = {}; // No user details for unknown motives
         }
-  
+
         return res.json({
           success: true,
           message: "OTP verified successfully",
           user: responseUser,
         });
       }
-  
+
       return res.status(400).json({
         success: false,
         message: result.message || "Invalid OTP",
@@ -625,7 +625,7 @@ export class AuthController {
       });
     }
   }
-  
+
 
   /**
    * Refresh user's access token using a valid refresh token
@@ -681,7 +681,7 @@ export class AuthController {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 15 * 60 * 1000, // 15 minutes
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
       });
 
       res.cookie("refreshtoken", tokens.refreshToken, {
@@ -689,7 +689,7 @@ export class AuthController {
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
       });
       console.log("✅ Token rotation completed successfully");
 
@@ -936,7 +936,7 @@ export class AuthController {
           secure: process.env.NODE_ENV === "production",
           sameSite: "lax",
           path: "/",
-          maxAge: 15 * 60 * 1000, // 15 minutes
+          maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
         });
 
         // Send success response
