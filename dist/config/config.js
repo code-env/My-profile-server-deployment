@@ -59,8 +59,8 @@ const envSchema = zod_1.z.object({
     // Security & Authentication
     JWT_SECRET: zod_1.z.string(),
     JWT_REFRESH_SECRET: zod_1.z.string(),
-    JWT_ACCESS_EXPIRATION: zod_1.z.string().default("15m"),
-    JWT_REFRESH_EXPIRATION: zod_1.z.string().default("7d"),
+    JWT_ACCESS_EXPIRATION: zod_1.z.string().default("24h"), // Increased
+    JWT_REFRESH_EXPIRATION: zod_1.z.string().default("30d"), // Increased
     COOKIE_SECRET: zod_1.z.string(),
     // SSL Configuration
     SSL_KEY_PATH: zod_1.z.string().optional(),

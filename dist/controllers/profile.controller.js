@@ -854,6 +854,7 @@ exports.getUserProfilesGrouped = (0, express_async_handler_1.default)(async (req
             $group: {
                 _id: "$type.category",
                 profiles: { $push: { _id: "$_id", name: "$name", details: "$details", type: "$type", owner: "$owner", createdAt: "$createdAt" } }
+
             }
         }
     ];

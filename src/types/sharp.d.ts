@@ -10,8 +10,8 @@ declare module 'sharp' {
 
   // Custom method example
   export function enhancedResize(
-    width: number, 
-    height: number, 
+    width: number,
+    height: number,
     options?: SharpOptions
   ): sharp.Sharp;
 

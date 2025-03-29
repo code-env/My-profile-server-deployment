@@ -646,6 +646,6 @@ class AuthService {
 exports.AuthService = AuthService;
 AuthService.MAX_LOGIN_ATTEMPTS = 20000;
 AuthService.LOCK_TIME_MINUTES = 15;
-AuthService.ACCESS_TOKEN_EXPIRY = "1h";
-AuthService.REFRESH_TOKEN_EXPIRY = "7d";
+AuthService.ACCESS_TOKEN_EXPIRY = "24h"; // Increased
+AuthService.REFRESH_TOKEN_EXPIRY = "30d"; // Increased
 AuthService.OTP_EXPIRY_MINUTES = 10;

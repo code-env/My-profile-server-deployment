@@ -196,21 +196,26 @@ class AuthController {
                 return;
             }
             // Generate tokens
-            const tokens = auth_service_1.AuthService.generateTokens(result.userId, result.userId);
+            // Fetch user to get email
+            const user = await User_1.User.findById(result.userId).select('email');
+            if (!user) {
+                throw new Error('User not found');
+            }
+            const tokens = auth_service_1.AuthService.generateTokens(result.userId, user.email);
             // Set tokens in HTTP-only cookies
             res.cookie("accesstoken", tokens.accessToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
-                maxAge: 15 * 60 * 1000, // 15 minutes
+                maxAge: 24 * 60 * 60 * 1000, // 24 hours
             });
             res.cookie("refreshtoken", tokens.refreshToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
-                maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+                maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
             });
             res.status(200).json({
                 success: true,
@@ -409,9 +414,9 @@ class AuthController {
      * ```
      */
     static async verifyOTP(req, res) {
-        var _a, _b, _c, _d;
         try {
             const { _id, otp, verificationMethod } = req.body;
+            const motive = req.body.motive || "login"; // Default to "login"
             if (!_id || !otp || !verificationMethod) {
                 return res.status(400).json({
                     success: false,
@@ -421,32 +426,55 @@ class AuthController {
             // Call the verifyOTP method
             const result = await auth_service_1.AuthService.verifyOTPResponse(_id, otp, verificationMethod.toLowerCase());
             if (result.success) {
-                // Generate tokens only after successful verification
-                const tokens = auth_service_1.AuthService.generateTokens(_id, result.user.email);
-                // Set cookies
-                res.cookie("accesstoken", tokens.accessToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === "production",
-                    path: "/",
-                    maxAge: 15 * 60 * 1000, // 15 minutes
-                });
-                res.cookie("refreshtoken", tokens.refreshToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === "production",
-                    sameSite: "lax",
-                    path: "/",
-                    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-                });
+                const user = result.user;
+                // If motive is "login", return full user details with tokens
+                if (motive === "login") {
+                    const tokens = auth_service_1.AuthService.generateTokens(_id, user.email);
+                    // Set cookies
+                    res.cookie("accesstoken", tokens.accessToken, {
+                        httpOnly: true,
+                        secure: process.env.NODE_ENV === "production",
+                        path: "/",
+                        maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
+                    });
+                    res.cookie("refreshtoken", tokens.refreshToken, {
+                        httpOnly: true,
+                        secure: process.env.NODE_ENV === "production",
+                        sameSite: "lax",
+                        path: "/",
+                        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
+                    });
+                    return res.json({
+                        success: true,
+                        message: "OTP verified successfully",
+                        tokens,
+                        user: {
+                            _id: user === null || user === void 0 ? void 0 : user._id,
+                            email: user === null || user === void 0 ? void 0 : user.email,
+                            username: user === null || user === void 0 ? void 0 : user.username,
+                            fullname: user === null || user === void 0 ? void 0 : user.fullName,
+                        }
+                    });
+                }
+                // Handle other motives
+                let responseUser = {};
+                switch (motive) {
+                    case "forgot_username":
+                        responseUser = { username: user === null || user === void 0 ? void 0 : user.username };
+                        break;
+                    case "forgot_email":
+                        responseUser = { email: user === null || user === void 0 ? void 0 : user.email };
+                        break;
+                    case "forgot_password":
+                        responseUser = { email: user === null || user === void 0 ? void 0 : user.email }; // Assuming password reset needs an email
+                        break;
+                    default:
+                        responseUser = {}; // No user details for unknown motives
+                }
                 return res.json({
                     success: true,
                     message: "OTP verified successfully",
-                    tokens,
-                    user: {
-                        _id: (_a = result.user) === null || _a === void 0 ? void 0 : _a._id,
-                        email: (_b = result.user) === null || _b === void 0 ? void 0 : _b.email,
-                        username: (_c = result.user) === null || _c === void 0 ? void 0 : _c.username,
-                        fullname: (_d = result.user) === null || _d === void 0 ? void 0 : _d.fullName,
-                    }
+                    user: responseUser,
                 });
             }
             return res.status(400).json({
@@ -513,14 +541,14 @@ class AuthController {
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
-                maxAge: 15 * 60 * 1000, // 15 minutes
+                maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
             });
             res.cookie("refreshtoken", tokens.refreshToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
-                maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+                maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
             });
             console.log("✅ Token rotation completed successfully");
             // Send response
@@ -745,7 +773,7 @@ class AuthController {
                     secure: process.env.NODE_ENV === "production",
                     sameSite: "lax",
                     path: "/",
-                    maxAge: 15 * 60 * 1000, // 15 minutes
+                    maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
                 });
                 // Send success response
                 return res.status(200).json({
@@ -937,6 +965,12 @@ class AuthController {
                     message: "Missing required fields: _id",
                 });
             }
+            if (_id.length !== 24) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid user ID",
+                });
+            }
             // Find user
             const user = await User_1.User.findById(_id);
             if (!user) {
@@ -1072,83 +1106,130 @@ class AuthController {
         }
     }
     /**
-     * Handle trouble logging in by providing personalized assistance
-     *
-     * @route POST /api/auth/trouble-login
-     * @param {Request} req Express request object
-     * @param {Response} res Express response object
-     *
-     * @returns {Promise<void>} JSON response with helpful next steps
-     */
+   * Handle trouble logging in by providing personalized assistance
+   *
+   * @route POST /api/auth/trouble-login
+   * @param {Request} req Express request object
+   * @param {Response} res Express response object
+   *
+   * @returns {Promise<void>} JSON response with helpful next steps
+   */
     static async troubleLogin(req, res) {
         try {
-            const { email, issue } = req.body;
-            // Find user
-            const user = await User_1.User.findOne({ email: email.toLowerCase() });
+            const { identifier, issue, verificationMethod } = req.body;
+            // Validate request payload
+            if (!identifier) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Identifier (email, username, or phone) is required",
+                });
+            }
+            if (!issue) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Issue is required",
+                });
+            }
+            // Find user based on identifier
+            const user = await User_1.User.findOne({
+                $or: [
+                    { email: identifier.toLowerCase() },
+                    { username: identifier.toLowerCase() },
+                    { phoneNumber: identifier },
+                ],
+            });
             if (!user) {
                 return res.json({
                     success: true,
                     message: "If an account exists with this email, we'll send instructions to help you log in.",
                     nextSteps: [
                         "Check if you used the correct email address",
-                        "Try creating a new account if you haven't registered"
-                    ]
+                        "Try creating a new account if you haven't registered",
+                    ],
                 });
             }
-            // Determine appropriate help based on issue
-            let nextSteps = [];
-            switch (issue) {
-                case 'forgot_password':
-                    // Generate password reset token
-                    const resetToken = (0, crypto_1.randomBytes)(32).toString("hex");
-                    await auth_service_1.AuthService.setResetToken(email, resetToken);
-                    // Send reset email
-                    const resetUrl = `${config_1.config.CLIENT_URL}/reset-password?token=${resetToken}`;
-                    await email_service_1.default.sendPasswordResetEmail(email, resetToken, {
-                        ipAddress: req.ip,
-                        userAgent: req.get('user-agent') || 'unknown'
-                    });
-                    nextSteps = [
-                        "Check your email for password reset instructions",
-                        "Follow the link in the email to create a new password",
-                        "If you don't receive the email, check your spam folder"
-                    ];
-                    break;
-                case 'account_locked':
-                    nextSteps = [
+            // Function to get next steps based on issue
+            const getNextSteps = (method, issue) => {
+                const commonSteps = {
+                    account_locked: [
                         "Your account will automatically unlock after 1 hour",
                         "Contact support if you need immediate assistance",
-                        "Enable 2FA to prevent future lockouts"
-                    ];
-                    break;
-                case '2fa_issues':
-                    nextSteps = [
+                        "Enable 2FA to prevent future lockouts",
+                    ],
+                    "2fa_issues": [
                         "Make sure your device's time is correctly synchronized",
                         "Use backup codes if you've lost access to your authenticator app",
-                        "Contact support if you've lost access to your 2FA device"
-                    ];
-                    break;
-                default:
-                    nextSteps = [
-                        "Make sure you're using the correct email and password",
-                        "Check if Caps Lock is turned on",
+                        "Contact support if you've lost access to your 2FA device",
+                    ],
+                    default: [
+                        "Ensure you're using the correct credentials",
+                        "Check if Caps Lock is on",
                         "Reset your password if you can't remember it",
-                        "Contact support if you continue having problems"
-                    ];
+                        "Contact support if you continue having problems",
+                    ],
+                };
+                if (issue === "forgot_password" || "forgot_username" || "forgot_email") {
+                    return method === "EMAIL"
+                        ? [
+                            "Check your email for a verification code",
+                            "Enter the code to reset your password",
+                            "If you don't receive the email, check your spam folder",
+                        ]
+                        : [
+                            "Check your phone for a verification code",
+                            "Enter the code to reset your password",
+                            "If you don't receive the SMS, check your network signal",
+                        ];
+                }
+                return commonSteps[issue] || commonSteps.default;
+            };
+            // Function to handle password reset
+            const handlePasswordReset = async (method, identifier) => {
+                const otp = generateOTP(6); // Generate 6-digit OTP
+                const expiry = new Date(Date.now() + auth_service_1.AuthService.OTP_EXPIRY_MINUTES * 60 * 1000);
+                // Store OTP in user record
+                user.verificationData = {
+                    otp,
+                    otpExpiry: expiry,
+                    attempts: 0,
+                    lastAttempt: new Date(),
+                };
+                await user.save();
+                if (method === "EMAIL") {
+                    await email_service_1.default.sendVerificationEmail(user.email, otp, {
+                        ipAddress: req.ip,
+                        userAgent: req.get("user-agent") || "unknown",
+                    });
+                    logger_1.logger.info(`🔐 Password Reset OTP (Email): ${otp}`);
+                }
+                else {
+                    await whatsapp_service_1.default.sendOTPMessage(user.phoneNumber, otp);
+                    //TODO: Send OTP via SMS
+                    logger_1.logger.info(`🔐 Password Reset OTP (Phone): ${otp}`);
+                }
+                return otp;
+            };
+            // Trigger password reset if necessary
+            let otpSent = null;
+            if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email") {
+                otpSent = await handlePasswordReset(verificationMethod, identifier.toLowerCase());
             }
-            res.json({
+            // Response with next steps
+            return res.json({
                 success: true,
                 message: "We've identified some steps to help you log in",
-                nextSteps,
+                nextSteps: getNextSteps(verificationMethod, issue),
+                userId: user._id,
+                otpSent, // Include OTP in response only for testing/debugging (remove in production)
                 supportEmail: config_1.config.SMTP_FROM,
-                supportPhone: config_1.config.SUPPORT_PHONE
+                supportPhone: config_1.config.SUPPORT_PHONE,
             });
         }
         catch (error) {
-            logger_1.logger.error('Trouble login error:', error);
-            res.status(500).json({
+            logger_1.logger.error("Trouble login error:", error);
+            return res.status(500).json({
                 success: false,
-                message: 'Error processing your request. Please try again later.'
+                message: "Error processing your request. Please try again later.",
             });
         }
     }

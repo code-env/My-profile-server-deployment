@@ -148,23 +148,23 @@ class AppServer {
      */
     configureMiddleware() {
         // Serve static files from public directory before security middleware
-        this.app.use('/public', express_1.default.static('public', {
-            maxAge: '1d',
+        this.app.use("/public", express_1.default.static("public", {
+            maxAge: "1d",
             index: false,
             setHeaders: (res, path) => {
-                if (path.endsWith('.css')) {
-                    res.setHeader('Content-Type', 'text/css');
+                if (path.endsWith(".css")) {
+                    res.setHeader("Content-Type", "text/css");
                 }
-                else if (path.endsWith('.js')) {
-                    res.setHeader('Content-Type', 'application/javascript');
+                else if (path.endsWith(".js")) {
+                    res.setHeader("Content-Type", "application/javascript");
                 }
-                else if (path.endsWith('.png')) {
-                    res.setHeader('Content-Type', 'image/png');
+                else if (path.endsWith(".png")) {
+                    res.setHeader("Content-Type", "image/png");
                 }
-            }
+            },
         }));
         // Only add license validation middleware in non-production environments
-        if (process.env.NODE_ENV !== 'production') {
+        if (process.env.NODE_ENV !== "production") {
             this.app.use(license_middleware_1.validateLicenseMiddleware);
         }
         this.app.use((0, performance_middleware_1.monitorPerformance)());
@@ -174,20 +174,31 @@ class AppServer {
                     defaultSrc: ["'self'"],
                     scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
                     scriptSrcAttr: ["'unsafe-inline'"],
-                    styleSrc: ["'self'", "'unsafe-inline'", "https:", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
-                    imgSrc: ["'self'", 'data:', 'https:'],
+                    styleSrc: [
+                        "'self'",
+                        "'unsafe-inline'",
+                        "https:",
+                        "https://fonts.googleapis.com",
+                        "https://cdnjs.cloudflare.com",
+                    ],
+                    imgSrc: ["'self'", "data:", "https:"],
                     connectSrc: ["'self'", "ws:", "wss:"],
-                    fontSrc: ["'self'", "https:", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
+                    fontSrc: [
+                        "'self'",
+                        "https:",
+                        "https://fonts.gstatic.com",
+                        "https://cdnjs.cloudflare.com",
+                    ],
                     objectSrc: ["'none'"],
                     mediaSrc: ["'self'"],
                     frameSrc: ["'none'"],
                 },
             },
             crossOriginEmbedderPolicy: true,
-            crossOriginOpenerPolicy: { policy: 'same-origin' },
-            crossOriginResourcePolicy: { policy: 'same-site' },
+            crossOriginOpenerPolicy: { policy: "same-origin" },
+            crossOriginResourcePolicy: { policy: "same-site" },
             dnsPrefetchControl: { allow: false },
-            frameguard: { action: 'deny' },
+            frameguard: { action: "deny" },
             hidePoweredBy: true,
             hsts: {
                 maxAge: 31536000,
@@ -196,30 +207,30 @@ class AppServer {
             },
             ieNoOpen: true,
             noSniff: true,
-            referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+            referrerPolicy: { policy: "strict-origin-when-cross-origin" },
             xssFilter: true,
         }));
         this.app.use((0, cors_1.default)({
             origin: cors_config_1.whitelistOrigins,
             credentials: true,
-            methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-            allowedHeaders: ['Content-Type', 'Authorization'],
-            exposedHeaders: ['Content-Range', 'X-Content-Range'],
+            methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+            exposedHeaders: ["Content-Range", "X-Content-Range"],
             maxAge: 600,
         }));
         // Add advanced tracking middleware after security headers but before routes
         // Configure morgan with advanced tracking format
-        const morganFormat = ':method :url :status :response-time ms - :res[content-length] - IP: :remote-addr - :user-agent';
+        const morganFormat = ":method :url :status :response-time ms - :res[content-length] - IP: :remote-addr - :user-agent";
         this.app.use((0, morgan_1.default)(morganFormat, {
             stream: {
                 write: (message) => {
                     logger_1.logger.http(message.trim());
-                }
-            }
+                },
+            },
         }));
         this.app.use(advanced_tracking_middleware_1.advancedTrackingMiddleware);
-        this.app.use(express_1.default.json({ limit: '10mb' }));
-        this.app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
+        this.app.use(express_1.default.json({ limit: "10mb" }));
+        this.app.use(express_1.default.urlencoded({ extended: true, limit: "10mb" }));
         this.app.use((0, cookie_parser_1.default)(config_1.config.COOKIE_SECRET));
         this.app.use((0, compression_1.default)());
         this.app.use(rate_limiter_middleware_1.rateLimiterMiddleware);
@@ -262,20 +273,20 @@ class AppServer {
      */
     configureErrorHandling() {
         this.app.use(error_middleware_1.errorHandler);
-        process.on('uncaughtException', (error) => {
-            logger_1.logger.error('Uncaught Exception:', error);
-            if (process.env.NODE_ENV === 'development') {
-                console.error('Development mode - continuing despite error:', error);
+        process.on("uncaughtException", (error) => {
+            logger_1.logger.error("Uncaught Exception:", error);
+            if (process.env.NODE_ENV === "development") {
+                console.error("Development mode - continuing despite error:", error);
             }
             else {
                 this.shutdown(1);
             }
         });
-        process.on('unhandledRejection', (reason) => {
-            logger_1.logger.error('Unhandled Rejection:', reason);
+        process.on("unhandledRejection", (reason) => {
+            logger_1.logger.error("Unhandled Rejection:", reason);
         });
-        process.on('SIGTERM', () => this.shutdown(0));
-        process.on('SIGINT', () => this.shutdown(0));
+        process.on("SIGTERM", () => this.shutdown(0));
+        process.on("SIGINT", () => this.shutdown(0));
     }
     /**
      * @private
@@ -301,34 +312,34 @@ class AppServer {
      */
     async validateLicense() {
         // Skip all license validation in production
-        if (process.env.BYPASS_LICENSE === 'true') {
-            logger_1.logger.info('✅ License validation skipped in production environment');
+        if (process.env.BYPASS_LICENSE === "true") {
+            logger_1.logger.info("✅ License validation skipped in production environment");
             return;
         }
         try {
             const licenseKey = process.env.LICENSE_KEY;
-            const deviceId = require('os').hostname();
-            const ipAddress = '127.0.0.1'; // Local server
+            const deviceId = require("os").hostname();
+            const ipAddress = "127.0.0.1"; // Local server
             if (!licenseKey) {
-                throw new Error('LICENSE_KEY environment variable is required');
+                throw new Error("LICENSE_KEY environment variable is required");
             }
             if (!process.env.COMPANY_SECRET) {
-                throw new Error('COMPANY_SECRET environment variable is required');
+                throw new Error("COMPANY_SECRET environment variable is required");
             }
             // Validate license
             const validationResult = await license_service_1.licenseService.validateLicense(licenseKey, deviceId, ipAddress);
             if (!validationResult.isValid) {
                 throw new Error(`License validation failed: ${validationResult.error}`);
             }
-            logger_1.logger.info('✅ License validated successfully');
+            logger_1.logger.info("✅ License validated successfully");
             if (validationResult.employeeInfo) {
                 logger_1.logger.info(`Licensed to: ${validationResult.employeeInfo.name}`);
             }
         }
         catch (error) {
-            logger_1.logger.error('License validation error:', error);
-            if (process.env.BYPASS_LICENSE === 'true') {
-                logger_1.logger.warn('Continuing in production despite license error');
+            logger_1.logger.error("License validation error:", error);
+            if (process.env.BYPASS_LICENSE === "true") {
+                logger_1.logger.warn("Continuing in production despite license error");
                 return;
             }
             throw error;
@@ -360,19 +371,19 @@ class AppServer {
         while (retryCount < maxRetries) {
             try {
                 await mongoose_1.default.connect(config_1.config.MONGODB_URI, {
-                    authSource: 'admin',
+                    authSource: "admin",
                     maxPoolSize: 10,
                     minPoolSize: 2,
                     connectTimeoutMS: 10000,
                     socketTimeoutMS: 45000,
                     serverSelectionTimeoutMS: 10000,
                 });
-                const { log } = require('./utils/console-art');
-                log.success('MongoDB Connection Established');
-                log.info('Connection Details:');
+                const { log } = require("./utils/console-art");
+                log.success("MongoDB Connection Established");
+                log.info("Connection Details:");
                 console.log(chalk_1.default.cyan(`   • Database URL: ${chalk_1.default.bold(config_1.config.MONGODB_URI)}`));
-                console.log(chalk_1.default.cyan(`   • Pool Size: ${chalk_1.default.bold(mongoose_1.default.connection.config.maxPoolSize || 'default')}`));
-                console.log(chalk_1.default.cyan(`   • Database: ${chalk_1.default.bold(((_a = mongoose_1.default.connection.db) === null || _a === void 0 ? void 0 : _a.databaseName) || 'unknown')}`));
+                console.log(chalk_1.default.cyan(`   • Pool Size: ${chalk_1.default.bold(mongoose_1.default.connection.config.maxPoolSize || "default")}`));
+                console.log(chalk_1.default.cyan(`   • Database: ${chalk_1.default.bold(((_a = mongoose_1.default.connection.db) === null || _a === void 0 ? void 0 : _a.databaseName) || "unknown")}`));
                 break;
             }
             catch (error) {
@@ -380,7 +391,7 @@ class AppServer {
                 logger_1.logger.error(`Database connection attempt ${retryCount} failed:`, error);
                 if (retryCount === maxRetries)
                     throw error;
-                await new Promise(resolve => setTimeout(resolve, 5000 * retryCount));
+                await new Promise((resolve) => setTimeout(resolve, 5000 * retryCount));
             }
         }
     }
@@ -405,14 +416,14 @@ class AppServer {
      */
     async start() {
         try {
-            const { log, serverStartupArt } = require('./utils/console-art');
+            const { log, serverStartupArt } = require("./utils/console-art");
             console.log(serverStartupArt);
-            log.highlight('Starting ODIN API Server...');
+            log.highlight("Starting ODIN API Server...");
             log.info(`Environment: ${process.env.NODE_ENV}`);
             (0, env_validator_1.validateEnv)();
             await this.initializeDatabase();
             await whatsapp_service_1.default.initialize().catch((error) => {
-                log.warn('WhatsApp service initialization failed: ' + error.message);
+                log.warn("WhatsApp service initialization failed: " + error.message);
             });
             await this.initializeDatabase();
             // Start WhatsApp service with retries
@@ -431,12 +442,12 @@ class AppServer {
             await initWhatsApp();
             // Always use HTTP server as Render handles SSL/HTTPS
             await this.startHttpServer();
-            console.log('\n' + chalk_1.default.black(chalk_1.default.bgGreen(' SERVER READY ')));
+            console.log("\n" + chalk_1.default.black(chalk_1.default.bgGreen(" SERVER READY ")));
             log.success(`API Server running on port ${config_1.config.PORT}`);
-            log.info('Press CTRL+C to stop the server');
+            log.info("Press CTRL+C to stop the server");
         }
         catch (error) {
-            logger_1.logger.error('Server startup failed:', error);
+            logger_1.logger.error("Server startup failed:", error);
             process.exit(1);
         }
     }
@@ -460,46 +471,48 @@ class AppServer {
         if (this.isShuttingDown)
             return;
         this.isShuttingDown = true;
-        logger_1.logger.info('Initiating graceful shutdown...');
+        logger_1.logger.info("Initiating graceful shutdown...");
         try {
             if (this.server) {
                 await new Promise((resolve, reject) => {
                     this.server.close((err) => {
                         if (err) {
-                            logger_1.logger.error('Error closing server:', err);
+                            logger_1.logger.error("Error closing server:", err);
                             reject(err);
                         }
                         else {
-                            logger_1.logger.info('Server connections closed');
+                            logger_1.logger.info("Server connections closed");
                             resolve();
                         }
                     });
                 });
             }
             await mongoose_1.default.disconnect();
-            logger_1.logger.info('Database connections closed');
-            logger_1.logger.info('Shutdown completed');
+            logger_1.logger.info("Database connections closed");
+            logger_1.logger.info("Shutdown completed");
             process.exit(exitCode);
         }
         catch (error) {
-            logger_1.logger.error('Error during shutdown:', error);
+            logger_1.logger.error("Error during shutdown:", error);
             process.exit(1);
         }
     }
     async startHttpServer() {
         const port = process.env.PORT || config_1.config.PORT;
         await new Promise((resolve, reject) => {
-            this.server = this.app.listen(port, () => {
-                const { initializeWebSocket } = require('./utils/websocket');
+            this.server = this.app
+                .listen(port, () => {
+                const { initializeWebSocket } = require("./utils/websocket");
                 initializeWebSocket(this.server, this.app);
-                const { log } = require('./utils/console-art');
+                const { log } = require("./utils/console-art");
                 log.success(`🚀 Server running on port ${port}`);
-                if (process.env.NODE_ENV === 'production') {
-                    log.info('Running in production mode (SSL/HTTPS handled by Render)');
+                if (process.env.NODE_ENV === "production") {
+                    log.info("Running in production mode (SSL/HTTPS handled by Render)");
                 }
                 resolve();
-            }).on('error', (err) => {
-                logger_1.logger.error('Failed to start HTTP server:', err);
+            })
+                .on("error", (err) => {
+                logger_1.logger.error("Failed to start HTTP server:", err);
                 reject(err);
             });
         });
