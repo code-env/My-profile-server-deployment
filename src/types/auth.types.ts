@@ -16,7 +16,7 @@ export const registerSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
   username: z.string()
     .min(3, 'Username must be at least 3 characters')
-    .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
+    .regex(/^[a-zA-Z0-9_~]+$/, 'Username can only contain letters, numbers, underscores, and the ~ symbol'),
   accountType: z.enum(['MYSELF', 'SOMEONE_ELSE']),
   dateOfBirth: z.string(),
   countryOfResidence: z.string(),
