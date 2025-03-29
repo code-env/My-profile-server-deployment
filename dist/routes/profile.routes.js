@@ -17,6 +17,7 @@ const profileService = new profile_service_1.ProfileService();
 router.post('/create-profile', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.createProfile);
 router.post('/create-claimable', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.createClaimableProfile);
 router.post('/claim', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.claimProfile);
+router.get('/user-profiles', profile_controller_1.getUserProfilesGrouped);
 // Profile management
 router.route('/:id')
     .get(roleMiddleware_1.checkProfileOwnership, profile_controller_1.getProfileInfo)

@@ -8,7 +8,7 @@ router.get('/', UserControllers.GetAllUsers);
 router.delete('/delete/:id', UserControllers.DeleteUserById);
 router.post('/generate-username', UserControllers.GenerateUsername);
 router.get('/profiles/user-profile', getUserProfilesGrouped)
-router.put('/profile-update:/id', updateProfileNew)
+router.get('/profiles/:id', updateProfileNew)
 router.get('/profile', createProfile);
 router.get('/:id', UserControllers.GetUserById);
 
