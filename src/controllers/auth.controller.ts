@@ -538,55 +538,81 @@ export class AuthController {
   static async verifyOTP(req: Request, res: Response) {
     try {
       const { _id, otp, verificationMethod } = req.body;
-
+      const motive = req.body.motive || "login"; // Default to "login"
+  
       if (!_id || !otp || !verificationMethod) {
         return res.status(400).json({
           success: false,
           message: "Missing required fields: _id, otp, or verificationMethod",
         });
       }
-
+  
       // Call the verifyOTP method
       const result = await AuthService.verifyOTPResponse(
         _id,
         otp,
         verificationMethod.toLowerCase()
       );
-
+  
       if (result.success) {
-        // Generate tokens only after successful verification
-        const tokens = AuthService.generateTokens(result.user!.email, _id);
-
-        // Set cookies
-        res.cookie("accesstoken", tokens.accessToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 15 * 60 * 1000, // 15 minutes
-        });
-
-        res.cookie("refreshtoken", tokens.refreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        });
-
+        const user = result.user;
+  
+        // If motive is "login", return full user details with tokens
+        if (motive === "login") {
+          const tokens = AuthService.generateTokens(_id, user!.email);
+  
+          // Set cookies
+          res.cookie("accesstoken", tokens.accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            path: "/",
+            maxAge: 15 * 60 * 1000, // 15 minutes
+          });
+  
+          res.cookie("refreshtoken", tokens.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+          });
+  
+          return res.json({
+            success: true,
+            message: "OTP verified successfully",
+            tokens,
+            user: {
+              _id: user?._id,
+              email: user?.email,
+              username: user?.username,
+              fullname: user?.fullName,
+            }
+          });
+        }
+  
+        // Handle other motives
+        let responseUser = {};
+        switch (motive) {
+          case "forgot_username":
+            responseUser = { username: user?.username };
+            break;
+          case "forgot_email":
+            responseUser = { email: user?.email };
+            break;
+          case "forgot_password":
+            responseUser = { email: user?.email }; // Assuming password reset needs an email
+            break;
+          default:
+            responseUser = {}; // No user details for unknown motives
+        }
+  
         return res.json({
           success: true,
           message: "OTP verified successfully",
-          tokens,
-          user:{
-            _id:result.user?._id,
-            email:result.user?.email,
-            username:result.user?.username,
-            fullname:result.user?.fullName,
-          }
+          user: responseUser,
         });
       }
-
+  
       return res.status(400).json({
         success: false,
         message: result.message || "Invalid OTP",
@@ -595,11 +621,11 @@ export class AuthController {
       logger.error("OTP verification error:", error);
       res.status(400).json({
         success: false,
-        message:
-          error instanceof Error ? error.message : "Failed to verify OTP",
+        message: error instanceof Error ? error.message : "Failed to verify OTP",
       });
     }
   }
+  
 
   /**
    * Refresh user's access token using a valid refresh token
@@ -637,50 +663,50 @@ export class AuthController {
    * ```
    */
   static async refreshToken(req: Request, res: Response) {
-   try {
-     const refreshToken = req.cookies.refreshtoken || req.body.refreshToken;
-     if (!refreshToken) {
-       throw new CustomError("MISSING_TOKEN", "Refresh token is required");
-     }
+    try {
+      const refreshToken = req.cookies.refreshtoken || req.body.refreshToken;
+      if (!refreshToken) {
+        throw new CustomError("MISSING_TOKEN", "Refresh token is required");
+      }
 
-     // Get request info for security tracking
-     const clientInfo = await getClientInfo(req);
+      // Get request info for security tracking
+      const clientInfo = await getClientInfo(req);
 
-     // Call AuthService to handle token refresh
-     const tokens = await AuthService.refreshAccessToken(refreshToken);
+      // Call AuthService to handle token refresh
+      const tokens = await AuthService.refreshAccessToken(refreshToken);
 
-     // Set new tokens in cookies
-     res.cookie("accesstoken", tokens.accessToken, {
-       httpOnly: true,
-       secure: process.env.NODE_ENV === "production",
-       sameSite: "lax",
-       path: "/",
-       maxAge: 15 * 60 * 1000, // 15 minutes
-     });
+      // Set new tokens in cookies
+      res.cookie("accesstoken", tokens.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 15 * 60 * 1000, // 15 minutes
+      });
 
-     res.cookie("refreshtoken", tokens.refreshToken, {
-       httpOnly: true,
-       secure: process.env.NODE_ENV === "production",
-       sameSite: "lax",
-       path: "/",
-       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-     });
-     console.log("✅ Token rotation completed successfully");
+      res.cookie("refreshtoken", tokens.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+      console.log("✅ Token rotation completed successfully");
 
-     // Send response
-     res.json({
-       success: true,
-       message: "Tokens refreshed successfully",
-       tokens
-     });
-   } catch (error) {
-     logger.error("Token refresh error:", error);
-     res.status(401).json({
-       success: false,
-       message: error instanceof Error ? error.message : "Token refresh failed",
-     });
-   }
- }
+      // Send response
+      res.json({
+        success: true,
+        message: "Tokens refreshed successfully",
+        tokens
+      });
+    } catch (error) {
+      logger.error("Token refresh error:", error);
+      res.status(401).json({
+        success: false,
+        message: error instanceof Error ? error.message : "Token refresh failed",
+      });
+    }
+  }
 
   /**
    * Logout user
@@ -889,7 +915,7 @@ export class AuthController {
       const clientInfo = await getClientInfo(req);
 
       // First find user by verification token
-      const user:any = await User.findOne({ 'verificationData.token': token });
+      const user: any = await User.findOne({ 'verificationData.token': token });
       if (!user) {
         return res.status(400).json({
           success: false,
@@ -1100,12 +1126,19 @@ export class AuthController {
    */
   static async resendOTP(req: Request, res: Response) {
     try {
-      const { _id, verificationMethod} = req.body;
+      const { _id, verificationMethod } = req.body;
 
       if (!_id || !verificationMethod) {
         return res.status(400).json({
           success: false,
           message: "Missing required fields: _id",
+        });
+      }
+
+      if (_id.length !== 24) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid user ID",
         });
       }
 
@@ -1122,7 +1155,7 @@ export class AuthController {
 
       user.verificationMethod = verificationMethod;
 
-    // Generate new OTP
+      // Generate new OTP
       const otp = generateOTP(6);
 
       console.log("🔐 Resending OTP:", otp);
@@ -1158,7 +1191,7 @@ export class AuthController {
         success: true,
         message: `OTP resent successfully via ${user.verificationMethod}:  ${user.verificationMethod.toLowerCase() === "phone" ? user.phoneNumber : user.email} `,
         userId: user._id,
-        otp:otp
+        otp: otp
       });
     } catch (error) {
       logger.error("Resend OTP error:", error);
@@ -1267,92 +1300,149 @@ export class AuthController {
   }
 
   /**
-   * Handle trouble logging in by providing personalized assistance
-   *
-   * @route POST /api/auth/trouble-login
-   * @param {Request} req Express request object
-   * @param {Response} res Express response object
-   *
-   * @returns {Promise<void>} JSON response with helpful next steps
-   */
-  static async troubleLogin(req: Request, res: Response) {
+ * Handle trouble logging in by providing personalized assistance
+ *
+ * @route POST /api/auth/trouble-login
+ * @param {Request} req Express request object
+ * @param {Response} res Express response object
+ *
+ * @returns {Promise<void>} JSON response with helpful next steps
+ */
+  static async troubleLogin(req: Request, res: Response): Promise<Response> {
     try {
-      const { email, issue } = req.body;
+      const { identifier, issue, verificationMethod } = req.body;
 
-      // Find user
-      const user = await User.findOne({ email: email.toLowerCase() });
+      // Validate request payload
+      if (!identifier) {
+        return res.status(400).json({
+          success: false,
+          message: "Identifier (email, username, or phone) is required",
+        });
+      }
+
+      if (!issue) {
+        return res.status(400).json({
+          success: false,
+          message: "Issue is required",
+        });
+      }
+
+      // Find user based on identifier
+      const user = await User.findOne({
+        $or: [
+          { email: identifier.toLowerCase() },
+          { username: identifier.toLowerCase() },
+          { phoneNumber: identifier },
+        ],
+      });
 
       if (!user) {
         return res.json({
           success: true,
-          message: "If an account exists with this email, we'll send instructions to help you log in.",
+          message:
+            "If an account exists with this email, we'll send instructions to help you log in.",
           nextSteps: [
             "Check if you used the correct email address",
-            "Try creating a new account if you haven't registered"
-          ]
+            "Try creating a new account if you haven't registered",
+          ],
         });
       }
 
-      // Determine appropriate help based on issue
-      let nextSteps = [];
-      switch (issue) {
-        case 'forgot_password':
-          // Generate password reset token
-          const resetToken = randomBytes(32).toString("hex");
-          await AuthService.setResetToken(email, resetToken);
-
-          // Send reset email
-          const resetUrl = `${config.CLIENT_URL}/reset-password?token=${resetToken}`;
-          await EmailService.sendPasswordResetEmail(email, resetToken, {
-            ipAddress: req.ip,
-            userAgent: req.get('user-agent') || 'unknown'
-          });
-
-          nextSteps = [
-            "Check your email for password reset instructions",
-            "Follow the link in the email to create a new password",
-            "If you don't receive the email, check your spam folder"
-          ];
-          break;
-
-        case 'account_locked':
-          nextSteps = [
+      // Function to get next steps based on issue
+      const getNextSteps = (method: "EMAIL" | "SMS", issue: string): string[] => {
+        const commonSteps: { [key: string]: string[] } = {
+          account_locked: [
             "Your account will automatically unlock after 1 hour",
             "Contact support if you need immediate assistance",
-            "Enable 2FA to prevent future lockouts"
-          ];
-          break;
-
-        case '2fa_issues':
-          nextSteps = [
+            "Enable 2FA to prevent future lockouts",
+          ],
+          "2fa_issues": [
             "Make sure your device's time is correctly synchronized",
             "Use backup codes if you've lost access to your authenticator app",
-            "Contact support if you've lost access to your 2FA device"
-          ];
-          break;
-
-        default:
-          nextSteps = [
-            "Make sure you're using the correct email and password",
-            "Check if Caps Lock is turned on",
+            "Contact support if you've lost access to your 2FA device",
+          ],
+          default: [
+            "Ensure you're using the correct credentials",
+            "Check if Caps Lock is on",
             "Reset your password if you can't remember it",
-            "Contact support if you continue having problems"
-          ];
+            "Contact support if you continue having problems",
+          ],
+        };
+
+        if (issue === "forgot_password" || "forgot_username" || "forgot_email") {
+          return method === "EMAIL"
+            ? [
+              "Check your email for a verification code",
+              "Enter the code to reset your password",
+              "If you don't receive the email, check your spam folder",
+            ]
+            : [
+              "Check your phone for a verification code",
+              "Enter the code to reset your password",
+              "If you don't receive the SMS, check your network signal",
+            ];
+        }
+
+        return commonSteps[issue] || commonSteps.default;
+      };
+
+      // Function to handle password reset
+      const handlePasswordReset = async (
+        method: "EMAIL" | "SMS",
+        identifier: string
+      ): Promise<string> => {
+        const otp = generateOTP(6); // Generate 6-digit OTP
+        const expiry = new Date(Date.now() + AuthService.OTP_EXPIRY_MINUTES * 60 * 1000);
+
+        // Store OTP in user record
+        user.verificationData = {
+          otp,
+          otpExpiry: expiry,
+          attempts: 0,
+          lastAttempt: new Date(),
+        };
+        await user.save();
+
+        if (method === "EMAIL") {
+          await EmailService.sendVerificationEmail(user.email, otp, {
+            ipAddress: req.ip,
+            userAgent: req.get("user-agent") || "unknown",
+          });
+          logger.info(`🔐 Password Reset OTP (Email): ${otp}`);
+        } else {
+          await WhatsAppService.sendOTPMessage(user.phoneNumber, otp);
+          //TODO: Send OTP via SMS
+          logger.info(`🔐 Password Reset OTP (Phone): ${otp}`);
+        }
+
+        return otp;
+      };
+
+
+      // Trigger password reset if necessary
+      let otpSent = null;
+      if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email") {
+        otpSent = await handlePasswordReset(
+          verificationMethod as "EMAIL" | "SMS",
+          identifier.toLowerCase()
+        );
       }
 
-      res.json({
+      // Response with next steps
+      return res.json({
         success: true,
         message: "We've identified some steps to help you log in",
-          nextSteps,
-          supportEmail: config.SMTP_FROM,
-          supportPhone: config.SUPPORT_PHONE
+        nextSteps: getNextSteps(verificationMethod as "EMAIL" | "SMS", issue),
+        userId: user._id,
+        otpSent, // Include OTP in response only for testing/debugging (remove in production)
+        supportEmail: config.SMTP_FROM,
+        supportPhone: config.SUPPORT_PHONE,
       });
-
     } catch (error) {
-      logger.error('Trouble login error:', error);
-      res.status(500).json({
+      logger.error("Trouble login error:", error);
+      return res.status(500).json({
         success: false,
-        message: 'Error processing your request. Please try again later.'
+        message: "Error processing your request. Please try again later.",
       });
     }
   }

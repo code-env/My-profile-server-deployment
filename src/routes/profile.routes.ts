@@ -17,7 +17,9 @@ import {
   claimProfile,
   updateProfileVisibility,
   updateProfileSettings,
-  createClaimableProfile
+  createClaimableProfile,
+  getUserProfilesGrouped,
+
 } from '../controllers/profile.controller';
 
 const router = express.Router();
@@ -26,13 +28,15 @@ const router = express.Router();
 const profileService = new ProfileService();
 
 // Apply authentication middleware to all routes
-router.use(authenticateToken);
+// router.use(authenticateToken);
 
 // Profile creation and claiming
-router.post('/create-profile', requireRole(['user', 'superadmin', 'admin']), createProfile);
+// requireRole(['user', 'superadmin', 'admin'])
+router.post('/create-profile',requireRole(['user', 'superadmin', 'admin']), createProfile);
 router.post('/create-claimable', requireRole(['user', 'superadmin', 'admin']), createClaimableProfile);
 router.post('/claim', requireRole(['user', 'superadmin', 'admin']), claimProfile);
 
+router.get('/user-profiles', getUserProfilesGrouped)
 // Profile management
 router.route('/:id')
   .get(checkProfileOwnership, getProfileInfo)

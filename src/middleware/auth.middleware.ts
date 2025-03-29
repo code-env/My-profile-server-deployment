@@ -55,6 +55,7 @@ export const protect = async (
 
     req.user = user;
     req.token = token;
+    // console.log("protected")
     next();
   } catch (error: unknown) {
   if (error instanceof jwt.JsonWebTokenError) {
