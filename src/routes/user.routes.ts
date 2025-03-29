@@ -9,7 +9,7 @@ router.delete('/delete/:id', UserControllers.DeleteUserById);
 router.post('/generate-username', UserControllers.GenerateUsername);
 router.get('/profiles/user-profile', getUserProfilesGrouped)
 router.get('/profiles/:id', updateProfileNew)
-router.get('/profile', createProfile);
+router.post('/profile', createProfile);
 router.get('/:id', UserControllers.GetUserById);
 
 export default router;
