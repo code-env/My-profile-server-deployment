@@ -309,7 +309,12 @@ export class AuthController {
       }
 
       // Generate tokens
-      const tokens = AuthService.generateTokens(result.userId!, result.userId!);
+      // Fetch user to get email
+      const user = await User.findById(result.userId).select('email');
+      if (!user) {
+        throw new Error('User not found');
+      }
+      const tokens = AuthService.generateTokens(result.userId!, user.email);
 
       // Set tokens in HTTP-only cookies
       res.cookie("accesstoken", tokens.accessToken, {
