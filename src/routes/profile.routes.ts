@@ -36,8 +36,8 @@ router.post('/create-profile',requireRole(['user', 'superadmin', 'admin']), crea
 router.post('/create-claimable', requireRole(['user', 'superadmin', 'admin']), createClaimableProfile);
 router.post('/claim', requireRole(['user', 'superadmin', 'admin']), claimProfile);
 
-router.get('/user-profiles', getUserProfilesGrouped)
 // Profile management
+router.get('/user-profiles', getUserProfilesGrouped)
 router.route('/:id')
   .get(checkProfileOwnership, getProfileInfo)
   .put(requireRole(['user', 'superadmin', 'admin']), updateProfile)
