@@ -9,7 +9,7 @@ export class UserControllers {
    */
   static async GetAllUsers(req: Request, res: Response) {
     try {
-      const users = await User.find({}, "_id email fullName username profileImage");
+      const users = await User.find({}, "_id email fullName username profileImage phoneNumber formattedPhoneNumber");
       res.status(200).json({ success: true, users });
     } catch (error: any) {
       console.error(error.message);
