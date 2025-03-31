@@ -195,6 +195,7 @@ export class AuthController {
         dateOfBirth: validatedData.dateOfBirth,
         countryOfResidence: validatedData.countryOfResidence,
         phoneNumber: validatedData.phoneNumber,
+        formattedPhoneNumber: validatedData.formattedPhoneNumber,
         accountType: validatedData.accountType,
         accountCategory: validatedData.accountCategory,
         verificationMethod: validatedData.verificationMethod,

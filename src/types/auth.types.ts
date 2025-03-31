@@ -23,6 +23,7 @@ export const registerSchema = z.object({
   accountCategory: z.enum(['PRIMARY_ACCOUNT', 'SECONDARY_ACCOUNT']),
   phoneNumber: z.string()
     .regex(/^\+?[1-9]\d{1,14}$/, 'Please enter a valid phone number'),
+  formattedPhoneNumber: z.string().optional(),
   verificationMethod: z.enum(['PHONE', 'EMAIL'])
 });
 
