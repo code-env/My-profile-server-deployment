@@ -27,12 +27,12 @@ const profileService = new ProfileService();
 // @access  Private
 export const createProfile = asyncHandler(async (req: Request, res: Response) => {
   try {
-    const user = req.user as any;
-    // const user = {
-    //   "_id":"67e41de4bc8ce32407f11e1c",
-    //   "role":"user",
-    //   "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-    // }
+    // const user = req.user as any;
+    const user = {
+      "_id":"67e41de4bc8ce32407f11e1c",
+      "role":"user",
+      "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+    }
 
     
     // Check user's subscription limits
@@ -973,12 +973,12 @@ export const updateProfileSettings = asyncHandler(async (req: Request, res: Resp
 // @route   GET /api/profiles/user-profiles?category= individual | functional | group
 // @access  Private
 export const getUserProfilesGrouped = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const user = {
-    _id: "67e41de4bc8ce32407f11e1c",
-    role: "user",
-    token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-  };
-  // const user = req.user as RequestUser;
+  // const user = {
+  //   _id: "67e41de4bc8ce32407f11e1c",
+  //   role: "user",
+  //   token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+  // };
+  const user = req.user as RequestUser;
 
   if (!user) {
     throw createHttpError(401, 'Unauthorized');
@@ -1000,6 +1000,7 @@ export const getUserProfilesGrouped = asyncHandler(async (req: Request, res: Res
       $project: {
         _id: 1,
         name: 1,
+        owner:1,
         details: 1,
         type: 1,
         createdAt: 1,
@@ -1009,7 +1010,7 @@ export const getUserProfilesGrouped = asyncHandler(async (req: Request, res: Res
     {
       $group: {
         _id: "$type.category",
-        profiles: { $push: { _id:"$_id", name: "$name", details:"$details",type: "$type", createdAt: "$createdAt" } }
+        profiles: { $push: { _id:"$_id", name: "$name", details:"$details",type: "$type", owner:"$owner" ,createdAt: "$createdAt" } }
       }
     }
   ];
@@ -1081,10 +1082,22 @@ function buildUpdateQuery(obj: Record<string, any>, prefix = ''): Record<string,
  */
 export const updateProfileNew = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  // const updates = {
+  //   "categories": {
+  //     "about": {
+  //       "interestAndGoals": {
+  //         "enabled":false,
+  //         "content": "my first profile created"
+  //       }
+  //     }
+  //   }
+  // }
   const updates = req.body;
+  const user = req.user as RequestUser;
+  
 
   // Validate profile ID
-  if (!isValidObjectId(id)) {
+  if(!isValidObjectId(id)) {
     throw createHttpError(400, 'Invalid profile ID');
   }
 
@@ -1094,12 +1107,11 @@ export const updateProfileNew = asyncHandler(async (req: Request, res: Response)
     throw createHttpError(404, 'Profile not found');
   }
 
-  // For testing, we use a static user; in production, use req.user
-  const user = {
-    _id: "67deb94fd0eac9122a27148b",
-    role: "user",
-    token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-  };
+  // const user = {
+  //   _id: "67e41de4bc8ce32407f11e1c",
+  //   role: "user",
+  //   token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+  // };
 
   // Uncomment and adjust permission check in production:
   // if (!profile.managers.includes(user._id) && !profile.owner.equals(user._id) && user.role !== 'superadmin') {
@@ -1107,11 +1119,11 @@ export const updateProfileNew = asyncHandler(async (req: Request, res: Response)
   // }
 
   // Remove protected fields from updates
-  delete updates.owner;
-  delete updates.managers;
-  delete updates.claimed;
-  delete updates.claimedBy;
-  delete updates.qrCode;
+  // delete updates.owner;
+  // delete updates.managers;
+  // delete updates.claimed;
+  // delete updates.claimedBy;
+  // delete updates.qrCode;
 
   // Flatten the update payload into dot notation
   const flattenedUpdates = buildUpdateQuery(updates);

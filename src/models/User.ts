@@ -95,6 +95,7 @@ export interface IUser extends Document {
   dateOfBirth: Date;
   countryOfResidence: string;
   phoneNumber: string;
+  formattedPhoneNumber?: string;
   accountType: 'MYSELF' | 'SOMEONE_ELSE';
   accountCategory: 'PRIMARY_ACCOUNT' | 'SECONDARY_ACCOUNT';
   verificationMethod: 'PHONE' | 'EMAIL';
@@ -171,6 +172,11 @@ const userSchema = new Schema<IUser>(
       type: String,
       sparse: true,
     },
+    formattedPhoneNumber: {
+      type: String,
+      sparse: true,
+    },
+
     accountType: {
       type: String,
       enum: ['MYSELF', 'SOMEONE_ELSE'],

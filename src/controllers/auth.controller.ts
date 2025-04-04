@@ -187,6 +187,8 @@ export class AuthController {
       const validatedData = await registerSchema.parseAsync(req.body);
 
       // Register user using auth service
+      const plainPhoneNumber = validatedData.phoneNumber.replace(/[^+\d]/g, ""); 
+      
       const user: any = {
         email: validatedData.email,
         password: validatedData.password,
@@ -194,7 +196,8 @@ export class AuthController {
         username: validatedData.username,
         dateOfBirth: validatedData.dateOfBirth,
         countryOfResidence: validatedData.countryOfResidence,
-        phoneNumber: validatedData.phoneNumber,
+        phoneNumber: plainPhoneNumber, // Store the plain phone number
+        formattedPhoneNumber: validatedData.phoneNumber, // Store the formatted phone number
         accountType: validatedData.accountType,
         accountCategory: validatedData.accountCategory,
         verificationMethod: validatedData.verificationMethod,

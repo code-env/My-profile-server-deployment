@@ -20,12 +20,12 @@ const profileService = new profile_service_1.ProfileService();
 exports.createProfile = (0, express_async_handler_1.default)(async (req, res) => {
     var _a, _b, _c;
     try {
-        const user = req.user;
-        // const user = {
-        //   "_id":"67e41de4bc8ce32407f11e1c",
-        //   "role":"user",
-        //   "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-        // }
+        // const user = req.user as any;
+        const user = {
+            "_id": "67e41de4bc8ce32407f11e1c",
+            "role": "user",
+            "token": "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+        };
         // Check user's subscription limits
         const userDoc = await User_1.User.findById(user._id).populate('profiles');
         if (!userDoc) {
@@ -822,12 +822,12 @@ exports.updateProfileSettings = (0, express_async_handler_1.default)(async (req,
 // @route   GET /api/profiles/user-profiles?category= individual | functional | group
 // @access  Private
 exports.getUserProfilesGrouped = (0, express_async_handler_1.default)(async (req, res) => {
-    const user = {
-        _id: "67e41de4bc8ce32407f11e1c",
-        role: "user",
-        token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-    };
-    // const user = req.user as RequestUser;
+    // const user = {
+    //   _id: "67e41de4bc8ce32407f11e1c",
+    //   role: "user",
+    //   token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+    // };
+    const user = req.user;
     if (!user) {
         throw (0, http_errors_1.default)(401, 'Unauthorized');
     }
@@ -843,6 +843,7 @@ exports.getUserProfilesGrouped = (0, express_async_handler_1.default)(async (req
             $project: {
                 _id: 1,
                 name: 1,
+                owner: 1,
                 details: 1,
                 type: 1,
                 createdAt: 1,
@@ -852,7 +853,7 @@ exports.getUserProfilesGrouped = (0, express_async_handler_1.default)(async (req
         {
             $group: {
                 _id: "$type.category",
-                profiles: { $push: { _id: "$_id", name: "$name", details: "$details", type: "$type", createdAt: "$createdAt" } }
+                profiles: { $push: { _id: "$_id", name: "$name", details: "$details", type: "$type", owner: "$owner", createdAt: "$createdAt" } }
             }
         }
     ];
@@ -918,7 +919,18 @@ function buildUpdateQuery(obj, prefix = '') {
  */
 exports.updateProfileNew = (0, express_async_handler_1.default)(async (req, res) => {
     const { id } = req.params;
+    // const updates = {
+    //   "categories": {
+    //     "about": {
+    //       "interestAndGoals": {
+    //         "enabled":false,
+    //         "content": "my first profile created"
+    //       }
+    //     }
+    //   }
+    // }
     const updates = req.body;
+    const user = req.user;
     // Validate profile ID
     if (!(0, mongoose_1.isValidObjectId)(id)) {
         throw (0, http_errors_1.default)(400, 'Invalid profile ID');
@@ -928,22 +940,21 @@ exports.updateProfileNew = (0, express_async_handler_1.default)(async (req, res)
     if (!profile) {
         throw (0, http_errors_1.default)(404, 'Profile not found');
     }
-    // For testing, we use a static user; in production, use req.user
-    const user = {
-        _id: "67deb94fd0eac9122a27148b",
-        role: "user",
-        token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-    };
+    // const user = {
+    //   _id: "67e41de4bc8ce32407f11e1c",
+    //   role: "user",
+    //   token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+    // };
     // Uncomment and adjust permission check in production:
     // if (!profile.managers.includes(user._id) && !profile.owner.equals(user._id) && user.role !== 'superadmin') {
     //   throw createHttpError(403, 'You do not have permission to update this profile');
     // }
     // Remove protected fields from updates
-    delete updates.owner;
-    delete updates.managers;
-    delete updates.claimed;
-    delete updates.claimedBy;
-    delete updates.qrCode;
+    // delete updates.owner;
+    // delete updates.managers;
+    // delete updates.claimed;
+    // delete updates.claimedBy;
+    // delete updates.qrCode;
     // Flatten the update payload into dot notation
     const flattenedUpdates = buildUpdateQuery(updates);
     // Separate scalar updates from array updates
