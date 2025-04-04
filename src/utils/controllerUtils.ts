@@ -23,9 +23,23 @@ interface ClientInfo {
 export const getClientInfo = async (req: Request): Promise<ClientInfo> => {
     const ua = new UAParser(req.headers['user-agent']);
     const parser = new UAParser();
+    
+    // Get the real IP address - properly handle proxy forwarding
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    let ip = 'unknown';
+    
+    if (typeof xForwardedFor === 'string') {
+        // Extract the leftmost IP which is the original client
+        ip = xForwardedFor.split(',')[0].trim();
+    } else if (Array.isArray(xForwardedFor) && xForwardedFor.length > 0) {
+        ip = xForwardedFor[0].trim();
+    } else {
+        // Fallback to standard IP from Express (which should now work with trust proxy set)
+        ip = req.ip || req.socket.remoteAddress || 'unknown';
+    }
 
     return {
-        ip: req.ip || req.socket.remoteAddress || 'unknown',
+        ip: ip,
         os: ua.getOS().name || 'unknown',
         browser: ua.getBrowser().name || 'unknown',
         device: ua.getDevice().type || 'unknown',

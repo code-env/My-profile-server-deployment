@@ -48,9 +48,9 @@ const logs_routes_1 = __importDefault(require("./logs.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
 const enforce_license_middleware_1 = require("../middleware/enforce-license.middleware");
-const new_auth_routes_1 = __importDefault(require("./new.auth.routes"));
 const express_session_1 = __importDefault(require("express-session"));
 const passport_1 = __importDefault(require("passport"));
+const socials_auth_route_1 = __importDefault(require("./socials.auth.route"));
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -81,8 +81,7 @@ const setupRoutes = (app) => {
     // Public routes
     app.use('/api/auth', auth_routes_1.default);
     app.use('/api/users', user_routes_1.default);
-    // app.use('/api/sauth', socialRoutes)
-    app.use('/api/sauth', new_auth_routes_1.default);
+    app.use('/api/sauth', socials_auth_route_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     app.use('/api/connections', auth_middleware_1.protect, connection_routes_1.default);

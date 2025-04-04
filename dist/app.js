@@ -75,6 +75,8 @@ const env_validator_1 = require("./utils/env-validator");
 const license_middleware_1 = require("./middleware/license.middleware");
 const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"));
 const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
+// Import passport configuration
+require("./config/passport");
 const license_service_1 = require("./services/license.service");
 /**
  * @class AppServer
@@ -147,6 +149,8 @@ class AppServer {
      * @security Critical security component - modify with caution
      */
     configureMiddleware() {
+        // Enable 'trust proxy' to get real client IP when behind a reverse proxy
+        this.app.set('trust proxy', true);
         // Serve static files from public directory before security middleware
         this.app.use("/public", express_1.default.static("public", {
             maxAge: "1d",

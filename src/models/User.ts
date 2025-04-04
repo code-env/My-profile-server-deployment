@@ -107,9 +107,10 @@ export interface IUser extends Document {
   lastLogin?: Date;
   failedLoginAttempts: number;
   lockUntil: Date;
-  signupType: 'email' | 'google' | 'facebook';
+  signupType: 'email' | 'google' | 'facebook' | 'linkedin';
   googleId?: string;
   facebookId?: string;
+  linkedinId?: string;
   role: 'superadmin' | 'admin' | 'user';
   subscription: ISubscription;
   profileId?: string;
@@ -229,6 +230,7 @@ const userSchema = new Schema<IUser>(
     lockUntil: Date,
     googleId: String,
     facebookId: String,
+    linkedinId: String,
     role: {
       type: String,
       enum: ['superadmin', 'admin', 'user'],
@@ -269,7 +271,7 @@ const userSchema = new Schema<IUser>(
     },
     biometricAuth: {
       enabled: { type: Boolean, default: false },
-      methods: [{ 
+      methods: [{
         type: String,
         enum: ['fingerprint', 'faceId']
       }],
@@ -312,8 +314,8 @@ const userSchema = new Schema<IUser>(
       hash: { type: String },
       expiry: { type: Date },
       attempts: { type: Number, default: 0 },
-      purpose: { 
-        type: String, 
+      purpose: {
+        type: String,
         enum: ['registration', 'login', 'reset_password', 'change_email']
       },
       channel: {
@@ -339,13 +341,13 @@ const userSchema = new Schema<IUser>(
       referralHistory: [{
         referredUser: { type: Schema.Types.ObjectId, ref: 'User' },
         date: { type: Date, default: Date.now },
-        status: { 
-          type: String, 
+        status: {
+          type: String,
           enum: ['pending', 'completed'],
           default: 'pending'
         },
         rewards: [{
-          type: { 
+          type: {
             type: String,
             enum: ['signup', 'verification', 'first_purchase']
           },
@@ -445,6 +447,7 @@ userSchema.methods.comparePassword = async function(candidatePassword: string): 
 // userSchema.index({ phoneNumber: 1 }, { sparse: true });
 userSchema.index({ googleId: 1 }, { sparse: true });
 userSchema.index({ facebookId: 1 }, { sparse: true });
+userSchema.index({ linkedinId: 1 }, { sparse: true });
 userSchema.index({ verificationToken: 1 }, { sparse: true });
 userSchema.index({ resetPasswordToken: 1 }, { sparse: true });
 userSchema.index({ otpData: 1 }, { sparse: true });

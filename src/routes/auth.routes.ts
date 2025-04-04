@@ -8,6 +8,7 @@ import rateLimit from "express-rate-limit";
 import { logger } from "../utils/logger";
 import EmailService from "../services/email.service";
 import WhatsAppService from "../services/whatsapp.service";
+import { User } from "../models/User";
 
 const router = express.Router();
 
@@ -47,6 +48,78 @@ router.post("/reset-password", AuthController.resetPassword);
 // User validation endpoints
 router.get("/check-email/:email", AuthController.checkEmail);
 router.get("/check-username/:username", AuthController.checkUsername);
+
+// Get current user info
+router.get("/user/me", authenticateToken, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  // Return sanitized user object
+  const user = req.user as any;
+  const sanitizedUser = {
+    id: user._id,
+    email: user.email,
+    username: user.username,
+    fullName: user.fullName,
+    profileImage: user.profileImage,
+    isEmailVerified: user.isEmailVerified,
+    signupType: user.signupType,
+    googleId: user.googleId,
+    facebookId: user.facebookId,
+    linkedinId: user.linkedinId
+  };
+
+  res.json({ success: true, user: sanitizedUser });
+});
+
+// Get user info from token
+router.get("/user/info", (req, res) => {
+  try {
+    // Extract token from Authorization header
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    // Verify the token using require instead of import
+    const jsonwebtoken = require('jsonwebtoken');
+    const decoded = jsonwebtoken.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+
+    // Find the user
+    User.findById(decoded.userId)
+      .then(user => {
+        if (!user) {
+          return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // Return user data
+        res.json({
+          success: true,
+          user: {
+            id: user._id,
+            email: user.email,
+            fullName: user.fullName,
+            username: user.username,
+            googleId: user.googleId,
+            facebookId: user.facebookId,
+            linkedinId: user.linkedinId,
+            signupType: user.signupType,
+            isEmailVerified: user.isEmailVerified,
+            profileImage: user.profileImage
+          }
+        });
+      })
+      .catch(err => {
+        console.error('Error finding user:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+      });
+  } catch (err) {
+    console.error('Token verification error:', err);
+    res.status(401).json({ success: false, message: 'Invalid token' });
+  }
+});
 
 // Unified OTP verification route
 router.post("/verify-otp", AuthController.verifyOTP);
@@ -165,19 +238,159 @@ router.delete("/user/:id", async (req, res) => {
   }
 });
 
-// Social authentication routes - temporarily disabled
-// router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-// router.get(
-//   '/google/callback',
-//   passport.authenticate('google', { session: false }),
-//   AuthController.socialAuthCallback()
-// );
+// Social authentication routes
+router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+router.get(
+  '/google/callback',
+  passport.authenticate('google', { session: false }),
+  (req: express.Request, res: express.Response) => {
+    const data = req.user as any;
+    if (!data) {
+      return res.redirect('/auth/login?error=google_auth_failed');
+    }
 
-// router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-// router.get(
-//   '/facebook/callback',
-//   passport.authenticate('facebook', { session: false }),
-//   AuthController.socialAuthCallback
-// );
+    // Set tokens in cookies
+    res.cookie('accessToken', data.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 1000, // 1 hour
+    });
+
+    res.cookie('refreshToken', data.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Redirect to frontend with success
+    res.redirect(`/socials?success=true&provider=google`);
+  }
+);
+
+router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+router.get(
+  '/facebook/callback',
+  passport.authenticate('facebook', { session: false }),
+  (req: express.Request, res: express.Response) => {
+    const data = req.user as any;
+    if (!data) {
+      return res.redirect('/auth/login?error=facebook_auth_failed');
+    }
+
+    // Set tokens in cookies
+    res.cookie('accessToken', data.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 1000, // 1 hour
+    });
+
+    res.cookie('refreshToken', data.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Redirect to frontend with success
+    res.redirect(`/socials?success=true&provider=facebook`);
+  }
+);
+
+router.get('/linkedin', passport.authenticate('linkedin', { scope: ['r_emailaddress', 'r_liteprofile'] }));
+router.get(
+  '/linkedin/callback',
+  passport.authenticate('linkedin', { session: false }),
+  (req: express.Request, res: express.Response) => {
+    const data = req.user as any;
+    if (!data) {
+      return res.redirect('/auth/login?error=linkedin_auth_failed');
+    }
+
+    // Set tokens in cookies
+    res.cookie('accessToken', data.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 1000, // 1 hour
+    });
+
+    res.cookie('refreshToken', data.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Redirect to frontend with success
+    res.redirect(`/socials?success=true&provider=linkedin`);
+  }
+);
+
+// Mobile OAuth endpoints
+router.post('/google/mobile', async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ error: 'idToken is required' });
+    }
+
+    // Use the OAuth2Client to verify the token
+    const { OAuth2Client } = require('google-auth-library');
+    const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload) {
+      return res.status(401).json({ error: 'Invalid ID token' });
+    }
+
+    // Find or create user
+    let user = await User.findOne({ googleId: payload.sub });
+    if (!user) {
+      user = await User.findOne({ email: payload.email });
+
+      if (user) {
+        // Link Google account to existing user
+        user.googleId = payload.sub;
+        user.signupType = 'google';
+        user.isEmailVerified = true;
+        await user.save();
+      } else {
+        // Create new user
+        user = new User({
+          googleId: payload.sub,
+          email: payload.email,
+          fullName: payload.name,
+          username: payload.email?.split('@')[0],
+          signupType: 'google',
+          isEmailVerified: true,
+          password: 'oauth2-user-no-password',
+          dateOfBirth: new Date(),
+          countryOfResidence: 'Unknown',
+          accountType: 'MYSELF',
+          accountCategory: 'PRIMARY_ACCOUNT',
+          verificationMethod: 'EMAIL',
+          profileImage: payload.picture,
+          refreshTokens: [],
+        });
+        await user.save();
+      }
+    }
+
+    // Generate tokens
+    const { generateTokens } = require('../config/passport');
+    const { accessToken, refreshToken } = generateTokens(user.id.toString(), user.email);
+
+    // Store refresh token
+    user.refreshTokens.push(refreshToken);
+    await user.save();
+
+    res.json({ accessToken, refreshToken, user });
+  } catch (err:any) {
+    logger.error('Google Mobile authentication failed:', err);
+    res.status(401).json({ error: 'Google authentication failed', message: err.message });
+  }
+});
 
 export default router;

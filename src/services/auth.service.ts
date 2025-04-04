@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import * as jwt from "jsonwebtoken";
 import { User, IUser, IOTPData } from "../models/User";
 import { config } from "../config/config";
 import {
@@ -391,7 +391,7 @@ static async login(
   static async refreshAccessToken(refreshToken: string): Promise<AuthTokens> {
     try {
       // Verify the refresh token
-      const decoded = jwt.verify(
+      const decoded = (jwt as any).verify(
         refreshToken,
         config.JWT_REFRESH_SECRET
       ) as TokenPayload;

@@ -38,7 +38,6 @@
 import { Application } from 'express';
 import authRoutes from './auth.routes';
 import userRoutes from './user.routes'
-import socialRoutes from './socials.auth.route'
 import profileRoutes from './profile.routes';
 import connectionRoutes from './connection.routes';
 import logsRoutes from './logs.routes';
@@ -46,10 +45,9 @@ import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
 import { enforceLicenseValidation } from '../middleware/enforce-license.middleware';
-import newSocialRoutes from "./new.auth.routes"
 import session from 'express-session';
 import passport from 'passport';
-
+import socialRoutes from './socials.auth.route';
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -88,9 +86,8 @@ export const setupRoutes = (app: Application): void => {
 
   // Public routes
   app.use('/api/auth', authRoutes);
-  app.use('/api/users',userRoutes)
-  // app.use('/api/sauth', socialRoutes)
-  app.use('/api/sauth', newSocialRoutes)
+  app.use('/api/users', userRoutes);
+  app.use('/api/sauth', socialRoutes);
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
