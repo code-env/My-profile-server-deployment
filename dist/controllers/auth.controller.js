@@ -66,6 +66,7 @@ const email_service_1 = __importDefault(require("../services/email.service"));
 const crypto_1 = require("crypto");
 const config_1 = require("../config/config");
 const twoFactor_service_1 = __importDefault(require("../services/twoFactor.service"));
+// import InfobipSMSService from "../services/sms.service";
 const auth_types_1 = require("../types/auth.types");
 const whatsapp_service_1 = __importDefault(require("../services/whatsapp.service"));
 const controllerUtils_1 = require("../utils/controllerUtils");
@@ -80,6 +81,7 @@ class AuthController {
             // Validate request body against schema
             const validatedData = await auth_types_1.registerSchema.parseAsync(req.body);
             // Register user using auth service
+            const plainPhoneNumber = validatedData.phoneNumber.replace(/[^+\d]/g, "");
             const user = {
                 email: validatedData.email,
                 password: validatedData.password,
@@ -87,7 +89,8 @@ class AuthController {
                 username: validatedData.username,
                 dateOfBirth: validatedData.dateOfBirth,
                 countryOfResidence: validatedData.countryOfResidence,
-                phoneNumber: validatedData.phoneNumber,
+                phoneNumber: plainPhoneNumber, // Store the plain phone number
+                formattedPhoneNumber: validatedData.phoneNumber, // Store the formatted phone number
                 accountType: validatedData.accountType,
                 accountCategory: validatedData.accountCategory,
                 verificationMethod: validatedData.verificationMethod,
@@ -1168,7 +1171,7 @@ class AuthController {
                         "Contact support if you continue having problems",
                     ],
                 };
-                if (issue === "forgot_password" || "forgot_username" || "forgot_email") {
+                if (issue === "forgot_password" || "forgot_username" || "forgot_email" || "phone_number_change" || "email_change") {
                     return method === "EMAIL"
                         ? [
                             "Check your email for a verification code",
@@ -1203,7 +1206,8 @@ class AuthController {
                     logger_1.logger.info(`🔐 Password Reset OTP (Email): ${otp}`);
                 }
                 else {
-                    await whatsapp_service_1.default.sendOTPMessage(user.phoneNumber, otp);
+                    // await WhatsAppService.sendOTPMessage(user.phoneNumber, otp);
+                    // await InfobipSMSService.sendOTP(user.phoneNumber, otp);
                     //TODO: Send OTP via SMS
                     logger_1.logger.info(`🔐 Password Reset OTP (Phone): ${otp}`);
                 }
@@ -1211,7 +1215,7 @@ class AuthController {
             };
             // Trigger password reset if necessary
             let otpSent = null;
-            if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email") {
+            if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email" || issue === "phone_number_change" || issue === "email_change") {
                 otpSent = await handlePasswordReset(verificationMethod, identifier.toLowerCase());
             }
             // Response with next steps

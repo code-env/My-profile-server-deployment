@@ -61,6 +61,7 @@ import EmailService from "../services/email.service";
 import { randomBytes } from "crypto";
 import { config } from "../config/config";
 import TwoFactorService from "../services/twoFactor.service";
+// import InfobipSMSService from "../services/sms.service";
 import {
   registerSchema,
   loginSchema,
@@ -1377,7 +1378,7 @@ export class AuthController {
           ],
         };
 
-        if (issue === "forgot_password" || "forgot_username" || "forgot_email") {
+        if (issue === "forgot_password" || "forgot_username" || "forgot_email" || "phone_number_change" || "email_change") {
           return method === "EMAIL"
             ? [
               "Check your email for a verification code",
@@ -1418,7 +1419,8 @@ export class AuthController {
           });
           logger.info(`🔐 Password Reset OTP (Email): ${otp}`);
         } else {
-          await WhatsAppService.sendOTPMessage(user.phoneNumber, otp);
+          // await WhatsAppService.sendOTPMessage(user.phoneNumber, otp);
+          // await InfobipSMSService.sendOTP(user.phoneNumber, otp);
           //TODO: Send OTP via SMS
           logger.info(`🔐 Password Reset OTP (Phone): ${otp}`);
         }
@@ -1429,7 +1431,7 @@ export class AuthController {
 
       // Trigger password reset if necessary
       let otpSent = null;
-      if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email") {
+      if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email" || issue === "phone_number_change" || issue === "email_change") {
         otpSent = await handlePasswordReset(
           verificationMethod as "EMAIL" | "SMS",
           identifier.toLowerCase()

@@ -74,6 +74,10 @@ const userSchema = new mongoose_1.Schema({
         type: String,
         sparse: true,
     },
+    formattedPhoneNumber: {
+        type: String,
+        sparse: true,
+    },
     accountType: {
         type: String,
         enum: ['MYSELF', 'SOMEONE_ELSE'],
