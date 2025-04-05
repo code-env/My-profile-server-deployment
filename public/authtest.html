@@ -37,17 +37,17 @@
     const backendUrl = "https://my-profile-server-api.onrender.com"
     // Redirect to Google OAuth2 consent screen
     document.getElementById('google-login').addEventListener('click', () => {
-      window.location.href = `${backendUrl}/api/sauth/google`;
+      window.location.href = `${backendUrl}/api/auth/google`;
     });
 
     // Redirect to Facebook OAuth2 consent screen
     document.getElementById('facebook-login').addEventListener('click', () => {
-      window.location.href = `${backendUrl}/api/sauth/facebook`;
+      window.location.href = `${backendUrl}/api/auth/facebook`;
     });
 
     // Redirect to LinkedIn OAuth2 consent screen
     document.getElementById('linkedin-login').addEventListener('click', () => {
-      window.location.href = `${backendUrl}/api/sauth/linkedin`;
+      window.location.href = `${backendUrl}/api/auth/linkedin`;
     });
 
     // Handle the callback from OAuth providers
