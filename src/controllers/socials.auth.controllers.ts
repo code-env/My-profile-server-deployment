@@ -1,16 +1,21 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import * as jwt from 'jsonwebtoken';
-import { User, IUser } from '../models/User';
+import { User } from '../models/User';
 import { logger } from '../utils/logger';
 import { google } from 'googleapis';
 
 const OAuth2 = google.auth.OAuth2;
 
+// Determine the base URL based on environment
+const BASE_URL = process.env.RENDER_NODE_ENV === 'true'
+  ? 'https://my-profile-server-api.onrender.com'
+  : 'http://localhost:3000';
+
 const oauth2Client = new OAuth2(
   process.env.GOOGLE_CLIENT_ID || "94360662061-49htsukh1n89r38fjd5gmv5fekbu9ler.apps.googleusercontent.com",
   process.env.GOOGLE_CLIENT_SECRET || "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",
-  process.env.G_REDIRECTURI || "http://localhost:3000/api/auth/google/callback"
+  process.env.G_REDIRECTURI || `${BASE_URL}/api/auth/google/callback`
 );
 
 export class AuthSocialController {
@@ -86,7 +91,7 @@ export class AuthSocialController {
   // }
 
 
-  static async googleConsent(req: Request, res: Response) {
+  static async googleConsent(_req: Request, res: Response) {
     const url = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: ['https://www.googleapis.com/auth/userinfo.profile', 'https://www.googleapis.com/auth/userinfo.email'],
@@ -171,7 +176,7 @@ export class AuthSocialController {
         client_id: process.env.GOOGLE_CLIENT_ID || "94360662061-49htsukh1n89r38fjd5gmv5fekbu9ler.apps.googleusercontent.com",
         client_secret: process.env.GOOGLE_CLIENT_SECRET || "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",
         code,
-        redirect_uri: process.env.G_REDIRECTURI || "http://localhost:3000/api/auth/google/callback",
+        redirect_uri: process.env.G_REDIRECTURI || `${BASE_URL}/api/auth/google/callback`,
         grant_type: 'authorization_code',
       });
 
@@ -214,11 +219,13 @@ export class AuthSocialController {
       }
 
       // Generate a JWT token
+      /* Uncomment if you need to use the token
       const token = jwt.sign(
         { userId: user._id, email: user.email, role: user.role },
         process.env.JWT_SECRET!,
         { expiresIn: '1h' }
       );
+      */
 
       // Generate tokens
       const accessToken = jwt.sign(
@@ -243,14 +250,14 @@ export class AuthSocialController {
       // Set tokens in cookies
       res.cookie('accessToken', accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: process.env.RENDER_NODE_ENV === 'true',
         maxAge: 60 * 60 * 1000, // 1 hour
         path: '/',
       });
 
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: process.env.RENDER_NODE_ENV === 'true',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
       });
@@ -265,8 +272,9 @@ export class AuthSocialController {
   }
 
   // Redirect to Facebook's OAuth2 consent screen
-  static async facebookConsent(req: Request, res: Response) {
-    const url = `https://www.facebook.com/v12.0/dialog/oauth?client_id=${process.env.FACEBOOK_APP_ID}&redirect_uri=${process.env.FACEBOOK_REDIRECT_URI}&scope=email`;
+  static async facebookConsent(_req: Request, res: Response) {
+    const redirectUri = process.env.FACEBOOK_REDIRECT_URI || `${BASE_URL}/api/sauth/facebook/callback`;
+    const url = `https://www.facebook.com/v12.0/dialog/oauth?client_id=${process.env.FACEBOOK_APP_ID}&redirect_uri=${redirectUri}&scope=email`;
     res.redirect(url);
   }
 
@@ -284,7 +292,7 @@ export class AuthSocialController {
         params: {
           client_id: process.env.FACEBOOK_APP_ID,
           client_secret: process.env.FACEBOOK_APP_SECRET,
-          redirect_uri: process.env.FACEBOOK_REDIRECT_URI,
+          redirect_uri: process.env.FACEBOOK_REDIRECT_URI || `${BASE_URL}/api/sauth/facebook/callback`,
           code,
         },
       });
@@ -340,11 +348,11 @@ export class AuthSocialController {
   }
 
   // LinkedIn OAuth methods
-  static async linkedinConsent(req: Request, res: Response) {
+  static async linkedinConsent(_req: Request, res: Response) {
     try {
       // Replace with your LinkedIn app credentials
       const clientId = process.env.LINKEDIN_CLIENT_ID || 'your_linkedin_client_id';
-      const redirectUri = process.env.LINKEDIN_REDIRECT_URI || 'http://localhost:3000/api/sauth/linkedin/callback';
+      const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${BASE_URL}/api/sauth/linkedin/callback`;
 
       // Construct the LinkedIn authorization URL
       const url = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=r_liteprofile%20r_emailaddress`;
@@ -368,7 +376,7 @@ export class AuthSocialController {
       // Replace with your LinkedIn app credentials
       const clientId = process.env.LINKEDIN_CLIENT_ID || 'your_linkedin_client_id';
       const clientSecret = process.env.LINKEDIN_CLIENT_SECRET || 'your_linkedin_client_secret';
-      const redirectUri = process.env.LINKEDIN_REDIRECT_URI || 'http://localhost:3000/api/sauth/linkedin/callback';
+      const redirectUri = process.env.LINKEDIN_REDIRECT_URI || `${BASE_URL}/api/sauth/linkedin/callback`;
 
       // Exchange the authorization code for an access token
       const tokenResponse = await axios.post('https://www.linkedin.com/oauth/v2/accessToken',
@@ -435,11 +443,13 @@ export class AuthSocialController {
       }
 
       // Generate JWT token
+      /* Uncomment if you need to use the token
       const token = jwt.sign(
         { userId: user._id, email: user.email },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '1h' }
       );
+      */
 
       // Redirect to frontend with success
       res.redirect(`/socials?success=true&provider=linkedin`);
