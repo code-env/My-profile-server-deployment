@@ -17,7 +17,9 @@ export const registerSchema = z.object({
   username: z.string()
     .min(3, 'Username must be at least 3 characters')
     .regex(/^[a-zA-Z0-9_~]+$/, 'Username can only contain letters, numbers, underscores, and the ~ symbol'),
-  accountType: z.enum(['MYSELF', 'SOMEONE_ELSE']),
+  accountType: z.enum(['MYSELF', 'SOMEONE_ELSE'], {
+    errorMap: () => ({ message: 'Account type must be either MYSELF or SOMEONE_ELSE' }),
+  }),
   dateOfBirth: z.string(),
   countryOfResidence: z.string(),
   accountCategory: z.enum(['PRIMARY_ACCOUNT', 'SECONDARY_ACCOUNT']),

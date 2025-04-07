@@ -67,6 +67,7 @@ import {
 } from "../types/auth.types";
 import WhatsAppService from "../services/whatsapp.service";
 import { getClientInfo } from "../utils/controllerUtils";
+import TwilioService from "../services/twilio.service";
 
 /**
  * Core user interface defining essential user properties.
@@ -187,8 +188,8 @@ export class AuthController {
       const validatedData = await registerSchema.parseAsync(req.body);
 
       // Register user using auth service
-      const plainPhoneNumber = validatedData.phoneNumber.replace(/[^+\d]/g, ""); 
-      
+      const plainPhoneNumber = validatedData.phoneNumber.replace(/[^+\d]/g, "");
+
       const user: any = {
         email: validatedData.email,
         password: validatedData.password,
@@ -570,20 +571,20 @@ export class AuthController {
           const tokens = AuthService.generateTokens(_id, user!.email);
 
           // Set cookies
-      res.cookie("accesstoken", tokens.accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
-      });
+          res.cookie("accesstoken", tokens.accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            path: "/",
+            maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
+          });
 
-      res.cookie("refreshtoken", tokens.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
-      });
+          res.cookie("refreshtoken", tokens.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
+          });
 
           return res.json({
             success: true,
@@ -1191,7 +1192,8 @@ export class AuthController {
         user.verificationMethod.toLowerCase() === "phone" &&
         user.phoneNumber
       ) {
-        await WhatsAppService.sendOTPMessage(user.phoneNumber, otp);
+        console.log("Sending OTP to phone number:", user.phoneNumber);
+        await TwilioService.sendOTPMessage(user.phoneNumber, otp);
         logger.info(`🟣 Registration OTP (Phone): ${otp}`);
       }
 
@@ -1357,7 +1359,7 @@ export class AuthController {
       }
 
       // Function to get next steps based on issue
-      const getNextSteps = (method: "EMAIL" | "SMS", issue: string): string[] => {
+      const getNextSteps = (method: "EMAIL" | "PHONE", issue: string): string[] => {
         const commonSteps: { [key: string]: string[] } = {
           account_locked: [
             "Your account will automatically unlock after 1 hour",
@@ -1377,7 +1379,7 @@ export class AuthController {
           ],
         };
 
-        if (issue === "forgot_password" || "forgot_username" || "forgot_email") {
+        if (issue === "forgot_password" || "forgot_username" || "forgot_email" || "phone_number_change" || "email_change") {
           return method === "EMAIL"
             ? [
               "Check your email for a verification code",
@@ -1396,7 +1398,7 @@ export class AuthController {
 
       // Function to handle password reset
       const handlePasswordReset = async (
-        method: "EMAIL" | "SMS",
+        method: "EMAIL" | "PHONE",
         identifier: string
       ): Promise<string> => {
         const otp = generateOTP(6); // Generate 6-digit OTP
@@ -1411,16 +1413,20 @@ export class AuthController {
         };
         await user.save();
 
-        if (method === "EMAIL") {
+        if (method.toLocaleLowerCase() === "email") {
           await EmailService.sendVerificationEmail(user.email, otp, {
             ipAddress: req.ip,
             userAgent: req.get("user-agent") || "unknown",
           });
           logger.info(`🔐 Password Reset OTP (Email): ${otp}`);
         } else {
-          await WhatsAppService.sendOTPMessage(user.phoneNumber, otp);
-          //TODO: Send OTP via SMS
-          logger.info(`🔐 Password Reset OTP (Phone): ${otp}`);
+          try {
+            await TwilioService.sendOTPMessage(user.phoneNumber, otp);
+            logger.info(`🔐 Password Reset OTP (SMS): ${otp}`);
+          } catch (error) {
+            logger.error("Failed to send OTP via Twilio", error);
+            throw new Error("Unable to send OTP via SMS. Please try again.");
+          }
         }
 
         return otp;
@@ -1429,9 +1435,9 @@ export class AuthController {
 
       // Trigger password reset if necessary
       let otpSent = null;
-      if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email") {
+      if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email" || issue === "phone_number_change" || issue === "email_change") {
         otpSent = await handlePasswordReset(
-          verificationMethod as "EMAIL" | "SMS",
+          verificationMethod as "EMAIL" | "PHONE",
           identifier.toLowerCase()
         );
       }
@@ -1440,7 +1446,7 @@ export class AuthController {
       return res.json({
         success: true,
         message: "We've identified some steps to help you log in",
-        nextSteps: getNextSteps(verificationMethod as "EMAIL" | "SMS", issue),
+        nextSteps: getNextSteps(verificationMethod as "EMAIL" | "PHONE", issue),
         userId: user._id,
         otpSent, // Include OTP in response only for testing/debugging (remove in production)
         supportEmail: config.SMTP_FROM,

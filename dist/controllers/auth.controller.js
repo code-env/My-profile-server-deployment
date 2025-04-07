@@ -67,8 +67,8 @@ const crypto_1 = require("crypto");
 const config_1 = require("../config/config");
 const twoFactor_service_1 = __importDefault(require("../services/twoFactor.service"));
 const auth_types_1 = require("../types/auth.types");
-const whatsapp_service_1 = __importDefault(require("../services/whatsapp.service"));
 const controllerUtils_1 = require("../utils/controllerUtils");
+const twilio_service_1 = __importDefault(require("../services/twilio.service"));
 class AuthController {
     /**
      * Register a new user
@@ -80,6 +80,7 @@ class AuthController {
             // Validate request body against schema
             const validatedData = await auth_types_1.registerSchema.parseAsync(req.body);
             // Register user using auth service
+            const plainPhoneNumber = validatedData.phoneNumber.replace(/[^+\d]/g, "");
             const user = {
                 email: validatedData.email,
                 password: validatedData.password,
@@ -87,7 +88,8 @@ class AuthController {
                 username: validatedData.username,
                 dateOfBirth: validatedData.dateOfBirth,
                 countryOfResidence: validatedData.countryOfResidence,
-                phoneNumber: validatedData.phoneNumber,
+                phoneNumber: plainPhoneNumber, // Store the plain phone number
+                formattedPhoneNumber: validatedData.phoneNumber, // Store the formatted phone number
                 accountType: validatedData.accountType,
                 accountCategory: validatedData.accountCategory,
                 verificationMethod: validatedData.verificationMethod,
@@ -1000,7 +1002,8 @@ class AuthController {
             }
             else if (user.verificationMethod.toLowerCase() === "phone" &&
                 user.phoneNumber) {
-                await whatsapp_service_1.default.sendOTPMessage(user.phoneNumber, otp);
+                console.log("Sending OTP to phone number:", user.phoneNumber);
+                await twilio_service_1.default.sendOTPMessage(user.phoneNumber, otp);
                 logger_1.logger.info(`🟣 Registration OTP (Phone): ${otp}`);
             }
             res.json({
@@ -1168,7 +1171,7 @@ class AuthController {
                         "Contact support if you continue having problems",
                     ],
                 };
-                if (issue === "forgot_password" || "forgot_username" || "forgot_email") {
+                if (issue === "forgot_password" || "forgot_username" || "forgot_email" || "phone_number_change" || "email_change") {
                     return method === "EMAIL"
                         ? [
                             "Check your email for a verification code",
@@ -1195,7 +1198,7 @@ class AuthController {
                     lastAttempt: new Date(),
                 };
                 await user.save();
-                if (method === "EMAIL") {
+                if (method.toLocaleLowerCase() === "email") {
                     await email_service_1.default.sendVerificationEmail(user.email, otp, {
                         ipAddress: req.ip,
                         userAgent: req.get("user-agent") || "unknown",
@@ -1203,15 +1206,20 @@ class AuthController {
                     logger_1.logger.info(`🔐 Password Reset OTP (Email): ${otp}`);
                 }
                 else {
-                    await whatsapp_service_1.default.sendOTPMessage(user.phoneNumber, otp);
-                    //TODO: Send OTP via SMS
-                    logger_1.logger.info(`🔐 Password Reset OTP (Phone): ${otp}`);
+                    try {
+                        await twilio_service_1.default.sendOTPMessage(user.phoneNumber, otp);
+                        logger_1.logger.info(`🔐 Password Reset OTP (SMS): ${otp}`);
+                    }
+                    catch (error) {
+                        logger_1.logger.error("Failed to send OTP via Twilio", error);
+                        throw new Error("Unable to send OTP via SMS. Please try again.");
+                    }
                 }
                 return otp;
             };
             // Trigger password reset if necessary
             let otpSent = null;
-            if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email") {
+            if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email" || issue === "phone_number_change" || issue === "email_change") {
                 otpSent = await handlePasswordReset(verificationMethod, identifier.toLowerCase());
             }
             // Response with next steps
