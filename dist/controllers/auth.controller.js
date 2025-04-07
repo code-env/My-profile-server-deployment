@@ -66,10 +66,9 @@ const email_service_1 = __importDefault(require("../services/email.service"));
 const crypto_1 = require("crypto");
 const config_1 = require("../config/config");
 const twoFactor_service_1 = __importDefault(require("../services/twoFactor.service"));
-// import InfobipSMSService from "../services/sms.service";
 const auth_types_1 = require("../types/auth.types");
-const whatsapp_service_1 = __importDefault(require("../services/whatsapp.service"));
 const controllerUtils_1 = require("../utils/controllerUtils");
+const twilio_service_1 = __importDefault(require("../services/twilio.service"));
 class AuthController {
     /**
      * Register a new user
@@ -1003,7 +1002,8 @@ class AuthController {
             }
             else if (user.verificationMethod.toLowerCase() === "phone" &&
                 user.phoneNumber) {
-                await whatsapp_service_1.default.sendOTPMessage(user.phoneNumber, otp);
+                console.log("Sending OTP to phone number:", user.phoneNumber);
+                await twilio_service_1.default.sendOTPMessage(user.phoneNumber, otp);
                 logger_1.logger.info(`🟣 Registration OTP (Phone): ${otp}`);
             }
             res.json({
@@ -1198,7 +1198,7 @@ class AuthController {
                     lastAttempt: new Date(),
                 };
                 await user.save();
-                if (method === "EMAIL") {
+                if (method.toLocaleLowerCase() === "email") {
                     await email_service_1.default.sendVerificationEmail(user.email, otp, {
                         ipAddress: req.ip,
                         userAgent: req.get("user-agent") || "unknown",
@@ -1206,10 +1206,14 @@ class AuthController {
                     logger_1.logger.info(`🔐 Password Reset OTP (Email): ${otp}`);
                 }
                 else {
-                    // await WhatsAppService.sendOTPMessage(user.phoneNumber, otp);
-                    // await InfobipSMSService.sendOTP(user.phoneNumber, otp);
-                    //TODO: Send OTP via SMS
-                    logger_1.logger.info(`🔐 Password Reset OTP (Phone): ${otp}`);
+                    try {
+                        await twilio_service_1.default.sendOTPMessage(user.phoneNumber, otp);
+                        logger_1.logger.info(`🔐 Password Reset OTP (SMS): ${otp}`);
+                    }
+                    catch (error) {
+                        logger_1.logger.error("Failed to send OTP via Twilio", error);
+                        throw new Error("Unable to send OTP via SMS. Please try again.");
+                    }
                 }
                 return otp;
             };
