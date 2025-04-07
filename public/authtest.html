@@ -29,46 +29,75 @@
   <h1>OAuth2 Test</h1>
   <button id="google-login">Sign in with Google</button>
   <button id="facebook-login">Sign in with Facebook</button>
+  <button id="linkedin-login">Sign in with LinkedIn</button>
   <pre id="response"></pre>
 
   <script>
-    // Replace with your backend URL
-    const backendUrl = 'https://friendly-memory-v5rv64x7jrj2jv7-5000.app.github.dev/';
-
+    // Use relative URLs for better portability
+    const backendUrl = "https://my-profile-server-api.onrender.com"
     // Redirect to Google OAuth2 consent screen
     document.getElementById('google-login').addEventListener('click', () => {
-      window.location.href = `${backendUrl}api/sauth/google`;
+      window.location.href = `${backendUrl}/api/auth/google`;
     });
 
     // Redirect to Facebook OAuth2 consent screen
     document.getElementById('facebook-login').addEventListener('click', () => {
-      window.location.href = `${backendUrl}api/sauth/facebook`;
+      window.location.href = `${backendUrl}/api/auth/facebook`;
     });
 
-    // Handle the callback from Google or Facebook
-    const urlParams = new URLSearchParams(window.location.search);
-    // const code = urlParams.get('code');
-    const code = "4%2F0AQSTgQHwVGXiZSQtTic5o-4Utg4G-Ed2B9CrJRMCmeWPqk8GkjG7NP6LuzjWFzkRtC_NaA"
-    const provider = urlParams.get('provider'); // 'google' or 'facebook'
+    // Redirect to LinkedIn OAuth2 consent screen
+    document.getElementById('linkedin-login').addEventListener('click', () => {
+      window.location.href = `${backendUrl}/api/auth/linkedin`;
+    });
 
-    console.log('code:', code);
-    if (code) {
-      // Send the authorization code to your backend
-      fetch(`${backendUrl}api/sauth/google/callback`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code }),
+    // Handle the callback from OAuth providers
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const provider = urlParams.get('provider'); // 'google' or 'facebook'
+    const token = urlParams.get('token');
+    const error = urlParams.get('error');
+
+    // Display authentication result
+    if (success === 'true' && provider) {
+      document.getElementById('response').textContent = `Successfully authenticated with ${provider}!`;
+
+      // Fetch user data with token if available
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      fetch(`${backendUrl}/api/auth/user/me`, {
+        credentials: 'include', // Include cookies
+        headers: headers
       })
         .then(response => response.json())
         .then(data => {
-         console.log("data here gotten:", data)
+          console.log('User data:', data);
+          document.getElementById('response').textContent += '\n\nUser data: ' + JSON.stringify(data, null, 2);
+
+          // If we got the authentication required error, try the direct user info approach
+          if (data.success === false && data.message === "Authentication required" && token) {
+            // Make a direct request to get user info using the token
+            return fetch(`${backendUrl}/api/auth/user/info`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+          }
+          return Promise.reject('Already got user data');
+        })
+        .then(response => response.json())
+        .then(data => {
+          console.log('Direct user info:', data);
+          document.getElementById('response').textContent += '\n\nUser data from direct request: ' + JSON.stringify(data, null, 2);
         })
         .catch(error => {
-          console.error('Error:', error);
-          document.getElementById('response').textContent = 'Authentication failed. Check the console for details.';
+          if (error === 'Already got user data') return;
+          console.error('Error fetching user data:', error);
         });
+    } else if (error) {
+      document.getElementById('response').textContent = `Authentication failed: ${error}`;
     }
   </script>
 </body>

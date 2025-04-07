@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import * as jwt from 'jsonwebtoken';
 import { config } from '../config/config';
 import { User } from '../models/User';
 import { logger } from '../utils/logger';
@@ -8,14 +8,14 @@ import { CustomError } from '../utils/errors';
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Get token from cookie or Authorization header
-    const token = req.cookies.accesstoken || req.header('Authorization')?.replace('Bearer ', '');
+    const token = req.cookies.accessToken || req.cookies.accesstoken || req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
       throw new CustomError('UNAUTHORIZED', 'Authentication required');
     }
 
     // Verify token
-    const decoded = jwt.verify(token, config.JWT_SECRET) as any;
+    const decoded = (jwt as any).verify(token, config.JWT_SECRET) as any;
 
     // Find user
     const user = await User.findById(decoded.userId);
@@ -29,7 +29,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     next();
   } catch (error) {
     logger.error('Authentication error:', error);
-    if (error instanceof jwt.JsonWebTokenError) {
+    if (error instanceof Error && error.name === 'JsonWebTokenError') {
       res.status(401).json({ success: false, message: 'Invalid token' });
     } else {
       res.status(401).json({
@@ -40,10 +40,10 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
   }
 };
 
-export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
+export const optionalAuth = async (req: Request, _res: Response, next: NextFunction) => {
   try {
     // Get token from cookie or Authorization header
-    const token = req.cookies.accesstoken || req.header('Authorization')?.replace('Bearer ', '');
+    const token = req.cookies.accessToken || req.cookies.accesstoken || req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
       // If no token, continue without authentication
@@ -51,7 +51,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
     }
 
     // Verify token
-    const decoded = jwt.verify(token, config.JWT_SECRET) as any;
+    const decoded = (jwt as any).verify(token, config.JWT_SECRET) as any;
 
     // Find user
     const user = await User.findById(decoded.userId);

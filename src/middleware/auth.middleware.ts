@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import * as jwt from 'jsonwebtoken';
 import { config } from '../config/config';
 import { TokenPayload } from '../types/auth.types';
 import { IUser, User } from '../models/User';
@@ -33,7 +33,7 @@ export const protect = async (
       });
     }
 
-    const decoded = jwt.verify(token, config.JWT_SECRET) as TokenPayload;
+    const decoded = (jwt as any).verify(token, config.JWT_SECRET) as TokenPayload;
 
     if (!decoded.userId) {
       logger.warn('Authentication failed: Invalid token payload');
@@ -58,7 +58,7 @@ export const protect = async (
     // console.log("protected")
     next();
   } catch (error: unknown) {
-  if (error instanceof jwt.JsonWebTokenError) {
+  if (error instanceof Error && error.name === 'JsonWebTokenError') {
     logger.warn('Invalid token:', error.message);
     return res.status(401).json({
       status: 'error',
@@ -76,7 +76,7 @@ export const protect = async (
 
 const extractToken = (req: Request): string | null => {
   // Check cookies first
-  const token = req.cookies.accesstoken ||
+  const token = req.cookies.accessToken || req.cookies.accesstoken ||
                 // Then check Authorization header
                 req.header('Authorization')?.replace('Bearer ', '') ||
                 // Finally check query parameter
@@ -97,7 +97,7 @@ export const optionalAuth = async (
       return next();
     }
 
-    const decoded = jwt.verify(token, config.JWT_SECRET) as TokenPayload;
+    const decoded = (jwt as any).verify(token, config.JWT_SECRET) as TokenPayload;
     const user = await User.findById(decoded.userId);
 
     if (user) {

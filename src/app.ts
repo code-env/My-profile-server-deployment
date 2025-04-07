@@ -75,6 +75,8 @@ import { validateLicenseMiddleware } from "./middleware/license.middleware";
 import WhatsAppService from "./services/whatsapp.service";
 import { advancedTrackingMiddleware } from "./middleware/advanced-tracking.middleware";
 import { licenseConfig } from "./config/license.config";
+// Import passport configuration
+import "./config/passport";
 import { licenseService } from "./services/license.service";
 
 /**
@@ -152,6 +154,9 @@ export class AppServer {
    * @security Critical security component - modify with caution
    */
   private configureMiddleware(): void {
+    // Enable 'trust proxy' to get real client IP when behind a reverse proxy
+    this.app.set('trust proxy', true);
+
     // Serve static files from public directory before security middleware
     this.app.use(
       "/public",

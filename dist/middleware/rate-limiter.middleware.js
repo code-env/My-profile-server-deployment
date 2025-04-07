@@ -14,13 +14,21 @@ const defaultConfig = {
     legacyHeaders: false,
 };
 const getClientIp = (req) => {
+    // Try to get IP from x-forwarded-for header
     const forwardedFor = req.headers['x-forwarded-for'];
-    if (Array.isArray(forwardedFor)) {
-        return forwardedFor[0] || '0.0.0.0';
-    }
-    if (typeof forwardedFor === 'string') {
+    if (typeof forwardedFor === 'string' && forwardedFor) {
+        // The leftmost IP is the client's original IP
         return forwardedFor.split(',')[0].trim();
     }
+    if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
+        return forwardedFor[0];
+    }
+    // Try other common proxy headers
+    const realIp = req.headers['x-real-ip'];
+    if (typeof realIp === 'string' && realIp) {
+        return realIp;
+    }
+    // With trust proxy enabled, req.ip should now contain the correct IP
     return req.ip || req.socket.remoteAddress || '0.0.0.0';
 };
 exports.rateLimiterMiddleware = (0, express_rate_limit_1.default)({
