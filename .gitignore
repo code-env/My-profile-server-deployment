@@ -2,8 +2,7 @@
 node_modules/
 dist/
 build/
-.env
-
+env
 # Environment and License files
 
 !.env.example
@@ -44,3 +43,4 @@ temp/
 # Package files
 *.tgz
 *.tar.gz
+node_modules

@@ -37,6 +37,18 @@ const PersonalProfileSchema = new Schema({
       hobbies: {
         enabled: { type: Boolean, default: true },
            content: [Object]
+      },
+      important: {
+        enabled: { type: Boolean, default: true },
+           content: [Object]
+      },
+      religion: {
+        enabled: { type: Boolean, default: true },
+           content: [Object]
+      },
+      galery: {
+        enabled: { type: Boolean, default: true },
+           content: [Object]
       }
     },
     contact: {
@@ -60,7 +72,15 @@ const PersonalProfileSchema = new Schema({
       emergency: {
         enabled: { type: Boolean, default: true },
         content: { type: Schema.Types.Mixed }
-      }
+      },
+      socialPartners: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }
+      },
+      bookings: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }
+      },
     },
     social: {
       enabled: { type: Boolean, default: true },
@@ -83,7 +103,32 @@ const PersonalProfileSchema = new Schema({
       lifeInsurance: {
         enabled: { type: Boolean, default: true },
         content: { type: Schema.Types.Mixed }
-      }
+      },
+      affiliations: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }
+      },
+      videoStreaming: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }
+      }, 
+      musicStreaming: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }
+      },
+      accomodations: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }
+      },
+      gaming: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }
+      },
+      others: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }
+      },
+
     }
   }
 }, { _id: false, discriminatorKey: 'subtype' });
