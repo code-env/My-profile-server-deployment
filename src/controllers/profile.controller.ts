@@ -29,7 +29,7 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
   try {
     // const user = req.user as any;
     const user = {
-      "_id":"67e41de4bc8ce32407f11e1c",
+      "_id":"67f701a47b722ead5cc4ec99",
       "role":"user",
       "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
     }
@@ -41,9 +41,9 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
       throw createHttpError(404, 'User not found');
     }
 
-    // if (userDoc.profiles.length >= (userDoc.subscription?.limitations?.maxProfiles || Infinity) && user.role !== 'superadmin') {
-    //   throw createHttpError(400, 'Profile limit reached for your subscription');
-    // }
+    if (userDoc.profiles.length >= (userDoc.subscription?.limitations?.maxProfiles || Infinity) && user.role !== 'superadmin') {
+      throw createHttpError(400, 'Profile limit reached for your subscription');
+    }
 
     const {
       name,
@@ -406,12 +406,12 @@ export const updateSocialInfo = asyncHandler(async (req: Request, res: Response)
 export const getProfileInfo = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    // const user = req.user as RequestUser; 
-    const user = {
-      "_id":"67deb94fd0eac9122a27148b",
-      "role":"user",
-      "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-    }
+    const user = req.user as RequestUser; 
+    // const user = {
+    //   "_id":"67deb94fd0eac9122a27148b",
+    //   "role":"user",
+    //   "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
+    // }
     // Validate ObjectId
     if (!isValidObjectId(id)) {
       logger.warn(`Invalid profile ID: ${id}`);
@@ -1082,6 +1082,7 @@ function buildUpdateQuery(obj: Record<string, any>, prefix = ''): Record<string,
  */
 export const updateProfileNew = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  console.log("new id:", id)
   // const updates = {
   //   "categories": {
   //     "about": {
@@ -1157,12 +1158,15 @@ export const updateProfileNew = asyncHandler(async (req: Request, res: Response)
   logger.debug(`Final update query: ${JSON.stringify(finalUpdateQuery, null, 2)}`);
 
   // Perform the update
-  const updatedProfile = await ProfileModel.findByIdAndUpdate(
+  const updatedProfile = await AcademicProfile.findByIdAndUpdate(
     id,
     finalUpdateQuery,
     { new: true, runValidators: true }
-  );
-
-  logger.info(`Profile updated: ${id} by user: ${user._id}`);
+  ).catch((err) => {
+    console.error("Error updating profile:", err);
+    throw createHttpError(400, "Validation failed on update.");
+  });
+  
+  logger.info(`Profile updated: ${id} by user here`);
   res.status(200).json(updatedProfile);
 });
