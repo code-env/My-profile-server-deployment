@@ -18,22 +18,17 @@ const profileService = new profile_service_1.ProfileService();
 // @route   POST /api/profiles
 // @access  Private
 exports.createProfile = (0, express_async_handler_1.default)(async (req, res) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e;
     try {
-        // const user = req.user as any;
-        const user = {
-            "_id": "67e41de4bc8ce32407f11e1c",
-            "role": "user",
-            "token": "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-        };
+        const user = req.user;
         // Check user's subscription limits
         const userDoc = await User_1.User.findById(user._id).populate('profiles');
         if (!userDoc) {
             throw (0, http_errors_1.default)(404, 'User not found');
         }
-        // if (userDoc.profiles.length >= (userDoc.subscription?.limitations?.maxProfiles || Infinity) && user.role !== 'superadmin') {
-        //   throw createHttpError(400, 'Profile limit reached for your subscription');
-        // }
+        if (userDoc.profiles.length >= (((_b = (_a = userDoc.subscription) === null || _a === void 0 ? void 0 : _a.limitations) === null || _b === void 0 ? void 0 : _b.maxProfiles) || Infinity) && user.role !== 'superadmin') {
+            throw (0, http_errors_1.default)(400, 'Profile limit reached for your subscription');
+        }
         const { name, description, type, role, details, categories, format, settings, forClaim } = req.body;
         // Validate required fields
         if (!name || !type || !type.category || !type.subtype) {
@@ -77,9 +72,9 @@ exports.createProfile = (0, express_async_handler_1.default)(async (req, res) =>
             },
             settings: {
                 visibility: (settings === null || settings === void 0 ? void 0 : settings.visibility) || 'public',
-                allowComments: (_a = settings === null || settings === void 0 ? void 0 : settings.allowComments) !== null && _a !== void 0 ? _a : true,
-                allowMessages: (_b = settings === null || settings === void 0 ? void 0 : settings.allowMessages) !== null && _b !== void 0 ? _b : true,
-                autoAcceptConnections: (_c = settings === null || settings === void 0 ? void 0 : settings.autoAcceptConnections) !== null && _c !== void 0 ? _c : false
+                allowComments: (_c = settings === null || settings === void 0 ? void 0 : settings.allowComments) !== null && _c !== void 0 ? _c : true,
+                allowMessages: (_d = settings === null || settings === void 0 ? void 0 : settings.allowMessages) !== null && _d !== void 0 ? _d : true,
+                autoAcceptConnections: (_e = settings === null || settings === void 0 ? void 0 : settings.autoAcceptConnections) !== null && _e !== void 0 ? _e : false
             },
             completion: 0,
             isActive: true
@@ -169,20 +164,6 @@ const generateSecureClaimPhrase = () => {
     const selectedWords = Array.from({ length: 6 }, () => words[Math.floor(Math.random() * words.length)]);
     return selectedWords.join('-');
 };
-//   let result: Record<string, any> = {};
-//   for (const key in obj) {
-//     if (!Object.prototype.hasOwnProperty.call(obj, key)) continue;
-//     const value = obj[key];
-//     const newKey = prefix ? `${prefix}.${key}` : key;
-//     if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
-//       Object.assign(result, buildUpdateQuery(value, newKey));
-//     } else {
-//       result[newKey] = value;
-//     }
-//   }
-//   console.log("result here:", result)
-//   return result;
-// }
 // @desc    Create a profile for claiming
 // @route   POST /api/profiles/create-claimable
 // @access  Private
@@ -338,19 +319,52 @@ exports.updateSocialInfo = (0, express_async_handler_1.default)(async (req, res)
     }
     res.json(updatedProfile);
 });
-// @desc    Get profile information
-// @route   GET /api/profiles/:id
-// @access  Private
+/**
+ * Dynamically computes profile completion percentage from the "categories" field.
+ * It iterates over each top-level category (e.g. "about", "contact", "social"),
+ * then for each subfield (ignoring keys like "enabled" at the top level),
+ * if the subfield is an object with an "enabled" property set to true,
+ * it checks the "content" property – if it's a non-empty string or non-empty array,
+ * it counts as completed.
+ *
+ * @param profile - The profile document.
+ * @returns The computed percentage completion (0 to 100).
+ */
+function calculateProfileCompletion(profile) {
+    let totalCount = 0;
+    let completedCount = 0;
+    // The categories object (if present)
+    const categories = profile.categories || {};
+    for (const categoryKey in categories) {
+        if (!Object.prototype.hasOwnProperty.call(categories, categoryKey))
+            continue;
+        const category = categories[categoryKey];
+        if (category && typeof category === 'object') {
+            for (const fieldKey in category) {
+                if (fieldKey === 'enabled')
+                    continue;
+                const field = category[fieldKey];
+                if (field && typeof field === 'object' && 'enabled' in field && field.enabled === true) {
+                    totalCount++;
+                    if ('content' in field) {
+                        if (typeof field.content === 'string' && field.content.trim() !== '') {
+                            completedCount++;
+                        }
+                        else if (Array.isArray(field.content) && field.content.length > 0) {
+                            completedCount++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+}
 exports.getProfileInfo = (0, express_async_handler_1.default)(async (req, res) => {
     var _a;
     try {
         const { id } = req.params;
-        // const user = req.user as RequestUser; 
-        const user = {
-            "_id": "67deb94fd0eac9122a27148b",
-            "role": "user",
-            "token": "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-        };
+        const user = req.user;
         // Validate ObjectId
         if (!(0, mongoose_1.isValidObjectId)(id)) {
             logger_1.logger.warn(`Invalid profile ID: ${id}`);
@@ -362,24 +376,24 @@ exports.getProfileInfo = (0, express_async_handler_1.default)(async (req, res) =
             logger_1.logger.warn(`Profile not found: ${id}`);
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        // Optional: Add additional permission checks if needed
+        // Permission checks
         const isOwner = ((_a = profile.owner) === null || _a === void 0 ? void 0 : _a.toString()) === user._id.toString();
         const isManager = profile.managers.some(manager => manager.toString() === user._id.toString());
         if (!isOwner && !isManager && profile.settings.visibility !== 'public') {
             logger_1.logger.warn(`Unauthorized profile access attempt: ${id} by user ${user._id}`);
             throw (0, http_errors_1.default)(403, 'You do not have permission to view this profile');
         }
-        // Remove sensitive information before sending
+        const profileCompletion = calculateProfileCompletion(profile);
         const profileResponse = profile.toJSON();
         delete profileResponse.claimPhrase;
+        profileResponse.profileCompletion = profileCompletion;
         res.status(200).json({
             success: true,
-            profile: profileResponse
+            profile: profileResponse,
         });
     }
     catch (error) {
         logger_1.logger.error('Profile retrieval error:', error);
-        // More detailed error response
         if (error instanceof mongoose_2.default.Error.CastError) {
             res.status(400).json({
                 success: false,
@@ -435,69 +449,6 @@ exports.updateProfile = (0, express_async_handler_1.default)(async (req, res) =>
     logger_1.logger.info(`Profile updated: ${id} by user: ${user._id}`);
     res.json(updatedProfile);
 });
-// export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
-//   const { id } = req.params;
-//   const updates = req.body;
-//   const user =  {
-//     _id:"67deb94fd0eac9122a27148b",
-//     role:"user",
-//     token:"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-//   }
-//   // Validate profile ID
-//   if (!isValidObjectId(id)) {
-//     throw createHttpError(400, 'Invalid profile ID');
-//   }
-//   // Find profile and check permissions
-//   const profile = await ProfileModel.findById(id);
-//   if (!profile) {
-//     throw createHttpError(404, 'Profile not found');
-//   }
-//   // const user = req.user as RequestUser;
-//   // if (!profile.managers.includes(user._id) && !profile.owner.equals(user._id) && user.role !== 'superadmin') {
-//   //   throw createHttpError(403, 'You do not have permission to update this profile');
-//   // }
-//   // Remove protected fields from updates
-//   delete updates.owner;
-//   delete updates.managers;
-//   delete updates.claimed;
-//   delete updates.claimedBy;
-//   delete updates.qrCode;
-//   // Flatten the update payload into dot notation
-//   const flattenedUpdates = buildUpdateQuery(updates);
-//   // Separate scalar updates from array updates
-//   const setUpdates: Record<string, any> = {};
-//   const arrayUpdates: Record<string, any[]> = {};
-//   Object.entries(flattenedUpdates).forEach(([key, value]) => {
-//     if (Array.isArray(value)) {
-//       arrayUpdates[key] = value;
-//     } else {
-//       setUpdates[key] = value;
-//     }
-//   });
-//   // Build the final update query:
-//   // - $set for scalar and nested field updates.
-//   // - $addToSet with $each for arrays to merge new items.
-//   const finalUpdateQuery: Record<string, any> = {};
-//   if (Object.keys(setUpdates).length > 0) {
-//     finalUpdateQuery.$set = setUpdates;
-//   }
-//   if (Object.keys(arrayUpdates).length > 0) {
-//     const addToSet: Record<string, any> = {};
-//     for (const [key, arr] of Object.entries(arrayUpdates)) {
-//       addToSet[key] = { $each: arr };
-//     }
-//     finalUpdateQuery.$addToSet = addToSet;
-//   }
-//   // Perform the update using the combined query
-//   const updatedProfile = await ProfileModel.findByIdAndUpdate(
-//     id,
-//     finalUpdateQuery,
-//     { new: true, runValidators: true }
-//   );
-// console.log("updates made: ")
-//   logger.info(`Profile updated: ${id} by user: ${user._id}`);
-//   res.json(updatedProfile);
-// });
 // @desc    Delete a profile
 // @route   DELETE /api/profiles/:id
 // @access  Private
@@ -902,8 +853,6 @@ function buildUpdateQuery(obj, prefix = '') {
  *  - Separates scalar updates and array updates.
  *  - Uses $set for scalar updates and $addToSet with $each for array updates.
  *
- * Protected fields (owner, managers, claimed, claimedBy, qrCode) are removed.
- *
  * Example request body to update a nested field:
  * {
  *   "categories": {
@@ -919,43 +868,24 @@ function buildUpdateQuery(obj, prefix = '') {
  */
 exports.updateProfileNew = (0, express_async_handler_1.default)(async (req, res) => {
     const { id } = req.params;
-    // const updates = {
-    //   "categories": {
-    //     "about": {
-    //       "interestAndGoals": {
-    //         "enabled":false,
-    //         "content": "my first profile created"
-    //       }
-    //     }
-    //   }
-    // }
     const updates = req.body;
     const user = req.user;
-    // Validate profile ID
     if (!(0, mongoose_1.isValidObjectId)(id)) {
         throw (0, http_errors_1.default)(400, 'Invalid profile ID');
     }
-    // Find profile
     const profile = await profile_model_1.ProfileModel.findById(id);
     if (!profile) {
         throw (0, http_errors_1.default)(404, 'Profile not found');
     }
-    // const user = {
-    //   _id: "67e41de4bc8ce32407f11e1c",
-    //   role: "user",
-    //   token: "dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
-    // };
-    // Uncomment and adjust permission check in production:
-    // if (!profile.managers.includes(user._id) && !profile.owner.equals(user._id) && user.role !== 'superadmin') {
-    //   throw createHttpError(403, 'You do not have permission to update this profile');
-    // }
+    if (!profile.managers.includes(user._id) && !profile.owner.equals(user._id) && user.role !== 'superadmin') {
+        throw (0, http_errors_1.default)(403, 'You do not have permission to update this profile');
+    }
     // Remove protected fields from updates
-    // delete updates.owner;
-    // delete updates.managers;
-    // delete updates.claimed;
-    // delete updates.claimedBy;
-    // delete updates.qrCode;
-    // Flatten the update payload into dot notation
+    delete updates.owner;
+    delete updates.managers;
+    delete updates.claimed;
+    delete updates.claimedBy;
+    delete updates.qrCode;
     const flattenedUpdates = buildUpdateQuery(updates);
     // Separate scalar updates from array updates
     const setUpdates = {};
@@ -979,10 +909,36 @@ exports.updateProfileNew = (0, express_async_handler_1.default)(async (req, res)
         }
         finalUpdateQuery.$addToSet = addToSet;
     }
-    // Debug log the final update query
-    logger_1.logger.debug(`Final update query: ${JSON.stringify(finalUpdateQuery, null, 2)}`);
-    // Perform the update
-    const updatedProfile = await profile_model_1.ProfileModel.findByIdAndUpdate(id, finalUpdateQuery, { new: true, runValidators: true });
-    logger_1.logger.info(`Profile updated: ${id} by user: ${user._id}`);
+    // logger.debug(`Final update query: ${JSON.stringify(finalUpdateQuery, null, 2)}`);
+    let updatedProfile;
+    switch (profile.profileType) {
+        case 'personal':
+            updatedProfile = await profile_model_1.PersonalProfile.findByIdAndUpdate(id, finalUpdateQuery, { new: true, runValidators: true }).catch((err) => {
+                console.error("Error updating profile:", err);
+                throw (0, http_errors_1.default)(400, "Validation failed on update.");
+            });
+            break;
+        case 'business':
+            updatedProfile = await profile_model_1.BusinessProfile.findByIdAndUpdate(id, finalUpdateQuery, { new: true, runValidators: true }).catch((err) => {
+                console.error("Error updating profile:", err);
+                throw (0, http_errors_1.default)(400, "Validation failed on update.");
+            });
+            break;
+        case 'academic':
+            updatedProfile = await profile_model_1.AcademicProfile.findByIdAndUpdate(id, finalUpdateQuery, { new: true, runValidators: true }).catch((err) => {
+                console.error("Error updating profile:", err);
+                throw (0, http_errors_1.default)(400, "Validation failed on update.");
+            });
+            break;
+        case 'medical':
+            updatedProfile = await profile_model_1.MedicalProfile.findByIdAndUpdate(id, finalUpdateQuery, { new: true, runValidators: true }).catch((err) => {
+                console.error("Error updating profile:", err);
+                throw (0, http_errors_1.default)(400, "Validation failed on update.");
+            });
+            break;
+        default:
+            throw (0, http_errors_1.default)(400, 'Invalid profile type');
+    }
+    logger_1.logger.info(`Profile updated: ${id} by user here`);
     res.status(200).json(updatedProfile);
 });
