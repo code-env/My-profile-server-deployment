@@ -18,32 +18,72 @@ const AcademicProfileSchema = new Schema({
   categories: {
     about: {
       enabled: { type: Boolean, default: true },
-      interestAndGoals: {
+      institutionAndGoals: {
         enabled: { type: Boolean, default: true },
         content: { type: Schema.Types.Mixed }  // Academic goals and research interests
       },
-      quotes: {
+      academicInterest: {
         enabled: { type: Boolean, default: true },
-        content: [String]  // Academic quotes and philosophy
+        content: { type: Schema.Types.Mixed }  // Academic goals and research interests
+      },
+      inspirationalQuotes: {
+        enabled: { type: Boolean, default: true },
+        content: [String]
+      },
+      degreeAndCertification: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed } 
+      },
+      researchAndPublications: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }  // Academic goals and research interests
+      },
+      needsAndResources: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }  // Academic goals and research interests
+      },
+      educationAndLearning: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }  // Academic goals and research interests
+      },
+      Skills: {
+        enabled: { type: Boolean, default: true },
+        content: [String]  // Academic goals and research interests
+      },
+      volunteering: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }  // Academic goals and research interests
+      },
+      gallery: {
+        enabled: { type: Boolean, default: true },
+        content: [String]
       },
       biography: {
         enabled: { type: Boolean, default: true },
         content: String    // Academic biography
       },
-      needsAndWishlist: {
-        enabled: { type: Boolean, default: true },
-        content: [String]  // Academic resources needed
-      },
-      specializations: {
-        enabled: { type: Boolean, default: true },
-        content: [String]  // Academic specializations
-      }
     },
     contact: {
       enabled: { type: Boolean, default: true },
       contactInfo: {
         enabled: { type: Boolean, default: true },
         content: { type: Schema.Types.Mixed }  // Academic contact information
+      },
+      academicAdvisor: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed }
+      },
+      institutionsAndCo: {
+        enabled: { type: Boolean, default: true },
+        content: { type: Schema.Types.Mixed } 
+      },
+      allumniNetwork: {
+        enabled: { type: Boolean, default: true },
+        content: [String] 
+      },
+      academic:{
+        enabled:{type:Boolean, default:true},
+        content:[String]
       },
       modeOfContact: {
         enabled: { type: Boolean, default: true },
@@ -59,8 +99,9 @@ const AcademicProfileSchema = new Schema({
       },
       emergency: {
         enabled: { type: Boolean, default: true },
-        content: { type: Schema.Types.Mixed }  // Emergency academic contacts
-      }
+        content: { type: Schema.Types.Mixed } 
+      },
+  
     },
     social: {
       enabled: { type: Boolean, default: true },
