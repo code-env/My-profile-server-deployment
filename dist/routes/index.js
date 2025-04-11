@@ -86,6 +86,32 @@ const setupRoutes = (app) => {
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     app.use('/api/connections', auth_middleware_1.protect, connection_routes_1.default);
     app.use('/api/logs', logs_routes_1.default);
+    // Test email route
+    app.get('/api/test/email', async (req, res) => {
+        try {
+            const EmailService = require('../services/email.service').default;
+            const testEmail = req.query.email || 'nebam0667@gmail.com';
+            // Send a test verification email
+            await EmailService.sendVerificationEmail(testEmail, '123456', { ipAddress: req.ip, userAgent: req.headers['user-agent'] });
+            res.status(200).json({
+                success: true,
+                message: `Test email sent to ${testEmail}`,
+                details: {
+                    recipient: testEmail,
+                    code: '123456',
+                    sentAt: new Date().toISOString()
+                }
+            });
+        }
+        catch (error) {
+            console.error('Test email error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to send test email',
+                error: error instanceof Error ? error.message : String(error)
+            });
+        }
+    });
     // Test routes for advanced tracking (development only)
     if (process.env.NODE_ENV !== 'production') {
         app.use('/api', test_routes_1.testRoutes);
