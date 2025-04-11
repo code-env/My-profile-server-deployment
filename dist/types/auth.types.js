@@ -14,13 +14,15 @@ exports.registerSchema = zod_1.z.object({
     fullName: zod_1.z.string().min(2, 'Full name must be at least 2 characters'),
     username: zod_1.z.string()
         .min(3, 'Username must be at least 3 characters')
-        .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
-    accountType: zod_1.z.enum(['MYSELF', 'SOMEONE_ELSE']),
+        .regex(/^[a-zA-Z0-9_~]+$/, 'Username can only contain letters, numbers, underscores, and the ~ symbol'),
+    accountType: zod_1.z.enum(['MYSELF', 'SOMEONE_ELSE'], {
+        errorMap: () => ({ message: 'Account type must be either MYSELF or SOMEONE_ELSE' }),
+    }),
     dateOfBirth: zod_1.z.string(),
     countryOfResidence: zod_1.z.string(),
     accountCategory: zod_1.z.enum(['PRIMARY_ACCOUNT', 'SECONDARY_ACCOUNT']),
     phoneNumber: zod_1.z.string()
-        .regex(/^\+?[1-9]\d{1,14}$/, 'Please enter a valid phone number'),
+        .regex(/^[\+\-\(\)\s0-9]+$/, 'Please enter a valid phone number'),
     verificationMethod: zod_1.z.enum(['PHONE', 'EMAIL'])
 });
 // Login schema

@@ -74,6 +74,10 @@ const userSchema = new mongoose_1.Schema({
         type: String,
         sparse: true,
     },
+    formattedPhoneNumber: {
+        type: String,
+        sparse: true,
+    },
     accountType: {
         type: String,
         enum: ['MYSELF', 'SOMEONE_ELSE'],
@@ -132,6 +136,7 @@ const userSchema = new mongoose_1.Schema({
     lockUntil: Date,
     googleId: String,
     facebookId: String,
+    linkedinId: String,
     role: {
         type: String,
         enum: ['superadmin', 'admin', 'user'],
@@ -339,6 +344,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
 // userSchema.index({ phoneNumber: 1 }, { sparse: true });
 userSchema.index({ googleId: 1 }, { sparse: true });
 userSchema.index({ facebookId: 1 }, { sparse: true });
+userSchema.index({ linkedinId: 1 }, { sparse: true });
 userSchema.index({ verificationToken: 1 }, { sparse: true });
 userSchema.index({ resetPasswordToken: 1 }, { sparse: true });
 userSchema.index({ otpData: 1 }, { sparse: true });

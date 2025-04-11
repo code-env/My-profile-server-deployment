@@ -1,10 +1,43 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const jwt = __importStar(require("jsonwebtoken"));
 const User_1 = require("../models/User");
 const config_1 = require("../config/config");
 const logger_1 = require("../utils/logger");
@@ -311,17 +344,17 @@ class AuthService {
         }
     }
     static generateTokens(userId, email) {
-        const accessToken = jsonwebtoken_1.default.sign({ userId, email }, config_1.config.JWT_SECRET, {
+        const accessToken = jwt.sign({ userId, email }, config_1.config.JWT_SECRET, {
             expiresIn: this.ACCESS_TOKEN_EXPIRY,
         });
-        const refreshToken = jsonwebtoken_1.default.sign({ userId, email, type: "refresh" }, config_1.config.JWT_REFRESH_SECRET, { expiresIn: this.REFRESH_TOKEN_EXPIRY });
+        const refreshToken = jwt.sign({ userId, email, type: "refresh" }, config_1.config.JWT_REFRESH_SECRET, { expiresIn: this.REFRESH_TOKEN_EXPIRY });
         return { accessToken, refreshToken };
     }
     static async refreshAccessToken(refreshToken) {
         var _a;
         try {
             // Verify the refresh token
-            const decoded = jsonwebtoken_1.default.verify(refreshToken, config_1.config.JWT_REFRESH_SECRET);
+            const decoded = jwt.verify(refreshToken, config_1.config.JWT_REFRESH_SECRET);
             if (decoded.type !== "refresh") {
                 throw new errors_1.CustomError("INVALID_TOKEN", "Invalid token type");
             }
@@ -332,9 +365,9 @@ class AuthService {
             }
             // Implement refresh token rotation for enhanced security
             // Remove the used refresh token and generate a new one
-            const newRefreshToken = jsonwebtoken_1.default.sign({ userId: user._id.toString(), email: user.email, type: "refresh" }, config_1.config.JWT_REFRESH_SECRET, { expiresIn: this.REFRESH_TOKEN_EXPIRY });
+            const newRefreshToken = jwt.sign({ userId: user._id.toString(), email: user.email, type: "refresh" }, config_1.config.JWT_REFRESH_SECRET, { expiresIn: this.REFRESH_TOKEN_EXPIRY });
             // Generate new access token
-            const accessToken = jsonwebtoken_1.default.sign({ userId: user._id.toString(), email: user.email }, config_1.config.JWT_SECRET, { expiresIn: this.ACCESS_TOKEN_EXPIRY });
+            const accessToken = jwt.sign({ userId: user._id.toString(), email: user.email }, config_1.config.JWT_SECRET, { expiresIn: this.ACCESS_TOKEN_EXPIRY });
             // Update refresh tokens list (implement rotation)
             user.refreshTokens = user.refreshTokens.filter((token) => token !== refreshToken);
             user.refreshTokens.push(newRefreshToken);
@@ -451,7 +484,7 @@ class AuthService {
             throw new errors_1.CustomError("ALREADY_VERIFIED", "Email is already verified");
         }
         // Generate new verification token
-        const verificationToken = jsonwebtoken_1.default.sign({ email: user.email }, config_1.config.JWT_SECRET, { expiresIn: "24h" });
+        const verificationToken = jwt.sign({ email: user.email }, config_1.config.JWT_SECRET, { expiresIn: "24h" });
         // Update user with new verification token
         user.verificationToken = verificationToken;
         user.verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);

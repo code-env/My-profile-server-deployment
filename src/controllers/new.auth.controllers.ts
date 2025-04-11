@@ -3,7 +3,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
 import { User, IUser } from '../models/User';
-import jwt from 'jsonwebtoken';
+import * as jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
 import { OAuth2Client } from 'google-auth-library';
 
@@ -79,10 +79,10 @@ passport.use(
               password: 'oauth2-user-no-password',
               dateOfBirth: new Date(),
               countryOfResidence: 'Unknown',
-              accountType: 'MYSELF', 
-              accountCategory: 'PRIMARY_ACCOUNT', 
-              verificationMethod: 'EMAIL', 
-              profileImage: profile.photos?.[0].value, 
+              accountType: 'MYSELF',
+              accountCategory: 'PRIMARY_ACCOUNT',
+              verificationMethod: 'EMAIL',
+              profileImage: profile.photos?.[0].value,
               refreshTokens: [],
             });
             await user.save();
@@ -134,25 +134,25 @@ passport.use(
               signupType: 'facebook',
               isEmailVerified: true,
               password: 'oauth2-user-no-password',
-              dateOfBirth: new Date(), 
+              dateOfBirth: new Date(),
               countryOfResidence: 'Unknown',
-              accountType: 'MYSELF', 
-              accountCategory: 'PRIMARY_ACCOUNT', 
-              verificationMethod: 'EMAIL', 
-              refreshTokens: [], 
+              accountType: 'MYSELF',
+              accountCategory: 'PRIMARY_ACCOUNT',
+              verificationMethod: 'EMAIL',
+              refreshTokens: [],
             });
             await user.save();
           }
         }
 
-        
+
         const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(user.id.toString(), user.email);
 
 
         user.refreshTokens.push(newRefreshToken);
         await user.save();
 
-    
+
         done(null, { user, accessToken: newAccessToken, refreshToken: newRefreshToken });
       } catch (err) {
         logger.error('Facebook authentication failed:', err);
@@ -179,11 +179,11 @@ passport.deserializeUser(async (id: string, done) => {
 
 // Generate access and refresh tokens
 const generateTokens = (userId: string, email: string) => {
-  const accessToken = jwt.sign({ userId, email }, process.env.JWT_SECRET!, {
-    expiresIn: '1h', 
+  const accessToken = (jwt as any).sign({ userId, email }, process.env.JWT_SECRET!, {
+    expiresIn: '1h',
   });
 
-  const refreshToken = jwt.sign(
+  const refreshToken = (jwt as any).sign(
     { userId, email, type: 'refresh' },
     process.env.JWT_REFRESH_SECRET!,
     { expiresIn: '7d' } // Long-lived refresh token
@@ -195,7 +195,7 @@ const generateTokens = (userId: string, email: string) => {
 
 const refreshAccessToken = async (refreshToken: string) => {
   try {
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as {
+    const decoded = (jwt as any).verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as {
       userId: string;
       email: string;
       type: string;
@@ -205,13 +205,13 @@ const refreshAccessToken = async (refreshToken: string) => {
       throw new Error('Invalid token type');
     }
 
-  
+
     const user = await User.findById(decoded.userId);
     if (!user || !user.refreshTokens?.includes(refreshToken)) {
       throw new Error('Invalid refresh token');
     }
 
-  
+
     const newRefreshToken = jwt.sign(
       { userId: user.id.toString(), email: user.email, type: 'refresh' },
       process.env.JWT_REFRESH_SECRET!,
