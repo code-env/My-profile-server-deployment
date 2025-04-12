@@ -18,7 +18,7 @@ const profileService = new profile_service_1.ProfileService();
 // @route   POST /api/profiles
 // @access  Private
 exports.createProfile = (0, express_async_handler_1.default)(async (req, res) => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c;
     try {
         const user = req.user;
         // Check user's subscription limits
@@ -26,9 +26,10 @@ exports.createProfile = (0, express_async_handler_1.default)(async (req, res) =>
         if (!userDoc) {
             throw (0, http_errors_1.default)(404, 'User not found');
         }
-        if (userDoc.profiles.length >= (((_b = (_a = userDoc.subscription) === null || _a === void 0 ? void 0 : _a.limitations) === null || _b === void 0 ? void 0 : _b.maxProfiles) || Infinity) && user.role !== 'superadmin') {
-            throw (0, http_errors_1.default)(400, 'Profile limit reached for your subscription');
-        }
+        //comment profile limit error
+        // if (userDoc.profiles.length >= (userDoc.subscription?.limitations?.maxProfiles || Infinity) && user.role !== 'superadmin') {
+        //   throw createHttpError(400, 'Profile limit reached for your subscription');
+        // }
         const { name, description, type, role, details, categories, format, settings, forClaim } = req.body;
         // Validate required fields
         if (!name || !type || !type.category || !type.subtype) {
@@ -72,9 +73,9 @@ exports.createProfile = (0, express_async_handler_1.default)(async (req, res) =>
             },
             settings: {
                 visibility: (settings === null || settings === void 0 ? void 0 : settings.visibility) || 'public',
-                allowComments: (_c = settings === null || settings === void 0 ? void 0 : settings.allowComments) !== null && _c !== void 0 ? _c : true,
-                allowMessages: (_d = settings === null || settings === void 0 ? void 0 : settings.allowMessages) !== null && _d !== void 0 ? _d : true,
-                autoAcceptConnections: (_e = settings === null || settings === void 0 ? void 0 : settings.autoAcceptConnections) !== null && _e !== void 0 ? _e : false
+                allowComments: (_a = settings === null || settings === void 0 ? void 0 : settings.allowComments) !== null && _a !== void 0 ? _a : true,
+                allowMessages: (_b = settings === null || settings === void 0 ? void 0 : settings.allowMessages) !== null && _b !== void 0 ? _b : true,
+                autoAcceptConnections: (_c = settings === null || settings === void 0 ? void 0 : settings.autoAcceptConnections) !== null && _c !== void 0 ? _c : false
             },
             completion: 0,
             isActive: true
@@ -911,6 +912,7 @@ exports.updateProfileNew = (0, express_async_handler_1.default)(async (req, res)
     }
     // logger.debug(`Final update query: ${JSON.stringify(finalUpdateQuery, null, 2)}`);
     let updatedProfile;
+    console.log("profile type here:", profile.profileType);
     switch (profile.profileType) {
         case 'personal':
             updatedProfile = await profile_model_1.PersonalProfile.findByIdAndUpdate(id, finalUpdateQuery, { new: true, runValidators: true }).catch((err) => {

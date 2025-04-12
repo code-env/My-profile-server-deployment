@@ -21,7 +21,7 @@ router.post('/claim', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', '
 router.get('/user-profiles', profile_controller_1.getUserProfilesGrouped);
 router.route('/:id')
     .get(roleMiddleware_1.checkProfileOwnership, profile_controller_1.getProfileInfo)
-    .put((0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.updateProfile)
+    .put((0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.updateProfileNew)
     .delete((0, roleMiddleware_1.requireRole)(['user', 'superadmin']), profile_controller_1.deleteProfile);
 // Manager management
 router.post('/:id/managers', (0, roleMiddleware_1.requireRole)(['user', 'superadmin']), roleMiddleware_1.checkProfileOwnership, profile_controller_1.addProfileManager);

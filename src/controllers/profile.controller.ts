@@ -1054,6 +1054,9 @@ export const updateProfileNew = asyncHandler(async (req: Request, res: Response)
   delete updates.claimed;
   delete updates.claimedBy;
   delete updates.qrCode;
+  delete updates.profileType;
+  delete updates.profileCategory;
+
 
 
   const flattenedUpdates = buildUpdateQuery(updates);
@@ -1087,7 +1090,8 @@ export const updateProfileNew = asyncHandler(async (req: Request, res: Response)
   // logger.debug(`Final update query: ${JSON.stringify(finalUpdateQuery, null, 2)}`);
 
   let updatedProfile
-
+console.log("profile type here:", profile.profileType)
+console.log("final query:", finalUpdateQuery)
     switch (profile.profileType) {
       case 'personal':
         updatedProfile = await PersonalProfile.findByIdAndUpdate(
