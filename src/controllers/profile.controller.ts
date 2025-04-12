@@ -34,10 +34,10 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
     if (!userDoc) {
       throw createHttpError(404, 'User not found');
     }
-
-    if (userDoc.profiles.length >= (userDoc.subscription?.limitations?.maxProfiles || Infinity) && user.role !== 'superadmin') {
-      throw createHttpError(400, 'Profile limit reached for your subscription');
-    }
+//comment profile limit error
+    // if (userDoc.profiles.length >= (userDoc.subscription?.limitations?.maxProfiles || Infinity) && user.role !== 'superadmin') {
+    //   throw createHttpError(400, 'Profile limit reached for your subscription');
+    // }
 
     const {
       name,
