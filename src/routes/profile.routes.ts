@@ -19,6 +19,7 @@ import {
   updateProfileSettings,
   createClaimableProfile,
   getUserProfilesGrouped,
+  updateProfileNew,
 
 } from '../controllers/profile.controller';
 
@@ -40,7 +41,7 @@ router.post('/claim', requireRole(['user', 'superadmin', 'admin']), claimProfile
 router.get('/user-profiles', getUserProfilesGrouped)
 router.route('/:id')
   .get(checkProfileOwnership, getProfileInfo)
-  .put(requireRole(['user', 'superadmin', 'admin']), updateProfile)
+  .put(requireRole(['user', 'superadmin', 'admin']), updateProfileNew)
   .delete(requireRole(['user', 'superadmin']), deleteProfile);
 
 // Manager management
