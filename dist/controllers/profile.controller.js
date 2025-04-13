@@ -887,6 +887,8 @@ exports.updateProfileNew = (0, express_async_handler_1.default)(async (req, res)
     delete updates.claimed;
     delete updates.claimedBy;
     delete updates.qrCode;
+    delete updates.profileType;
+    delete updates.profileCategory;
     const flattenedUpdates = buildUpdateQuery(updates);
     // Separate scalar updates from array updates
     const setUpdates = {};
@@ -913,6 +915,7 @@ exports.updateProfileNew = (0, express_async_handler_1.default)(async (req, res)
     // logger.debug(`Final update query: ${JSON.stringify(finalUpdateQuery, null, 2)}`);
     let updatedProfile;
     console.log("profile type here:", profile.profileType);
+    console.log("final query:", finalUpdateQuery);
     switch (profile.profileType) {
         case 'personal':
             updatedProfile = await profile_model_1.PersonalProfile.findByIdAndUpdate(id, finalUpdateQuery, { new: true, runValidators: true }).catch((err) => {

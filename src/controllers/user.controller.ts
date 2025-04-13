@@ -135,80 +135,104 @@ export class UserControllers {
   }
 
 
-/**
- * Generate a user name
- * @route GET /auth/users/generate-username
- * @param req - Express request object
- * @param res - Express response object
- */
-static async GenerateUsername(req: Request, res: Response) {
-  try {
-    const { firstname, dateOfBirth } = req.body;
+  /**
+   * Generate a user name
+   * @route GET /auth/users/generate-username
+   * @param req - Express request object
+   * @param res - Express response object
+   */
+  static async GenerateUsername(req: Request, res: Response) {
+    console.log("Generating username...");
+    try {
+      const { firstname } = req.body;
 
-    if (!firstname || !dateOfBirth) {
-      return res.status(400).json({
-        success: false,
-        message: "Firstname and dateOfBirth are required",
+      if (!firstname) {
+        return res.status(400).json({
+          success: false,
+          message: "Firstname (full name) is required",
+        });
+      }
+
+      const MAX_USERNAME_LENGTH = 20;
+
+      const sanitize = (str: string): string =>
+        str.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+      const truncate = (str: string): string =>
+        str.length > MAX_USERNAME_LENGTH ? str.slice(0, MAX_USERNAME_LENGTH) : str;
+
+      const parts = sanitize(firstname).split('_').filter(Boolean);
+
+      const baseCandidates = new Set<string>();
+
+      // Generate initial name permutations with both separators
+      if (parts.length >= 2) {
+        const first = parts[0];
+        const last = parts[parts.length - 1];
+
+
+        baseCandidates.add(truncate(`${first}_${last}`));
+        baseCandidates.add(truncate(`${last}_${first}`));
+      }
+
+      baseCandidates.add(truncate(parts.join('_')));
+      baseCandidates.add(truncate(parts.slice().reverse().join('_')));
+
+      const baseUsernames = Array.from(baseCandidates);
+      const availableUsernames: string[] = [];
+
+      // Keep generating until 3 unique usernames are found
+      for (const base of baseUsernames) {
+        let candidate = base;
+        let suffix = 1;
+
+        // This inner loop guarantees availability
+        while (availableUsernames.length < 3) {
+          const existing = await User.findOne({ username: candidate });
+
+          if (!existing && !availableUsernames.includes(candidate)) {
+            availableUsernames.push(candidate);
+          } else {
+            candidate = truncate(`${base}${suffix.toString().padStart(2, '0')}`);
+            suffix++;
+          }
+        }
+        if (availableUsernames.length >= 3) break;
+      }
+
+      // In case all baseUsernames are exhausted and we still need more
+      while (availableUsernames.length < 3) {
+        const fallbackBase = sanitize(parts.join('_')) || 'user';
+
+        let suffix = 0;
+
+        let candidate = truncate(`${fallbackBase}${suffix.toString().padStart(2, '0')}`);
+
+        // Keep generating until a unique one is found
+        while (true) {
+          const existing = await User.findOne({ username: candidate });
+
+          if (!existing && !availableUsernames.includes(candidate)) {
+            availableUsernames.push(candidate);
+            break;
+          }
+
+          suffix++;
+          candidate = truncate(`${fallbackBase}${suffix}`);
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        usernames: availableUsernames,
       });
-    }
 
-    const dayOfBirth = new Date(dateOfBirth).getDate();
-
-    if (isNaN(dayOfBirth)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid dateOfBirth format",
-      });
-    }
-
-    // Replace spaces and truncate firstname
-    const sanitizedFirstname: string = firstname.toLowerCase().replace(/\s+/g, '_').slice(0, 8);
-
-    const candidatesSet: Set<string> = new Set();
-    let iterations = 0;
-    const maxIterations = 25;
-
-    while (candidatesSet.size < 3 && iterations < maxIterations) {
-      iterations++;
-      const randomNumber = Math.floor(Math.random() * 11);
-      const candidate = `~its${sanitizedFirstname}${dayOfBirth}${randomNumber}`;
-      candidatesSet.add(candidate);
-    }
-
-    let candidateList: string[] = Array.from(candidatesSet);
-
-    const existingUsers = await User.find({ username: { $in: candidateList } }).select('username');
-    const existingUsernames = new Set(existingUsers.map(user => user.username));
-
-    candidateList = candidateList.filter(candidate => !existingUsernames.has(candidate));
-
-    while (candidateList.length < 3 && iterations < maxIterations) {
-      iterations++;
-      const randomNumber = Math.floor(Math.random() * 11);
-      const candidate = `~its${sanitizedFirstname}${dayOfBirth}${randomNumber}`;
-
-      if (existingUsernames.has(candidate) || candidateList.includes(candidate)) continue;
-
-      candidateList.push(candidate);
-    }
-
-    if (candidateList.length < 3) {
+    } catch (error: unknown) {
+      console.error((error as Error).message);
       return res.status(500).json({
         success: false,
-        message: "Unable to generate three unique usernames. Please try again.",
+        message: error instanceof Error ? error.message : "Failed to generate username",
       });
     }
-
-    res.status(200).json({ success: true, usernames: candidateList.slice(0, 3) });
-  } catch (error: unknown) {
-    console.error((error as Error).message);
-    res.status(500).json({
-      success: false,
-      message: error instanceof Error ? error.message : "Failed to generate username",
-    });
   }
-}
-
-
-
 }
