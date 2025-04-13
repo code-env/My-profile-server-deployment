@@ -154,14 +154,16 @@ export class UserControllers {
       }
 
       const MAX_USERNAME_LENGTH = 20;
+      const MAX_FIRSTNAME_LENGTH = 12; // Limit the length of the firstname to avoid long processing
 
       const sanitize = (str: string): string =>
         str.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
 
-      const truncate = (str: string): string =>
-        str.length > MAX_USERNAME_LENGTH ? str.slice(0, MAX_USERNAME_LENGTH) : str;
+      const truncate = (str: string, length: number): string =>
+        str.length > length ? str.slice(0, length) : str;
 
-      const parts = sanitize(firstname).split('_').filter(Boolean);
+      const shortenedFirstname = truncate(firstname, MAX_FIRSTNAME_LENGTH);
+      const parts = sanitize(shortenedFirstname).split('_').filter(Boolean);
 
       const baseCandidates = new Set<string>();
 
@@ -170,13 +172,12 @@ export class UserControllers {
         const first = parts[0];
         const last = parts[parts.length - 1];
 
-
-        baseCandidates.add(truncate(`${first}_${last}`));
-        baseCandidates.add(truncate(`${last}_${first}`));
+        baseCandidates.add(truncate(`${first}_${last}`, MAX_USERNAME_LENGTH));
+        baseCandidates.add(truncate(`${last}_${first}`, MAX_USERNAME_LENGTH));
       }
 
-      baseCandidates.add(truncate(parts.join('_')));
-      baseCandidates.add(truncate(parts.slice().reverse().join('_')));
+      baseCandidates.add(truncate(parts.join('_'), MAX_USERNAME_LENGTH));
+      baseCandidates.add(truncate(parts.slice().reverse().join('_'), MAX_USERNAME_LENGTH));
 
       const baseUsernames = Array.from(baseCandidates);
       const availableUsernames: string[] = [];
@@ -193,7 +194,7 @@ export class UserControllers {
           if (!existing && !availableUsernames.includes(candidate)) {
             availableUsernames.push(candidate);
           } else {
-            candidate = truncate(`${base}${suffix.toString().padStart(2, '0')}`);
+            candidate = truncate(`${base}${suffix.toString().padStart(2, '0')}`, MAX_USERNAME_LENGTH);
             suffix++;
           }
         }
@@ -206,7 +207,7 @@ export class UserControllers {
 
         let suffix = 0;
 
-        let candidate = truncate(`${fallbackBase}${suffix.toString().padStart(2, '0')}`);
+        let candidate = truncate(`${fallbackBase}${suffix.toString().padStart(2, '0')}`, MAX_USERNAME_LENGTH);
 
         // Keep generating until a unique one is found
         while (true) {
@@ -218,7 +219,7 @@ export class UserControllers {
           }
 
           suffix++;
-          candidate = truncate(`${fallbackBase}${suffix}`);
+          candidate = truncate(`${fallbackBase}${suffix}`, MAX_USERNAME_LENGTH);
         }
       }
 
