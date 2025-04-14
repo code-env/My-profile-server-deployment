@@ -1,6 +1,8 @@
-import contactsService from '../services/contacts.service';
+import ContactService from '../services/contacts.service';
 import type { User } from '../models/User';
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
+import { ContactCategory } from '../models/Contact';
 
 // Helper function to validate user authentication
 const validateAuthenticatedUser = (req: Request): string => {
@@ -19,17 +21,17 @@ export const createContact = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'firstName and phoneNumber are required' });
     }
 
-    const contact = await contactsService.createContact(userId, req.body);
+    const contact = await ContactService.createContact(userId, req.body);
     res.status(201).json(contact);
-  } catch (error instanceof Error) {
-    if (error.message === 'Authentication required') {
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
       return res.status(401).json({ error: error.message });
     }
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
 };
 
-export const getContactById = async (req: AuthenticatedRequest, res: Response) => {
+export const getContactById = async (req: Request, res: Response) => {
   try {
     const userId = validateAuthenticatedUser(req);
     
@@ -46,14 +48,14 @@ export const getContactById = async (req: AuthenticatedRequest, res: Response) =
     
     res.json(contact);
   } catch (error) {
-    if (error.message === 'Authentication required') {
+    if (error instanceof Error && error.message === 'Authentication required') {
       return res.status(401).json({ error: error.message });
     }
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
 };
 
-export const getUserContacts = async (req: AuthenticatedRequest, res: Response) => {
+export const getUserContacts = async (req: Request, res: Response) => {
   try {
     const userId = validateAuthenticatedUser(req);
     const { isRegistered, category, search, isFavorite } = req.query;
@@ -72,14 +74,14 @@ export const getUserContacts = async (req: AuthenticatedRequest, res: Response) 
     
     res.json(contacts);
   } catch (error) {
-    if (error.message === 'Authentication required') {
+    if (error instanceof Error && error.message === 'Authentication required') {
       return res.status(401).json({ error: error.message });
     }
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
 };
 
-export const updateContact = async (req: AuthenticatedRequest, res: Response) => {
+export const updateContact = async (req: Request, res: Response) => {
   try {
     const userId = validateAuthenticatedUser(req);
     
@@ -105,14 +107,14 @@ export const updateContact = async (req: AuthenticatedRequest, res: Response) =>
     
     res.json(updatedContact);
   } catch (error) {
-    if (error.message === 'Authentication required') {
+    if (error instanceof Error && error.message === 'Authentication required') {
       return res.status(401).json({ error: error.message });
     }
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
 };
 
-export const deleteContact = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteContact = async (req: Request, res: Response) => {
   try {
     const userId = validateAuthenticatedUser(req);
     
@@ -129,14 +131,14 @@ export const deleteContact = async (req: AuthenticatedRequest, res: Response) =>
     
     res.json({ success: true });
   } catch (error) {
-    if (error.message === 'Authentication required') {
-      return res.status(401).json({ error: error.message });
+    if ((error as Error).message === 'Authentication required') {
+      return res.status(401).json({ error: (error as Error).message });
     }
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: (error as Error).message });
   }
 };
 
-export const toggleFavorite = async (req: AuthenticatedRequest, res: Response) => {
+export const toggleFavorite = async (req: Request, res: Response) => {
   try {
     const userId = validateAuthenticatedUser(req);
     
@@ -153,14 +155,14 @@ export const toggleFavorite = async (req: AuthenticatedRequest, res: Response) =
     
     res.json(contact);
   } catch (error) {
-    if (error.message === 'Authentication required') {
+    if (error instanceof Error && error.message === 'Authentication required') {
       return res.status(401).json({ error: error.message });
     }
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
 };
 
-export const syncContacts = async (req: AuthenticatedRequest, res: Response) => {
+export const syncContacts = async (req: Request, res: Response) => {
   try {
     const userId = validateAuthenticatedUser(req);
     const { contacts } = req.body;
@@ -179,27 +181,27 @@ export const syncContacts = async (req: AuthenticatedRequest, res: Response) => 
     const syncedContacts = await ContactService.syncContacts(userId, contacts);
     res.json(syncedContacts);
   } catch (error) {
-    if (error.message === 'Authentication required') {
-      return res.status(401).json({ error: error.message });
+    if ((error as Error).message === 'Authentication required') {
+      return res.status(401).json({ error: (error as Error).message });
     }
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 };
 
-export const getRegisteredContacts = async (req: AuthenticatedRequest, res: Response) => {
+export const getRegisteredContacts = async (req: Request, res: Response) => {
   try {
     const userId = validateAuthenticatedUser(req);
     const contacts = await ContactService.getRegisteredContacts(userId);
     res.json(contacts);
   } catch (error) {
-    if (error.message === 'Authentication required') {
+    if (error instanceof Error && error.message === 'Authentication required') {
       return res.status(401).json({ error: error.message });
     }
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
 };
 
-export const updateLastContacted = async (req: AuthenticatedRequest, res: Response) => {
+export const updateLastContacted = async (req: Request, res: Response) => {
   try {
     const userId = validateAuthenticatedUser(req);
     
@@ -216,14 +218,14 @@ export const updateLastContacted = async (req: AuthenticatedRequest, res: Respon
     
     res.json(contact);
   } catch (error) {
-    if (error.message === 'Authentication required') {
+    if (error instanceof Error && error.message === 'Authentication required') {
       return res.status(401).json({ error: error.message });
     }
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
 };
 
-export const bulkUpdateCategories = async (req: AuthenticatedRequest, res: Response) => {
+export const bulkUpdateCategories = async (req: Request, res: Response) => {
   try {
     const userId = validateAuthenticatedUser(req);
     const { contactIds, category } = req.body;
@@ -251,9 +253,9 @@ export const bulkUpdateCategories = async (req: AuthenticatedRequest, res: Respo
     
     res.json({ modifiedCount });
   } catch (error) {
-    if (error.message === 'Authentication required') {
+    if (error instanceof Error && error.message === 'Authentication required') {
       return res.status(401).json({ error: error.message });
     }
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
 };
