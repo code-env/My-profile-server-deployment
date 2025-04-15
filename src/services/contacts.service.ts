@@ -1,17 +1,42 @@
 import mongoose from 'mongoose';
-import { Contact, ContactCategory } from '../models/Contact';
+import { Contact, ContactCategory, ContactRelationship, Gender, PhoneType } from '../models/Contact';
 import { IContact } from '../models/Contact';
 import { User } from '../models/User';
 
 class ContactService {
   /**
-   * Create a new contact
+   * Create a new contact with all the new fields
    */
   async createContact(userId: string, contactData: Partial<IContact>) {
+
+    // look for existing profile by phone number
+    const profile = await User.findOne({ phoneNumber: contactData.phoneNumber });
+
+    console.log('profile:', profile);
+    if (profile) {
+      contactData.isRegistered = true;
+      contactData.profile = profile._id;
+    }
+
+
     const contact = new Contact({
       owner: userId,
+      isRegistered: contactData.isRegistered || false,
+      profile: contactData.profile || null,
+      isFavorite: false,
+      category: contactData.category || ContactCategory.Personal,
+      relationShip: contactData.relationShip || ContactRelationship.Self,
+
+      source: 'Manual',
       ...contactData,
-      source: contactData.source || 'Manual'
+      // Handle address subdocument
+      address: contactData.address ? {
+        street: contactData.address.street,
+        city: contactData.address.city,
+        state: contactData.address.state,
+        postalCode: contactData.address.postalCode,
+        country: contactData.address.country
+      } : undefined
     });
 
     await contact.save();
@@ -19,15 +44,28 @@ class ContactService {
   }
 
   /**
-   * Get a contact by ID
+   * Get a contact by ID with all fields
    */
   async getContactById(contactId: string, userId: string) {
-    return Contact.findOne({ _id: contactId, owner: userId });
+    console.log('Fetching contact with ID:', contactId, 'for user:', userId);
+    return Contact.findOne({ _id: contactId, owner: userId })
+      //load the user that is having the owner
+      .populate({
+        'path': 'owner',
+        'select': 'firstName lastName email phoneNumber',
+        'model': 'Users'
+      })
+      .populate({
+        'path': 'profile',
+        'select': 'firstName lastName email phoneNumber',
+        'model': 'Users'
+      })
   }
 
   /**
-   * Get all contacts for a user with optional filters
-   */
+ * Get all contacts for a user with strict filter enforcement.
+ * Only explicitly provided filters will be applied.
+ */
   async getUserContacts(
     userId: string,
     filters: {
@@ -35,37 +73,114 @@ class ContactService {
       category?: string;
       search?: string;
       isFavorite?: boolean;
+      gender?: Gender;
+      phoneType?: PhoneType;
+      indicatorType?: string;
     } = {}
   ) {
+    // 1. Start with base query
     const query: any = { owner: userId };
 
+    // 2. Log incoming filters for debugging
+    console.log('Incoming filters:', JSON.stringify(filters, null, 2));
+
+    // 3. Apply ONLY provided filters
     if (filters.isRegistered !== undefined) {
       query.isRegistered = filters.isRegistered;
+      console.log('Applied isRegistered filter:', filters.isRegistered);
     }
 
-    if (filters.category) {
+    if (filters.category !== undefined) {
       query.category = filters.category;
+      console.log('Applied category filter:', filters.category);
     }
 
     if (filters.isFavorite !== undefined) {
       query.isFavorite = filters.isFavorite;
+      console.log('Applied isFavorite filter:', filters.isFavorite);
     }
 
-    if (filters.search) {
-      query.$text = { $search: filters.search };
+    if (filters.gender !== undefined) {
+      query.gender = filters.gender;
+      console.log('Applied gender filter:', filters.gender);
     }
 
-    return Contact.find(query).sort({ isFavorite: -1, displayName: 1 });
+    if (filters.phoneType !== undefined) {
+      query.phoneType = filters.phoneType;
+      console.log('Applied phoneType filter:', filters.phoneType);
+    }
+
+    if (filters.indicatorType !== undefined) {
+      query.indicatorType = filters.indicatorType;
+      console.log('Applied indicatorType filter:', filters.indicatorType);
+    }
+
+    if (filters.search !== undefined && filters.search.trim() !== '') {
+      const searchRegex = new RegExp(filters.search, 'i');
+      query.$or = [
+        { firstName: searchRegex },
+        { lastName: searchRegex },
+        { displayName: searchRegex },
+        { phoneNumber: searchRegex },
+        { email: searchRegex }
+      ];
+      console.log('Applied search filter:', filters.search);
+    }
+
+    console.log('Final MongoDB query:', JSON.stringify(query, null, 2));
+
+    const results = await Contact.find(query)
+    .sort({ isFavorite: -1, displayName: 1 })
+    .populate({
+      path: 'owner',
+      select: 'firstName lastName email phoneNumber',
+      model: 'Users' 
+    })
+    .populate({
+      path: 'profile',
+      select: 'firstName lastName email phoneNumber', 
+      model: 'Users' 
+    });
+
+    return results;
   }
 
   /**
-   * Update a contact
+   * Update a contact with all fields
    */
   async updateContact(contactId: string, userId: string, updateData: Partial<IContact>) {
+    // Handle address updates separately
+    if (updateData.address) {
+      const contact = await Contact.findOne({ _id: contactId, owner: userId });
+      if (!contact) {
+        throw new Error('Contact not found or access denied');
+      }
+
+      // Merge existing address with updates
+      contact.address = {
+        ...(contact.address || {}),
+        ...updateData.address
+      };
+
+      // Update other fields
+      Object.keys(updateData).forEach((key) => {
+        if (key !== 'address' && key !== '_id') {
+          const typedKey = key as keyof IContact;
+          if (key in contact.toObject()) {
+            (contact as any)[key] = updateData[key as keyof IContact];
+          }
+        }
+      });
+
+      await contact.save();
+      return contact;
+    }
+
+    // Standard update for non-address changes
     const contact = await Contact.findOneAndUpdate(
       { _id: contactId, owner: userId },
       updateData,
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!contact) {
@@ -101,15 +216,26 @@ class ContactService {
   }
 
   /**
-   * Sync contacts with external source (e.g., phone contacts)
+   * Enhanced sync contacts with all fields
    */
   async syncContacts(
     userId: string,
     contacts: Array<{
       firstName: string;
+      middleName?: string;
       lastName?: string;
+      suffix?: string;
       phoneNumber: string;
+      phoneType?: PhoneType;
       email?: string;
+      gender?: Gender;
+      address?: {
+        street?: string;
+        city?: string;
+        state?: string;
+        postalCode?: string;
+        country?: string;
+      };
     }>
   ) {
     const operations = contacts.map(contact => ({
@@ -118,15 +244,23 @@ class ContactService {
         update: {
           $setOnInsert: {
             firstName: contact.firstName,
-            lastName: contact.lastName || '',
+            middleName: contact.middleName,
+            lastName: contact.lastName,
+            suffix: contact.suffix,
             phoneNumber: contact.phoneNumber,
+            phoneType: contact.phoneType,
             email: contact.email,
+            gender: contact.gender,
+            address: contact.address,
             source: 'Synced',
             isRegistered: false,
             category: 'Other'
           },
           $set: {
-            lastSynced: new Date()
+            lastSynced: new Date(),
+            // Update these fields if they exist in the incoming contact
+            ...(contact.firstName && { firstName: contact.firstName }),
+            ...(contact.lastName && { lastName: contact.lastName })
           }
         },
         upsert: true
@@ -143,7 +277,7 @@ class ContactService {
   }
 
   /**
-   * Check if a contact is registered in the system
+   * Enhanced contact registration check
    */
   private async checkContactRegistration(contact: IContact) {
     let isRegistered = false;
@@ -153,7 +287,7 @@ class ContactService {
     const userByPhone = await User.findOne({ phoneNumber: contact.phoneNumber });
     if (userByPhone) {
       isRegistered = true;
-      profileId = userByPhone.profiles[0]; // Or find appropriate profile
+      profileId = userByPhone.profiles[0];
     } else if (contact.email) {
       // Check by email if phone number didn't match
       const userByEmail = await User.findOne({ email: contact.email });
@@ -175,10 +309,12 @@ class ContactService {
   }
 
   /**
-   * Get all registered contacts (contacts that have profiles in the system)
+   * Get all registered contacts with enhanced data
    */
   async getRegisteredContacts(userId: string) {
-    return Contact.find({ owner: userId, isRegistered: true }).populate('profile');
+    return Contact.find({ owner: userId, isRegistered: true })
+      .populate('profile')
+      .populate('owner', '-password');
   }
 
   /**
@@ -206,6 +342,23 @@ class ContactService {
     );
 
     return result.modifiedCount;
+  }
+
+  /**
+   * Add or update additional indicators
+   */
+  async updateAdditionalIndicators(contactId: string, userId: string, indicators: string[]) {
+    const contact = await Contact.findOneAndUpdate(
+      { _id: contactId, owner: userId },
+      { additionalIndicators: indicators },
+      { new: true }
+    );
+
+    if (!contact) {
+      throw new Error('Contact not found or access denied');
+    }
+
+    return contact;
   }
 }
 

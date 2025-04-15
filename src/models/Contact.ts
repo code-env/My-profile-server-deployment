@@ -5,11 +5,15 @@ import { IUser } from './User';
 export interface IContact extends Document {
   owner: mongoose.Types.ObjectId | IUser;
   firstName: string;
+  middleName?: string;
   lastName: string;
+  suffix?: string;
   displayName?: string;
   phoneNumber: string;
+  phoneType?: PhoneType;
   email?: string;
   isRegistered: boolean;
+  relationShip?: ContactRelationship;
   profile?: mongoose.Types.ObjectId;
   lastSynced: Date;
   category: ContactCategory;
@@ -18,9 +22,21 @@ export interface IContact extends Document {
   labels?: string[];
   notes?: string;
   isFavorite: boolean;
-  connectionStrength?: number; // 1-5 scale for how strong the connection is
+  connectionStrength?: number;
   lastContacted?: Date;
-  contact?: any; // WhatsApp contact data if needed
+  contact?: any;
+  gender?: Gender;
+  preferredProduct?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  };
+  photo?: string;
+  indicatorType?: string;
+  additionalIndicators?: string[];
 }
 
 export enum ContactCategory {
@@ -41,6 +57,25 @@ export enum ContactSource {
   System = 'System'
 }
 
+export enum Gender {
+  Male = 'Male',
+  Female = 'Female',
+  Other = 'Other',
+  PreferNotToSay = 'Prefer not to say'
+}
+
+export enum PhoneType {
+  Mobile = 'Mobile',
+  Home = 'Home',
+  Work = 'Work',
+  Other = 'Other'
+}
+
+export enum ContactRelationship {
+  Self = 'Self',
+  Family = 'Family',
+}
+
 const contactSchema = new Schema<IContact>(
   {
     owner: { 
@@ -54,9 +89,17 @@ const contactSchema = new Schema<IContact>(
       required: true,
       trim: true 
     },
+    middleName: {
+      type: String,
+      trim: true
+    },
     lastName: { 
       type: String, 
       trim: true 
+    },
+    suffix: {
+      type: String,
+      trim: true
     },
     displayName: { 
       type: String, 
@@ -66,6 +109,10 @@ const contactSchema = new Schema<IContact>(
       type: String, 
       required: true,
       index: true 
+    },
+    phoneType: {
+      type: String,
+      enum: Object.values(PhoneType)
     },
     email: { 
       type: String, 
@@ -80,7 +127,7 @@ const contactSchema = new Schema<IContact>(
     },
     profile: { 
       type: Schema.Types.ObjectId, 
-      ref: 'Profile',
+      ref: 'Users',
       sparse: true 
     },
     lastSynced: { 
@@ -92,6 +139,13 @@ const contactSchema = new Schema<IContact>(
       enum: Object.values(ContactCategory),
       default: ContactCategory.Other 
     },
+
+    relationShip: { 
+      type: String,
+      enum: Object.values(ContactRelationship),
+      default: ContactRelationship.Self 
+    },
+    
     source: { 
       type: String, 
       enum: Object.values(ContactSource),
@@ -123,15 +177,41 @@ const contactSchema = new Schema<IContact>(
       type: Date 
     },
     contact: { 
-      type: Schema.Types.Mixed // For WhatsApp contact data
-    }
+      type: Schema.Types.Mixed
+    },
+    gender: {
+      type: String,
+      enum: Object.values(Gender)
+    },
+    preferredProduct: {
+      type: String,
+      trim: true
+    },
+    address: {
+      street: { type: String, trim: true },
+      city: { type: String, trim: true },
+      state: { type: String, trim: true },
+      postalCode: { type: String, trim: true },
+      country: { type: String, trim: true }
+    },
+    photo: {
+      type: String // URL or path to the photo
+    },
+    indicatorType: {
+      type: String,
+      trim: true
+    },
+    additionalIndicators: [{
+      type: String,
+      trim: true
+    }]
   },
   {
     timestamps: true,
     toJSON: {
       virtuals: true,
       transform: function(doc, ret) {
-        delete ret.__v; // Remove version key
+        delete ret.__v;
         if (ret.customFields && Object.keys(ret.customFields).length === 0) {
           delete ret.customFields;
         }
@@ -142,7 +222,11 @@ const contactSchema = new Schema<IContact>(
 
 // Virtual for full name
 contactSchema.virtual('fullName').get(function() {
-  return `${this.firstName} ${this.lastName}`.trim();
+  let name = this.firstName;
+  if (this.middleName) name += ` ${this.middleName}`;
+  if (this.lastName) name += ` ${this.lastName}`;
+  if (this.suffix) name += ` ${this.suffix}`;
+  return name.trim();
 });
 
 // Indexes for better query performance
@@ -155,7 +239,7 @@ contactSchema.index({ phoneNumber: 'text', firstName: 'text', lastName: 'text', 
 // Pre-save hook to set displayName if not provided
 contactSchema.pre('save', function(next) {
   if (!this.displayName) {
-    this.displayName = `${this.firstName} ${this.lastName}`.trim();
+    this.displayName = this.get('fullName');
   }
   next();
 });
