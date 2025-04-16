@@ -130,17 +130,17 @@ class ContactService {
     console.log('Final MongoDB query:', JSON.stringify(query, null, 2));
 
     const results = await Contact.find(query)
-    .sort({ isFavorite: -1, displayName: 1 })
-    .populate({
-      path: 'owner',
-      select: 'firstName lastName email phoneNumber',
-      model: 'Users' 
-    })
-    .populate({
-      path: 'profile',
-      select: 'firstName lastName email phoneNumber', 
-      model: 'Users' 
-    });
+      .sort({ isFavorite: -1, displayName: 1 })
+      .populate({
+        path: 'owner',
+        select: 'firstName lastName email phoneNumber',
+        model: 'Users'
+      })
+      .populate({
+        path: 'profile',
+        select: 'firstName lastName email phoneNumber',
+        model: 'Users'
+      });
 
     return results;
   }
@@ -206,6 +206,9 @@ class ContactService {
    */
   async toggleFavorite(contactId: string, userId: string) {
     const contact = await Contact.findOne({ _id: contactId, owner: userId });
+
+    console.log("Contact Found:", contact);
+    
     if (!contact) {
       throw new Error('Contact not found or access denied');
     }

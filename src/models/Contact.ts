@@ -74,6 +74,8 @@ export enum PhoneType {
 export enum ContactRelationship {
   Self = 'Self',
   Family = 'Family',
+  Mates = 'Mates',
+  Friends = 'Friends',
 }
 
 const contactSchema = new Schema<IContact>(

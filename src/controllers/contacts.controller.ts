@@ -66,7 +66,7 @@ export const createContact = async (req: Request, res: Response) => {
   }
 };
 
-export const getContactById = async ( req: Request, res: Response) => {
+export const getContactById = async (req: Request, res: Response) => {
   try {
     const { userId } = validateAuthenticatedUser(req);
 
@@ -78,7 +78,8 @@ export const getContactById = async ( req: Request, res: Response) => {
     const contact = await ContactService.getContactById(req.params.id, userId);
 
     if (!contact) {
-      return res.status(404).json({ error: 'Contact not found' });
+      handleErrorResponse(new Error('Contact not found'), res);
+      return;
     }
 
     res.json(contact);
@@ -242,13 +243,15 @@ export const toggleFavorite = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid contact ID' });
     }
 
+    // Validate if the contact exists
+    const contactExists = await ContactService.getContactById(req.params.id, userId);
+    if (!contactExists) {
+      handleErrorResponse(new Error('Contact not found'), res);
+      return;
+    }
     const contact = await ContactService.toggleFavorite(req.params.id, userId);
 
-    if (!contact) {
-      return res.status(404).json({ error: 'Contact not found' });
-    }
-
-    res.json(contact);
+    return successResponse(res, contact, 'Contact favorite status updated successfully');
   } catch (error) {
     handleErrorResponse(error, res);
   }
@@ -390,6 +393,7 @@ function handleErrorResponse(error: unknown, res: Response) {
 
   const statusCode = error instanceof Error && error.message.includes('not found') ? 404 : 500;
   res.status(statusCode).json({
+    success: false,
     error: error instanceof Error ? error.message : 'An unknown error occurred',
     ...(process.env.NODE_ENV === 'development' && { stack: error instanceof Error ? error.stack : undefined })
   });
