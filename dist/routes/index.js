@@ -44,6 +44,7 @@ const auth_routes_1 = __importDefault(require("./auth.routes"));
 const user_routes_1 = __importDefault(require("./user.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
 const connection_routes_1 = __importDefault(require("./connection.routes"));
+const contact_route_1 = __importDefault(require("./contact.route"));
 const logs_routes_1 = __importDefault(require("./logs.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
@@ -85,6 +86,7 @@ const setupRoutes = (app) => {
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     app.use('/api/connections', auth_middleware_1.protect, connection_routes_1.default);
+    app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
     app.use('/api/logs', logs_routes_1.default);
     // Test email route
     app.get('/api/test/email', async (req, res) => {
