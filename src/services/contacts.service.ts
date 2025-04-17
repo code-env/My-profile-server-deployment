@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
-import { Contact, ContactCategory, ContactRelationship, Gender, PhoneType } from '../models/Contact';
+import { Contact, ProfileType, ContactRelationship, Gender, PhoneType } from '../models/Contact';
 import { IContact } from '../models/Contact';
 import { User } from '../models/User';
+import CloudinaryService from './cloudinary.service';
 
 class ContactService {
   /**
@@ -24,8 +25,8 @@ class ContactService {
       isRegistered: contactData.isRegistered || false,
       profile: contactData.profile || null,
       isFavorite: false,
-      category: contactData.category || ContactCategory.Personal,
-      relationShip: contactData.relationShip || ContactRelationship.Self,
+      profileType: contactData.profileType || ProfileType.Personal,
+      relationShip: contactData.relationshipType,
 
       source: 'Manual',
       ...contactData,
@@ -51,6 +52,10 @@ class ContactService {
     return Contact.findOne({ _id: contactId, owner: userId })
       //load the user that is having the owner
       .populate({
+        'path': 'relationshipType',
+        'model': 'RelationshipType'
+      })
+      .populate({
         'path': 'owner',
         'select': 'firstName lastName email phoneNumber',
         'model': 'Users'
@@ -70,7 +75,7 @@ class ContactService {
     userId: string,
     filters: {
       isRegistered?: boolean;
-      category?: string;
+      profileType?: string;
       search?: string;
       isFavorite?: boolean;
       gender?: Gender;
@@ -90,9 +95,9 @@ class ContactService {
       console.log('Applied isRegistered filter:', filters.isRegistered);
     }
 
-    if (filters.category !== undefined) {
-      query.category = filters.category;
-      console.log('Applied category filter:', filters.category);
+    if (filters.profileType !== undefined) {
+      query.profileType = filters.profileType;
+      console.log('Applied profileType filter:', filters.profileType);
     }
 
     if (filters.isFavorite !== undefined) {
@@ -131,6 +136,11 @@ class ContactService {
 
     const results = await Contact.find(query)
       .sort({ isFavorite: -1, displayName: 1 })
+      .populate({
+        path: 'relationshipType',
+        model: 'RelationshipType',
+        select: 'name profileType'
+      })
       .populate({
         path: 'owner',
         select: 'firstName lastName email phoneNumber',
@@ -257,7 +267,7 @@ class ContactService {
             address: contact.address,
             source: 'Synced',
             isRegistered: false,
-            category: 'Other'
+            prfileType: 'Personal',
           },
           $set: {
             lastSynced: new Date(),
@@ -334,14 +344,14 @@ class ContactService {
   /**
    * Bulk update contact categories
    */
-  async bulkUpdateCategories(userId: string, contactIds: string[], category: string) {
-    if (!Object.values(ContactCategory).includes(category as ContactCategory)) {
-      throw new Error('Invalid category');
+  async bulkUpdateCategories(userId: string, contactIds: string[], profileType: string) {
+    if (!Object.values(ProfileType).includes(profileType as ProfileType)) {
+      throw new Error('Invalid profileTYpe');
     }
 
     const result = await Contact.updateMany(
       { _id: { $in: contactIds }, owner: userId },
-      { category }
+      { profileType }
     );
 
     return result.modifiedCount;
@@ -362,6 +372,61 @@ class ContactService {
     }
 
     return contact;
+  }
+
+   /**
+   * Bulk delete contacts and their associated images from Cloudinary
+   * @param userId The owner's user ID
+   * @param contactIds Array of contact IDs to delete
+   * @returns Object containing deletion stats
+   */
+   async bulkDeleteContacts(userId: string, contactIds: string[]) {
+    // Validate input
+    if (!Array.isArray(contactIds) || contactIds.length === 0) {
+      throw new Error('No contact IDs provided for deletion');
+    }
+
+    // Get contacts with their photo URLs before deletion
+    const contactsToDelete = await Contact.find({
+      _id: { $in: contactIds },
+      owner: userId
+    }).select('_id photo');
+
+    if (contactsToDelete.length === 0) {
+      throw new Error('No matching contacts found for deletion');
+    }
+
+    // Extract photo URLs for contacts that have them
+    const photosToDelete = contactsToDelete
+      .filter(contact => contact.photo && typeof contact.photo === 'string')
+      .map(contact => contact.photo as string);
+
+    // Delete contacts from database
+    const deleteResult = await Contact.deleteMany({
+      _id: { $in: contactIds },
+      owner: userId
+    });
+
+    // Delete associated images from Cloudinary (if any)
+    if (photosToDelete.length > 0) {
+      try {
+        const cloudinary = new CloudinaryService();
+        await Promise.all(
+          photosToDelete.map(url => cloudinary.delete(url))
+        );
+        console.log(`Successfully deleted ${photosToDelete.length} images from Cloudinary`);
+      } catch (cloudinaryError) {
+        console.error('Error deleting images from Cloudinary:', cloudinaryError);
+        // We don't throw here because the contacts were already deleted
+        // You might want to log this to an error tracking system
+      }
+    }
+
+    return {
+      deletedCount: deleteResult.deletedCount,
+      imageDeleteCount: photosToDelete.length,
+      message: `Successfully deleted ${deleteResult.deletedCount} contacts and ${photosToDelete.length} associated images`
+    };
   }
 }
 

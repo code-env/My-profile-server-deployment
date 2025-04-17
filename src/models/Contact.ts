@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 import { IUser } from './User';
+import { IRelationshipType } from './RelationshipType';
 
 // Interface extending Document
 export interface IContact extends Document {
@@ -13,10 +14,10 @@ export interface IContact extends Document {
   phoneType?: PhoneType;
   email?: string;
   isRegistered: boolean;
-  relationShip?: ContactRelationship;
+  relationshipType?: mongoose.Types.ObjectId | IRelationshipType
   profile?: mongoose.Types.ObjectId;
   lastSynced: Date;
-  category: ContactCategory;
+  profileType: ProfileType;
   source: ContactSource;
   customFields?: Record<string, any>;
   labels?: string[];
@@ -39,7 +40,7 @@ export interface IContact extends Document {
   additionalIndicators?: string[];
 }
 
-export enum ContactCategory {
+export enum ProfileType {
   Personal = 'Personal',
   Professional = 'Professional',
   Family = 'Family',
@@ -136,16 +137,16 @@ const contactSchema = new Schema<IContact>(
       type: Date, 
       default: Date.now 
     },
-    category: { 
+    profileType: { 
       type: String, 
-      enum: Object.values(ContactCategory),
-      default: ContactCategory.Other 
+      enum: Object.values(ProfileType),
+      default: ProfileType.Personal 
     },
 
-    relationShip: { 
-      type: String,
-      enum: Object.values(ContactRelationship),
-      default: ContactRelationship.Self 
+    relationshipType: { 
+      type: Schema.Types.ObjectId,
+      ref: 'RelationshipType',
+      index: true
     },
     
     source: { 

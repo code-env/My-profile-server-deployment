@@ -2,8 +2,8 @@ import type { IUser, User } from './../models/User';
 import ContactService from '../services/contacts.service';
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import { ContactCategory, Gender, PhoneType } from '../models/Contact';
-import { handleBase64ImageUpload } from '../utils/fileUploads';
+import { ProfileType, Gender, PhoneType } from '../models/Contact';
+import CloudinaryService from '../services/cloudinary.service';
 
 // Helper function to validate user authentication
 const validateAuthenticatedUser = (req: Request): { userId: string, user: IUser } => {
@@ -45,10 +45,17 @@ export const createContact = async (req: Request, res: Response) => {
 
     if (req.body.photo && typeof req.body.photo === 'string') {
       try {
-        const uploadedPath = handleBase64ImageUpload(req.body.photo, 'contacts');
-        req.body.photo = uploadedPath;
+        // Use CloudinaryService instead of handleBase64ImageUpload
+        const imageUrl = await new CloudinaryService().uploadImage(req.body.photo, {
+          folder: 'contacts',
+          transformation: { width: 500, height: 500, crop: 'limit' } // Optional transformations
+        });
+        req.body.photo = imageUrl; // Store the Cloudinary URL instead of local path
       } catch (uploadErr) {
-        return res.status(400).json({ error: 'Invalid image upload', details: (uploadErr as Error).message });
+        return res.status(400).json({
+          error: 'Invalid image upload',
+          details: (uploadErr as Error).message
+        });
       }
     }
 
@@ -96,7 +103,7 @@ export const getUserContacts = async (req: Request, res: Response) => {
 
     const {
       isRegistered,
-      category,
+      profileType,
       search,
       isFavorite,
       gender,
@@ -129,12 +136,12 @@ export const getUserContacts = async (req: Request, res: Response) => {
       }
     }
 
-    // Validate and assign category
-    if (category) {
-      if (!Object.values(ContactCategory).includes(category as ContactCategory)) {
-        return res.status(400).json({ error: 'Invalid category' });
+    // Validate and assign profileType
+    if (profileType) {
+      if (!Object.values(ProfileType).includes(profileType as ProfileType)) {
+        return res.status(400).json({ error: 'Invalid profileType' });
       }
-      filters.category = category;
+      filters.profileType = profileType;
     }
 
     // Optional filters
@@ -177,7 +184,10 @@ export const updateContact = async (req: Request, res: Response) => {
     // Handle photo upload if present
     if (req.body.photo && typeof req.body.photo === 'string') {
       try {
-        const uploadedPath = handleBase64ImageUpload(req.body.photo, 'contacts');
+        const uploadedPath = await new CloudinaryService().uploadImage(req.body.photo, {
+          folder: 'contacts',
+          transformation: { width: 500, height: 500, crop: 'limit' } // Optional transformations
+        });
         req.body.photo = uploadedPath;
       } catch (uploadErr) {
         return res.status(400).json({ error: 'Invalid image upload', details: (uploadErr as Error).message });
@@ -193,8 +203,8 @@ export const updateContact = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid phoneType' });
     }
 
-    if (req.body.category && !Object.values(ContactCategory).includes(req.body.category)) {
-      return res.status(400).json({ error: 'Invalid category' });
+    if (req.body.profileType && !Object.values(ProfileType).includes(req.body.profileType)) {
+      return res.status(400).json({ error: 'Invalid profileType' });
     }
 
     const updatedContact = await ContactService.updateContact(
@@ -222,6 +232,21 @@ export const deleteContact = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid contact ID' });
     }
 
+    // Validate if the contact exists
+    const contactExists = await ContactService.getContactById(req.params.id, userId);
+    if (!contactExists) {
+      handleErrorResponse(new Error('Contact not found'), res);
+      return;
+    }
+
+    if (contactExists.photo) {
+      // Delete the photo from Cloudinary if it exists
+      try {
+        await new CloudinaryService().delete(contactExists.photo);
+      } catch (deleteErr) {
+        return res.status(400).json({ error: 'Failed to delete contact photo', details: (deleteErr as Error).message });
+      }
+    }
     const result = await ContactService.deleteContact(req.params.id, userId);
 
     if (!result) {
@@ -320,7 +345,7 @@ export const updateLastContacted = async (req: Request, res: Response) => {
 export const bulkUpdateCategories = async (req: Request, res: Response) => {
   try {
     const { userId } = validateAuthenticatedUser(req);
-    const { contactIds, category } = req.body;
+    const { contactIds, profileType } = req.body;
 
     if (!contactIds || !Array.isArray(contactIds)) {
       return res.status(400).json({ error: 'Invalid contact IDs' });
@@ -332,14 +357,14 @@ export const bulkUpdateCategories = async (req: Request, res: Response) => {
       }
     }
 
-    if (!category || !Object.values(ContactCategory).includes(category)) {
-      return res.status(400).json({ error: 'Invalid category' });
+    if (!profileType || !Object.values(ProfileType).includes(profileType)) {
+      return res.status(400).json({ error: 'Invalid profileType' });
     }
 
     const modifiedCount = await ContactService.bulkUpdateCategories(
       userId,
       contactIds,
-      category
+      profileType
     );
 
     res.json({ modifiedCount });
@@ -363,7 +388,10 @@ export const uploadContactPhoto = async (req: Request, res: Response) => {
 
     // Handle photo upload
     try {
-      const uploadedPath = handleBase64ImageUpload(req.body.photo, 'contacts');
+      const uploadedPath = await new CloudinaryService().uploadImage(req.body.photo, {
+        folder: 'contacts',
+        transformation: { width: 500, height: 500, crop: 'limit' } // Optional transformations
+      });
       req.body.photo = uploadedPath;
     } catch (uploadErr) {
       return res.status(400).json({ error: 'Invalid image upload', details: (uploadErr as Error).message });
@@ -385,6 +413,34 @@ export const uploadContactPhoto = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Bulk Delete Contacts 
+  * @param req
+  * @param res
+  * @returns
+  */
+export const bulkDeleteContacts = async (req: Request, res: Response) => {
+  try {
+    const { userId } = validateAuthenticatedUser(req);
+    const { contactIds } = req.body;
+
+    if (!contactIds || !Array.isArray(contactIds)) {
+      return res.status(400).json({ error: 'Invalid contact IDs' });
+    }
+
+    for (const id of contactIds) {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ error: `Invalid contact ID: ${id}` });
+      }
+    }
+
+    const deletedCount = await ContactService.bulkDeleteContacts(userId, contactIds);
+
+    return successResponse(res, { deletedCount }, 'Contacts deleted successfully');
+  } catch (error) {
+    handleErrorResponse(error, res);
+  }
+}
 // Helper function to handle error responses consistently
 function handleErrorResponse(error: unknown, res: Response) {
   if (error instanceof Error && error.message === 'Authentication required') {
@@ -406,3 +462,4 @@ export function successResponse(res: Response, data: any, message: string) {
     data
   });
 }
+
