@@ -41,6 +41,7 @@ import userRoutes from './user.routes'
 import profileRoutes from './profile.routes';
 import connectionRoutes from './connection.routes';
 import contactRoutes from './contact.route';
+import RelationshipTypeRoutes from './relationshipType.routes';
 import logsRoutes from './logs.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
@@ -94,6 +95,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/profiles', protect, profileRoutes);
   app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
+  app.use('/api/relationships', protect, RelationshipTypeRoutes);
   app.use('/api/logs', logsRoutes);
 
   // Test email route
