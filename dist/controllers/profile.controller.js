@@ -45,7 +45,7 @@ exports.createProfile = (0, express_async_handler_1.default)(async (req, res) =>
             throw (0, http_errors_1.default)(400, `Profile category must be one of: Individual, Functional, Group`);
         }
         // Generate unique connect link
-        const connectLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/connect/${Math.random().toString(36).substring(2, 15)}`;
+        const connectLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/connect/mp-${Math.random().toString(36).substring(2, 15)}`;
         // Generate claim phrase if profile is for claiming
         const claimPhrase = forClaim ? generateClaimPhrase() : undefined;
         // Create base profile data

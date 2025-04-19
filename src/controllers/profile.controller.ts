@@ -28,7 +28,7 @@ const profileService = new ProfileService();
 export const createProfile = asyncHandler(async (req: Request, res: Response) => {
   try {
     const user = req.user as any;
-    
+
     // Check user's subscription limits
     const userDoc = await User.findById(user._id).populate('profiles');
     if (!userDoc) {
@@ -68,7 +68,7 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
     }
 
     // Generate unique connect link
-    const connectLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/connect/${Math.random().toString(36).substring(2, 15)}`;
+    const connectLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/connect/mp-${Math.random().toString(36).substring(2, 15)}`;
 
     // Generate claim phrase if profile is for claiming
     const claimPhrase = forClaim ? generateClaimPhrase() : undefined;
@@ -394,7 +394,7 @@ export const updateSocialInfo = asyncHandler(async (req: Request, res: Response)
 function calculateProfileCompletion(profile: any): number {
   let totalCount = 0;
   let completedCount = 0;
-  
+
   // The categories object (if present)
   const categories = profile.categories || {};
 
@@ -421,14 +421,14 @@ function calculateProfileCompletion(profile: any): number {
       }
     }
   }
-  
+
   return totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 }
 
 export const getProfileInfo = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const user = req.user as RequestUser; 
+    const user = req.user as RequestUser;
 
     // Validate ObjectId
     if (!isValidObjectId(id)) {
@@ -452,7 +452,7 @@ export const getProfileInfo = asyncHandler(async (req: Request, res: Response) =
       throw createHttpError(403, 'You do not have permission to view this profile');
     }
 
-  
+
     const profileCompletion = calculateProfileCompletion(profile);
 
 
@@ -935,12 +935,12 @@ export const getUserProfilesGrouped = asyncHandler(async (req: Request, res: Res
     throw createHttpError(401, 'Unauthorized');
   }
 
- 
+
   const filter = req.query.category as string | undefined;
   const matchQuery: any = { owner: new Types.ObjectId(user._id) };
 
   if (filter) {
-    
+
     matchQuery.profileCategory = { $regex: `^${filter}$`, $options: "i" };
   }
 
@@ -1033,7 +1033,7 @@ export const updateProfileNew = asyncHandler(async (req: Request, res: Response)
   const { id } = req.params;
   const updates = req.body;
   const user = req.user as RequestUser;
-  
+
   if(!isValidObjectId(id)) {
     throw createHttpError(400, 'Invalid profile ID');
   }
@@ -1102,7 +1102,7 @@ console.log("final query:", finalUpdateQuery)
           console.error("Error updating profile:", err);
           throw createHttpError(400, "Validation failed on update.");
         });
-        
+
         break;
       case 'business':
         updatedProfile = await BusinessProfile.findByIdAndUpdate(
@@ -1113,7 +1113,7 @@ console.log("final query:", finalUpdateQuery)
           console.error("Error updating profile:", err);
           throw createHttpError(400, "Validation failed on update.");
         });
-        
+
         break;
       case 'academic':
         updatedProfile = await AcademicProfile.findByIdAndUpdate(
@@ -1124,7 +1124,7 @@ console.log("final query:", finalUpdateQuery)
           console.error("Error updating profile:", err);
           throw createHttpError(400, "Validation failed on update.");
         });
-        
+
         break;
       case 'medical':
         updatedProfile = await MedicalProfile.findByIdAndUpdate(
@@ -1134,7 +1134,7 @@ console.log("final query:", finalUpdateQuery)
         ).catch((err) => {
           console.error("Error updating profile:", err);
           throw createHttpError(400, "Validation failed on update.");
-        });      
+        });
         break;
       default:
         throw createHttpError(400, 'Invalid profile type');

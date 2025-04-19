@@ -7,10 +7,10 @@ import Handlebars from 'handlebars';
 
 class EmailService {
   private static transporter = nodemailer.createTransport({
-    service: "gmail",
+    // service: "gmail",  // REMOVE THIS LINE
     host: config.SMTP_HOST,
     port: config.SMTP_PORT,
-    secure: false,
+    secure: config.SMTP_PORT == 465, // Set dynamically: true if port is 465
     auth: {
       user: config.SMTP_USER,
       pass: config.SMTP_PASSWORD,

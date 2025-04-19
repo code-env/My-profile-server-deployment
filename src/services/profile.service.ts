@@ -74,7 +74,6 @@ export class ProfileService {
     console.log(success ? '✅ Profile deleted' : '❌ Profile not found');
     return success;
   }
-
   async updateProfile(
     profileId: string,
     userId: string,

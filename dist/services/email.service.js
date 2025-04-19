@@ -92,10 +92,10 @@ class EmailService {
 }
 _a = EmailService;
 EmailService.transporter = nodemailer_1.default.createTransport({
-    service: "gmail",
+    // service: "gmail",  // REMOVE THIS LINE
     host: config_1.config.SMTP_HOST,
     port: config_1.config.SMTP_PORT,
-    secure: false,
+    secure: config_1.config.SMTP_PORT == 465, // Set dynamically: true if port is 465
     auth: {
         user: config_1.config.SMTP_USER,
         pass: config_1.config.SMTP_PASSWORD,
