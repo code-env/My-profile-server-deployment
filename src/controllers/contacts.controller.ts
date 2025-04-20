@@ -17,11 +17,11 @@ const validateAuthenticatedUser = (req: Request): { userId: string, user: IUser 
   };
 };
 
-
 // Helper function to validate contact data
 const validateContactData = (data: any) => {
   const errors: string[] = [];
 
+  if(!data.profileId) errors.push('profileId is required');
   if (!data.firstName) errors.push('firstName is required');
   if (!data.phoneNumber) errors.push('phoneNumber is required');
 
@@ -40,9 +40,9 @@ const validateContactData = (data: any) => {
 
 export const createContact = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
     validateContactData(req.body);
 
+    const profileId = req.body.profileId;
     if (req.body.photo && typeof req.body.photo === 'string') {
       try {
         // Use CloudinaryService instead of handleBase64ImageUpload
@@ -59,7 +59,7 @@ export const createContact = async (req: Request, res: Response) => {
       }
     }
 
-    const contact = await ContactService.createContact(userId, req.body);
+    const contact = await ContactService.createContact(profileId as string, req.body);
     res.status(201).json(contact);
   } catch (error) {
     if (error instanceof Error && error.message === 'Authentication required') {
@@ -75,14 +75,12 @@ export const createContact = async (req: Request, res: Response) => {
 
 export const getContactById = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid contact ID' });
     }
 
     console.log('Incoming request to get contact by ID:', req.params.id);
-    const contact = await ContactService.getContactById(req.params.id, userId);
+    const contact = await ContactService.getContactById(req.params.id);
 
     if (!contact) {
       handleErrorResponse(new Error('Contact not found'), res);
@@ -95,13 +93,12 @@ export const getContactById = async (req: Request, res: Response) => {
   }
 };
 
-export const getUserContacts = async (req: Request, res: Response) => {
+export const getUserProfileContacts = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-
     console.log('Incoming query params:', req.query);
 
     const {
+      profileId,
       isRegistered,
       profileType,
       search,
@@ -114,6 +111,9 @@ export const getUserContacts = async (req: Request, res: Response) => {
     // Validation & filter sanitization
     const filters: any = {};
 
+    if (!profileId || !mongoose.Types.ObjectId.isValid(profileId as string)) {
+      return res.status(400).json({ error: 'Invalid profile ID' });
+    }
     // Validate and assign isRegistered
     if (typeof isRegistered !== 'undefined') {
       if (isRegistered === 'true') {
@@ -165,7 +165,7 @@ export const getUserContacts = async (req: Request, res: Response) => {
     console.log('Final filters sent to service:', JSON.stringify(filters, null, 2));
 
     // Fetch contacts with clean filters
-    const contacts = await ContactService.getUserContacts(userId, filters);
+    const contacts = await ContactService.getUserContacts(profileId as string, filters);
 
     return successResponse(res, contacts, 'Contacts fetched successfully');
   } catch (error) {
@@ -175,10 +175,12 @@ export const getUserContacts = async (req: Request, res: Response) => {
 
 export const updateContact = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid contact ID' });
+    }
+
+    if (!req.body.profileId || !mongoose.Types.ObjectId.isValid(req.body.profileId)) {
+      return res.status(400).json({ error: 'Invalid profile ID' });
     }
 
     // Handle photo upload if present
@@ -209,7 +211,7 @@ export const updateContact = async (req: Request, res: Response) => {
 
     const updatedContact = await ContactService.updateContact(
       req.params.id,
-      userId,
+      req.body.profileId,
       req.body
     );
 
@@ -226,14 +228,16 @@ export const updateContact = async (req: Request, res: Response) => {
 
 export const deleteContact = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid contact ID' });
     }
 
+    if (!req.body.profileId || !mongoose.Types.ObjectId.isValid(req.body.profileId)) {
+      return res.status(400).json({ error: 'Invalid profile ID' });
+    }
+
     // Validate if the contact exists
-    const contactExists = await ContactService.getContactById(req.params.id, userId);
+    const contactExists = await ContactService.getContactById(req.params.id);
     if (!contactExists) {
       handleErrorResponse(new Error('Contact not found'), res);
       return;
@@ -247,7 +251,7 @@ export const deleteContact = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Failed to delete contact photo', details: (deleteErr as Error).message });
       }
     }
-    const result = await ContactService.deleteContact(req.params.id, userId);
+    const result = await ContactService.deleteContact(req.params.id, req.body.profileId);
 
     if (!result) {
       return res.status(404).json({ error: 'Contact not found' });
@@ -262,19 +266,21 @@ export const deleteContact = async (req: Request, res: Response) => {
 
 export const toggleFavorite = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid contact ID' });
     }
 
+    if (!req.body.profileId || !mongoose.Types.ObjectId.isValid(req.body.profileId)) {
+      return res.status(400).json({ error: 'Invalid profile ID' });
+    }
+
     // Validate if the contact exists
-    const contactExists = await ContactService.getContactById(req.params.id, userId);
+    const contactExists = await ContactService.getContactById(req.params.id);
     if (!contactExists) {
       handleErrorResponse(new Error('Contact not found'), res);
       return;
     }
-    const contact = await ContactService.toggleFavorite(req.params.id, userId);
+    const contact = await ContactService.toggleFavorite(req.params.id, req.body.profileId);
 
     return successResponse(res, contact, 'Contact favorite status updated successfully');
   } catch (error) {
@@ -284,8 +290,11 @@ export const toggleFavorite = async (req: Request, res: Response) => {
 
 export const syncContacts = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-    const { contacts } = req.body;
+    const { contacts, profileId } = req.body;
+
+    if (!profileId || !mongoose.Types.ObjectId.isValid(profileId)) {
+      return res.status(400).json({ error: 'Invalid profile ID' });
+    }
 
     if (!contacts || !Array.isArray(contacts)) {
       return res.status(400).json({ error: 'Invalid contacts data' });
@@ -305,7 +314,7 @@ export const syncContacts = async (req: Request, res: Response) => {
       return res.status(400).json({ error: validationErrors.join('; ') });
     }
 
-    const syncedContacts = await ContactService.syncContacts(userId, contacts);
+    const syncedContacts = await ContactService.syncContacts(profileId, contacts);
     res.json(syncedContacts);
   } catch (error) {
     handleErrorResponse(error, res);
@@ -314,8 +323,13 @@ export const syncContacts = async (req: Request, res: Response) => {
 
 export const getRegisteredContacts = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-    const contacts = await ContactService.getRegisteredContacts(userId);
+    const { profileId } = req.query;
+
+    if (!profileId || !mongoose.Types.ObjectId.isValid(profileId as string)) {
+      return res.status(400).json({ error: 'Invalid profile ID' });
+    }
+
+    const contacts = await ContactService.getRegisteredContacts(profileId as string);
     res.json(contacts);
   } catch (error) {
     handleErrorResponse(error, res);
@@ -324,13 +338,15 @@ export const getRegisteredContacts = async (req: Request, res: Response) => {
 
 export const updateLastContacted = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid contact ID' });
     }
 
-    const contact = await ContactService.updateLastContacted(req.params.id, userId);
+    if (!req.body.profileId || !mongoose.Types.ObjectId.isValid(req.body.profileId)) {
+      return res.status(400).json({ error: 'Invalid profile ID' });
+    }
+
+    const contact = await ContactService.updateLastContacted(req.params.id, req.body.profileId);
 
     if (!contact) {
       return res.status(404).json({ error: 'Contact not found' });
@@ -344,8 +360,11 @@ export const updateLastContacted = async (req: Request, res: Response) => {
 
 export const bulkUpdateCategories = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-    const { contactIds, profileType } = req.body;
+    const { contactIds, profileType, profileId } = req.body;
+
+    if (!profileId || !mongoose.Types.ObjectId.isValid(profileId)) {
+      return res.status(400).json({ error: 'Invalid profile ID' });
+    }
 
     if (!contactIds || !Array.isArray(contactIds)) {
       return res.status(400).json({ error: 'Invalid contact IDs' });
@@ -362,7 +381,7 @@ export const bulkUpdateCategories = async (req: Request, res: Response) => {
     }
 
     const modifiedCount = await ContactService.bulkUpdateCategories(
-      userId,
+      profileId,
       contactIds,
       profileType
     );
@@ -373,13 +392,14 @@ export const bulkUpdateCategories = async (req: Request, res: Response) => {
   }
 };
 
-// New endpoint for handling contact photo upload
 export const uploadContactPhoto = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid contact ID' });
+    }
+
+    if (!req.body.profileId || !mongoose.Types.ObjectId.isValid(req.body.profileId)) {
+      return res.status(400).json({ error: 'Invalid profile ID' });
     }
 
     if (!req.body.photo || typeof req.body.photo !== 'string') {
@@ -399,7 +419,7 @@ export const uploadContactPhoto = async (req: Request, res: Response) => {
 
     const updatedContact = await ContactService.updateContact(
       req.params.id,
-      userId,
+      req.body.profileId,
       { photo: req.body.photo }
     );
 
@@ -413,16 +433,13 @@ export const uploadContactPhoto = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Bulk Delete Contacts 
-  * @param req
-  * @param res
-  * @returns
-  */
 export const bulkDeleteContacts = async (req: Request, res: Response) => {
   try {
-    const { userId } = validateAuthenticatedUser(req);
-    const { contactIds } = req.body;
+    const { contactIds, profileId } = req.body;
+
+    if (!profileId || !mongoose.Types.ObjectId.isValid(profileId)) {
+      return res.status(400).json({ error: 'Invalid profile ID' });
+    }
 
     if (!contactIds || !Array.isArray(contactIds)) {
       return res.status(400).json({ error: 'Invalid contact IDs' });
@@ -434,13 +451,14 @@ export const bulkDeleteContacts = async (req: Request, res: Response) => {
       }
     }
 
-    const deletedCount = await ContactService.bulkDeleteContacts(userId, contactIds);
+    const deletedCount = await ContactService.bulkDeleteContacts(profileId, contactIds);
 
     return successResponse(res, { deletedCount }, 'Contacts deleted successfully');
   } catch (error) {
     handleErrorResponse(error, res);
   }
 }
+
 // Helper function to handle error responses consistently
 function handleErrorResponse(error: unknown, res: Response) {
   if (error instanceof Error && error.message === 'Authentication required') {
@@ -462,4 +480,3 @@ export function successResponse(res: Response, data: any, message: string) {
     data
   });
 }
-

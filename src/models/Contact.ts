@@ -1,10 +1,11 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 import { IUser } from './User';
 import { IRelationshipType } from './RelationshipType';
+import { IProfile } from '../interfaces/profile.interface';
 
 // Interface extending Document
-export interface IContact extends Document {
-  owner: mongoose.Types.ObjectId | IUser;
+export interface Contact extends Document {
+  owner: mongoose.Types.ObjectId | IProfile;
   firstName: string;
   middleName?: string;
   lastName: string;
@@ -79,107 +80,103 @@ export enum ContactRelationship {
   Friends = 'Friends',
 }
 
-const contactSchema = new Schema<IContact>(
+const contactSchema = new Schema<Contact>(
   {
-    owner: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'User', 
+    owner: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
       required: true,
-      index: true 
+      index: true
     },
-    firstName: { 
-      type: String, 
+    firstName: {
+      type: String,
       required: true,
-      trim: true 
+      trim: true
     },
     middleName: {
       type: String,
       trim: true
     },
-    lastName: { 
-      type: String, 
-      trim: true 
+    lastName: {
+      type: String,
+      trim: true
     },
     suffix: {
       type: String,
       trim: true
     },
-    displayName: { 
-      type: String, 
-      trim: true 
+    displayName: {
+      type: String,
+      trim: true
     },
-    phoneNumber: { 
-      type: String, 
+    phoneNumber: {
+      type: String,
       required: true,
-      index: true 
+      index: true
     },
     phoneType: {
       type: String,
       enum: Object.values(PhoneType)
     },
-    email: { 
-      type: String, 
+    email: {
+      type: String,
       lowercase: true,
       trim: true,
-      sparse: true 
+      sparse: true
     },
-    isRegistered: { 
-      type: Boolean, 
+    isRegistered: {
+      type: Boolean,
       default: false,
-      index: true 
-    },
-    profile: { 
-      type: Schema.Types.ObjectId, 
-      ref: 'Users',
-      sparse: true 
-    },
-    lastSynced: { 
-      type: Date, 
-      default: Date.now 
-    },
-    profileType: { 
-      type: String, 
-      enum: Object.values(ProfileType),
-      default: ProfileType.Personal 
+      index: true
     },
 
-    relationshipType: { 
+    lastSynced: {
+      type: Date,
+      default: Date.now
+    },
+    profileType: {
+      type: String,
+      enum: Object.values(ProfileType),
+      default: ProfileType.Personal
+    },
+
+    relationshipType: {
       type: Schema.Types.ObjectId,
       ref: 'RelationshipType',
       index: true
     },
-    
-    source: { 
-      type: String, 
+
+    source: {
+      type: String,
       enum: Object.values(ContactSource),
-      default: ContactSource.Manual 
+      default: ContactSource.Manual
     },
-    customFields: { 
+    customFields: {
       type: Schema.Types.Mixed,
-      default: {} 
+      default: {}
     },
-    labels: [{ 
+    labels: [{
       type: String,
-      trim: true 
+      trim: true
     }],
-    notes: { 
+    notes: {
       type: String,
-      trim: true 
+      trim: true
     },
-    isFavorite: { 
-      type: Boolean, 
+    isFavorite: {
+      type: Boolean,
       default: false,
-      index: true 
+      index: true
     },
-    connectionStrength: { 
+    connectionStrength: {
       type: Number,
       min: 1,
-      max: 5 
+      max: 5
     },
-    lastContacted: { 
-      type: Date 
+    lastContacted: {
+      type: Date
     },
-    contact: { 
+    contact: {
       type: Schema.Types.Mixed
     },
     gender: {
@@ -213,7 +210,7 @@ const contactSchema = new Schema<IContact>(
     timestamps: true,
     toJSON: {
       virtuals: true,
-      transform: function(doc, ret) {
+      transform: function (doc, ret) {
         delete ret.__v;
         if (ret.customFields && Object.keys(ret.customFields).length === 0) {
           delete ret.customFields;
@@ -224,7 +221,7 @@ const contactSchema = new Schema<IContact>(
 );
 
 // Virtual for full name
-contactSchema.virtual('fullName').get(function() {
+contactSchema.virtual('fullName').get(function () {
   let name = this.firstName;
   if (this.middleName) name += ` ${this.middleName}`;
   if (this.lastName) name += ` ${this.lastName}`;
@@ -240,7 +237,7 @@ contactSchema.index({ owner: 1, isFavorite: 1 });
 contactSchema.index({ phoneNumber: 'text', firstName: 'text', lastName: 'text', displayName: 'text' });
 
 // Pre-save hook to set displayName if not provided
-contactSchema.pre('save', function(next) {
+contactSchema.pre('save', function (next) {
   if (!this.displayName) {
     this.displayName = this.get('fullName');
   }
@@ -248,13 +245,13 @@ contactSchema.pre('save', function(next) {
 });
 
 // Static method to find or create a contact
-contactSchema.statics.findOrCreate = async function(ownerId, phoneNumber, data = {}) {
+contactSchema.statics.findOrCreate = async function (ownerId, phoneNumber, data = {}) {
   const existingContact = await this.findOne({ owner: ownerId, phoneNumber });
   if (existingContact) {
     return existingContact;
   }
-  return this.create({ 
-    owner: ownerId, 
+  return this.create({
+    owner: ownerId,
     phoneNumber,
     ...data,
     source: ContactSource.Synced
@@ -262,10 +259,10 @@ contactSchema.statics.findOrCreate = async function(ownerId, phoneNumber, data =
 };
 
 // Method to check if contact is registered and update accordingly
-contactSchema.methods.updateRegistrationStatus = async function() {
+contactSchema.methods.updateRegistrationStatus = async function () {
   const User = mongoose.model('User');
   const Profile = mongoose.model('Profile');
-  
+
   // Check by phone number
   const user = await User.findOne({ phoneNumber: this.phoneNumber });
   if (user) {
@@ -282,14 +279,14 @@ contactSchema.methods.updateRegistrationStatus = async function() {
     this.isRegistered = false;
     this.profile = undefined;
   }
-  
+
   this.lastSynced = new Date();
   return this.save();
 };
 
 // Interface for Contact model
-export interface IContactModel extends Model<IContact> {
-  findOrCreate(ownerId: mongoose.Types.ObjectId, phoneNumber: string, data?: Partial<IContact>): Promise<IContact>;
+export interface ContactModel extends Model<Contact> {
+  findOrCreate(ownerId: mongoose.Types.ObjectId, phoneNumber: string, data?: Partial<Contact>): Promise<Contact>;
 }
 
-export const Contact = mongoose.model<IContact, IContactModel>('Contact', contactSchema);
+export const Contact = mongoose.model<Contact, ContactModel>('Contact', contactSchema);
