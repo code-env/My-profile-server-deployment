@@ -2,7 +2,7 @@ import express from 'express';
 import {
   createContact,
   getContactById,
-  getUserContacts,
+  getUserProfileContacts,
   updateContact,
   deleteContact,
   toggleFavorite,
@@ -16,7 +16,7 @@ const router = express.Router();
 
 // Contact CRUD routes
 router.post('/', createContact);
-router.get('/', getUserContacts);
+router.get('/', getUserProfileContacts);
 router.get('/:id', getContactById);
 router.put('/:id', updateContact);
 router.delete('/:id', deleteContact);
