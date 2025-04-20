@@ -36,6 +36,7 @@ const profileSchema = new Schema<IProfile>(
     coverImage: String,
     qrCode: String,
     connectLink: { type: String, required: true, unique: true, index: true },
+    accessToken: { type: String, unique: true, sparse: true },
     verificationStatus: {
       isVerified: { type: Boolean, default: false },
       badge: {

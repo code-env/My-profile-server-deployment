@@ -94,7 +94,7 @@ const setupRoutes = (app) => {
     app.get('/api/test/email', async (req, res) => {
         try {
             const EmailService = require('../services/email.service').default;
-            const testEmail = req.query.email || 'nebam0667@gmail.com';
+            const testEmail = req.query.email || 'bezingal@gmail.com';
             // Send a test verification email
             await EmailService.sendVerificationEmail(testEmail, '123456', { ipAddress: req.ip, userAgent: req.headers['user-agent'] });
             res.status(200).json({

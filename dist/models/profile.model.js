@@ -67,6 +67,7 @@ const profileSchema = new mongoose_1.Schema({
     coverImage: String,
     qrCode: String,
     connectLink: { type: String, required: true, unique: true, index: true },
+    accessToken: { type: String, unique: true, sparse: true },
     verificationStatus: {
         isVerified: { type: Boolean, default: false },
         badge: {

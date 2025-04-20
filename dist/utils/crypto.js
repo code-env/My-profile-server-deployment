@@ -1,10 +1,15 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateProfileAccessToken = exports.generateReferralCode = void 0;
+exports.generateOTP = generateOTP;
 /**
  * Utility functions for cryptographic operations
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateReferralCode = void 0;
-exports.generateOTP = generateOTP;
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const config_1 = require("../config/config");
 /**
  * Generates a random OTP (One-Time Password) of specified length
  * @param length The length of the OTP to generate (default: 6)
@@ -34,3 +39,18 @@ const generateReferralCode = (length = 8) => {
     return result;
 };
 exports.generateReferralCode = generateReferralCode;
+/**
+ * Generates a secure JWT access token for profile API access with no expiry
+ * @param profileId The ID of the profile
+ * @returns A JWT token with no expiration
+ */
+const generateProfileAccessToken = (profileId) => {
+    // Create a JWT token with the profile ID and no expiration
+    return jsonwebtoken_1.default.sign({
+        profileId,
+        type: 'profile_access'
+    }, config_1.config.JWT_SECRET, {
+    // No expiresIn property means the token never expires
+    });
+};
+exports.generateProfileAccessToken = generateProfileAccessToken;

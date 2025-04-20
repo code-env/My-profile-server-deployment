@@ -122,7 +122,7 @@ router.post("/resend-verification-email", auth_middleware_1.protect, auth_contro
 // Test routes (remove in production)
 router.post("/test-email", async (req, res) => {
     try {
-        const testEmail = req.body.email || "nebam0667@gmail.com";
+        const testEmail = req.body.email || "bezingal@gmail.com";
         const testToken = "123456"; // Test verification code
         await email_service_1.default.sendVerificationEmail(testEmail, testToken);
         res.json({ success: true, message: "Test email sent successfully" });

@@ -247,6 +247,7 @@ export interface IProfile extends Document, IProfileMethods {
   coverImage?: string;
   qrCode?: string;
   connectLink: string;
+  accessToken?: string;
   verificationStatus: IVerificationStatus;
   kycVerification: IKYCVerification;
   linkedDevices: ILinkedDevice[];

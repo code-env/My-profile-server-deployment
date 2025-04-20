@@ -102,7 +102,7 @@ export const setupRoutes = (app: Application): void => {
   app.get('/api/test/email', async (req, res) => {
     try {
       const EmailService = require('../services/email.service').default;
-      const testEmail = req.query.email as string || 'nebam0667@gmail.com';
+      const testEmail = req.query.email as string || 'bezingal@gmail.com';
 
       // Send a test verification email
       await EmailService.sendVerificationEmail(

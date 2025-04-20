@@ -13,6 +13,7 @@ const express_async_handler_1 = __importDefault(require("express-async-handler")
 const profile_service_1 = require("../services/profile.service");
 const mongoose_2 = __importDefault(require("mongoose"));
 const roleMiddleware_1 = require("../middleware/roleMiddleware");
+const crypto_1 = require("../utils/crypto");
 const profileService = new profile_service_1.ProfileService();
 // @desc    Create a new profile
 // @route   POST /api/profiles
@@ -48,6 +49,7 @@ exports.createProfile = (0, express_async_handler_1.default)(async (req, res) =>
         const connectLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/connect/mp-${Math.random().toString(36).substring(2, 15)}`;
         // Generate claim phrase if profile is for claiming
         const claimPhrase = forClaim ? generateClaimPhrase() : undefined;
+        // Generate a secure access token for the profile (will be set after profile creation)
         // Create base profile data
         const profileData = {
             name,
@@ -61,6 +63,7 @@ exports.createProfile = (0, express_async_handler_1.default)(async (req, res) =>
             connectLink,
             claimed: !forClaim,
             claimPhrase,
+            // accessToken will be set after profile creation
             categories: categories || {
                 about: { enabled: true },
                 contact: { enabled: true },
@@ -109,13 +112,19 @@ exports.createProfile = (0, express_async_handler_1.default)(async (req, res) =>
         if (userDoc.profiles.length > 10) {
             await (0, roleMiddleware_1.updateUserToAdmin)(user._id);
         }
+        // Generate a secure JWT access token for the profile
+        const accessToken = (0, crypto_1.generateProfileAccessToken)(profile._id.toString());
+        // Save the access token to the profile
+        profile.accessToken = accessToken;
+        await profile.save();
         logger_1.logger.info(`Profile created: ${profile._id} by user: ${user._id}`);
         res.status(201).json({
             success: true,
             message: forClaim ? 'Profile created and ready for claiming' : 'Profile created successfully',
             profile: {
                 ...profile.toJSON(),
-                claimPhrase: forClaim ? claimPhrase : undefined
+                claimPhrase: forClaim ? claimPhrase : undefined,
+                accessToken: profile.accessToken
             }
         });
     }

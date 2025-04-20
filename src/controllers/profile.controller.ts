@@ -9,6 +9,7 @@ import { ProfileService } from '../services/profile.service';
 import { PersonalInfo, ContactInfo, SocialInfo } from '../types/profile.types';
 import mongoose from 'mongoose';
 import { updateUserToAdmin } from '../middleware/roleMiddleware';
+import { generateProfileAccessToken } from '../utils/crypto';
 
 interface RequestUser {
   _id: mongoose.Types.ObjectId;
@@ -73,6 +74,8 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
     // Generate claim phrase if profile is for claiming
     const claimPhrase = forClaim ? generateClaimPhrase() : undefined;
 
+    // Generate a secure access token for the profile (will be set after profile creation)
+
     // Create base profile data
     const profileData = {
       name,
@@ -86,6 +89,7 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
       connectLink,
       claimed: !forClaim,
       claimPhrase,
+      // accessToken will be set after profile creation
       categories: categories || {
         about: { enabled: true },
         contact: { enabled: true },
@@ -138,13 +142,21 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
       await updateUserToAdmin(user._id);
     }
 
+    // Generate a secure JWT access token for the profile
+    const accessToken = generateProfileAccessToken((profile as any)._id.toString());
+
+    // Save the access token to the profile
+    profile.accessToken = accessToken;
+    await profile.save();
+
     logger.info(`Profile created: ${profile._id} by user: ${user._id}`);
     res.status(201).json({
       success: true,
       message: forClaim ? 'Profile created and ready for claiming' : 'Profile created successfully',
       profile: {
         ...profile.toJSON(),
-        claimPhrase: forClaim ? claimPhrase : undefined
+        claimPhrase: forClaim ? claimPhrase : undefined,
+        accessToken: profile.accessToken
       }
     });
   } catch (error) {
