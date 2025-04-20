@@ -87,7 +87,7 @@ class EmailService {
 
       await this.sendEmail(
         email,
-        `Verify Your Device - ${config.APP_NAME}`,
+        `Verify Your Account ${config.APP_NAME}`,
         html
       );
 
