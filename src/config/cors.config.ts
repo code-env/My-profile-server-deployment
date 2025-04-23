@@ -14,5 +14,6 @@ export const whitelistOrigins = [
   'http://127.0.0.1:5173',
   'http://localhost:42133',
   'http://127.0.0.1:42133',
+  "https://new-backend-chat-system.onrender.com",
   process.env.CLIENT_URL,
 ].filter(Boolean) as string[];
