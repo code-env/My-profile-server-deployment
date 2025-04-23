@@ -73,6 +73,7 @@ import { monitorPerformance } from "./middleware/performance.middleware";
 import { validateEnv } from "./utils/env-validator";
 import { validateLicenseMiddleware } from "./middleware/license.middleware";
 import WhatsAppService from "./services/whatsapp.service";
+import { initializeMyPtsHub } from "./startup/initialize-my-pts-hub";
 import { advancedTrackingMiddleware } from "./middleware/advanced-tracking.middleware";
 import { licenseConfig } from "./config/license.config";
 // Import passport configuration
@@ -494,6 +495,10 @@ export class AppServer {
         }
       };
       await initWhatsApp();
+
+      // Initialize MyPts Hub service
+      await initializeMyPtsHub();
+
       // Always use HTTP server as Render handles SSL/HTTPS
       await this.startHttpServer();
 

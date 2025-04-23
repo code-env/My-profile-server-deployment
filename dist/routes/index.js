@@ -43,10 +43,14 @@ exports.setupRoutes = void 0;
 const auth_routes_1 = __importDefault(require("./auth.routes"));
 const user_routes_1 = __importDefault(require("./user.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
-const connection_routes_1 = __importDefault(require("./connection.routes"));
+// import connectionRoutes from './connection.routes';
+const profile_connection_routes_1 = __importDefault(require("./profile-connection.routes"));
 const contact_route_1 = __importDefault(require("./contact.route"));
 const relationshipType_routes_1 = __importDefault(require("./relationshipType.routes"));
 const logs_routes_1 = __importDefault(require("./logs.routes"));
+const my_pts_routes_1 = __importDefault(require("./my-pts.routes"));
+const my_pts_value_routes_1 = __importDefault(require("./my-pts-value.routes"));
+const my_pts_hub_routes_1 = __importDefault(require("./my-pts-hub.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
 const enforce_license_middleware_1 = require("../middleware/enforce-license.middleware");
@@ -86,10 +90,14 @@ const setupRoutes = (app) => {
     app.use('/api/sauth', socials_auth_route_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
-    app.use('/api/connections', auth_middleware_1.protect, connection_routes_1.default);
+    // app.use('/api/connections', protect, connectionRoutes);
+    app.use('/api/profile-connections', auth_middleware_1.protect, profile_connection_routes_1.default);
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
     app.use('/api/relationships', auth_middleware_1.protect, relationshipType_routes_1.default);
     app.use('/api/logs', logs_routes_1.default);
+    app.use('/api/my-pts', auth_middleware_1.protect, my_pts_routes_1.default);
+    app.use('/api/my-pts-value', auth_middleware_1.protect, my_pts_value_routes_1.default);
+    app.use('/api/my-pts-hub', auth_middleware_1.protect, my_pts_hub_routes_1.default);
     // Test email route
     app.get('/api/test/email', async (req, res) => {
         try {

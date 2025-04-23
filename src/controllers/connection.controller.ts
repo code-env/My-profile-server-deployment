@@ -333,8 +333,8 @@ export class ConnectionController {
       res.json({
         success: true,
         data: connection,
-        message: connection.status === 'accepted' 
-          ? 'Connected successfully' 
+        message: connection.status === 'accepted'
+          ? 'Connected successfully'
           : 'Connection request sent'
       });
     } catch (error) {
@@ -378,8 +378,8 @@ export class ConnectionController {
       res.json({
         success: true,
         data: connection,
-        message: connection.status === 'accepted' 
-          ? 'Connected successfully' 
+        message: connection.status === 'accepted'
+          ? 'Connected successfully'
           : 'Connection request sent'
       });
     } catch (error) {
@@ -419,8 +419,8 @@ export class ConnectionController {
       res.json({
         success: true,
         data: connection,
-        message: connection.status === 'accepted' 
-          ? 'Connected successfully' 
+        message: connection.status === 'accepted'
+          ? 'Connected successfully'
           : 'Connection request sent'
       });
     } catch (error) {

@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
+const authMiddleware_1 = require("../middleware/authMiddleware");
 const roleMiddleware_1 = require("../middleware/roleMiddleware");
 const profile_service_1 = require("../services/profile.service");
 const profile_controller_1 = require("../controllers/profile.controller");
@@ -18,7 +19,14 @@ router.post('/create-profile', (0, roleMiddleware_1.requireRole)(['user', 'super
 router.post('/create-claimable', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.createClaimableProfile);
 router.post('/claim', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.claimProfile);
 // Profile management
-router.get('/user-profiles', profile_controller_1.getUserProfilesGrouped);
+// Admin route to get all profiles
+router.get('/all', (0, roleMiddleware_1.requireRole)(['admin', 'superadmin']), profile_controller_1.getAllProfiles);
+// Add a middleware to log the authentication token
+router.get('/user-profiles', (req, _res, next) => {
+    console.log('Auth header:', req.header('Authorization'));
+    console.log('Cookies:', req.cookies);
+    next();
+}, authMiddleware_1.authenticateToken, profile_controller_1.getUserProfilesGrouped);
 router.route('/:id')
     .get(roleMiddleware_1.checkProfileOwnership, profile_controller_1.getProfileInfo)
     .put((0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.updateProfileNew)
@@ -50,28 +58,5 @@ router.put('/:id/connection-preferences', roleMiddleware_1.checkProfileOwnership
 router.put('/:id/social-links', roleMiddleware_1.checkProfileOwnership, async (req, res) => {
     const profile = await profileService.updateSocialLinks(req.params.id, req.body);
     res.json(profile);
-});
-router.post('/:id/connections/:targetId', roleMiddleware_1.checkProfileOwnership, async (req, res) => {
-    const result = await profileService.manageConnection(req.params.id, req.params.targetId, req.body.action);
-    res.json(result);
-});
-// Portfolio and professional routes
-router.post('/:id/portfolio/projects', roleMiddleware_1.checkProfileOwnership, async (req, res) => {
-    const profile = await profileService.addPortfolioProject(req.params.id, req.body);
-    res.json(profile);
-});
-router.put('/:id/skills', roleMiddleware_1.checkProfileOwnership, async (req, res) => {
-    const profile = await profileService.updateSkills(req.params.id, req.body);
-    res.json(profile);
-});
-router.put('/:id/availability', roleMiddleware_1.checkProfileOwnership, async (req, res) => {
-    const profile = await profileService.updateAvailability(req.params.id, req.body);
-    res.json(profile);
-});
-router.post('/:id/skills/:skillName/endorse', async (req, res) => {
-    const paramsId = req.params.id;
-    const user = req.user;
-    const result = await profileService.addEndorsement(paramsId, req.params.skillName, user._id);
-    res.json(result);
 });
 exports.default = router;

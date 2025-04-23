@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { ProfileModel, PersonalProfile, BusinessProfile, MedicalProfile, AcademicProfile } from '../models/profile.model';
 import { User } from '../models/User';
 import { logger } from '../utils/logger';
@@ -66,6 +66,19 @@ export const createProfile = asyncHandler(async (req: Request, res: Response) =>
     }
     if (!validCategory.includes(type.category.toLowerCase())) {
       throw createHttpError(400, `Profile category must be one of: Individual, Functional, Group`);
+    }
+
+    // Check for duplicate profile (same name and type across all users, case-insensitive)
+    const existingProfile = await ProfileModel.findOne({
+      // owner: user._id, // Removed owner check for global uniqueness
+      name: { $regex: new RegExp(`^${name}$`, 'i') },
+      'type.category': { $regex: new RegExp(`^${type.category}$`, 'i') },
+      'type.subtype': { $regex: new RegExp(`^${type.subtype}$`, 'i') }
+    });
+
+    if (existingProfile) {
+      // Update the error message to reflect global uniqueness check
+      throw createHttpError(409, `A profile with the name "${name}" and type "${type.category}/${type.subtype}" already exists.`);
     }
 
     // Generate unique connect link
@@ -458,7 +471,7 @@ export const getProfileInfo = asyncHandler(async (req: Request, res: Response) =
 
     // Permission checks
     const isOwner = profile.owner?.toString() === user._id.toString();
-    const isManager = profile.managers.some(manager => manager.toString() === user._id.toString());
+    const isManager = profile.managers.some((manager: { toString: () => string; }) => manager.toString() === user._id.toString());
     if (!isOwner && !isManager && profile.settings.visibility !== 'public') {
       logger.warn(`Unauthorized profile access attempt: ${id} by user ${user._id}`);
       throw createHttpError(403, 'You do not have permission to view this profile');
@@ -834,7 +847,7 @@ export const removeManager = asyncHandler(async (req: Request, res: Response) =>
     }
 
     // Remove manager
-    profile.managers = profile.managers.filter(m => m.toString() !== managerId);
+    profile.managers = profile.managers.filter((m: { toString: () => string; }) => m.toString() !== managerId);
     await profile.save();
 
     res.json({
@@ -935,6 +948,76 @@ export const updateProfileSettings = asyncHandler(async (req: Request, res: Resp
 // @desc    Get all user profiles grouped by category
 // @route   GET /api/profiles/user-profiles?category= individual | functional | group
 // @access  Private
+// @desc    Get all profiles (admin only)
+// @route   GET /api/profiles/all
+// @access  Admin only
+export const getAllProfiles = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+  const user = req.user as RequestUser;
+
+  // Check if user is admin or superadmin
+  if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+    return next(createHttpError(403, 'Admin access required'));
+  }
+
+  try {
+    // Get query parameters for pagination and filtering
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    // Get filter parameters
+    const nameFilter = req.query.name as string;
+    const typeFilter = req.query.type as string;
+    const categoryFilter = req.query.category as string;
+
+    // Build filter object
+    const filter: any = {};
+
+    if (nameFilter) {
+      filter.name = { $regex: nameFilter, $options: 'i' };
+    }
+
+    if (typeFilter) {
+      filter['type.subtype'] = { $regex: typeFilter, $options: 'i' };
+    }
+
+    if (categoryFilter) {
+      filter['type.category'] = { $regex: categoryFilter, $options: 'i' };
+    }
+
+    // Get total count for pagination
+    const total = await ProfileModel.countDocuments(filter);
+
+    // Get profiles with pagination and sorting
+    const profiles = await ProfileModel.find(filter)
+      // Return all fields by not specifying a select
+      // .select('_id name description type profileType profileCategory owner managers createdAt updatedAt')
+      // Remove the populate to avoid the User model issue
+      // .populate('owner', '_id email username fullName')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Return profiles with pagination info
+    res.status(200).json({
+      success: true,
+      data: {
+        profiles,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting all profiles:', error);
+    // Pass the error to the next middleware (error handler)
+    next(createHttpError(500, 'Failed to get profiles'));
+  }
+});
+
 export const getUserProfilesGrouped = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   // const user = {
   //   _id: "67e41de4bc8ce32407f11e1c",
@@ -965,9 +1048,20 @@ export const getUserProfilesGrouped = asyncHandler(async (req: Request, res: Res
         name: 1,
         owner:1,
         details: 1,
-        type: 1,
-        createdAt: 1,
-        profileCategory: 1
+        // Include both type and profileType for consistency
+        type: {
+          $cond: {
+            if: { $ifNull: ["$type", false] },
+            then: "$type",
+            else: {
+              category: { $toLower: "$profileCategory" },
+              subtype: "$profileType"
+            }
+          }
+        },
+        profileType: 1,
+        profileCategory: 1,
+        createdAt: 1
       }
     },
     {
@@ -1037,7 +1131,6 @@ function buildUpdateQuery(obj: Record<string, any>, prefix = ''): Record<string,
  *       }
  *     }
  *   }
- * }
  *
  * The above will be flattened to update the field 'categories.about.interestAndGoals.content'.
  */

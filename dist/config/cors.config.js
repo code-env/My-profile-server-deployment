@@ -7,6 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.whitelistOrigins = void 0;
 exports.whitelistOrigins = [
     'http://localhost:3000',
+    'http://localhost:3001',
     'https://localhost:3000',
     'http://localhost:5000', // Chat system
     'http://127.0.0.1:5000', // Chat system

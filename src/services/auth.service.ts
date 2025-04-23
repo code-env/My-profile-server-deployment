@@ -352,7 +352,8 @@ static async login(
     user.lastLogin = new Date();
     await user.save();
 
-    return { success: true, userId: user._id.toString() };
+    return { success: true, userId: user._id.toString(),  };
+    // return { success: true, userId: user._id.toString(),  };
   } catch (error:any) {
     logger.error("Login error:", error);
     return { success: false, message: error.message };

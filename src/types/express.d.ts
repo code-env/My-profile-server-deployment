@@ -1,5 +1,5 @@
-import { IProfile } from '../interfaces/profile.interface';
 import { IUser } from '../models/User';
+import { IProfile } from '../interfaces/profile.interface';
 
 declare global {
   namespace Express {
@@ -7,9 +7,6 @@ declare global {
       user?: IUser;
       token?: string;
       profile?: IProfile;
-      licenseValidated?: boolean;
     }
   }
 }
-
-export {};

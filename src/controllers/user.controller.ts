@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { User } from "../models/User";
 import mongoose from 'mongoose';
+import { ProfileModel } from "../models/profile.model";
 
 export class UserControllers {
   /**
@@ -100,6 +101,61 @@ export class UserControllers {
           userId: req.params.id,
           connectionState: mongoose.connection.readyState
         } : undefined
+      });
+    }
+  }
+
+  /**
+   * Get current user with profiles
+   * @route GET /api/users/me
+   * @param req - Express request object with authenticated user
+   * @param res - Express response object
+   */
+  static async GetCurrentUser(req: Request, res: Response) {
+    try {
+      // The user is attached to the request by the authenticateToken middleware
+      const user = req.user as any;
+
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: "Not authenticated"
+        });
+      }
+
+      // Get the user's profiles
+      const profiles = await ProfileModel.find({ owner: user._id });
+
+      // Return user data with profiles
+      res.status(200).json({
+        success: true,
+        user: {
+          _id: user._id,
+          email: user.email,
+          username: user.username,
+          fullName: user.fullName,
+          profileImage: user.profileImage || null,
+          phoneNumber: user.phoneNumber,
+          isEmailVerified: user.isEmailVerified,
+          isPhoneVerified: user.isPhoneVerified,
+          accountType: user.accountType,
+          role: user.role,
+          profiles: profiles.map(profile => ({
+            _id: profile._id,
+            name: profile.name,
+            // Use profileType which is defined in the interface
+            // or cast to any to access the type property if it exists
+            type: (profile as any).type || { category: 'unknown', subtype: profile.profileType || 'unknown' },
+            description: profile.description || '',
+            accessToken: profile.accessToken || ''
+          }))
+        }
+      });
+    } catch (error: any) {
+      console.error('Error in GetCurrentUser:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : "Failed to fetch current user",
       });
     }
   }

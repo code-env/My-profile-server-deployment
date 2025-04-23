@@ -327,7 +327,8 @@ class AuthService {
             // user.refreshTokens = [tokens.refreshToken];
             user.lastLogin = new Date();
             await user.save();
-            return { success: true, userId: user._id.toString() };
+            return { success: true, userId: user._id.toString(), };
+            // return { success: true, userId: user._id.toString(),  };
         }
         catch (error) {
             logger_1.logger.error("Login error:", error);
