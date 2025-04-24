@@ -499,6 +499,10 @@ export class AppServer {
       // Initialize MyPts Hub service
       await initializeMyPtsHub();
 
+      // Initialize admin settings
+      const { initializeDefaultSettings } = require('./models/admin-settings.model');
+      await initializeDefaultSettings();
+
       // Always use HTTP server as Render handles SSL/HTTPS
       await this.startHttpServer();
 

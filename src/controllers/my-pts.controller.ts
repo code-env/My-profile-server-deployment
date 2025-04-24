@@ -6,6 +6,7 @@ import { TransactionType, TransactionStatus } from '../interfaces/my-pts.interfa
 import { myPtsHubService } from '../services/my-pts-hub.service';
 import { logger } from '../utils/logger';
 import { IProfile } from '../interfaces/profile.interface';
+import { notifyAdminsOfTransaction } from '../services/admin-notification.service';
 
 /**
  * Get MyPts balance for the authenticated profile
@@ -232,6 +233,9 @@ export const buyMyPts = async (req: Request, res: Response) => {
 
       // Store the transaction for the response
       transactionRecord = transaction[0];
+
+      // Send notification to admin
+      await notifyAdminsOfTransaction(transactionRecord);
     } catch (error) {
       await session.abortTransaction();
       throw error;
@@ -337,6 +341,9 @@ export const sellMyPts = async (req: Request, res: Response) => {
 
       // Store the transaction for the response
       transactionRecord = transaction[0];
+
+      // Send notification to admin
+      await notifyAdminsOfTransaction(transactionRecord);
     } catch (error) {
       await session.abortTransaction();
       throw error;
@@ -469,6 +476,10 @@ export const purchaseProduct = async (req: Request, res: Response) => {
       }, { session });
 
       await session.commitTransaction();
+
+      // Send notifications to admin for both transactions
+      await notifyAdminsOfTransaction(senderTransaction[0]);
+      await notifyAdminsOfTransaction(receiverTransaction[0]);
 
       return res.status(200).json({
         success: true,
