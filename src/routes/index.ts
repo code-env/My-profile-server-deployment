@@ -38,6 +38,7 @@
 import { Application } from 'express';
 import authRoutes from './auth.routes';
 import userRoutes from './user.routes'
+import planRoutes from './plan.routes'
 import profileRoutes from './profile.routes';
 import connectionRoutes from './connection.routes';
 import contactRoutes from './contact.route';
@@ -95,6 +96,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/profiles', protect, profileRoutes);
   app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
+  app.use('/api/plans', protect, planRoutes);
   app.use('/api/relationships', protect, RelationshipTypeRoutes);
   app.use('/api/logs', logsRoutes);
 
