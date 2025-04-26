@@ -12,7 +12,7 @@ interface RateLimiterConfig {
 
 const defaultConfig: RateLimiterConfig = {
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1000, // Increased from 100 to 1000 requests per windowMs
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
@@ -21,22 +21,22 @@ const defaultConfig: RateLimiterConfig = {
 const getClientIp = (req: Request): string => {
   // Try to get IP from x-forwarded-for header
   const forwardedFor = req.headers['x-forwarded-for'];
-  
+
   if (typeof forwardedFor === 'string' && forwardedFor) {
     // The leftmost IP is the client's original IP
     return forwardedFor.split(',')[0].trim();
   }
-  
+
   if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
     return forwardedFor[0];
   }
-  
+
   // Try other common proxy headers
   const realIp = req.headers['x-real-ip'];
   if (typeof realIp === 'string' && realIp) {
     return realIp;
   }
-  
+
   // With trust proxy enabled, req.ip should now contain the correct IP
   return req.ip || req.socket.remoteAddress || '0.0.0.0';
 };
@@ -58,11 +58,20 @@ export const rateLimiterMiddleware: RateLimitRequestHandler = rateLimit({
     });
   },
   skip: (req: Request): boolean => {
-    // Skip rate limiting for health checks
-    return req.path === '/health';
+    // Define paths to skip rate limiting in both development and production
+    const skipPaths = [
+      '/health',
+      '/api/auth/login',
+      '/api/auth/register',
+      '/api/mypts/sell', // Skip rate limiting for the sell endpoint
+      '/api/mypts/balance', // Skip rate limiting for balance checks
+      '/api/mypts/transactions' // Skip rate limiting for transactions
+    ];
+
+    // Skip rate limiting for the defined paths regardless of environment
+    return skipPaths.some(path => req.path.includes(path));
   },
   keyGenerator: (req: Request): string => {
     return getClientIp(req);
   },
 });
-

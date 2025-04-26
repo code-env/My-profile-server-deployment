@@ -40,10 +40,16 @@ import authRoutes from './auth.routes';
 import userRoutes from './user.routes'
 import planRoutes from './plan.routes'
 import profileRoutes from './profile.routes';
-import connectionRoutes from './connection.routes';
+// import connectionRoutes from './connection.routes';
+import profileConnectionRoutes from './profile-connection.routes';
 import contactRoutes from './contact.route';
 import RelationshipTypeRoutes from './relationshipType.routes';
 import logsRoutes from './logs.routes';
+import myPtsRoutes from './my-pts.routes';
+import myPtsValueRoutes from './my-pts-value.routes';
+import myPtsHubRoutes from './my-pts-hub.routes';
+import adminNotificationRoutes from './admin-notification.routes';
+import stripeRoutes from './stripe.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
@@ -94,11 +100,17 @@ export const setupRoutes = (app: Application): void => {
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
-  app.use('/api/connections', protect, connectionRoutes);
+  // app.use('/api/connections', protect, connectionRoutes);
+  app.use('/api/profile-connections', protect, profileConnectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
   app.use('/api/plans', protect, planRoutes);
   app.use('/api/relationships', protect, RelationshipTypeRoutes);
   app.use('/api/logs', logsRoutes);
+  app.use('/api/my-pts', protect, myPtsRoutes);
+  app.use('/api/my-pts-value', protect, myPtsValueRoutes);
+  app.use('/api/my-pts-hub', protect, myPtsHubRoutes);
+  app.use('/api/admin/notifications', protect, adminNotificationRoutes);
+  app.use('/api/stripe', stripeRoutes);
 
   // Test email route
   app.get('/api/test/email', async (req, res) => {

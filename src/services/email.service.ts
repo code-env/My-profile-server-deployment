@@ -40,10 +40,14 @@ class EmailService {
       });
   }
 
-  private static async loadTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {
+  public static async loadAndCompileTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {
     const templatePath = path.join(__dirname, '../templates', `${templateName}.html`);
     const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
     return Handlebars.compile(templateContent);
+  }
+
+  private static async loadTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {
+    return this.loadAndCompileTemplate(templateName);
   }
 
   private static async sendEmail(to: string, subject: string, html: string) {
@@ -151,6 +155,58 @@ class EmailService {
     } catch (error: unknown) {
       logger.error('Failed to send 2FA email:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to send 2FA email');
+    }
+  }
+
+  /**
+   * Send an admin notification email
+   * @param to Admin email address
+   * @param subject Email subject
+   * @param content HTML content of the email
+   */
+  public static async sendAdminNotification(
+    to: string,
+    subject: string,
+    content: string
+  ): Promise<void> {
+    try {
+      // For admin notifications, we'll use a simple HTML template
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${subject}</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #f8f9fa; padding: 20px; text-align: center; }
+            .content { padding: 20px; }
+            .footer { background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #777; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2>${config.APP_NAME} Admin Notification</h2>
+            </div>
+            <div class="content">
+              ${content}
+            </div>
+            <div class="footer">
+              <p>This is an automated message from the ${config.APP_NAME} system.</p>
+              <p>© ${new Date().getFullYear()} ${config.APP_NAME}. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      await this.sendEmail(to, subject, html);
+      logger.info(`Admin notification email sent to ${to}`);
+    } catch (error: unknown) {
+      logger.error('Failed to send admin notification email:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to send admin notification email');
     }
   }
 }

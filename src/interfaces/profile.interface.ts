@@ -1,4 +1,5 @@
 import mongoose, { Document } from 'mongoose';
+import { IMyPts } from './my-pts.interface';
 
 
 // Base interfaces without Document extension
@@ -229,6 +230,16 @@ export interface IProfileMethods {
   validateServiceBooking(serviceId: string, date: Date, options: Record<string, any>): boolean;
   addEndorsement(skillId: string, userId: mongoose.Types.ObjectId, comment?: string): Promise<boolean>;
   addRecurringEvent(eventData: any): Promise<boolean>;
+  // MyPts methods
+  getMyPts(): Promise<IMyPts>;
+  getMyPtsValue(currency?: string): Promise<{
+    balance: number;
+    valuePerPts: number;
+    currency: string;
+    symbol: string;
+    totalValue: number;
+    formattedValue: string;
+  }>;
 }
 
 export interface IProfile extends Document, IProfileMethods {
@@ -289,4 +300,6 @@ export interface IProfile extends Document, IProfileMethods {
       default: true
     }
   },
+  // MyPts related fields
+  myPtsBalance?: number; // Quick access to points balance
 }

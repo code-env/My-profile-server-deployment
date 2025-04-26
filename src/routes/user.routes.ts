@@ -1,15 +1,16 @@
 import express from 'express';
 import { UserControllers } from '../controllers/user.controller';
-import { createProfile, getUserProfilesGrouped, updateProfileNew } from '../controllers/profile.controller';
-
+import { authenticateToken } from '../middleware/authMiddleware';
 
 const router = express.Router();
+
+// Public routes
 router.get('/', UserControllers.GetAllUsers);
-router.delete('/delete/:id', UserControllers.DeleteUserById);
 router.post('/generate-username', UserControllers.GenerateUsername);
-router.get('/profiles/user-profile', getUserProfilesGrouped)
-router.put('/profiles/:id', updateProfileNew)
-router.post('/profile', createProfile);
+
+// Protected routes
+router.get('/me', authenticateToken, UserControllers.GetCurrentUser);
 router.get('/:id', UserControllers.GetUserById);
+router.delete('/delete/:id', UserControllers.DeleteUserById);
 
 export default router;

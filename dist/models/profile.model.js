@@ -39,6 +39,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AcademicProfile = exports.MedicalProfile = exports.BusinessProfile = exports.PersonalProfile = exports.ProfileModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
 const qrcode_1 = __importDefault(require("qrcode"));
+const my_pts_model_1 = require("./my-pts.model");
+const my_pts_value_model_1 = require("./my-pts-value.model");
 // Base interfaces without Document extension
 // Create the Mongoose schema with discriminator key
 const profileSchema = new mongoose_1.Schema({
@@ -68,6 +70,7 @@ const profileSchema = new mongoose_1.Schema({
     qrCode: String,
     connectLink: { type: String, required: true, unique: true, index: true },
     accessToken: { type: String, unique: true, sparse: true },
+    myPtsBalance: { type: Number, default: 0 },
     verificationStatus: {
         isVerified: { type: Boolean, default: false },
         badge: {
@@ -226,9 +229,9 @@ const profileSchema = new mongoose_1.Schema({
         },
     },
     connections: {
-        connected: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: 'User' }],
-        followers: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: 'User' }],
-        following: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: 'User' }],
+        connected: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: 'Profile' }],
+        followers: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: 'Profile' }],
+        following: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: 'Profile' }],
         lastConnections: [{
                 user: { type: mongoose_1.default.Schema.Types.ObjectId, ref: 'User' },
                 connectionType: String,
@@ -338,6 +341,33 @@ profileSchema.methods.addEndorsement = async function (skillId, userId, comment)
 profileSchema.methods.addRecurringEvent = async function (eventData) {
     // TO DO: implement logic to add recurring event
     return true;
+};
+// MyPts related methods
+profileSchema.methods.getMyPts = async function () {
+    return await my_pts_model_1.MyPtsModel.findOrCreate(this._id);
+};
+// Get MyPts value information
+profileSchema.methods.getMyPtsValue = async function (currency = 'USD') {
+    const myPts = await this.getMyPts();
+    const currentValue = await my_pts_value_model_1.MyPtsValueModel.getCurrentValue();
+    const valuePerPts = currentValue.getValueInCurrency(currency);
+    const totalValue = myPts.balance * valuePerPts;
+    // Find the exchange rate to get the symbol
+    let currencySymbol = currentValue.baseSymbol;
+    if (currency !== currentValue.baseCurrency) {
+        const exchangeRate = currentValue.exchangeRates.find(er => er.currency === currency);
+        if (exchangeRate) {
+            currencySymbol = exchangeRate.symbol;
+        }
+    }
+    return {
+        balance: myPts.balance,
+        valuePerPts,
+        currency,
+        symbol: currencySymbol,
+        totalValue,
+        formattedValue: `${currencySymbol}${totalValue.toFixed(2)}`
+    };
 };
 // Middleware
 profileSchema.pre('save', async function (next) {

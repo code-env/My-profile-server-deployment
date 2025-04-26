@@ -1,6 +1,8 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
 import QRCode from 'qrcode';
-import { IProfile, ISkill, IProfileMethods } from '../interfaces/profile.interface';
+import { IProfile, IProfileMethods } from "../interfaces/profile.interface"
+import { MyPtsModel } from './my-pts.model';
+import { MyPtsValueModel } from './my-pts-value.model';
 
 
 // Define ProfileDocument type
@@ -37,6 +39,7 @@ const profileSchema = new Schema<IProfile>(
     qrCode: String,
     connectLink: { type: String, required: true, unique: true, index: true },
     accessToken: { type: String, unique: true, sparse: true },
+    myPtsBalance: { type: Number, default: 0 },
     verificationStatus: {
       isVerified: { type: Boolean, default: false },
       badge: {
@@ -195,9 +198,9 @@ const profileSchema = new Schema<IProfile>(
       },
     },
     connections: {
-      connected: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-      followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-      following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+      connected: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Profile' }],
+      followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Profile' }],
+      following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Profile' }],
       lastConnections: [{
         user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         connectionType: String,
@@ -291,7 +294,7 @@ profileSchema.methods.getFeaturedProjects = async function(limit?: number): Prom
   return [];
 };
 
-profileSchema.methods.getSkillsByCategory = async function(): Promise<Record<string, ISkill[]>> {
+profileSchema.methods.getSkillsByCategory = async function(): Promise<Record<string, any[]>> {
   // TO DO: implement logic to get skills by category
   return {};
 };
@@ -340,6 +343,38 @@ profileSchema.methods.addEndorsement = async function(skillId: string, userId: m
 profileSchema.methods.addRecurringEvent = async function(eventData: any): Promise<boolean> {
   // TO DO: implement logic to add recurring event
   return true;
+};
+
+// MyPts related methods
+profileSchema.methods.getMyPts = async function() {
+  return await MyPtsModel.findOrCreate(this._id);
+};
+
+// Get MyPts value information
+profileSchema.methods.getMyPtsValue = async function(currency = 'USD') {
+  const myPts = await this.getMyPts();
+  const currentValue = await MyPtsValueModel.getCurrentValue();
+
+  const valuePerPts = currentValue.getValueInCurrency(currency);
+  const totalValue = myPts.balance * valuePerPts;
+
+  // Find the exchange rate to get the symbol
+  let currencySymbol = currentValue.baseSymbol;
+  if (currency !== currentValue.baseCurrency) {
+    const exchangeRate = currentValue.exchangeRates.find(er => er.currency === currency);
+    if (exchangeRate) {
+      currencySymbol = exchangeRate.symbol;
+    }
+  }
+
+  return {
+    balance: myPts.balance,
+    valuePerPts,
+    currency,
+    symbol: currencySymbol,
+    totalValue,
+    formattedValue: `${currencySymbol}${totalValue.toFixed(2)}`
+  };
 };
 
 // Middleware

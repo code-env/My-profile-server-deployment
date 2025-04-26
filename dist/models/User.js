@@ -303,11 +303,8 @@ userSchema.pre('save', async function (next) {
             logger_1.logger.warn(`Account locked for user ${this.email} due to multiple failed login attempts`);
             this.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
         }
-        // Check profiles and update role if necessary
-        if (this.profiles && this.profiles.length > 1) {
-            logger_1.logger.info(`User ${this.email} role updated to admin due to multiple profiles`);
-            this.role = 'admin';
-        }
+        // Removed automatic role elevation based on profile count
+        // This was a security issue that automatically made users admins if they had multiple profiles
         next();
     }
     catch (error) {

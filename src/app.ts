@@ -73,6 +73,7 @@ import { monitorPerformance } from "./middleware/performance.middleware";
 import { validateEnv } from "./utils/env-validator";
 import { validateLicenseMiddleware } from "./middleware/license.middleware";
 import WhatsAppService from "./services/whatsapp.service";
+import { initializeMyPtsHub } from "./startup/initialize-my-pts-hub";
 import { advancedTrackingMiddleware } from "./middleware/advanced-tracking.middleware";
 import { licenseConfig } from "./config/license.config";
 // Import passport configuration
@@ -252,7 +253,16 @@ export class AppServer {
     );
 
     this.app.use(advancedTrackingMiddleware);
-    this.app.use(express.json({ limit: "10mb" }));
+
+    // Special handling for Stripe webhook route - needs raw body
+    this.app.use((req, res, next) => {
+      if (req.originalUrl === '/api/stripe/webhook') {
+        next();
+      } else {
+        express.json({ limit: "10mb" })(req, res, next);
+      }
+    });
+
     this.app.use(express.urlencoded({ extended: true, limit: "10mb" }));
     this.app.use(cookieParser(config.COOKIE_SECRET));
     this.app.use(compression());
@@ -494,6 +504,14 @@ export class AppServer {
         }
       };
       await initWhatsApp();
+
+      // Initialize MyPts Hub service
+      await initializeMyPtsHub();
+
+      // Initialize admin settings
+      const { initializeDefaultSettings } = require('./models/admin-settings.model');
+      await initializeDefaultSettings();
+
       // Always use HTTP server as Render handles SSL/HTTPS
       await this.startHttpServer();
 

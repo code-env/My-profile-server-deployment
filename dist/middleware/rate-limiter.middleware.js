@@ -8,7 +8,7 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const logger_1 = require("../utils/logger");
 const defaultConfig = {
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
+    max: 1000, // Increased from 100 to 1000 requests per windowMs
     message: 'Too many requests from this IP, please try again later',
     standardHeaders: true,
     legacyHeaders: false,
@@ -47,8 +47,17 @@ exports.rateLimiterMiddleware = (0, express_rate_limit_1.default)({
         });
     },
     skip: (req) => {
-        // Skip rate limiting for health checks
-        return req.path === '/health';
+        // Define paths to skip rate limiting in both development and production
+        const skipPaths = [
+            '/health',
+            '/api/auth/login',
+            '/api/auth/register',
+            '/api/mypts/sell', // Skip rate limiting for the sell endpoint
+            '/api/mypts/balance', // Skip rate limiting for balance checks
+            '/api/mypts/transactions' // Skip rate limiting for transactions
+        ];
+        // Skip rate limiting for the defined paths regardless of environment
+        return skipPaths.some(path => req.path.includes(path));
     },
     keyGenerator: (req) => {
         return getClientIp(req);

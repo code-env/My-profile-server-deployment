@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateProfileNew = exports.getUserProfilesGrouped = exports.updateProfileSettings = exports.updateProfileVisibility = exports.removeManager = exports.addManager = exports.unblockUser = exports.blockUser = exports.deleteUser = exports.addProfileManager = exports.transferProfile = exports.deleteProfile = exports.updateProfile = exports.getProfileInfo = exports.updateSocialInfo = exports.updateContactInfo = exports.updatePersonalInfo = exports.claimProfile = exports.createClaimableProfile = exports.createProfile = void 0;
+exports.updateProfileNew = exports.getUserProfilesGrouped = exports.getAllProfiles = exports.updateProfileSettings = exports.updateProfileVisibility = exports.removeManager = exports.addManager = exports.unblockUser = exports.blockUser = exports.deleteUser = exports.addProfileManager = exports.transferProfile = exports.deleteProfile = exports.updateProfile = exports.getProfileInfo = exports.updateSocialInfo = exports.updateContactInfo = exports.updatePersonalInfo = exports.claimProfile = exports.createClaimableProfile = exports.createProfile = void 0;
 const profile_model_1 = require("../models/profile.model");
 const User_1 = require("../models/User");
 const logger_1 = require("../utils/logger");
@@ -44,6 +44,17 @@ exports.createProfile = (0, express_async_handler_1.default)(async (req, res) =>
         }
         if (!validCategory.includes(type.category.toLowerCase())) {
             throw (0, http_errors_1.default)(400, `Profile category must be one of: Individual, Functional, Group`);
+        }
+        // Check for duplicate profile (same name and type across all users, case-insensitive)
+        const existingProfile = await profile_model_1.ProfileModel.findOne({
+            // owner: user._id, // Removed owner check for global uniqueness
+            name: { $regex: new RegExp(`^${name}$`, 'i') },
+            'type.category': { $regex: new RegExp(`^${type.category}$`, 'i') },
+            'type.subtype': { $regex: new RegExp(`^${type.subtype}$`, 'i') }
+        });
+        if (existingProfile) {
+            // Update the error message to reflect global uniqueness check
+            throw (0, http_errors_1.default)(409, `A profile with the name "${name}" and type "${type.category}/${type.subtype}" already exists.`);
         }
         // Generate unique connect link
         const connectLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/connect/mp-${Math.random().toString(36).substring(2, 15)}`;
@@ -388,7 +399,7 @@ exports.getProfileInfo = (0, express_async_handler_1.default)(async (req, res) =
         }
         // Permission checks
         const isOwner = ((_a = profile.owner) === null || _a === void 0 ? void 0 : _a.toString()) === user._id.toString();
-        const isManager = profile.managers.some(manager => manager.toString() === user._id.toString());
+        const isManager = profile.managers.some((manager) => manager.toString() === user._id.toString());
         if (!isOwner && !isManager && profile.settings.visibility !== 'public') {
             logger_1.logger.warn(`Unauthorized profile access attempt: ${id} by user ${user._id}`);
             throw (0, http_errors_1.default)(403, 'You do not have permission to view this profile');
@@ -699,7 +710,7 @@ exports.removeManager = (0, express_async_handler_1.default)(async (req, res) =>
             throw (0, http_errors_1.default)(400, 'Cannot remove profile owner from managers');
         }
         // Remove manager
-        profile.managers = profile.managers.filter(m => m.toString() !== managerId);
+        profile.managers = profile.managers.filter((m) => m.toString() !== managerId);
         await profile.save();
         res.json({
             success: true,
@@ -782,6 +793,66 @@ exports.updateProfileSettings = (0, express_async_handler_1.default)(async (req,
 // @desc    Get all user profiles grouped by category
 // @route   GET /api/profiles/user-profiles?category= individual | functional | group
 // @access  Private
+// @desc    Get all profiles (admin only)
+// @route   GET /api/profiles/all
+// @access  Admin only
+exports.getAllProfiles = (0, express_async_handler_1.default)(async (req, res, next) => {
+    const user = req.user;
+    // Check if user is admin or superadmin
+    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+        return next((0, http_errors_1.default)(403, 'Admin access required'));
+    }
+    try {
+        // Get query parameters for pagination and filtering
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+        // Get filter parameters
+        const nameFilter = req.query.name;
+        const typeFilter = req.query.type;
+        const categoryFilter = req.query.category;
+        // Build filter object
+        const filter = {};
+        if (nameFilter) {
+            filter.name = { $regex: nameFilter, $options: 'i' };
+        }
+        if (typeFilter) {
+            filter['type.subtype'] = { $regex: typeFilter, $options: 'i' };
+        }
+        if (categoryFilter) {
+            filter['type.category'] = { $regex: categoryFilter, $options: 'i' };
+        }
+        // Get total count for pagination
+        const total = await profile_model_1.ProfileModel.countDocuments(filter);
+        // Get profiles with pagination and sorting
+        const profiles = await profile_model_1.ProfileModel.find(filter)
+            // Return all fields by not specifying a select
+            // .select('_id name description type profileType profileCategory owner managers createdAt updatedAt')
+            // Remove the populate to avoid the User model issue
+            // .populate('owner', '_id email username fullName')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+        // Return profiles with pagination info
+        res.status(200).json({
+            success: true,
+            data: {
+                profiles,
+                pagination: {
+                    total,
+                    page,
+                    limit,
+                    pages: Math.ceil(total / limit)
+                }
+            }
+        });
+    }
+    catch (error) {
+        logger_1.logger.error('Error getting all profiles:', error);
+        // Pass the error to the next middleware (error handler)
+        next((0, http_errors_1.default)(500, 'Failed to get profiles'));
+    }
+});
 exports.getUserProfilesGrouped = (0, express_async_handler_1.default)(async (req, res) => {
     // const user = {
     //   _id: "67e41de4bc8ce32407f11e1c",
@@ -806,9 +877,20 @@ exports.getUserProfilesGrouped = (0, express_async_handler_1.default)(async (req
                 name: 1,
                 owner: 1,
                 details: 1,
-                type: 1,
-                createdAt: 1,
-                profileCategory: 1
+                // Include both type and profileType for consistency
+                type: {
+                    $cond: {
+                        if: { $ifNull: ["$type", false] },
+                        then: "$type",
+                        else: {
+                            category: { $toLower: "$profileCategory" },
+                            subtype: "$profileType"
+                        }
+                    }
+                },
+                profileType: 1,
+                profileCategory: 1,
+                createdAt: 1
             }
         },
         {
@@ -872,7 +954,6 @@ function buildUpdateQuery(obj, prefix = '') {
  *       }
  *     }
  *   }
- * }
  *
  * The above will be flattened to update the field 'categories.about.interestAndGoals.content'.
  */

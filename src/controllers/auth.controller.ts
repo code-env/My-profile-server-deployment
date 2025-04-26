@@ -301,6 +301,7 @@ export class AuthController {
 
       const result = await AuthService.login({ identifier, password }, req);
 
+      console.log("🚀 ~ AuthController ~ login ~ result:", result)
       if (result.success == false) {
         res.status(401).json({
           success: false,
@@ -336,6 +337,7 @@ export class AuthController {
         path: "/",
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
+console.log(user);
 
       res.status(200).json({
         success: true,

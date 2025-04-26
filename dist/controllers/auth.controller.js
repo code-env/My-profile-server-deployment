@@ -187,6 +187,7 @@ class AuthController {
             const validatedData = await auth_types_1.loginSchema.parseAsync(req.body);
             const { identifier, password } = validatedData;
             const result = await auth_service_1.AuthService.login({ identifier, password }, req);
+            console.log("🚀 ~ AuthController ~ login ~ result:", result);
             if (result.success == false) {
                 res.status(401).json({
                     success: false,
@@ -219,6 +220,7 @@ class AuthController {
                 path: "/",
                 maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
             });
+            console.log(user);
             res.status(200).json({
                 success: true,
                 user: {

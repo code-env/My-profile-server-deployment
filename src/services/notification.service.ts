@@ -26,10 +26,10 @@ export class NotificationService {
       if (this.io) {
         this.io.to(`user:${notification.recipient}`).emit('notification:new', notification);
       }
-      
+
       // Send push notification if user has enabled them
       await this.sendPushNotification(notification);
-      
+
     } catch (error) {
       console.error('Error in handleNotificationCreated:', error);
       logger.error('Error handling notification creation:', error);
@@ -72,7 +72,7 @@ export class NotificationService {
     console.log('Entering getUserNotifications with userId and query:', userId, query);
     try {
       const { isRead, isArchived = false, limit = 10, page = 1 } = query;
-      
+
       const filter: any = {
         recipient: userId,
         isArchived,
@@ -204,6 +204,82 @@ export class NotificationService {
     } catch (error) {
       console.error('Error in createConnectionRequestNotification:', error);
       logger.error('Error creating connection request notification:', error);
+    }
+  }
+
+  async createProfileConnectionRequestNotification(requesterProfileId: mongoose.Types.ObjectId, receiverProfileId: mongoose.Types.ObjectId, connectionId: mongoose.Types.ObjectId) {
+    console.log('Entering createProfileConnectionRequestNotification with requesterProfileId and receiverProfileId:', requesterProfileId, receiverProfileId);
+    try {
+      // Get the profiles
+      const ProfileModel = mongoose.model('Profile');
+      const requesterProfile = await ProfileModel.findById(requesterProfileId).select('name profileImage owner');
+      const receiverProfile = await ProfileModel.findById(receiverProfileId).select('name owner');
+
+      if (!requesterProfile || !receiverProfile) return;
+
+      return this.createNotification({
+        recipient: receiverProfile.owner,
+        type: 'profile_connection_request',
+        title: 'New Profile Connection Request',
+        message: `${requesterProfile.name} wants to connect with your profile ${receiverProfile.name}`,
+        relatedTo: {
+          model: 'ProfileConnection',
+          id: connectionId,
+        },
+        action: {
+          text: 'View Request',
+          url: `/profiles/${receiverProfileId}/connections/requests`,
+        },
+        priority: 'medium',
+        data: {
+          requesterProfileId,
+          receiverProfileId,
+          connectionId,
+          requesterProfileName: requesterProfile.name,
+          requesterProfileImage: requesterProfile.profileImage
+        }
+      });
+    } catch (error) {
+      console.error('Error in createProfileConnectionRequestNotification:', error);
+      logger.error('Error creating profile connection request notification:', error);
+    }
+  }
+
+  async createProfileConnectionAcceptedNotification(requesterProfileId: mongoose.Types.ObjectId, receiverProfileId: mongoose.Types.ObjectId, connectionId: mongoose.Types.ObjectId) {
+    console.log('Entering createProfileConnectionAcceptedNotification with requesterProfileId and receiverProfileId:', requesterProfileId, receiverProfileId);
+    try {
+      // Get the profiles
+      const ProfileModel = mongoose.model('Profile');
+      const requesterProfile = await ProfileModel.findById(requesterProfileId).select('name owner');
+      const receiverProfile = await ProfileModel.findById(receiverProfileId).select('name profileImage owner');
+
+      if (!requesterProfile || !receiverProfile) return;
+
+      return this.createNotification({
+        recipient: requesterProfile.owner,
+        type: 'profile_connection_accepted',
+        title: 'Profile Connection Accepted',
+        message: `${receiverProfile.name} has accepted your connection request`,
+        relatedTo: {
+          model: 'ProfileConnection',
+          id: connectionId,
+        },
+        action: {
+          text: 'View Profile',
+          url: `/profiles/${receiverProfileId}`,
+        },
+        priority: 'medium',
+        data: {
+          requesterProfileId,
+          receiverProfileId,
+          connectionId,
+          receiverProfileName: receiverProfile.name,
+          receiverProfileImage: receiverProfile.profileImage
+        }
+      });
+    } catch (error) {
+      console.error('Error in createProfileConnectionAcceptedNotification:', error);
+      logger.error('Error creating profile connection accepted notification:', error);
     }
   }
 
