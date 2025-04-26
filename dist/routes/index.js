@@ -51,6 +51,8 @@ const logs_routes_1 = __importDefault(require("./logs.routes"));
 const my_pts_routes_1 = __importDefault(require("./my-pts.routes"));
 const my_pts_value_routes_1 = __importDefault(require("./my-pts-value.routes"));
 const my_pts_hub_routes_1 = __importDefault(require("./my-pts-hub.routes"));
+const admin_notification_routes_1 = __importDefault(require("./admin-notification.routes"));
+const stripe_routes_1 = __importDefault(require("./stripe.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
 const enforce_license_middleware_1 = require("../middleware/enforce-license.middleware");
@@ -98,6 +100,8 @@ const setupRoutes = (app) => {
     app.use('/api/my-pts', auth_middleware_1.protect, my_pts_routes_1.default);
     app.use('/api/my-pts-value', auth_middleware_1.protect, my_pts_value_routes_1.default);
     app.use('/api/my-pts-hub', auth_middleware_1.protect, my_pts_hub_routes_1.default);
+    app.use('/api/admin/notifications', auth_middleware_1.protect, admin_notification_routes_1.default);
+    app.use('/api/stripe', stripe_routes_1.default);
     // Test email route
     app.get('/api/test/email', async (req, res) => {
         try {

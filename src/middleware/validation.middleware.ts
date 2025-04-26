@@ -11,23 +11,28 @@ export const validateRequest = (schema: ZodSchema) => {
     try {
       // Validate request body against schema
       const result = schema.safeParse(req.body);
-      
+
       if (!result.success) {
         // Format Zod errors for better readability
         const formattedErrors = result.error.errors.map(error => ({
           path: error.path.join('.'),
           message: error.message
         }));
-        
+
         logger.warn(`Validation failed for ${req.path}:`, formattedErrors);
-        
+
+        // Create a more descriptive error message
+        const errorMessage = formattedErrors.length === 1
+          ? `Validation failed: ${formattedErrors[0].message}`
+          : `Validation failed: ${formattedErrors.length} errors found`;
+
         return res.status(400).json({
           success: false,
-          message: 'Validation failed',
+          message: errorMessage,
           errors: formattedErrors
         });
       }
-      
+
       // If validation passes, update req.body with parsed data
       req.body = result.data;
       next();

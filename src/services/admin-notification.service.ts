@@ -4,6 +4,8 @@ import { logger } from '../utils/logger';
 import { AdminNotificationModel } from '../models/admin-notification.model';
 import { IMyPtsTransaction, TransactionType } from '../interfaces/my-pts.interface';
 import mongoose from 'mongoose';
+import { ProfileModel } from '../models/profile.model';
+import { NotificationService } from './notification.service';
 
 /**
  * Send a transaction notification to the admin hub email
@@ -366,5 +368,111 @@ export const createAdminNotification = async (notification: {
     });
   } catch (error) {
     logger.error(`Error creating admin notification: ${error}`);
+  }
+};
+
+/**
+ * Notify a user of a completed transaction
+ * @param transaction The completed transaction
+ */
+export const notifyUserOfCompletedTransaction = async (transaction: IMyPtsTransaction & { _id: mongoose.Types.ObjectId }): Promise<void> => {
+  try {
+    // Get the profile
+    const profile = await ProfileModel.findById(transaction.profileId);
+    if (!profile) {
+      logger.error(`Profile not found for transaction: ${transaction._id}`);
+      return;
+    }
+
+    // Get the user associated with the profile
+    const user = await mongoose.model('User').findById(profile.owner);
+    if (!user) {
+      logger.error(`User not found for profile: ${profile._id}`);
+      return;
+    }
+
+    // Create a notification service instance
+    const notificationService = new NotificationService();
+
+    // Determine transaction type and message
+    let title = 'Transaction Completed';
+    let message = '';
+    let priority: 'low' | 'medium' | 'high' = 'medium';
+
+    if (transaction.type === TransactionType.SELL_MYPTS) {
+      title = 'MyPts Sale Completed';
+      message = `Your sale of ${Math.abs(transaction.amount)} MyPts has been processed and payment has been sent.`;
+      priority = 'high';
+    } else if (transaction.type === TransactionType.BUY_MYPTS) {
+      title = 'MyPts Purchase Completed';
+      message = `Your purchase of ${transaction.amount} MyPts has been completed.`;
+      priority = 'medium';
+    } else {
+      title = `${transaction.type} Completed`;
+      message = `Your ${transaction.type} transaction of ${Math.abs(transaction.amount)} MyPts has been completed.`;
+      priority = 'medium';
+    }
+
+    // Create a notification for the user
+    await notificationService.createNotification({
+      recipient: user._id,
+      type: 'system_notification',
+      title,
+      message,
+      relatedTo: {
+        model: 'Transaction',
+        id: transaction._id
+      },
+      action: {
+        text: 'View Transaction',
+        url: `/dashboard/transactions/${transaction._id}`
+      },
+      priority,
+      metadata: {
+        transactionId: transaction._id.toString(),
+        transactionType: transaction.type,
+        amount: transaction.amount,
+        balance: transaction.balance
+      }
+    });
+
+    // Send email notification if possible
+    try {
+      if (user.email) {
+        const emailSubject = `${title} - MyPts`;
+
+        // Format amount with commas for thousands
+        const formattedAmount = Math.abs(transaction.amount).toLocaleString();
+        const formattedBalance = transaction.balance.toLocaleString();
+
+        // Create email content
+        const emailContent = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">${title}</h2>
+            <p>${message}</p>
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p><strong>Transaction Details:</strong></p>
+              <p>Amount: ${formattedAmount} MyPts</p>
+              <p>New Balance: ${formattedBalance} MyPts</p>
+              <p>Transaction Type: ${transaction.type}</p>
+              <p>Transaction ID: ${transaction._id}</p>
+              <p>Date: ${new Date(transaction.updatedAt || transaction.createdAt).toLocaleString()}</p>
+            </div>
+            <p>Thank you for using MyPts!</p>
+          </div>
+        `;
+
+        // Send the email using the admin notification method
+        await EmailService.sendAdminNotification(user.email, emailSubject, emailContent);
+        logger.info(`Transaction completion email sent to ${user.email}`);
+      }
+    } catch (emailError) {
+      logger.error(`Error sending transaction completion email: ${emailError}`);
+      // Continue even if email fails
+    }
+
+    logger.info(`User notified of completed transaction: ${transaction._id}`);
+  } catch (error) {
+    logger.error(`Error notifying user of completed transaction: ${error}`);
   }
 };

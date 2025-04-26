@@ -253,7 +253,16 @@ export class AppServer {
     );
 
     this.app.use(advancedTrackingMiddleware);
-    this.app.use(express.json({ limit: "10mb" }));
+
+    // Special handling for Stripe webhook route - needs raw body
+    this.app.use((req, res, next) => {
+      if (req.originalUrl === '/api/stripe/webhook') {
+        next();
+      } else {
+        express.json({ limit: "10mb" })(req, res, next);
+      }
+    });
+
     this.app.use(express.urlencoded({ extended: true, limit: "10mb" }));
     this.app.use(cookieParser(config.COOKIE_SECRET));
     this.app.use(compression());

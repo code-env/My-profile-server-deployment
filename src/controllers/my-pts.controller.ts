@@ -6,7 +6,9 @@ import { TransactionType, TransactionStatus } from '../interfaces/my-pts.interfa
 import { myPtsHubService } from '../services/my-pts-hub.service';
 import { logger } from '../utils/logger';
 import { IProfile } from '../interfaces/profile.interface';
-import { notifyAdminsOfTransaction } from '../services/admin-notification.service';
+import { notifyAdminsOfTransaction, notifyUserOfCompletedTransaction } from '../services/admin-notification.service';
+import { NotificationService } from '../services/notification.service';
+import EmailService from '../services/email.service';
 
 /**
  * Get MyPts balance for the authenticated profile
@@ -144,8 +146,91 @@ export const getTransactionsByType = async (req: Request, res: Response) => {
 };
 
 /**
- * Buy MyPts with real money (simulated)
+ * Get a single transaction by ID
  */
+export const getTransactionById = async (req: Request, res: Response) => {
+  try {
+    if (!req.profile) {
+      return res.status(401).json({ success: false, message: 'Profile not authenticated' });
+    }
+
+    const profile = req.profile as unknown as IProfile;
+    const { transactionId } = req.params;
+
+    if (!transactionId) {
+      return res.status(400).json({ success: false, message: 'Transaction ID is required' });
+    }
+
+    // Find the transaction
+    const transaction = await MyPtsTransactionModel.findOne({
+      _id: transactionId,
+      profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString()
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: transaction
+    });
+  } catch (error: any) {
+    logger.error(`Error getting transaction by ID: ${error.message}`, { error });
+    return res.status(500).json({ success: false, message: 'Failed to get transaction' });
+  }
+};
+
+/**
+ * Get transaction by reference ID (e.g., payment intent ID)
+ */
+export const getTransactionByReference = async (req: Request, res: Response) => {
+  try {
+    if (!req.profile) {
+      return res.status(401).json({ success: false, message: 'Profile not authenticated' });
+    }
+
+    const profile = req.profile as unknown as IProfile;
+    const { referenceId } = req.params;
+
+    if (!referenceId) {
+      return res.status(400).json({ success: false, message: 'Reference ID is required' });
+    }
+
+    // Find transaction by reference ID in metadata
+    const transaction = await MyPtsTransactionModel.findOne({
+      profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString(),
+      $or: [
+        { 'metadata.paymentIntentId': referenceId },
+        { 'metadata.stripePaymentIntentId': referenceId },
+        { 'metadata.checkoutSessionId': referenceId },
+        { 'metadata.payoutId': referenceId },
+        { 'metadata.transferId': referenceId },
+        { 'metadata.reference': referenceId },
+        { referenceId: referenceId }
+      ]
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: transaction
+    });
+  } catch (error: any) {
+    logger.error(`Error getting transaction by reference: ${error.message}`, { error });
+    return res.status(500).json({ success: false, message: 'Failed to get transaction by reference' });
+  }
+};
+
+/**
+ * Buy MyPts with real money using Stripe
+ */
+import { stripeService } from '../services/stripe.service';
+import { stripeConfig } from '../config/stripe.config';
+
 export const buyMyPts = async (req: Request, res: Response) => {
   try {
     if (!req.profile) {
@@ -153,16 +238,43 @@ export const buyMyPts = async (req: Request, res: Response) => {
     }
 
     const profile = req.profile as unknown as IProfile;
-    const { amount, paymentMethod, paymentId } = req.body;
+    const { amount, paymentMethod, paymentMethodId } = req.body;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' });
     }
 
-    // In a real implementation, you would integrate with a payment processor here
-    // For now, we'll simulate a successful payment
+    // Get the value of MyPts in the default currency
+    const valueInfo = await profile.getMyPtsValue(stripeConfig.currency.toUpperCase());
 
-    // Get the hub and move MyPts from reserve to circulation
+    // Calculate the amount in cents for Stripe
+    const amountInCents = stripeService.convertMyPtsToCents(amount, valueInfo.valuePerPts);
+
+    // Create a payment intent with Stripe
+    logger.info('Creating Stripe payment intent', {
+      profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString(),
+      amount,
+      amountInCents,
+      currency: stripeConfig.currency
+    });
+
+    const paymentIntent = await stripeService.createPaymentIntent(
+      amountInCents,
+      stripeConfig.currency,
+      {
+        profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString(),
+        myPtsAmount: amount.toString(),
+        description: `Purchase of ${amount} MyPts`
+      }
+    );
+
+    logger.info('Stripe payment intent created successfully', {
+      paymentIntentId: paymentIntent.id,
+      amount,
+      amountInCents
+    });
+
+    // Get the hub and check reserve supply
     const hub = await myPtsHubService.getHubState();
 
     // Check if there are enough MyPts in reserve
@@ -178,76 +290,97 @@ export const buyMyPts = async (req: Request, res: Response) => {
 
     const myPts = await profile.getMyPts();
 
-    // Start a session for transaction
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    // Create a pending transaction record
+    const transaction = await MyPtsTransactionModel.create({
+      profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString(),
+      type: TransactionType.BUY_MYPTS,
+      amount,
+      balance: myPts.balance + amount, // Expected balance after completion
+      description: `Buying ${amount} MyPts`,
+      status: TransactionStatus.PENDING,
+      metadata: {
+        paymentMethod,
+        paymentIntentId: paymentIntent.id,
+        amountInCents,
+        currency: stripeConfig.currency
+      },
+      referenceId: paymentIntent.id
+    });
 
-    let transactionRecord;
+    // If the payment method ID is provided, confirm the payment intent
+    if (paymentMethodId) {
+      logger.info('Confirming payment intent with provided payment method', {
+        paymentIntentId: paymentIntent.id,
+        paymentMethodId: paymentMethodId.substring(0, 10) + '...' // Log only part of the ID for security
+      });
 
-    try {
-      // Update MyPts document
-      myPts.balance += amount;
-      myPts.lifetimeEarned += amount;
-      myPts.lastTransaction = new Date();
-      await myPts.save({ session });
-
-      // Create transaction record first
-      const transaction = await MyPtsTransactionModel.create([{
-        profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString(),
-        type: TransactionType.BUY_MYPTS,
-        amount,
-        balance: myPts.balance,
-        description: `Bought ${amount} MyPts`,
-        metadata: { paymentMethod, paymentId },
-        referenceId: paymentId
-      }], { session });
-
-      // Move MyPts from reserve to circulation and link with transaction
-      const hubResult = await myPtsHubService.moveToCirculation(
-        amount,
-        `Purchase by profile ${profile._id}`,
-        undefined,
-        {
-          profileId: profile._id,
-          paymentMethod,
-          paymentId
-        },
-        transaction[0]._id
-      );
-
-      // Update transaction with hub log ID if available
-      if (hubResult.logId) {
-        await MyPtsTransactionModel.findByIdAndUpdate(
-          transaction[0]._id,
-          { hubLogId: hubResult.logId },
-          { session }
+      try {
+        const confirmedIntent = await stripeService.confirmPaymentIntent(
+          paymentIntent.id,
+          paymentMethodId
         );
+
+        // If payment requires additional action, return the client secret
+        if (confirmedIntent.status === 'requires_action') {
+          logger.info('Payment requires additional action', {
+            paymentIntentId: paymentIntent.id,
+            status: confirmedIntent.status,
+            transactionId: transaction._id
+          });
+
+          return res.status(200).json({
+            success: true,
+            requiresAction: true,
+            clientSecret: paymentIntent.client_secret,
+            transactionId: transaction._id
+          });
+        }
+
+        // If payment succeeded immediately, process the payment success
+        if (confirmedIntent.status === 'succeeded') {
+          logger.info('Payment succeeded immediately', {
+            paymentIntentId: paymentIntent.id,
+            status: confirmedIntent.status,
+            transactionId: transaction._id
+          });
+
+          // Process the successful payment (will be handled by webhook)
+          return res.status(200).json({
+            success: true,
+            requiresAction: false,
+            clientSecret: paymentIntent.client_secret,
+            transactionId: transaction._id,
+            paymentIntentId: paymentIntent.id
+          });
+        }
+
+        logger.info('Payment intent confirmation returned unexpected status', {
+          paymentIntentId: paymentIntent.id,
+          status: confirmedIntent.status
+        });
+      } catch (error) {
+        logger.error('Error confirming payment intent', { error, paymentIntentId: paymentIntent.id });
+        // Update transaction status to failed
+        transaction.status = TransactionStatus.FAILED;
+        await transaction.save();
+
+        return res.status(400).json({
+          success: false,
+          message: 'Payment confirmation failed',
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
       }
-
-      // Update the profile's myPtsBalance for quick access
-      await ProfileModel.findByIdAndUpdate(profile._id, {
-        myPtsBalance: myPts.balance
-      }, { session });
-
-      await session.commitTransaction();
-
-      // Store the transaction for the response
-      transactionRecord = transaction[0];
-
-      // Send notification to admin
-      await notifyAdminsOfTransaction(transactionRecord);
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
     }
 
+    // Return the payment intent details to the client
     return res.status(200).json({
       success: true,
       data: {
-        transaction: transactionRecord,
-        newBalance: myPts.balance
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id,
+        amount: amountInCents,
+        currency: stripeConfig.currency,
+        transactionId: transaction._id
       }
     });
   } catch (error: any) {
@@ -257,7 +390,7 @@ export const buyMyPts = async (req: Request, res: Response) => {
 };
 
 /**
- * Sell MyPts for real money (simulated)
+ * Sell MyPts for real money using Stripe
  */
 export const sellMyPts = async (req: Request, res: Response) => {
   try {
@@ -272,12 +405,46 @@ export const sellMyPts = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Invalid amount' });
     }
 
-    if (!paymentMethod || !accountDetails) {
-      return res.status(400).json({ success: false, message: 'Payment information is required' });
+    if (!paymentMethod) {
+      return res.status(400).json({ success: false, message: 'Payment method is required' });
     }
 
-    // In a real implementation, you would integrate with a payment processor here
-    // For now, we'll simulate a successful sale
+    if (!accountDetails) {
+      return res.status(400).json({ success: false, message: 'Account details are required' });
+    }
+
+    // Validate account details based on payment method
+    if (paymentMethod === 'bank_transfer') {
+      if (!accountDetails.accountName || !accountDetails.accountNumber) {
+        return res.status(400).json({
+          success: false,
+          message: 'Bank account details are incomplete',
+          errors: [
+            !accountDetails.accountName ? { path: 'accountDetails.accountName', message: 'Account name is required' } : null,
+            !accountDetails.accountNumber ? { path: 'accountDetails.accountNumber', message: 'Account number is required' } : null
+          ].filter(Boolean)
+        });
+      }
+    } else if (paymentMethod === 'paypal') {
+      if (!accountDetails.email) {
+        return res.status(400).json({
+          success: false,
+          message: 'PayPal email is required',
+          errors: [{ path: 'accountDetails.email', message: 'PayPal email is required' }]
+        });
+      }
+    } else if (paymentMethod === 'crypto') {
+      if (!accountDetails.walletAddress || !accountDetails.cryptoType) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cryptocurrency details are incomplete',
+          errors: [
+            !accountDetails.walletAddress ? { path: 'accountDetails.walletAddress', message: 'Wallet address is required' } : null,
+            !accountDetails.cryptoType ? { path: 'accountDetails.cryptoType', message: 'Cryptocurrency type is required' } : null
+          ].filter(Boolean)
+        });
+      }
+    }
 
     const myPts = await profile.getMyPts();
 
@@ -285,64 +452,66 @@ export const sellMyPts = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Insufficient MyPts balance' });
     }
 
-    let transactionRecord;
+    // Get the value of MyPts in the default currency
+    const valueInfo = await profile.getMyPtsValue(stripeConfig.currency.toUpperCase());
+
+    // Calculate the amount in cents for Stripe
+    const amountInCents = stripeService.convertMyPtsToCents(amount, valueInfo.valuePerPts);
+
+    // For selling MyPts, we'll create a transaction first and then process the payout
+    // In a production environment, you would integrate with Stripe Connect for payouts
+    // For now, we'll create a transaction and mark it as pending for admin approval
 
     // Start a session for transaction
     const session = await mongoose.startSession();
     session.startTransaction();
 
-    try {
-      // Update MyPts document
-      myPts.balance -= amount;
-      myPts.lifetimeSpent += amount;
-      myPts.lastTransaction = new Date();
-      await myPts.save({ session });
+    let transactionRecord;
 
-      // Create transaction record
+    try {
+      // Instead of deducting MyPts immediately, we'll create a transaction with RESERVED status
+      // The MyPts will only be deducted when the admin approves the transaction
+
+      // Create transaction record with RESERVED status
       const transaction = await MyPtsTransactionModel.create([
         {
           profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString(),
           type: TransactionType.SELL_MYPTS,
-          amount: -amount, // Negative amount for deductions
-          balance: myPts.balance,
-          description: `Sold ${amount} MyPts`,
-          metadata: { paymentMethod, accountDetails }
+          amount: -amount, // Negative amount for deductions (will be applied when approved)
+          balance: myPts.balance, // Current balance (not yet deducted)
+          description: `Requested to sell ${amount} MyPts`,
+          status: TransactionStatus.RESERVED, // Mark as reserved for admin approval
+          metadata: {
+            paymentMethod,
+            accountDetails,
+            amountInCents,
+            currency: stripeConfig.currency,
+            valuePerMyPt: valueInfo.valuePerPts,
+            requestedAmount: amount, // Store the requested amount for later use
+            originalBalance: myPts.balance // Store the original balance
+          }
         }
       ], { session });
 
-      // Move MyPts from circulation to reserve and link with transaction
-      const hubResult = await myPtsHubService.moveToReserve(
-        amount,
-        `Sale by profile ${profile._id}`,
-        undefined,
+      // We don't move MyPts to reserve yet - we'll do that when the admin approves
+      // Instead, we'll just record the transaction and notify the admin
+
+      // Update the transaction with additional metadata
+      await MyPtsTransactionModel.findByIdAndUpdate(
+        transaction[0]._id,
         {
-          profileId: profile._id,
-          paymentMethod,
-          accountDetails
+          'metadata.requestedAt': new Date(),
+          'metadata.expectedBalance': myPts.balance - amount // Calculate expected balance after approval
         },
-        transaction[0]._id
+        { session }
       );
-
-      // Update transaction with hub log ID
-      if (hubResult.logId) {
-        await MyPtsTransactionModel.findByIdAndUpdate(
-          transaction[0]._id,
-          { hubLogId: hubResult.logId },
-          { session }
-        );
-      }
-
-      // Update the profile's myPtsBalance for quick access
-      await ProfileModel.findByIdAndUpdate(profile._id, {
-        myPtsBalance: myPts.balance
-      }, { session });
 
       await session.commitTransaction();
 
       // Store the transaction for the response
       transactionRecord = transaction[0];
 
-      // Send notification to admin
+      // Send notification to admin for approval
       await notifyAdminsOfTransaction(transactionRecord);
     } catch (error) {
       await session.abortTransaction();
@@ -355,7 +524,9 @@ export const sellMyPts = async (req: Request, res: Response) => {
       success: true,
       data: {
         transaction: transactionRecord,
-        newBalance: myPts.balance
+        balance: myPts.balance, // Current balance (unchanged)
+        status: TransactionStatus.RESERVED,
+        message: 'Your sell request has been submitted and is pending admin approval. Your MyPts will remain in your account until approved. You will be notified once processed.'
       }
     });
   } catch (error: any) {
@@ -517,6 +688,7 @@ export const getAllProfileTransactions = async (req: Request, res: Response) => 
       sort = 'desc',
       profileId,
       type,
+      status,
       startDate,
       endDate
     } = req.query;
@@ -532,6 +704,10 @@ export const getAllProfileTransactions = async (req: Request, res: Response) => 
       query.type = type;
     }
 
+    if (status) {
+      query.status = status;
+    }
+
     if (startDate || endDate) {
       query.createdAt = {};
 
@@ -543,6 +719,9 @@ export const getAllProfileTransactions = async (req: Request, res: Response) => 
         query.createdAt.$lte = new Date(endDate as string);
       }
     }
+
+    // Log the query for debugging
+    logger.info('getAllProfileTransactions query:', { query });
 
     // Get transactions
     const [transactions, total] = await Promise.all([
@@ -568,6 +747,495 @@ export const getAllProfileTransactions = async (req: Request, res: Response) => 
   } catch (error: any) {
     logger.error(`Error getting all profile transactions: ${error.message}`, { error });
     return res.status(500).json({ success: false, message: 'Failed to get all profile transactions' });
+  }
+};
+
+/**
+ * Reject a sell transaction (admin only)
+ */
+export const rejectSellTransaction = async (req: Request, res: Response) => {
+  try {
+    // Check if user is admin
+    const user = req.user as any;
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const { transactionId, reason } = req.body;
+
+    if (!transactionId) {
+      return res.status(400).json({ success: false, message: 'Transaction ID is required' });
+    }
+
+    // Find the transaction
+    const transaction = await MyPtsTransactionModel.findById(transactionId);
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    // Verify it's a sell transaction and is in RESERVED status
+    if (transaction.type !== TransactionType.SELL_MYPTS) {
+      return res.status(400).json({ success: false, message: 'Not a sell transaction' });
+    }
+
+    if (transaction.status !== TransactionStatus.RESERVED) {
+      return res.status(400).json({
+        success: false,
+        message: `Transaction cannot be rejected because it is ${transaction.status}`
+      });
+    }
+
+    // Get the profile
+    const profile = await ProfileModel.findById(transaction.profileId);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Profile not found' });
+    }
+
+    // Update transaction status to REJECTED
+    transaction.status = TransactionStatus.REJECTED;
+    transaction.metadata = {
+      ...transaction.metadata,
+      rejectedBy: user._id,
+      rejectedAt: new Date(),
+      rejectionReason: reason || 'Rejected by admin'
+    };
+
+    await transaction.save();
+
+    // Notify the user of the rejection
+    try {
+      // Create a notification for the user
+      const notificationService = new NotificationService();
+
+      await notificationService.createNotification({
+        recipient: profile.owner,
+        type: 'system_notification',
+        title: 'Sell Request Rejected',
+        message: `Your request to sell ${transaction.metadata?.requestedAmount || Math.abs(transaction.amount)} MyPts has been rejected.`,
+        relatedTo: {
+          model: 'Transaction',
+          id: transaction._id
+        },
+        action: {
+          text: 'View Details',
+          url: `/dashboard/transactions/${transaction._id}`
+        },
+        priority: 'high',
+        metadata: {
+          transactionId: transaction._id.toString(),
+          transactionType: transaction.type,
+          rejectionReason: reason || 'Rejected by admin'
+        }
+      });
+
+      // Send email notification if possible
+      try {
+        const user = await mongoose.model('User').findById(profile.owner);
+        if (user && user.email) {
+          const emailSubject = 'MyPts Sell Request Rejected';
+
+          // Create email content
+          const emailContent = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #333;">Sell Request Rejected</h2>
+              <p>Your request to sell ${transaction.metadata?.requestedAmount || Math.abs(transaction.amount)} MyPts has been rejected.</p>
+              <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <p><strong>Reason:</strong> ${reason || 'Rejected by admin'}</p>
+                <p><strong>Transaction ID:</strong> ${transaction._id}</p>
+                <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+              </div>
+              <p>If you have any questions, please contact support.</p>
+            </div>
+          `;
+
+          // Send the email
+          await EmailService.sendAdminNotification(user.email, emailSubject, emailContent);
+        }
+      } catch (emailError) {
+        logger.error(`Error sending transaction rejection email: ${emailError}`);
+        // Continue even if email fails
+      }
+
+    } catch (notifyError) {
+      logger.error('Error notifying user of rejected transaction', {
+        error: notifyError,
+        transactionId: transaction._id
+      });
+      // Continue even if notification fails
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Transaction rejected successfully',
+      data: {
+        transaction
+      }
+    });
+  } catch (error: any) {
+    logger.error(`Error rejecting sell transaction: ${error.message}`, { error });
+    return res.status(500).json({ success: false, message: 'Failed to reject transaction' });
+  }
+};
+
+/**
+ * Process a sell transaction with Stripe (admin only)
+ */
+export const processSellTransaction = async (req: Request, res: Response) => {
+  try {
+    // Check if user is admin
+    const user = req.user as any;
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const { transactionId, paymentReference, notes } = req.body;
+
+    if (!transactionId) {
+      return res.status(400).json({ success: false, message: 'Transaction ID is required' });
+    }
+
+    // Find the transaction
+    const transaction = await MyPtsTransactionModel.findById(transactionId);
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    // Verify it's a sell transaction and is in RESERVED status
+    if (transaction.type !== TransactionType.SELL_MYPTS) {
+      return res.status(400).json({ success: false, message: 'Not a sell transaction' });
+    }
+
+    if (transaction.status !== TransactionStatus.RESERVED) {
+      return res.status(400).json({
+        success: false,
+        message: `Transaction cannot be processed because it is ${transaction.status}`
+      });
+    }
+
+    // Get the profile
+    const profile = await ProfileModel.findById(transaction.profileId);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Profile not found' });
+    }
+
+    // Get payment details from transaction metadata
+    const {
+      paymentMethod,
+      accountDetails,
+      amountInCents,
+      currency = stripeConfig.currency
+    } = transaction.metadata || {};
+
+    if (!paymentMethod || !accountDetails || !amountInCents) {
+      return res.status(400).json({ success: false, message: 'Transaction missing payment details' });
+    }
+
+    // Process payment based on payment method
+    let paymentResult;
+
+    try {
+      logger.info('Processing sell transaction payment', {
+        transactionId: transaction._id,
+        paymentMethod,
+        amountInCents
+      });
+
+      if (paymentMethod === 'bank_transfer') {
+        // For bank transfers, we'll record the payment reference
+        paymentResult = {
+          type: 'bank_transfer',
+          reference: paymentReference || `MANUAL-${Date.now()}`,
+          status: 'completed'
+        };
+      }
+      else if (paymentMethod === 'paypal') {
+        // For PayPal, we'll record the payment reference
+        paymentResult = {
+          type: 'paypal',
+          reference: paymentReference || `PAYPAL-${Date.now()}`,
+          status: 'completed'
+        };
+      }
+      else if (paymentMethod === 'stripe') {
+        try {
+          // For Stripe, we'll create a payout
+          // In test mode, this will create a test payout that won't actually move money
+          logger.info('Creating Stripe payout for transaction', {
+            transactionId: transaction._id.toString(),
+            amount: amountInCents,
+            currency
+          });
+
+          // Check if we're in test mode
+          const isTestMode = stripeConfig.secretKey.startsWith('sk_test_');
+          logger.info(`Stripe mode: ${isTestMode ? 'TEST' : 'LIVE'} for transaction ${transaction._id}`);
+
+          // In a production environment, you would need to:
+          // 1. Have a Stripe Connect account set up for the user
+          // 2. Have funds in your Stripe account to make the payout
+          // 3. Use the destination parameter to specify where to send the funds
+
+          // If we're in live mode, check the Stripe balance first
+          if (!isTestMode) {
+            try {
+              // Get the available balance
+              const balance = await stripeService.getBalance();
+              const availableBalance = balance.available.find(b => b.currency === currency);
+              const availableAmount = availableBalance ? availableBalance.amount : 0;
+
+              logger.info('Stripe available balance for payout', {
+                availableAmount,
+                currency,
+                requestedAmount: amountInCents,
+                transactionId: transaction._id.toString()
+              });
+
+              if (availableAmount < amountInCents) {
+                throw new Error(`Insufficient Stripe balance for payout. Available: ${availableAmount/100} ${currency.toUpperCase()}, Requested: ${amountInCents/100} ${currency.toUpperCase()}`);
+              }
+            } catch (balanceError) {
+              logger.error('Error checking Stripe balance', {
+                error: balanceError instanceof Error ? balanceError.message : 'Unknown error',
+                transactionId: transaction._id.toString()
+              });
+
+              // Continue with the payout attempt, it will fail if there's not enough balance
+            }
+          }
+
+          // Determine if we should use a destination
+          let destination = undefined;
+          if (accountDetails.stripeAccountId) {
+            destination = accountDetails.stripeAccountId;
+            logger.info('Using Stripe Connect account for payout', {
+              destinationPrefix: destination.substring(0, 8) + '...',
+              transactionId: transaction._id.toString()
+            });
+          } else if (accountDetails.cardNumber) {
+            logger.info('Using card details for payout', {
+              cardNumberPrefix: accountDetails.cardNumber.substring(0, 4) + '...',
+              transactionId: transaction._id.toString()
+            });
+
+            // In a real implementation, you would create a card token and use it as the destination
+            // For now, we'll just log that we would do this
+            logger.info('Card payouts require creating a card token first', {
+              transactionId: transaction._id.toString()
+            });
+          }
+
+          // Ensure all metadata values are strings
+          const metadata = {
+            transactionId: transaction._id.toString(),
+            profileId: typeof transaction.profileId === 'string' ? transaction.profileId : transaction.profileId.toString(),
+            description: `Payout for selling ${Math.abs(transaction.amount)} MyPts`,
+            amount: Math.abs(transaction.amount).toString(),
+            currency: currency.toUpperCase()
+          };
+
+          // Log the metadata for debugging
+          logger.info('Creating Stripe payout with metadata', {
+            metadata,
+            transactionId: transaction._id.toString()
+          });
+
+          const payout = await stripeService.createPayout(
+            amountInCents,
+            currency,
+            'standard',
+            destination,
+            metadata
+          );
+
+          logger.info('Stripe payout created successfully', {
+            payoutId: payout.id,
+            status: payout.status,
+            amount: payout.amount,
+            currency: payout.currency,
+            arrivalDate: payout.arrival_date ? new Date(payout.arrival_date * 1000).toISOString() : 'unknown',
+            transactionId: transaction._id.toString()
+          });
+
+          paymentResult = {
+            type: 'stripe',
+            payoutId: payout.id,
+            status: payout.status,
+            amount: amountInCents,
+            currency: currency,
+            estimatedArrival: payout.arrival_date ? new Date(payout.arrival_date * 1000).toISOString() : undefined,
+            testMode: isTestMode
+          };
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+          // Check for specific Stripe errors and provide more helpful messages
+          let userFriendlyMessage = errorMessage;
+          let adminNotes = '';
+
+          if (errorMessage.includes("don't have any external accounts")) {
+            userFriendlyMessage = "Payment will be processed manually. No Stripe external account is set up for payouts.";
+            adminNotes = "ADMIN NOTE: You need to set up an external account in Stripe to process automatic payouts. " +
+                        "Go to your Stripe Dashboard > Settings > Connect settings > External accounts to add a bank account.";
+
+            logger.warn('Stripe payout failed due to missing external account', {
+              transactionId: transaction._id.toString(),
+              solution: 'Set up an external account in Stripe Dashboard'
+            });
+          } else if (errorMessage.includes("Insufficient funds")) {
+            userFriendlyMessage = "Payment will be processed manually. Insufficient funds in Stripe account.";
+            adminNotes = "ADMIN NOTE: Your Stripe account doesn't have sufficient funds to process this payout automatically. " +
+                        "Add funds to your Stripe account or process this payment manually.";
+
+            logger.warn('Stripe payout failed due to insufficient funds', {
+              transactionId: transaction._id.toString(),
+              solution: 'Add funds to Stripe account'
+            });
+          }
+
+          logger.error('Error creating Stripe payout', {
+            error: errorMessage,
+            transactionId: transaction._id.toString(),
+            userFriendlyMessage,
+            adminNotes
+          });
+
+          // Still mark as completed but note the error
+          paymentResult = {
+            type: 'stripe',
+            status: 'manual_required',
+            error: errorMessage,
+            userFriendlyMessage,
+            adminNotes,
+            manualReference: paymentReference || `MANUAL-STRIPE-${Date.now()}`
+          };
+        }
+      }
+      else if (paymentMethod === 'crypto') {
+        // For crypto, we'll record the transaction hash
+        paymentResult = {
+          type: 'crypto',
+          reference: paymentReference || `CRYPTO-${Date.now()}`,
+          cryptoType: accountDetails.cryptoType,
+          status: 'completed'
+        };
+      }
+      else {
+        // Default case - manual processing
+        paymentResult = {
+          type: 'manual',
+          reference: paymentReference || `MANUAL-${Date.now()}`,
+          status: 'completed'
+        };
+      }
+
+      logger.info('Payment processed successfully', {
+        transactionId: transaction._id,
+        paymentResult
+      });
+    } catch (error) {
+      logger.error('Error processing payment', { error, transactionId: transaction._id });
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to process payment',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+
+    // Start a session for transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Get the MyPts document for the profile
+      const myPts = await profile.getMyPts();
+
+      // Get the requested amount from metadata
+      const requestedAmount = transaction.metadata?.requestedAmount || Math.abs(transaction.amount);
+
+      // Check if the user still has enough MyPts
+      if (myPts.balance < requestedAmount) {
+        await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: 'Insufficient MyPts balance. The user no longer has enough MyPts to complete this transaction.'
+        });
+      }
+
+      // Now deduct the MyPts from the user's balance
+      myPts.balance -= requestedAmount;
+      myPts.lifetimeSpent += requestedAmount;
+      myPts.lastTransaction = new Date();
+      await myPts.save({ session });
+
+      // Move MyPts from circulation to reserve
+      const hubResult = await myPtsHubService.moveToReserve(
+        requestedAmount,
+        `Sale by profile ${profile._id} (approved by admin)`,
+        user._id,
+        {
+          profileId: profile._id,
+          paymentMethod,
+          accountDetails,
+          amountInCents,
+          currency
+        },
+        transaction._id
+      );
+
+      // Update the profile's myPtsBalance for quick access
+      await ProfileModel.findByIdAndUpdate(profile._id, {
+        myPtsBalance: myPts.balance
+      }, { session });
+
+      // Update transaction status and add payment details
+      transaction.status = TransactionStatus.COMPLETED;
+      transaction.balance = myPts.balance; // Update with the new balance
+      transaction.metadata = {
+        ...transaction.metadata,
+        paymentResult,
+        approvedBy: user._id,
+        approvedAt: new Date(),
+        adminNotes: notes,
+        hubLogId: hubResult.logId
+      };
+
+      await transaction.save({ session });
+
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      logger.error('Error processing sell transaction', { error, transactionId: transaction._id });
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to process transaction',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      session.endSession();
+    }
+
+    // Notify the user
+    try {
+      await notifyUserOfCompletedTransaction(transaction);
+    } catch (notifyError) {
+      logger.error('Error notifying user of completed transaction', {
+        error: notifyError,
+        transactionId: transaction._id
+      });
+      // Continue even if notification fails
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Transaction processed successfully',
+      data: {
+        transaction,
+        paymentResult
+      }
+    });
+  } catch (error: any) {
+    logger.error(`Error processing sell transaction: ${error.message}`, { error });
+    return res.status(500).json({ success: false, message: 'Failed to process transaction' });
   }
 };
 
@@ -607,7 +1275,7 @@ export const awardMyPts = async (req: Request, res: Response) => {
       await myPtsHubService.issueMyPts(
         amount - hub.reserveSupply,
         `Automatic issuance for admin award to profile ${profileId}`,
-        new mongoose.Types.ObjectId(user._id),
+        mongoose.Types.ObjectId.createFromHexString(user._id),
         { automatic: true, profileId, reason }
       );
     }
@@ -644,7 +1312,7 @@ export const awardMyPts = async (req: Request, res: Response) => {
       const hubResult = await myPtsHubService.moveToCirculation(
         amount,
         `Admin award to profile ${profileId}`,
-        new mongoose.Types.ObjectId(user._id),
+        mongoose.Types.ObjectId.createFromHexString(user._id),
         {
           profileId,
           reason: reason || `Admin award: ${amount} MyPts`

@@ -234,7 +234,15 @@ class AppServer {
             },
         }));
         this.app.use(advanced_tracking_middleware_1.advancedTrackingMiddleware);
-        this.app.use(express_1.default.json({ limit: "10mb" }));
+        // Special handling for Stripe webhook route - needs raw body
+        this.app.use((req, res, next) => {
+            if (req.originalUrl === '/api/stripe/webhook') {
+                next();
+            }
+            else {
+                express_1.default.json({ limit: "10mb" })(req, res, next);
+            }
+        });
         this.app.use(express_1.default.urlencoded({ extended: true, limit: "10mb" }));
         this.app.use((0, cookie_parser_1.default)(config_1.config.COOKIE_SECRET));
         this.app.use((0, compression_1.default)());
@@ -447,6 +455,9 @@ class AppServer {
             await initWhatsApp();
             // Initialize MyPts Hub service
             await (0, initialize_my_pts_hub_1.initializeMyPtsHub)();
+            // Initialize admin settings
+            const { initializeDefaultSettings } = require('./models/admin-settings.model');
+            await initializeDefaultSettings();
             // Always use HTTP server as Render handles SSL/HTTPS
             await this.startHttpServer();
             console.log("\n" + chalk_1.default.black(chalk_1.default.bgGreen(" SERVER READY ")));
