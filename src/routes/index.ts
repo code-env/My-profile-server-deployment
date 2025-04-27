@@ -49,6 +49,9 @@ import myPtsValueRoutes from './my-pts-value.routes';
 import myPtsHubRoutes from './my-pts-hub.routes';
 import adminNotificationRoutes from './admin-notification.routes';
 import stripeRoutes from './stripe.routes';
+import notificationRoutes from './notification.routes';
+import userNotificationPreferencesRoutes from './user-notification-preferences.routes';
+import notificationTestRoutes from './notification-test.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
@@ -109,6 +112,9 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/my-pts-hub', protect, myPtsHubRoutes);
   app.use('/api/admin/notifications', protect, adminNotificationRoutes);
   app.use('/api/stripe', stripeRoutes);
+  app.use('/api/notifications', protect, notificationRoutes);
+  app.use('/api/user/notification-preferences', protect, userNotificationPreferencesRoutes);
+  app.use('/api/test/notifications', protect, notificationTestRoutes);
 
   // Test email route
   app.get('/api/test/email', async (req, res) => {

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sale Confirmation</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9f9;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .header {
+      text-align: center;
+      padding: 20px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .logo {
+      max-width: 150px;
+      height: auto;
+    }
+    .content {
+      padding: 20px 0;
+    }
+    .transaction-details {
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    .transaction-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .transaction-row:last-child {
+      border-bottom: none;
+    }
+    .transaction-label {
+      font-weight: bold;
+      color: #555;
+    }
+    .transaction-value {
+      text-align: right;
+    }
+    .footer {
+      text-align: center;
+      padding: 20px 0;
+      font-size: 12px;
+      color: #999;
+      border-top: 1px solid #eee;
+    }
+    .button {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: #ffffff !important;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: bold;
+      margin-top: 15px;
+    }
+    .amount {
+      color: #dc3545;
+      font-weight: bold;
+    }
+    .info-icon {
+      width: 60px;
+      height: 60px;
+      background-color: #007bff;
+      border-radius: 50%;
+      margin: 0 auto 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .info-icon svg {
+      width: 30px;
+      height: 30px;
+      fill: #ffffff;
+    }
+    .status-pending {
+      color: #ffc107;
+      font-weight: bold;
+    }
+    .status-completed {
+      color: #28a745;
+      font-weight: bold;
+    }
+    .status-rejected {
+      color: #dc3545;
+      font-weight: bold;
+    }
+    @media only screen and (max-width: 600px) {
+      .container {
+        width: 100%;
+        border-radius: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="cid:company-logo" alt="{{appName}}" class="logo">
+      <h1>Sale Confirmation</h1>
+    </div>
+    <div class="content">
+      <div style="text-align: center;">
+        <div class="info-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" fill="#ffffff"/>
+          </svg>
+        </div>
+        <h2>Your Sale Request Has Been Received</h2>
+        <p>Your request to sell <span class="amount">{{metadata.amount}} MyPts</span> has been {{#if (eq metadata.status "COMPLETED")}}processed{{else}}received and is pending approval{{/if}}.</p>
+      </div>
+      
+      <div class="transaction-details">
+        <div class="transaction-row">
+          <span class="transaction-label">Transaction ID:</span>
+          <span class="transaction-value">{{transactionId}}</span>
+        </div>
+        
+        <div class="transaction-row">
+          <span class="transaction-label">Date:</span>
+          <span class="transaction-value">{{formatDate metadata.timestamp}}</span>
+        </div>
+        
+        <div class="transaction-row">
+          <span class="transaction-label">Amount:</span>
+          <span class="transaction-value amount">-{{formatNumber metadata.amount}} MyPts</span>
+        </div>
+        
+        <div class="transaction-row">
+          <span class="transaction-label">New Balance:</span>
+          <span class="transaction-value">{{formatNumber metadata.balance}} MyPts</span>
+        </div>
+        
+        <div class="transaction-row">
+          <span class="transaction-label">Status:</span>
+          <span class="transaction-value {{#if (eq metadata.status "PENDING")}}status-pending{{else if (eq metadata.status "COMPLETED")}}status-completed{{else if (eq metadata.status "REJECTED")}}status-rejected{{/if}}">
+            {{metadata.status}}
+          </span>
+        </div>
+      </div>
+      
+      <div style="text-align: center;">
+        <a href="{{actionUrl}}" class="button">View Transaction Details</a>
+      </div>
+      
+      {{#if (eq metadata.status "PENDING")}}
+      <p style="margin-top: 20px;">Your sale request is currently being reviewed by our team. You will receive another notification once it has been processed.</p>
+      {{else if (eq metadata.status "COMPLETED")}}
+      <p style="margin-top: 20px;">Your sale has been completed successfully. The funds should be available in your account shortly.</p>
+      {{else if (eq metadata.status "REJECTED")}}
+      <p style="margin-top: 20px;">Unfortunately, your sale request has been rejected. Please contact our support team for more information.</p>
+      {{/if}}
+    </div>
+    <div class="footer">
+      <p>&copy; {{year}} {{appName}}. All rights reserved.</p>
+      <p>This is an automated message, please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>

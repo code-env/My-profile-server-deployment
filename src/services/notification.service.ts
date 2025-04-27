@@ -4,6 +4,9 @@ import { logger } from '../utils/logger';
 import { EventEmitter } from 'events';
 import { Server as SocketServer } from 'socket.io';
 import mongoose from 'mongoose';
+import EmailService from './email.service';
+import telegramService from './telegram.service';
+import firebaseService from './firebase.service';
 
 export const notificationEvents = new EventEmitter();
 
@@ -27,8 +30,24 @@ export class NotificationService {
         this.io.to(`user:${notification.recipient}`).emit('notification:new', notification);
       }
 
+      // Get the user to check notification preferences
+      const user = await User.findById(notification.recipient);
+      if (!user) return;
+
       // Send push notification if user has enabled them
-      await this.sendPushNotification(notification);
+      if (user.notifications.push) {
+        await this.sendPushNotification(notification);
+      }
+
+      // Send email notification if user has enabled them
+      if (user.notifications.email) {
+        await this.sendEmailNotification(notification, user);
+      }
+
+      // Send Telegram notification if user has enabled them
+      if (user.telegramNotifications?.enabled) {
+        await this.sendTelegramNotification(notification, user);
+      }
 
     } catch (error) {
       console.error('Error in handleNotificationCreated:', error);
@@ -42,11 +61,282 @@ export class NotificationService {
       const user = await User.findById(notification.recipient);
       if (!user) return;
 
-      // TODO: Implement push notification logic here
-      // This could integrate with Firebase Cloud Messaging, OneSignal, or other providers
+      // Check if push notifications are enabled for this user
+      if (!user.notifications.push) {
+        logger.info(`Push notifications disabled for user ${user._id}`);
+        return;
+      }
+
+      // Check if the user has any devices with push tokens
+      const devicesWithPushTokens = user.devices?.filter(device => device.pushToken);
+
+      if (!devicesWithPushTokens || devicesWithPushTokens.length === 0) {
+        logger.info(`No push-enabled devices found for user ${user._id}`);
+        return;
+      }
+
+      // Extract push tokens from devices and filter out undefined values
+      const pushTokens = devicesWithPushTokens
+        .map(device => device.pushToken)
+        .filter((token): token is string => token !== undefined && token !== null);
+
+      // If no valid tokens, exit early
+      if (pushTokens.length === 0) {
+        logger.info(`No valid push tokens found for user ${user._id}`);
+        return;
+      }
+
+      // Check notification type to determine if it should be sent
+      let shouldSend = true;
+
+      // Get user's push notification preferences
+      const preferences = {
+        transactions: true,
+        transactionUpdates: true,
+        purchaseConfirmations: true,
+        saleConfirmations: true,
+        security: true
+      };
+
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
+        // For transaction notifications, check specific transaction preferences
+        const metadata = notification.metadata || {};
+
+        if (metadata.transactionType === 'BUY_MYPTS' && !preferences.purchaseConfirmations) {
+          shouldSend = false;
+        } else if (metadata.transactionType === 'SELL_MYPTS' && !preferences.saleConfirmations) {
+          shouldSend = false;
+        } else if (!preferences.transactions) {
+          shouldSend = false;
+        }
+      } else if (notification.type === 'security_alert' && !preferences.security) {
+        shouldSend = false;
+      }
+
+      if (!shouldSend) {
+        logger.info(`Push notification type ${notification.type} disabled for user ${user._id}`);
+        return;
+      }
+
+      // Send notification based on type
+      let result;
+
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction' && notification.metadata) {
+        // For transaction notifications, use the transaction template
+        result = await firebaseService.sendTransactionNotification(
+          pushTokens,
+          notification.title,
+          notification.message,
+          {
+            id: notification.relatedTo.id.toString(),
+            type: notification.metadata.transactionType || 'Transaction',
+            amount: notification.metadata.amount || 0,
+            status: notification.metadata.status || 'Unknown'
+          }
+        );
+      } else {
+        // For other notifications, use the standard template
+        // Create data object with proper type definition
+        const data: {
+          notificationType: string;
+          notificationId: string;
+          clickAction: string;
+          url: string;
+          timestamp: string;
+          relatedModel?: string;
+          relatedId?: string;
+        } = {
+          notificationType: notification.type,
+          notificationId: notification._id ? notification._id.toString() : '',
+          clickAction: notification.action?.url ? 'OPEN_URL' : 'OPEN_APP',
+          url: notification.action?.url || '',
+          timestamp: Date.now().toString()
+        };
+
+        if (notification.relatedTo) {
+          data.relatedModel = notification.relatedTo.model;
+          data.relatedId = notification.relatedTo.id.toString();
+        }
+
+        result = await firebaseService.sendMulticastPushNotification(
+          pushTokens,
+          notification.title,
+          notification.message,
+          data
+        );
+      }
+
+      // Handle invalid tokens
+      if (result.invalidTokens.length > 0) {
+        logger.info(`Found ${result.invalidTokens.length} invalid push tokens for user ${user._id}`);
+
+        // Remove invalid tokens from user's devices
+        await User.updateOne(
+          { _id: user._id },
+          {
+            $pull: {
+              devices: {
+                pushToken: { $in: result.invalidTokens }
+              }
+            }
+          }
+        );
+      }
+
+      logger.info(`Push notification sent to ${result.success} devices for user ${user._id}`);
     } catch (error) {
       console.error('Error in sendPushNotification:', error);
       logger.error('Error sending push notification:', error);
+    }
+  }
+
+  private async sendEmailNotification(notification: INotification, user: any) {
+    console.log('Entering sendEmailNotification with notification:', notification);
+    try {
+      if (!user.email) {
+        logger.info(`No email found for user ${user._id}`);
+        return;
+      }
+
+      // Check if email notifications are enabled for this user
+      if (!user.notifications.email) {
+        logger.info(`Email notifications disabled for user ${user._id}`);
+        return;
+      }
+
+      // Check notification type to determine email template and content
+      let emailSubject = notification.title;
+      let emailTemplate = 'notification-email';
+      let templateData: any = {
+        title: notification.title,
+        message: notification.message,
+        actionUrl: notification.action?.url || '',
+        actionText: notification.action?.text || '',
+        appName: 'MyPts',
+        year: new Date().getFullYear()
+      };
+
+      // For transaction notifications, use specific templates based on transaction type
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
+        templateData.transactionId = notification.relatedTo.id;
+        templateData.metadata = notification.metadata || {};
+
+        // Add timestamp if not present
+        if (!templateData.metadata.timestamp) {
+          templateData.metadata.timestamp = new Date().toISOString();
+        }
+
+        // Choose template based on transaction type
+        if (templateData.metadata.transactionType === 'BUY_MYPTS') {
+          emailTemplate = 'purchase-confirmation-email';
+          emailSubject = 'Purchase Confirmation - MyPts';
+        } else if (templateData.metadata.transactionType === 'SELL_MYPTS') {
+          emailTemplate = 'sale-confirmation-email';
+          emailSubject = 'Sale Confirmation - MyPts';
+        } else {
+          emailTemplate = 'transaction-notification';
+        }
+      } else if (notification.type === 'security_alert') {
+        emailTemplate = 'security-alert-email';
+        templateData.metadata = notification.metadata || {};
+
+        // Add timestamp if not present
+        if (!templateData.metadata.timestamp) {
+          templateData.metadata.timestamp = new Date().toISOString();
+        }
+      }
+
+      // Load and compile the template
+      try {
+        const template = await EmailService.loadAndCompileTemplate(emailTemplate);
+        const emailContent = template(templateData);
+
+        // Send the email
+        await EmailService.sendEmail(user.email, emailSubject, emailContent);
+        logger.info(`Email notification sent to ${user.email} using template ${emailTemplate}`);
+      } catch (templateError) {
+        // Fallback to a simple email if template fails
+        logger.error(`Error with email template ${emailTemplate}, falling back to simple email: ${templateError}`);
+        await EmailService.sendAdminNotification(
+          user.email,
+          emailSubject,
+          `<p>${notification.message}</p>` +
+          (notification.action ? `<p><a href="${notification.action.url}">${notification.action.text}</a></p>` : '')
+        );
+      }
+    } catch (error) {
+      console.error('Error in sendEmailNotification:', error);
+      logger.error('Error sending email notification:', error);
+    }
+  }
+
+  private async sendTelegramNotification(notification: INotification, user: any) {
+    console.log('Entering sendTelegramNotification with notification:', notification);
+    try {
+      if (!user.telegramNotifications?.enabled || !user.telegramNotifications?.username) {
+        logger.info(`Telegram notifications not enabled or no username for user ${user._id}`);
+        return;
+      }
+
+      const telegramUsername = user.telegramNotifications.username;
+
+      // Check if this notification type is enabled for Telegram
+      const preferences = user.telegramNotifications.preferences || {};
+
+      // Check notification type to determine if it should be sent
+      let shouldSend = true;
+
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
+        // For transaction notifications, check specific transaction preferences
+        const metadata = notification.metadata || {};
+
+        if (metadata.transactionType === 'BUY_MYPTS' && preferences.purchaseConfirmations === false) {
+          shouldSend = false;
+        } else if (metadata.transactionType === 'SELL_MYPTS' && preferences.saleConfirmations === false) {
+          shouldSend = false;
+        } else if (preferences.transactions === false) {
+          shouldSend = false;
+        }
+      } else if (notification.type === 'security_alert' && preferences.security === false) {
+        shouldSend = false;
+      }
+
+      if (!shouldSend) {
+        logger.info(`Telegram notification type ${notification.type} disabled for user ${user._id}`);
+        return;
+      }
+
+      // Send notification based on type
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction' && notification.metadata) {
+        // For transaction notifications, use the transaction template
+        await telegramService.sendTransactionNotification(
+          telegramUsername,
+          notification.title,
+          notification.message,
+          {
+            id: notification.relatedTo.id.toString(),
+            type: notification.metadata.transactionType || 'Transaction',
+            amount: notification.metadata.amount || 0,
+            balance: notification.metadata.balance || 0,
+            status: notification.metadata.status || 'Unknown'
+          },
+          notification.action?.url
+        );
+      } else {
+        // For other notifications, use the standard template
+        await telegramService.sendNotification(
+          telegramUsername,
+          notification.title,
+          notification.message,
+          notification.action?.url,
+          notification.action?.text
+        );
+      }
+
+      logger.info(`Telegram notification sent to @${telegramUsername}`);
+    } catch (error) {
+      console.error('Error in sendTelegramNotification:', error);
+      logger.error('Error sending Telegram notification:', error);
     }
   }
 
@@ -303,6 +593,28 @@ export class NotificationService {
     } catch (error) {
       console.error('Error in createEndorsementNotification:', error);
       logger.error('Error creating endorsement notification:', error);
+    }
+  }
+
+  /**
+   * Get the count of unread notifications for a user
+   * @param userId User ID
+   * @returns Count of unread notifications
+   */
+  async getUnreadCount(userId: mongoose.Types.ObjectId): Promise<number> {
+    console.log('Entering getUnreadCount with userId:', userId);
+    try {
+      const count = await Notification.countDocuments({
+        recipient: userId,
+        isRead: false,
+        isArchived: false
+      });
+
+      return count;
+    } catch (error) {
+      console.error('Error in getUnreadCount:', error);
+      logger.error('Error getting unread notification count:', error);
+      return 0;
     }
   }
 }

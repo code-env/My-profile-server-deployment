@@ -198,6 +198,19 @@ const userSchema = new mongoose_1.Schema({
         sms: { type: Boolean, default: false },
         marketing: { type: Boolean, default: false },
     },
+    telegramNotifications: {
+        enabled: { type: Boolean, default: false },
+        username: { type: String, default: '' },
+        preferences: {
+            transactions: { type: Boolean, default: true },
+            transactionUpdates: { type: Boolean, default: true },
+            purchaseConfirmations: { type: Boolean, default: true },
+            saleConfirmations: { type: Boolean, default: true },
+            security: { type: Boolean, default: true },
+            connectionRequests: { type: Boolean, default: false },
+            messages: { type: Boolean, default: false }
+        }
+    },
     social: {
         followers: [{
                 type: mongoose_1.Schema.Types.ObjectId,
