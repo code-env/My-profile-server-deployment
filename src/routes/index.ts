@@ -53,6 +53,7 @@ import stripeRoutes from './stripe.routes';
 import notificationRoutes from './notification.routes';
 import userNotificationPreferencesRoutes from './user-notification-preferences.routes';
 import notificationTestRoutes from './notification-test.routes';
+import userDeviceRoutes from './user-device.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
@@ -116,6 +117,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/stripe', stripeRoutes);
   app.use('/api/notifications', protect, notificationRoutes);
   app.use('/api/user/notification-preferences', protect, userNotificationPreferencesRoutes);
+  app.use('/api/user/devices', protect, userDeviceRoutes);
   app.use('/api/test/notifications', protect, notificationTestRoutes);
 
   // Test email route

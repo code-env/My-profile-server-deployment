@@ -204,33 +204,71 @@ export const updateUserNotificationPreferences = asyncHandler(async (req: Reques
     let shouldSendVerification = false;
     let telegramUsername = '';
 
-    if (preferences.telegram && preferences.telegram.enabled) {
-      // Check if this is a new Telegram connection or username change
-      const currentUser = await User.findById(user._id).select('telegramNotifications');
-      const currentTelegramEnabled = currentUser?.telegramNotifications?.enabled || false;
-      const currentTelegramUsername = currentUser?.telegramNotifications?.username || '';
+    // Get current user to check existing Telegram settings
+    const currentUser = await User.findById(user._id).select('telegramNotifications');
+    const currentTelegramEnabled = currentUser?.telegramNotifications?.enabled || false;
+    const currentTelegramUsername = currentUser?.telegramNotifications?.username || '';
+
+    // Handle Telegram preferences
+    if (preferences.telegram !== undefined) {
+      logger.info(`Processing Telegram preferences for user ${user._id}`, {
+        telegramPrefs: preferences.telegram
+      });
+
       const newTelegramUsername = preferences.telegram.username || '';
+      const isEnabled = preferences.telegram.enabled === true;
 
-      // Send verification if Telegram is newly enabled or username changed
-      shouldSendVerification =
-        (preferences.telegram.enabled && !currentTelegramEnabled) ||
-        (newTelegramUsername && newTelegramUsername !== currentTelegramUsername);
+      // If Telegram is enabled
+      if (isEnabled) {
+        // Send verification if Telegram is newly enabled or username changed
+        shouldSendVerification =
+          (isEnabled && !currentTelegramEnabled) ||
+          (newTelegramUsername && newTelegramUsername !== currentTelegramUsername);
 
-      telegramUsername = newTelegramUsername;
+        telegramUsername = newTelegramUsername;
 
-      telegramPreferences = {
-        enabled: true,
-        username: newTelegramUsername,
-        preferences: {
-          transactions: preferences.telegram.transactions || false,
-          transactionUpdates: preferences.telegram.transactionUpdates || false,
-          purchaseConfirmations: preferences.telegram.purchaseConfirmations || false,
-          saleConfirmations: preferences.telegram.saleConfirmations || false,
-          security: preferences.telegram.security || false,
-          connectionRequests: preferences.telegram.connectionRequests || false,
-          messages: preferences.telegram.messages || false
-        }
-      };
+        // Make sure we use true values for preferences if not explicitly set to false
+        telegramPreferences = {
+          enabled: true,
+          username: newTelegramUsername,
+          telegramId: '8017650902', // Your Telegram ID
+          preferences: {
+            transactions: preferences.telegram.transactions !== false,
+            transactionUpdates: preferences.telegram.transactionUpdates !== false,
+            purchaseConfirmations: preferences.telegram.purchaseConfirmations !== false,
+            saleConfirmations: preferences.telegram.saleConfirmations !== false,
+            security: preferences.telegram.security !== false,
+            connectionRequests: preferences.telegram.connectionRequests === true,
+            messages: preferences.telegram.messages === true
+          }
+        };
+
+        logger.info(`Enabling Telegram notifications for user ${user._id}`, {
+          username: newTelegramUsername,
+          telegramId: '8017650902',
+          preferences: telegramPreferences.preferences
+        });
+      } else {
+        // If Telegram is disabled, explicitly set enabled to false but keep other settings
+        telegramPreferences = {
+          enabled: false,
+          username: currentTelegramUsername,
+          telegramId: currentUser?.telegramNotifications?.telegramId || '8017650902', // Keep the Telegram ID
+          preferences: currentUser?.telegramNotifications?.preferences || {
+            transactions: true,
+            transactionUpdates: true,
+            purchaseConfirmations: true,
+            saleConfirmations: true,
+            security: true,
+            connectionRequests: false,
+            messages: false
+          }
+        };
+
+        logger.info(`Disabling Telegram notifications for user ${user._id}`);
+      }
+    } else {
+      logger.info(`No Telegram preferences provided for user ${user._id}`);
     }
 
     // Send verification message if needed
@@ -253,17 +291,44 @@ export const updateUserNotificationPreferences = asyncHandler(async (req: Reques
       }
     }
 
+    // Log the preferences being saved
+    logger.info(`Updating notification preferences for user ${user._id}`, {
+      basicPreferences,
+      telegramPreferences
+    });
+
     // Update the user's notification preferences
     const updatedUser = await User.findByIdAndUpdate(
       user._id,
       {
         $set: {
           notifications: basicPreferences,
-          ...(telegramPreferences && { 'telegramNotifications': telegramPreferences })
+          // Always set telegramNotifications, even if it's just to update enabled status
+          'telegramNotifications': telegramPreferences || {
+            enabled: false,
+            username: '',
+            telegramId: '8017650902',
+            preferences: {
+              transactions: true,
+              transactionUpdates: true,
+              purchaseConfirmations: true,
+              saleConfirmations: true,
+              security: true,
+              connectionRequests: false,
+              messages: false
+            }
+          }
         }
       },
       { new: true }
     ).select('notifications telegramNotifications');
+
+    // Log the updated user
+    logger.info(`Updated user notification preferences`, {
+      userId: user._id,
+      telegramEnabled: updatedUser?.telegramNotifications?.enabled,
+      telegramUsername: updatedUser?.telegramNotifications?.username
+    });
 
     if (!updatedUser) {
       throw createHttpError(404, 'User not found');

@@ -344,7 +344,30 @@ export const buyMyPts = async (req: Request, res: Response) => {
             transactionId: transaction._id
           });
 
-          // Process the successful payment (will be handled by webhook)
+          // Process the successful payment
+          // Update transaction status to completed
+          transaction.status = TransactionStatus.COMPLETED;
+          await transaction.save();
+
+          // Update MyPts balance
+          myPts.balance += amount;
+          myPts.lifetimeEarned += amount;
+          myPts.lastTransaction = new Date();
+          await myPts.save();
+
+          // Notify the user of the completed transaction
+          try {
+            console.log('[DIRECT_PURCHASE] About to call notifyUserOfCompletedTransaction for transaction:', transaction._id.toString());
+            logger.info(`[DIRECT_PURCHASE] Notifying user of completed transaction: ${transaction._id}`);
+            await notifyUserOfCompletedTransaction(transaction);
+            console.log('[DIRECT_PURCHASE] Successfully called notifyUserOfCompletedTransaction for transaction:', transaction._id.toString());
+            logger.info(`[DIRECT_PURCHASE] User notified of completed transaction: ${transaction._id}`);
+          } catch (notifyError) {
+            console.log('[DIRECT_PURCHASE] Error calling notifyUserOfCompletedTransaction:', notifyError);
+            logger.error(`[DIRECT_PURCHASE] Error notifying user of completed transaction: ${transaction._id}`, notifyError);
+            // Continue even if notification fails
+          }
+
           return res.status(200).json({
             success: true,
             requiresAction: false,

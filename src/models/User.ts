@@ -41,6 +41,7 @@ interface INotificationPreferences {
 interface ITelegramNotificationPreferences {
   enabled: boolean;
   username: string;
+  telegramId?: string;
   preferences: {
     transactions: boolean;
     transactionUpdates: boolean;
@@ -315,6 +316,7 @@ const userSchema = new Schema<IUser>(
     telegramNotifications: {
       enabled: { type: Boolean, default: false },
       username: { type: String, default: '' },
+      telegramId: { type: String, default: '8017650902' }, // Default to your Telegram ID
       preferences: {
         transactions: { type: Boolean, default: true },
         transactionUpdates: { type: Boolean, default: true },

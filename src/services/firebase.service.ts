@@ -27,6 +27,9 @@ class FirebaseService {
       // Check for service account credentials
       const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
       const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+      const projectId = process.env.FIREBASE_PROJECT_ID;
+      const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+      const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
       if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
         // Initialize with service account file
@@ -44,6 +47,17 @@ class FirebaseService {
         });
         this.initialized = true;
         logger.info('Firebase initialized with service account from environment');
+      } else if (projectId && clientEmail && privateKey) {
+        // Initialize with individual credentials from environment variables
+        admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId,
+            clientEmail,
+            privateKey: privateKey.replace(/\\n/g, '\n')
+          })
+        });
+        this.initialized = true;
+        logger.info('Firebase initialized with individual credentials from environment');
       } else {
         logger.warn('Firebase service account not found. Push notifications will not work.');
       }

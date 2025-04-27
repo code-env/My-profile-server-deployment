@@ -25,28 +25,73 @@ export class NotificationService {
   private async handleNotificationCreated(notification: INotification) {
     console.log('Entering handleNotificationCreated with notification:', notification);
     try {
+      // Log detailed notification information
+      logger.info(`Processing notification for user ${notification.recipient}`, {
+        notificationType: notification.type,
+        relatedModel: notification.relatedTo?.model,
+        relatedId: notification.relatedTo?.id,
+        title: notification.title
+      });
+
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
+        logger.info(`Processing transaction notification`, {
+          transactionId: notification.relatedTo.id,
+          metadata: notification.metadata
+        });
+      }
+
       // Emit to connected socket if available
       if (this.io) {
         this.io.to(`user:${notification.recipient}`).emit('notification:new', notification);
+        logger.info(`Emitted notification to socket for user ${notification.recipient}`);
       }
 
-      // Get the user to check notification preferences
-      const user = await User.findById(notification.recipient);
-      if (!user) return;
+      // Get the user to check notification preferences - explicitly select telegramNotifications
+      const user = await User.findById(notification.recipient).select('+telegramNotifications');
+      if (!user) {
+        logger.warn(`User not found for notification: ${notification.recipient}`);
+        return;
+      }
+
+      // Log the user's notification preferences for debugging
+      logger.info(`Retrieved user for notification: ${notification.recipient}`, {
+        hasUser: !!user,
+        hasTelegramNotifications: !!user.telegramNotifications,
+        telegramEnabled: user.telegramNotifications?.enabled,
+        telegramUsername: user.telegramNotifications?.username,
+        telegramId: user.telegramNotifications?.telegramId
+      });
+
+      logger.info(`User notification preferences`, {
+        userId: user._id,
+        pushEnabled: user.notifications.push,
+        emailEnabled: user.notifications.email,
+        telegramEnabled: user.telegramNotifications?.enabled,
+        telegramUsername: user.telegramNotifications?.username,
+        telegramId: user.telegramNotifications?.telegramId
+      });
 
       // Send push notification if user has enabled them
       if (user.notifications.push) {
+        logger.info(`Sending push notification to user ${user._id}`);
         await this.sendPushNotification(notification);
       }
 
       // Send email notification if user has enabled them
       if (user.notifications.email) {
+        logger.info(`Sending email notification to user ${user._id}`);
         await this.sendEmailNotification(notification, user);
       }
 
       // Send Telegram notification if user has enabled them
       if (user.telegramNotifications?.enabled) {
+        logger.info(`Sending Telegram notification to user ${user._id}`, {
+          telegramUsername: user.telegramNotifications.username,
+          telegramId: user.telegramNotifications.telegramId
+        });
         await this.sendTelegramNotification(notification, user);
+      } else {
+        logger.info(`Telegram notifications not enabled for user ${user._id}`);
       }
 
     } catch (error) {
@@ -272,16 +317,69 @@ export class NotificationService {
 
   private async sendTelegramNotification(notification: INotification, user: any) {
     console.log('Entering sendTelegramNotification with notification:', notification);
+    logger.info(`Attempting to send Telegram notification for user ${user._id}`, {
+      notificationType: notification.type,
+      relatedModel: notification.relatedTo?.model,
+      relatedId: notification.relatedTo?.id,
+      userTelegramSettings: user.telegramNotifications || 'Not available'
+    });
+
     try {
-      if (!user.telegramNotifications?.enabled || !user.telegramNotifications?.username) {
-        logger.info(`Telegram notifications not enabled or no username for user ${user._id}`);
+      // Double-check if telegramNotifications is available
+      if (!user.telegramNotifications) {
+        logger.error(`Telegram notifications object not available for user ${user._id} - trying to reload user`);
+        // Try to reload the user with explicit selection of telegramNotifications
+        user = await User.findById(user._id).select('+telegramNotifications');
+
+        if (!user || !user.telegramNotifications) {
+          logger.error(`Failed to reload user ${user._id} with telegramNotifications`);
+          return;
+        }
+
+        logger.info(`Successfully reloaded user ${user._id} with telegramNotifications`, {
+          telegramEnabled: user.telegramNotifications.enabled,
+          telegramUsername: user.telegramNotifications.username,
+          telegramId: user.telegramNotifications.telegramId
+        });
+      }
+
+      if (!user.telegramNotifications?.enabled) {
+        logger.info(`Telegram notifications not enabled for user ${user._id}`);
         return;
       }
 
+      // Check for either username or telegramId
+      if (!user.telegramNotifications?.username && !user.telegramNotifications?.telegramId) {
+        logger.info(`No Telegram username or ID set for user ${user._id}`);
+        return;
+      }
+
+      // Prefer telegramId if available, otherwise use username
+      const telegramId = user.telegramNotifications.telegramId;
       const telegramUsername = user.telegramNotifications.username;
+      const telegramRecipient = telegramId || telegramUsername;
+
+      logger.info(`User ${user._id} has Telegram notifications enabled with recipient: ${telegramRecipient}`, {
+        telegramId,
+        telegramUsername,
+        telegramEnabled: user.telegramNotifications.enabled,
+        telegramPreferences: user.telegramNotifications.preferences
+      });
+
+      logger.info(`Preparing to send Telegram notification to user ${user._id} via ${telegramId ? 'ID: ' + telegramId : '@' + telegramUsername}`);
 
       // Check if this notification type is enabled for Telegram
-      const preferences = user.telegramNotifications.preferences || {};
+      const preferences = user.telegramNotifications.preferences || {
+        transactions: true,
+        transactionUpdates: true,
+        purchaseConfirmations: true,
+        saleConfirmations: true,
+        security: true,
+        connectionRequests: false,
+        messages: false
+      };
+
+      logger.info(`User ${user._id} Telegram preferences: ${JSON.stringify(preferences)}`);
 
       // Check notification type to determine if it should be sent
       let shouldSend = true;
@@ -289,15 +387,24 @@ export class NotificationService {
       if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
         // For transaction notifications, check specific transaction preferences
         const metadata = notification.metadata || {};
+        logger.info(`Transaction notification metadata: ${JSON.stringify(metadata)}`);
 
         if (metadata.transactionType === 'BUY_MYPTS' && preferences.purchaseConfirmations === false) {
+          logger.info(`Purchase confirmations disabled for user ${user._id}`);
           shouldSend = false;
         } else if (metadata.transactionType === 'SELL_MYPTS' && preferences.saleConfirmations === false) {
+          logger.info(`Sale confirmations disabled for user ${user._id}`);
           shouldSend = false;
         } else if (preferences.transactions === false) {
+          logger.info(`Transaction notifications disabled for user ${user._id}`);
           shouldSend = false;
+        } else {
+          // Default to true for transaction notifications
+          logger.info(`Transaction notifications enabled for user ${user._id}`);
+          shouldSend = true;
         }
       } else if (notification.type === 'security_alert' && preferences.security === false) {
+        logger.info(`Security alerts disabled for user ${user._id}`);
         shouldSend = false;
       }
 
@@ -306,11 +413,17 @@ export class NotificationService {
         return;
       }
 
+      logger.info(`Proceeding to send Telegram notification to ${telegramId ? 'ID: ' + telegramId : '@' + telegramUsername}`);
+
+
       // Send notification based on type
       if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction' && notification.metadata) {
         // For transaction notifications, use the transaction template
-        await telegramService.sendTransactionNotification(
-          telegramUsername,
+        logger.info(`Sending transaction notification via Telegram to ${telegramRecipient}`);
+        logger.info(`Transaction metadata: ${JSON.stringify(notification.metadata)}`);
+
+        const result = await telegramService.sendTransactionNotification(
+          telegramRecipient,
           notification.title,
           notification.message,
           {
@@ -322,18 +435,24 @@ export class NotificationService {
           },
           notification.action?.url
         );
+
+        logger.info(`Transaction notification result: ${result ? 'Success' : 'Failed'}`);
       } else {
         // For other notifications, use the standard template
-        await telegramService.sendNotification(
-          telegramUsername,
+        logger.info(`Sending standard notification via Telegram to ${telegramRecipient}`);
+
+        const result = await telegramService.sendNotification(
+          telegramRecipient,
           notification.title,
           notification.message,
           notification.action?.url,
           notification.action?.text
         );
+
+        logger.info(`Standard notification result: ${result ? 'Success' : 'Failed'}`);
       }
 
-      logger.info(`Telegram notification sent to @${telegramUsername}`);
+      logger.info(`Telegram notification sent to ${telegramId ? 'ID: ' + telegramId : '@' + telegramUsername}`);
     } catch (error) {
       console.error('Error in sendTelegramNotification:', error);
       logger.error('Error sending Telegram notification:', error);

@@ -20,14 +20,14 @@ class PlanService {
           default: throw new Error(`Invalid plan type: ${planType}`);
         }
       }
-    
+
       async validatePlan(planType: PlanType, data: any, isPartial: boolean = false) {
         if (isPartial) {
           return PlanValidator.validatePartialPlan(planType, data);
         }
         return PlanValidator.validatePlan(planType, data);
       }
-    
+
 
     async createPlan(planType: PlanType, planData: any) {
         // Validate input
@@ -60,7 +60,7 @@ class PlanService {
         );
 
         if (error) {
-            throw new Error(`Validation failed: ${error.details.map(d => d.message).join(', ')}`);
+            throw new Error(`Validation failed: ${error.details.map((d: { message: any; }) => d.message).join(', ')}`);
         }
 
         // Update the plan

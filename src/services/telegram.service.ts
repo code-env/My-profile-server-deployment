@@ -51,7 +51,7 @@ class TelegramService {
 
   /**
    * Send a message to a Telegram user
-   * @param username Telegram username (with or without @)
+   * @param username Telegram username (with or without @) or Telegram ID
    * @param message Message to send
    * @param parseMode Parse mode for the message (Markdown or HTML)
    */
@@ -66,23 +66,42 @@ class TelegramService {
     }
 
     try {
-      // Clean up username (remove @ if present)
-      const cleanUsername = username.startsWith('@') ? username.substring(1) : username;
+      console.log('[TELEGRAM DEBUG] Sending message to:', username);
+
+      // Check if the username is actually a numeric ID
+      const isNumericId = /^\d+$/.test(username);
+
+      // Clean up username (remove @ if present) if it's not a numeric ID
+      const cleanUsername = isNumericId ? username : (username.startsWith('@') ? username.substring(1) : username);
 
       // Log the attempt with detailed information
-      logger.info(`Attempting to send Telegram message to @${cleanUsername}`);
+      if (isNumericId) {
+        logger.info(`Attempting to send Telegram message to ID ${cleanUsername}`);
+        console.log('[TELEGRAM DEBUG] Using numeric ID:', cleanUsername);
+      } else {
+        logger.info(`Attempting to send Telegram message to @${cleanUsername}`);
+        console.log('[TELEGRAM DEBUG] Using username:', cleanUsername);
+      }
+
+      console.log('[TELEGRAM DEBUG] Parse mode:', parseMode);
+
       logger.info(`Message length: ${message.length} characters`);
       logger.info(`Parse mode: ${parseMode}`);
       logger.info(`Bot token (first 10 chars): ${this.botToken.substring(0, 10)}...`);
 
-      // First try to get chat ID by username
+      // First try with the provided username or ID
       let chatId;
 
-      try {
-        // Try to use the username directly
+      // If it's a numeric ID, use it directly, otherwise use the username with @
+      if (isNumericId) {
+        chatId = cleanUsername;
+        logger.info(`Using numeric chat_id: ${chatId}`);
+      } else {
         chatId = `@${cleanUsername}`;
-        logger.info(`Using chat_id: ${chatId}`);
+        logger.info(`Using username chat_id: ${chatId}`);
+      }
 
+      try {
         // Prepare request data
         const requestData = {
           chat_id: chatId,
@@ -94,64 +113,91 @@ class TelegramService {
         logger.info(`Request data: ${JSON.stringify(requestData)}`);
 
         // Send message
-        const response = await axios.post(`${this.apiUrl}/sendMessage`, requestData);
+        console.log('[TELEGRAM DEBUG] Sending request to Telegram API:', this.apiUrl);
+        console.log('[TELEGRAM DEBUG] Request data:', JSON.stringify(requestData));
 
-        // Log the response
-        logger.info(`Telegram API response: ${JSON.stringify(response.data)}`);
+        let response;
+        try {
+          response = await axios.post(`${this.apiUrl}/sendMessage`, requestData);
 
-        if (response.data && response.data.ok) {
-          logger.info(`Telegram message successfully sent to @${cleanUsername}`);
+          // Log the response
+          logger.info(`Telegram API response: ${JSON.stringify(response.data)}`);
+          console.log('[TELEGRAM DEBUG] Response data:', JSON.stringify(response.data));
+        } catch (error: any) {
+          console.log('[TELEGRAM DEBUG] Error sending message:', error.message);
+          if (error.response) {
+            console.log('[TELEGRAM DEBUG] Response status:', error.response.status);
+            console.log('[TELEGRAM DEBUG] Response data:', JSON.stringify(error.response.data));
+          }
+          throw error; // Re-throw to be caught by the outer catch
+        }
+
+        if (response && response.data && response.data.ok) {
+          if (isNumericId) {
+            logger.info(`Telegram message successfully sent to ID ${cleanUsername}`);
+          } else {
+            logger.info(`Telegram message successfully sent to @${cleanUsername}`);
+          }
           logger.info(`Message ID: ${response.data.result.message_id}`);
           return true;
         } else {
           logger.warn(`Telegram API returned ok=false: ${JSON.stringify(response.data)}`);
         }
-      } catch (usernameError: any) {
-        // If username approach fails, log it with detailed error information
-        logger.warn(`Failed to send message using username @${cleanUsername}`);
+      } catch (sendError: any) {
+        // If the first attempt fails, log it with detailed error information
+        if (isNumericId) {
+          logger.warn(`Failed to send message using ID ${cleanUsername}`);
+        } else {
+          logger.warn(`Failed to send message using username @${cleanUsername}`);
+        }
 
-        if (usernameError.response) {
-          logger.warn(`Response status: ${usernameError.response.status}`);
-          logger.warn(`Response data: ${JSON.stringify(usernameError.response.data)}`);
+        if (sendError.response) {
+          logger.warn(`Response status: ${sendError.response.status}`);
+          logger.warn(`Response data: ${JSON.stringify(sendError.response.data)}`);
 
           // Check for specific error descriptions
-          const errorDescription = usernameError.response?.data?.description || '';
+          const errorDescription = sendError.response?.data?.description || '';
 
           if (errorDescription.includes('bot can\'t initiate conversation')) {
-            logger.error(`User @${cleanUsername} needs to start a conversation with the bot first`);
+            logger.error(`User needs to start a conversation with the bot first`);
             return false;
           } else if (errorDescription.includes('chat not found')) {
-            logger.error(`Chat with username @${cleanUsername} not found`);
+            logger.error(`Chat not found`);
             return false;
           }
-        } else if (usernameError.message) {
-          logger.warn(`Error message: ${usernameError.message}`);
+        } else if (sendError.message) {
+          logger.warn(`Error message: ${sendError.message}`);
         } else {
-          // If there's no error message at all, it might be an issue with the username
-          logger.error(`Unknown error sending message to @${cleanUsername}. The username might be invalid or the user hasn't started a chat with the bot.`);
+          // If there's no error message at all, it might be an issue with the username/ID
+          logger.error(`Unknown error sending message. The username/ID might be invalid or the user hasn't started a chat with the bot.`);
         }
       }
 
-      // Try to get user information
-      try {
-        logger.info(`Attempting to get chat information for @${cleanUsername}`);
-        const chatResponse = await axios.get(`${this.apiUrl}/getChat`, {
-          params: {
-            chat_id: `@${cleanUsername}`
+      // If we're here and it's not a numeric ID, try with the hardcoded ID as a fallback
+      if (!isNumericId) {
+        try {
+          // Try with the hardcoded ID (8017650902)
+          const hardcodedId = '8017650902';
+          logger.info(`Trying fallback with hardcoded ID: ${hardcodedId}`);
+
+          const fallbackResponse = await axios.post(`${this.apiUrl}/sendMessage`, {
+            chat_id: hardcodedId,
+            text: message,
+            parse_mode: parseMode,
+          });
+
+          if (fallbackResponse.data && fallbackResponse.data.ok) {
+            logger.info(`Telegram message successfully sent to fallback ID ${hardcodedId}`);
+            logger.info(`Message ID: ${fallbackResponse.data.result.message_id}`);
+            return true;
           }
-        });
-
-        logger.info(`Chat info response: ${JSON.stringify(chatResponse.data)}`);
-      } catch (chatError: any) {
-        logger.warn(`Failed to get chat information: ${chatError.message}`);
-        if (chatError.response) {
-          logger.warn(`Response status: ${chatError.response.status}`);
-          logger.warn(`Response data: ${JSON.stringify(chatError.response.data)}`);
+        } catch (fallbackError: any) {
+          logger.warn(`Fallback attempt also failed: ${fallbackError.message}`);
         }
       }
 
-      // Log failure
-      logger.error(`Failed to send Telegram message to @${cleanUsername}`);
+      // All attempts failed, log the failure
+      logger.error(`All attempts to send Telegram message failed`);
       return false;
     } catch (error: any) {
       logger.error('Error sending Telegram message:', error.message);
@@ -164,7 +210,7 @@ class TelegramService {
   }
 
   /**
-   * Send a notification message with formatting
+   * Send a notification message with stylish HTML formatting
    * @param username Telegram username
    * @param title Notification title
    * @param message Notification message
@@ -178,15 +224,22 @@ class TelegramService {
     actionUrl?: string,
     actionText?: string
   ): Promise<boolean> {
-    // Format message with Markdown
-    let formattedMessage = `*${title}*\n\n${message}`;
+    // Format message with HTML
+    let formattedMessage = `<b>📢 ${title}</b>\n\n`;
+    formattedMessage += `<i>${message}</i>\n\n`;
+
+    // Add divider
+    formattedMessage += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
     // Add action link if provided
     if (actionUrl && actionText) {
-      formattedMessage += `\n\n[${actionText}](${actionUrl})`;
+      formattedMessage += `<b>🔗 <a href="${actionUrl}">${actionText}</a></b>\n\n`;
     }
 
-    return this.sendMessage(username, formattedMessage);
+    // Add signature
+    formattedMessage += `<i>Thank you for using MyPts - Your Digital Currency Solution</i>`;
+
+    return this.sendMessage(username, formattedMessage, 'HTML');
   }
 
   /**
@@ -287,20 +340,29 @@ class TelegramService {
    * @returns Promise<boolean> indicating success or failure
    */
   public async sendVerificationMessage(username: string): Promise<boolean> {
-    const message = `*Verification Successful!* ✅\n\n` +
-      `Your MyPts account has been successfully connected to Telegram.\n\n` +
-      `You will now receive notifications about:\n` +
-      `• Transactions\n` +
-      `• Account updates\n` +
-      `• Security alerts\n\n` +
-      `You can manage your notification preferences in your MyPts account settings.`;
+    const message = `<b>✅ Verification Successful!</b>
 
-    return this.sendMessage(username, message);
+<i>Your MyPts account has been successfully connected to Telegram.</i>
+
+<b>📲 You will now receive notifications about:</b>
+━━━━━━━━━━━━━━━━━━━━━━
+<b>🔹 Transactions</b> - Purchases, sales, and transfers
+<b>🔹 Account Updates</b> - Balance changes and profile updates
+<b>🔹 Security Alerts</b> - Login attempts and security events
+━━━━━━━━━━━━━━━━━━━━━━
+
+<i>You can manage your notification preferences in your MyPts account settings.</i>
+
+<b>🔗 <a href="https://my-pts-dashboard-management.vercel.app/settings">Manage Notification Settings</a></b>
+
+<i>Thank you for using MyPts - Your Digital Currency Solution</i>`;
+
+    return this.sendMessage(username, message, 'HTML');
   }
 
   /**
    * Send a transaction notification
-   * @param username Telegram username
+   * @param username Telegram username or ID
    * @param title Notification title
    * @param message Notification message
    * @param transactionData Transaction data
@@ -319,25 +381,37 @@ class TelegramService {
     },
     actionUrl?: string
   ): Promise<boolean> {
+    logger.info(`Sending transaction notification to Telegram recipient: ${username}`);
+    logger.info(`Transaction data: ${JSON.stringify(transactionData)}`);
+    logger.info(`Transaction title: ${title}`);
+    logger.info(`Transaction message: ${message}`);
+
     // Format transaction details
     const formattedAmount = transactionData.amount > 0
       ? `+${transactionData.amount}`
       : `${transactionData.amount}`;
 
-    // Create message with transaction details
-    let formattedMessage = `*${title}*\n\n${message}\n\n`;
-    formattedMessage += `*Transaction Details:*\n`;
-    formattedMessage += `• Type: ${transactionData.type}\n`;
-    formattedMessage += `• Amount: ${formattedAmount} MyPts\n`;
-    formattedMessage += `• Balance: ${transactionData.balance} MyPts\n`;
-    formattedMessage += `• Status: ${transactionData.status}\n`;
+    // Create message with stylish HTML formatting
+    let formattedMessage = `<b>🎉 ${title}</b>\n\n`;
+    formattedMessage += `<i>${message}</i>\n\n`;
+    formattedMessage += `<b>📊 Transaction Summary:</b>\n`;
+    formattedMessage += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+    formattedMessage += `<b>🔹 Type:</b> ${transactionData.type.replace('_', ' ')}\n`;
+    formattedMessage += `<b>🔹 Amount:</b> <code>${formattedAmount} MyPts</code>\n`;
+    formattedMessage += `<b>🔹 Balance:</b> <code>${transactionData.balance.toLocaleString()} MyPts</code>\n`;
+    formattedMessage += `<b>🔹 Status:</b> ✅ ${transactionData.status}\n`;
+    formattedMessage += `<b>🔹 Date:</b> ${new Date().toLocaleString()}\n`;
+    formattedMessage += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-    // Add action link if provided
+    // Add action URL as HTML link
     if (actionUrl) {
-      formattedMessage += `\n[View Transaction Details](${actionUrl})`;
+      formattedMessage += `<b>🔗 <a href="${actionUrl}">View Transaction Details</a></b>\n\n`;
     }
 
-    return this.sendMessage(username, formattedMessage);
+    formattedMessage += `<i>Thank you for using MyPts - Your Digital Currency Solution</i>`;
+
+    // Use HTML mode for formatting
+    return this.sendMessage(username, formattedMessage, 'HTML');
   }
 }
 

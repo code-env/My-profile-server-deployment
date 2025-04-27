@@ -7,6 +7,7 @@ import {
   testSystemNotification,
   verifyTelegramSetup
 } from '../controllers/notification-test.controller';
+import { testDirectTelegramTransaction } from '../controllers/telegram-test.controller';
 
 const router = express.Router();
 
@@ -21,5 +22,8 @@ router.post('/system', testSystemNotification);
 
 // Verification endpoints
 router.get('/verify-telegram', verifyTelegramSetup);
+
+// Direct test endpoints
+router.post('/direct-telegram-transaction', testDirectTelegramTransaction);
 
 export default router;
