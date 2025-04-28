@@ -585,20 +585,28 @@ export const notifyUserOfCompletedTransaction = async (
           logger.info(
             `Attempting to send Telegram notification to ${telegramUsernameOrId} for transaction ${transaction._id}`
           );
-          const telegramResult =
-            await telegramService.sendTransactionNotification(
-              telegramUsernameOrId,
-              title,
-              message,
-              {
-                id: transaction._id.toString(),
-                type: transaction.type,
-                amount: transaction.amount,
-                balance: transaction.balance,
-                status: transaction.status || "COMPLETED",
-              },
-              `${process.env.CLIENT_URL || "https://mypts.app"}/dashboard/transactions/${transaction._id}`
-            );
+
+          // Create a properly formatted transaction detail URL with full https:// prefix
+          const baseUrl = process.env.CLIENT_URL || "https://my-pts-dashboard-management.vercel.app";
+          // Ensure the base URL has the https:// prefix
+          const formattedBaseUrl = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
+          const transactionDetailUrl = `${formattedBaseUrl}/dashboard/transactions/${transaction._id}`;
+
+          logger.info(`Transaction detail URL: ${transactionDetailUrl}`);
+
+          const telegramResult = await telegramService.sendTransactionNotification(
+            telegramUsernameOrId,
+            title,
+            message,
+            {
+              id: transaction._id.toString(),
+              type: transaction.type,
+              amount: transaction.amount,
+              balance: transaction.balance,
+              status: transaction.status || "COMPLETED",
+            },
+            transactionDetailUrl
+          );
           logger.info(
             `[DEBUG] telegramService.sendTransactionNotification result: ${telegramResult}`
           );

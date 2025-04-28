@@ -205,7 +205,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
 
         // Add direct Telegram notification as a backup
         try {
-          // Get the profile owner
+          // Get the profile owner with Telegram notification settings
           console.log('[WEBHOOK DEBUG] Getting profile owner:', profile.owner);
           const profileOwner = await User.findById(profile.owner).select('+telegramNotifications');
 
@@ -215,15 +215,20 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
           }
 
           console.log('[WEBHOOK DEBUG] Profile owner found:', profileOwner._id.toString());
-          console.log('[WEBHOOK DEBUG] Telegram notifications enabled:', profileOwner.telegramNotifications?.enabled);
-          console.log('[WEBHOOK DEBUG] Telegram username:', profileOwner.telegramNotifications?.username);
-          console.log('[WEBHOOK DEBUG] Telegram ID:', profileOwner.telegramNotifications?.telegramId);
 
+          // Check if Telegram notifications are enabled and recipient info is available
           if (profileOwner && profileOwner.telegramNotifications?.enabled) {
+            // Get Telegram recipient from user preferences - prefer ID over username
             const telegramId = profileOwner.telegramNotifications.telegramId;
             const telegramUsername = profileOwner.telegramNotifications.username;
-            const telegramRecipient = telegramId || telegramUsername;
 
+            // Only proceed if we have either an ID or username
+            if (!telegramId && !telegramUsername) {
+              console.log('[WEBHOOK DEBUG] No Telegram recipient info found for user:', profileOwner._id.toString());
+              return;
+            }
+
+            const telegramRecipient = telegramId || telegramUsername;
             console.log('[WEBHOOK DEBUG] Using Telegram recipient:', telegramRecipient);
 
             if (telegramRecipient) {
@@ -383,12 +388,26 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
     // Add direct Telegram notification as a backup
     try {
-      // Get the profile owner
+      // Get the profile owner with Telegram notification settings
       const profileOwner = await User.findById(profile.owner).select('+telegramNotifications');
 
+      if (!profileOwner) {
+        logger.info(`[CHECKOUT] Profile owner not found: ${profile.owner}`);
+        return;
+      }
+
+      // Check if Telegram notifications are enabled and recipient info is available
       if (profileOwner && profileOwner.telegramNotifications?.enabled) {
+        // Get Telegram recipient from user preferences - prefer ID over username
         const telegramId = profileOwner.telegramNotifications.telegramId;
         const telegramUsername = profileOwner.telegramNotifications.username;
+
+        // Only proceed if we have either an ID or username
+        if (!telegramId && !telegramUsername) {
+          logger.info(`[CHECKOUT] No Telegram recipient info found for user: ${profileOwner._id.toString()}`);
+          return;
+        }
+
         const telegramRecipient = telegramId || telegramUsername;
 
         if (telegramRecipient) {

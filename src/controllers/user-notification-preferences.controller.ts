@@ -228,10 +228,14 @@ export const updateUserNotificationPreferences = asyncHandler(async (req: Reques
         telegramUsername = newTelegramUsername;
 
         // Make sure we use true values for preferences if not explicitly set to false
+        // Get existing telegramId if available
+        const existingTelegramId = currentUser?.telegramNotifications?.telegramId;
+
         telegramPreferences = {
           enabled: true,
           username: newTelegramUsername,
-          telegramId: '8017650902', // Your Telegram ID
+          // Only include telegramId if it already exists
+          ...(existingTelegramId ? { telegramId: existingTelegramId } : {}),
           preferences: {
             transactions: preferences.telegram.transactions !== false,
             transactionUpdates: preferences.telegram.transactionUpdates !== false,
@@ -245,7 +249,7 @@ export const updateUserNotificationPreferences = asyncHandler(async (req: Reques
 
         logger.info(`Enabling Telegram notifications for user ${user._id}`, {
           username: newTelegramUsername,
-          telegramId: '8017650902',
+          telegramId: existingTelegramId || 'Not set',
           preferences: telegramPreferences.preferences
         });
       } else {
@@ -253,7 +257,8 @@ export const updateUserNotificationPreferences = asyncHandler(async (req: Reques
         telegramPreferences = {
           enabled: false,
           username: currentTelegramUsername,
-          telegramId: currentUser?.telegramNotifications?.telegramId || '8017650902', // Keep the Telegram ID
+          // Only include telegramId if it already exists
+          ...(currentUser?.telegramNotifications?.telegramId ? { telegramId: currentUser.telegramNotifications.telegramId } : {}),
           preferences: currentUser?.telegramNotifications?.preferences || {
             transactions: true,
             transactionUpdates: true,
@@ -307,7 +312,7 @@ export const updateUserNotificationPreferences = asyncHandler(async (req: Reques
           'telegramNotifications': telegramPreferences || {
             enabled: false,
             username: '',
-            telegramId: '8017650902',
+            // Don't include telegramId in default preferences
             preferences: {
               transactions: true,
               transactionUpdates: true,

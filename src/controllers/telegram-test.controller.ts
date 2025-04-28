@@ -37,17 +37,21 @@ export const testDirectTelegramTransaction = async (req: Request, res: Response)
       });
     }
 
-    // Get Telegram recipient
+    // Get Telegram recipient from user preferences - prefer ID over username
     const telegramId = fullUser.telegramNotifications.telegramId;
     const telegramUsername = fullUser.telegramNotifications.username;
-    const telegramRecipient = telegramId || telegramUsername;
 
-    if (!telegramRecipient) {
+    // Check if we have either an ID or username
+    if (!telegramId && !telegramUsername) {
+      logger.warn(`No Telegram recipient info found for user: ${fullUser._id}`);
       return res.status(400).json({
         success: false,
-        message: 'No Telegram username or ID found for this user'
+        message: 'No Telegram username or ID found for this user. Please set up your Telegram notifications in settings.'
       });
     }
+
+    // Prefer ID over username
+    const telegramRecipient = telegramId || telegramUsername;
 
     logger.info(`Sending direct test transaction notification to ${telegramRecipient}`);
 

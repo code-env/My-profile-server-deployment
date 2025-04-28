@@ -357,6 +357,13 @@ export class NotificationService {
       // Prefer telegramId if available, otherwise use username
       const telegramId = user.telegramNotifications.telegramId;
       const telegramUsername = user.telegramNotifications.username;
+
+      // Double-check that we have at least one valid recipient
+      if (!telegramId && !telegramUsername) {
+        logger.warn(`User ${user._id} has Telegram notifications enabled but no recipient information`);
+        return;
+      }
+
       const telegramRecipient = telegramId || telegramUsername;
 
       logger.info(`User ${user._id} has Telegram notifications enabled with recipient: ${telegramRecipient}`, {
@@ -422,18 +429,38 @@ export class NotificationService {
         logger.info(`Sending transaction notification via Telegram to ${telegramRecipient}`);
         logger.info(`Transaction metadata: ${JSON.stringify(notification.metadata)}`);
 
+        // Create a properly formatted transaction detail URL with full https:// prefix
+        const transactionId = notification.relatedTo.id.toString();
+
+        // Use the action URL if provided, otherwise construct one
+        let transactionDetailUrl;
+        if (notification.action?.url) {
+          // Use the provided URL but ensure it has https:// prefix
+          transactionDetailUrl = notification.action.url.startsWith('http')
+            ? notification.action.url
+            : `https://${notification.action.url}`;
+        } else {
+          // Construct a URL with the proper base URL
+          const baseUrl = process.env.CLIENT_URL || "https://my-pts-dashboard-management.vercel.app";
+          // Ensure the base URL has the https:// prefix
+          const formattedBaseUrl = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
+          transactionDetailUrl = `${formattedBaseUrl}/dashboard/transactions/${transactionId}`;
+        }
+
+        logger.info(`Transaction detail URL for notification: ${transactionDetailUrl}`);
+
         const result = await telegramService.sendTransactionNotification(
           telegramRecipient,
           notification.title,
           notification.message,
           {
-            id: notification.relatedTo.id.toString(),
+            id: transactionId,
             type: notification.metadata.transactionType || 'Transaction',
             amount: notification.metadata.amount || 0,
             balance: notification.metadata.balance || 0,
             status: notification.metadata.status || 'Unknown'
           },
-          notification.action?.url
+          transactionDetailUrl
         );
 
         logger.info(`Transaction notification result: ${result ? 'Success' : 'Failed'}`);

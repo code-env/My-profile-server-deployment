@@ -65,6 +65,12 @@ class TelegramService {
       return false;
     }
 
+    // Log the message being sent for debugging
+    logger.info(`Sending Telegram message to ${username} with parse mode: ${parseMode}`);
+    if (parseMode === 'HTML') {
+      logger.info(`HTML message length: ${message.length} characters`);
+    }
+
     try {
       console.log('[TELEGRAM DEBUG] Sending message to:', username);
 
@@ -107,6 +113,7 @@ class TelegramService {
           chat_id: chatId,
           text: message,
           parse_mode: parseMode,
+          disable_web_page_preview: false // Enable web page previews for links
         };
 
         logger.info(`Sending request to ${this.apiUrl}/sendMessage`);
@@ -173,28 +180,10 @@ class TelegramService {
         }
       }
 
-      // If we're here and it's not a numeric ID, try with the hardcoded ID as a fallback
-      if (!isNumericId) {
-        try {
-          // Try with the hardcoded ID (8017650902)
-          const hardcodedId = '8017650902';
-          logger.info(`Trying fallback with hardcoded ID: ${hardcodedId}`);
-
-          const fallbackResponse = await axios.post(`${this.apiUrl}/sendMessage`, {
-            chat_id: hardcodedId,
-            text: message,
-            parse_mode: parseMode,
-          });
-
-          if (fallbackResponse.data && fallbackResponse.data.ok) {
-            logger.info(`Telegram message successfully sent to fallback ID ${hardcodedId}`);
-            logger.info(`Message ID: ${fallbackResponse.data.result.message_id}`);
-            return true;
-          }
-        } catch (fallbackError: any) {
-          logger.warn(`Fallback attempt also failed: ${fallbackError.message}`);
-        }
-      }
+      // If we're here, all attempts have failed
+      // No fallback to hardcoded ID - this is not a good practice
+      logger.warn(`Failed to send message to ${isNumericId ? 'ID ' + cleanUsername : 'username @' + cleanUsername}`);
+      logger.warn(`No fallback attempt will be made - user must verify their Telegram settings`);
 
       // All attempts failed, log the failure
       logger.error(`All attempts to send Telegram message failed`);
@@ -405,7 +394,21 @@ class TelegramService {
 
     // Add action URL as HTML link
     if (actionUrl) {
-      formattedMessage += `<b>🔗 <a href="${actionUrl}">View Transaction Details</a></b>\n\n`;
+      // Make sure the URL is properly formatted with https://
+      const formattedUrl = actionUrl.startsWith('http') ? actionUrl : `https://${actionUrl}`;
+
+      // Format as a proper HTML link that Telegram can render
+      // Make the link more prominent with a button-like appearance
+      formattedMessage += `<b>🔗 <a href="${formattedUrl}">👉 VIEW TRANSACTION DETAILS 👈</a></b>\n\n`;
+
+      // Log the URL for debugging
+      logger.info(`Adding transaction detail link: ${formattedUrl}`);
+
+      // Add a note about the link
+      formattedMessage += `<i>Click the link above to view complete transaction details in your dashboard</i>\n\n`;
+    } else {
+      // If no URL is provided, just show text without a link
+      formattedMessage += `<b>🔗 View Transaction Details in your MyPts Dashboard</b>\n\n`;
     }
 
     formattedMessage += `<i>Thank you for using MyPts - Your Digital Currency Solution</i>`;
