@@ -19,18 +19,25 @@ interface IMeeting extends IPlan {
     status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
     requiredAttendees: Types.ObjectId[];
     optionalAttendees: Types.ObjectId[];
+    meetingSpecificSettings?: {
+        requireApproval?: boolean;
+        minParticipants?: number;
+        autoConfirm?: boolean;
+    };
+    
+
 }
 
 const MeetingSchema = new Schema<IMeeting>({
     agenda: [
         {
-          _id: { type: Types.ObjectId, default: () => new Types.ObjectId() },
-          title: String,
-          description: String,
-          order: Number,
-          completed: Boolean,
+            _id: { type: Types.ObjectId, default: () => new Types.ObjectId() },
+            title: String,
+            description: String,
+            order: Number,
+            completed: Boolean,
         },
-      ],
+    ],
     minutes: { type: String },
     decisions: [{
         description: { type: String, required: true },
@@ -42,7 +49,12 @@ const MeetingSchema = new Schema<IMeeting>({
         default: 'scheduled'
     },
     requiredAttendees: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
-    optionalAttendees: [{ type: Schema.Types.ObjectId, ref: 'Profile' }]
+    optionalAttendees: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
+    meetingSpecificSettings: {
+        requireApproval: { type: Boolean, default: false },
+        minParticipants: { type: Number, default: 0 },
+        autoConfirm: { type: Boolean, default: false }
+    }
 }, { discriminatorKey: 'planType' });
 
 // Add instance methods
@@ -75,5 +87,32 @@ MeetingSchema.methods.recordDecision = function (
     return decision._id;
 };
 
+MeetingSchema.methods.scheduleMeeting = function (
+    startTime: Date,
+    endTime: Date,
+    bookedBy: Types.ObjectId
+) {
+    if (!this.bookingSettings) {
+        throw new Error('Booking settings not configured for this meeting');
+    }
+
+    const newBooking = {
+        _id: new Types.ObjectId(),
+        bookedBy,
+        status: this.meetingSpecificSettings?.autoConfirm ? 'confirmed' : 'pending',
+        slot: {
+            start: startTime,
+            end: endTime,
+            timeZone: this.bookingSettings.timeZone
+        },
+        createdAt: new Date()
+    };
+
+    if (!this.bookings) {
+        this.bookings = [];
+    }
+    this.bookings.push(newBooking);
+    return newBooking._id;
+};
 export const MeetingModel = PlanModel.discriminator<IMeeting>('meeting', MeetingSchema);
 export type IMeetingModel = typeof MeetingModel;

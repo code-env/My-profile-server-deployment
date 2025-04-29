@@ -42,6 +42,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.setupRoutes = void 0;
 const auth_routes_1 = __importDefault(require("./auth.routes"));
 const user_routes_1 = __importDefault(require("./user.routes"));
+const plan_routes_1 = __importDefault(require("./plan.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
 // import connectionRoutes from './connection.routes';
 const profile_connection_routes_1 = __importDefault(require("./profile-connection.routes"));
@@ -95,6 +96,7 @@ const setupRoutes = (app) => {
     // app.use('/api/connections', protect, connectionRoutes);
     app.use('/api/profile-connections', auth_middleware_1.protect, profile_connection_routes_1.default);
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
+    app.use('/api/plans', auth_middleware_1.protect, plan_routes_1.default);
     app.use('/api/relationships', auth_middleware_1.protect, relationshipType_routes_1.default);
     app.use('/api/logs', logs_routes_1.default);
     app.use('/api/my-pts', auth_middleware_1.protect, my_pts_routes_1.default);

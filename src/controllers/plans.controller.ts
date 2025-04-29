@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { IUser } from '../models/User';
 import { PlanType } from '../models/plans/Plan';
 import plansService from '../services/plans.service';
@@ -132,26 +132,86 @@ export const deletePlan = async (req: Request, res: Response) => {
 export const listPlans = async (req: Request, res: Response) => {
   try {
     const { user } = validateAuthenticatedUser(req);
-    const { page = 1, limit = 10 } = req.query;
+    
+    // Parse pagination and sorting
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const sort = req.query.sort 
+      ? JSON.parse(req.query.sort as string)
+      : { startTime: 1 };
 
-    const options = {
-      page: parseInt(page as string),
-      limit: parseInt(limit as string),
-      sort: req.query.sort || { startTime: 1 }
+    // Parse filter from query string
+    const rawFilter = req.query.filter 
+      ? JSON.parse(req.query.filter as string)
+      : {};
+
+    // Convert string dates to Date objects
+    const processDateFilter = (dateFilter: any) => {
+      if (!dateFilter) return undefined;
+      const result: any = {};
+      if (dateFilter.from) result.from = new Date(dateFilter.from);
+      if (dateFilter.to) result.to = new Date(dateFilter.to);
+      return Object.keys(result).length ? result : undefined;
     };
 
-    // Add filter for user's plans by default
+    // Build the complete filter
     const filter = {
-      ...req.query.filter && typeof req.query.filter === 'string' 
-        ? JSON.parse(req.query.filter) 
-        : {},
+      ...rawFilter,
+      // Convert string IDs to ObjectIds where needed
+      ...(rawFilter.createdBy && { createdBy: new Types.ObjectId(rawFilter.createdBy) }),
+      ...(rawFilter.participants && { 
+        participants: Array.isArray(rawFilter.participants)
+          ? rawFilter.participants.map((id: string) => new Types.ObjectId(id))
+          : new Types.ObjectId(rawFilter.participants)
+      }),
+      // Process date ranges
+      ...(rawFilter.startTime && { startTime: processDateFilter(rawFilter.startTime) }),
+      ...(rawFilter.endTime && { endTime: processDateFilter(rawFilter.endTime) }),
+      // Process interaction-specific filters
+      ...(rawFilter.interaction && {
+        interaction: {
+          ...rawFilter.interaction,
+          ...(rawFilter.interaction.profile && { 
+            profile: new Types.ObjectId(rawFilter.interaction.profile) 
+          }),
+          ...(rawFilter.interaction.relationship && { 
+            relationship: new Types.ObjectId(rawFilter.interaction.relationship) 
+          }),
+          ...(rawFilter.interaction.nextContact && { 
+            nextContact: processDateFilter(rawFilter.interaction.nextContact)
+          })
+        }
+      }),
+      // Process appointment filters
+      ...(rawFilter.appointment && {
+        appointment: {
+          ...rawFilter.appointment,
+          ...(rawFilter.appointment.serviceProvider && {
+            serviceProvider: new Types.ObjectId(rawFilter.appointment.serviceProvider)
+          })
+        }
+      }),
+      // Always include user's plans by default
       $or: [
         { createdBy: user._id },
         { participants: user._id }
       ]
     };
 
-    const result = await plansService.listPlans(filter, options);
+    // Handle text search if provided
+    if (req.query.search) {
+      filter.search = req.query.search as string;
+    }
+
+    const result = await plansService.listPlans(filter, {
+      page,
+      limit,
+      sort,
+      populate: req.query.populate 
+        ? JSON.parse(req.query.populate as string)
+        : []
+    });
+
     successResponse(res, result, 'Plans retrieved successfully');
   } catch (error) {
     handleErrorResponse(error, res);
@@ -319,65 +379,3 @@ export const likePlan = async (req: Request, res: Response) => {
   }
 }
 
-
-// // Bulk operations
-// export const bulkUpdatePlans = async (req: Request, res: Response) => {
-//   try {
-//     const { user } = validateAuthenticatedUser(req);
-//     const { planIds, updates } = req.body;
-
-//     if (!Array.isArray(planIds) || planIds.some(id => !mongoose.Types.ObjectId.isValid(id))) {
-//       throw new Error('Invalid plan IDs');
-//     }
-
-//     // Add updatedBy to all updates
-//     const updatesWithUser = {
-//       ...updates,
-//       updatedBy: user._id
-//     };
-
-//     const results = await Promise.all(
-//       planIds.map(id => 
-//         plansService.updatePlan(id, updatesWithUser)
-//           .catch((e: unknown) => ({ id, error: e instanceof Error ? e.message : 'Unknown error' }))
-//       )
-//     );
-//     const successful = results.filter((r): r is { id: string; success: boolean; error?: string } => r !== null && typeof r === 'object' && 'success' in r && r.success === true);
-//     const failed = results.filter((r): r is { id: string; error: string } => r !== null && 'error' in r && typeof r.error === 'string');
-
-//     successResponse(res, { successful, failed }, 'Bulk update completed');
-//   } catch (error) {
-//     handleErrorResponse(error, res);
-//   }
-// };
-
-// export const bulkDeletePlans = async (req: Request, res: Response) => {
-//   try {
-//     validateAuthenticatedUser(req);
-//     const { planIds } = req.body;
-
-//     if (!Array.isArray(planIds)) {
-//       throw new Error('planIds must be an array');
-//     }
-
-//     const invalidIds = planIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
-//     if (invalidIds.length > 0) {
-//       throw new Error(`Invalid plan IDs: ${invalidIds.join(', ')}`);
-//     }
-
-//     const deleteResults: { id: string; success: boolean; error?: string }[] = await Promise.all(
-//       planIds.map(id => 
-//         plansService.deletePlan(id)
-//           .then((deleted: boolean) => ({ id, success: !!deleted }))
-//           .catch((e: Error) => ({ id, success: false, error: e.message }))
-//       )
-//     );
-
-//     const successful = deleteResults.filter((r: { id: string; success: boolean; error?: string }) => r.success);
-//     const failed = deleteResults.filter(r => !r.success);
-
-//     successResponse(res, { successful, failed }, 'Bulk deletion completed');
-//   } catch (error) {
-//     handleErrorResponse(error, res);
-//   }
-// };
