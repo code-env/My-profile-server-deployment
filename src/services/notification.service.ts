@@ -12,10 +12,19 @@ export const notificationEvents = new EventEmitter();
 
 export class NotificationService {
   private io: SocketServer | null = null;
+  // Track whether we've already subscribed to notificationEvents
+  private static listenerRegistered = false;
+  // Track processed notification events to avoid duplicate sends
+  private static processedNotificationIds = new Set<string>();
+  // Track processed transaction IDs to avoid duplicate sends per transaction
+  private static processedTransactionIds = new Set<string>();
 
   constructor() {
-    // Listen for notification events
-    notificationEvents.on('notification:created', this.handleNotificationCreated.bind(this));
+    // Register event listener only once
+    if (!NotificationService.listenerRegistered) {
+      notificationEvents.on('notification:created', this.handleNotificationCreated.bind(this));
+      NotificationService.listenerRegistered = true;
+    }
   }
 
   setSocketServer(io: SocketServer) {
@@ -24,6 +33,22 @@ export class NotificationService {
 
   private async handleNotificationCreated(notification: INotification) {
     console.log('Entering handleNotificationCreated with notification:', notification);
+    // Deduplicate event handling
+    const notifId = notification._id.toString();
+    if (NotificationService.processedNotificationIds.has(notifId)) {
+      logger.info(`Skipping duplicate event handling for notification ${notifId}`);
+      return;
+    }
+    NotificationService.processedNotificationIds.add(notifId);
+    // Transaction-level dedupe: skip if already processed
+    if (notification.relatedTo?.model === 'Transaction') {
+      const txId = notification.relatedTo.id.toString();
+      if (NotificationService.processedTransactionIds.has(txId)) {
+        logger.info(`Skipping duplicate transaction notification for transaction ${txId}`);
+        return;
+      }
+      NotificationService.processedTransactionIds.add(txId);
+    }
     try {
       // Log detailed notification information
       logger.info(`Processing notification for user ${notification.recipient}`, {
@@ -100,10 +125,11 @@ export class NotificationService {
     }
   }
 
-  private async sendPushNotification(notification: INotification) {
-    console.log('Entering sendPushNotification with notification:', notification);
+  public async sendPushNotification(notification: INotification) {
+    console.log('[DEBUG] sendPushNotification - entering with notification:', notification);
     try {
       const user = await User.findById(notification.recipient);
+      console.log('[DEBUG] sendPushNotification - user found:', user);
       if (!user) return;
 
       // Check if push notifications are enabled for this user
@@ -124,6 +150,7 @@ export class NotificationService {
       const pushTokens = devicesWithPushTokens
         .map(device => device.pushToken)
         .filter((token): token is string => token !== undefined && token !== null);
+      console.log('[DEBUG] sendPushNotification - pushTokens list:', pushTokens);
 
       // If no valid tokens, exit early
       if (pushTokens.length === 0) {
@@ -162,10 +189,12 @@ export class NotificationService {
         logger.info(`Push notification type ${notification.type} disabled for user ${user._id}`);
         return;
       }
+      console.log('[DEBUG] sendPushNotification - shouldSend true, type:', notification.type);
+
+      // Declare result container for firebase response
+      let result: { success: number; failure: number; invalidTokens: string[] };
 
       // Send notification based on type
-      let result;
-
       if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction' && notification.metadata) {
         // For transaction notifications, use the transaction template
         result = await firebaseService.sendTransactionNotification(
@@ -210,6 +239,8 @@ export class NotificationService {
           data
         );
       }
+      console.log('[DEBUG] sendPushNotification - calling firebase with metadata:', notification.metadata);
+      console.log('[DEBUG] sendPushNotification - pushTokens:', pushTokens);
 
       // Handle invalid tokens
       if (result.invalidTokens.length > 0) {
@@ -228,6 +259,7 @@ export class NotificationService {
         );
       }
 
+      console.log('[DEBUG] sendPushNotification - firebaseService result:', result);
       logger.info(`Push notification sent to ${result.success} devices for user ${user._id}`);
     } catch (error) {
       console.error('Error in sendPushNotification:', error);
@@ -323,7 +355,9 @@ export class NotificationService {
       relatedId: notification.relatedTo?.id,
       userTelegramSettings: user.telegramNotifications || 'Not available'
     });
-
+    const metadataMap: Map<string, any> = notification.metadata instanceof Map
+      ? notification.metadata
+      : new Map(Object.entries(notification.metadata || {}));
     try {
       // Double-check if telegramNotifications is available
       if (!user.telegramNotifications) {
@@ -393,16 +427,18 @@ export class NotificationService {
 
       if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
         // For transaction notifications, check specific transaction preferences
-        const metadata = notification.metadata || {};
-        logger.info(`Transaction notification metadata: ${JSON.stringify(metadata)}`);
+        const txType = metadataMap.get('transactionType') || 'Transaction';
+        const txAmount = metadataMap.get('amount') || 0;
+        const txBalance = metadataMap.get('balance') || 0;
+        const txStatus = metadataMap.get('status') || 'Unknown';
 
-        if (metadata.transactionType === 'BUY_MYPTS' && preferences.purchaseConfirmations === false) {
+        if (txType === 'BUY_MYPTS' && !preferences.purchaseConfirmations) {
           logger.info(`Purchase confirmations disabled for user ${user._id}`);
           shouldSend = false;
-        } else if (metadata.transactionType === 'SELL_MYPTS' && preferences.saleConfirmations === false) {
+        } else if (txType === 'SELL_MYPTS' && !preferences.saleConfirmations) {
           logger.info(`Sale confirmations disabled for user ${user._id}`);
           shouldSend = false;
-        } else if (preferences.transactions === false) {
+        } else if (!preferences.transactions) {
           logger.info(`Transaction notifications disabled for user ${user._id}`);
           shouldSend = false;
         } else {
@@ -410,7 +446,7 @@ export class NotificationService {
           logger.info(`Transaction notifications enabled for user ${user._id}`);
           shouldSend = true;
         }
-      } else if (notification.type === 'security_alert' && preferences.security === false) {
+      } else if (notification.type === 'security_alert' && !preferences.security) {
         logger.info(`Security alerts disabled for user ${user._id}`);
         shouldSend = false;
       }
@@ -422,14 +458,11 @@ export class NotificationService {
 
       logger.info(`Proceeding to send Telegram notification to ${telegramId ? 'ID: ' + telegramId : '@' + telegramUsername}`);
 
-
       // Send notification based on type
       if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction' && notification.metadata) {
-        // For transaction notifications, use the transaction template
         logger.info(`Sending transaction notification via Telegram to ${telegramRecipient}`);
-        logger.info(`Transaction metadata: ${JSON.stringify(notification.metadata)}`);
+        logger.info(`Transaction metadata: ${JSON.stringify(Object.fromEntries(metadataMap))}`);
 
-        // Create a properly formatted transaction detail URL with full https:// prefix
         const transactionId = notification.relatedTo.id.toString();
 
         // Use the action URL if provided, otherwise construct one
@@ -449,23 +482,27 @@ export class NotificationService {
 
         logger.info(`Transaction detail URL for notification: ${transactionDetailUrl}`);
 
+        // Extract values from metadata map
+        const txType = metadataMap.get('transactionType') || 'Transaction';
+        const txAmount = metadataMap.get('amount') || 0;
+        const txBalance = metadataMap.get('balance') || 0;
+        const txStatus = metadataMap.get('status') || 'Unknown';
         const result = await telegramService.sendTransactionNotification(
           telegramRecipient,
           notification.title,
           notification.message,
           {
             id: transactionId,
-            type: notification.metadata.transactionType || 'Transaction',
-            amount: notification.metadata.amount || 0,
-            balance: notification.metadata.balance || 0,
-            status: notification.metadata.status || 'Unknown'
+            type: txType,
+            amount: txAmount,
+            balance: txBalance,
+            status: txStatus
           },
           transactionDetailUrl
         );
 
         logger.info(`Transaction notification result: ${result ? 'Success' : 'Failed'}`);
       } else {
-        // For other notifications, use the standard template
         logger.info(`Sending standard notification via Telegram to ${telegramRecipient}`);
 
         const result = await telegramService.sendNotification(

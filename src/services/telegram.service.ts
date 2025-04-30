@@ -112,88 +112,85 @@ class TelegramService {
         const requestData = {
           chat_id: chatId,
           text: message,
-          parse_mode: parseMode,
-          disable_web_page_preview: false // Enable web page previews for links
+          parse_mode: parseMode
         };
 
-        logger.info(`Sending request to ${this.apiUrl}/sendMessage`);
-        logger.info(`Request data: ${JSON.stringify(requestData)}`);
+        // Send the message
+        const response = await axios.post(`${this.apiUrl}/sendMessage`, requestData);
+        
+        logger.info(`Telegram API response: ${JSON.stringify(response.data)}`);
 
-        // Send message
-        console.log('[TELEGRAM DEBUG] Sending request to Telegram API:', this.apiUrl);
-        console.log('[TELEGRAM DEBUG] Request data:', JSON.stringify(requestData));
-
-        let response;
-        try {
-          response = await axios.post(`${this.apiUrl}/sendMessage`, requestData);
-
-          // Log the response
-          logger.info(`Telegram API response: ${JSON.stringify(response.data)}`);
-          console.log('[TELEGRAM DEBUG] Response data:', JSON.stringify(response.data));
-        } catch (error: any) {
-          console.log('[TELEGRAM DEBUG] Error sending message:', error.message);
-          if (error.response) {
-            console.log('[TELEGRAM DEBUG] Response status:', error.response.status);
-            console.log('[TELEGRAM DEBUG] Response data:', JSON.stringify(error.response.data));
-          }
-          throw error; // Re-throw to be caught by the outer catch
-        }
-
-        if (response && response.data && response.data.ok) {
-          if (isNumericId) {
-            logger.info(`Telegram message successfully sent to ID ${cleanUsername}`);
-          } else {
-            logger.info(`Telegram message successfully sent to @${cleanUsername}`);
-          }
-          logger.info(`Message ID: ${response.data.result.message_id}`);
+        if (response.data && response.data.ok) {
+          logger.info(`Successfully sent message to ${chatId}`);
           return true;
         } else {
-          logger.warn(`Telegram API returned ok=false: ${JSON.stringify(response.data)}`);
+          logger.warn(`Failed to send message to ${chatId}: ${JSON.stringify(response.data)}`);
+          return false;
         }
-      } catch (sendError: any) {
-        // If the first attempt fails, log it with detailed error information
-        if (isNumericId) {
-          logger.warn(`Failed to send message using ID ${cleanUsername}`);
-        } else {
-          logger.warn(`Failed to send message using username @${cleanUsername}`);
-        }
+      } catch (error: any) {
+        logger.error(`Error sending message to ${chatId}:`, error.message);
 
-        if (sendError.response) {
-          logger.warn(`Response status: ${sendError.response.status}`);
-          logger.warn(`Response data: ${JSON.stringify(sendError.response.data)}`);
-
-          // Check for specific error descriptions
-          const errorDescription = sendError.response?.data?.description || '';
-
-          if (errorDescription.includes('bot can\'t initiate conversation')) {
-            logger.error(`User needs to start a conversation with the bot first`);
-            return false;
-          } else if (errorDescription.includes('chat not found')) {
-            logger.error(`Chat not found`);
-            return false;
+        // If the error is that the chat ID is not found, try again with a different format
+        if (error.response && error.response.data && error.response.data.description && 
+            (error.response.data.description.includes('chat not found') || 
+             error.response.data.description.includes('user not found') ||
+             error.response.data.description.includes('chat_id is empty'))) {
+          
+          logger.info(`Chat ID ${chatId} not found, trying alternative format...`);
+          
+          // If we tried with username, try with numeric ID if possible
+          if (!isNumericId) {
+            // Try to parse as numeric ID
+            const numericId = parseInt(cleanUsername);
+            if (!isNaN(numericId)) {
+              logger.info(`Trying with numeric ID: ${numericId}`);
+              
+              const alternativeRequestData = {
+                chat_id: numericId,
+                text: message,
+                parse_mode: parseMode
+              };
+              
+              try {
+                const alternativeResponse = await axios.post(`${this.apiUrl}/sendMessage`, alternativeRequestData);
+                
+                if (alternativeResponse.data && alternativeResponse.data.ok) {
+                  logger.info(`Successfully sent message to numeric ID ${numericId}`);
+                  return true;
+                }
+              } catch (alternativeError: any) {
+                logger.error(`Error sending message to numeric ID ${numericId}:`, alternativeError.message);
+              }
+            }
           }
-        } else if (sendError.message) {
-          logger.warn(`Error message: ${sendError.message}`);
-        } else {
-          // If there's no error message at all, it might be an issue with the username/ID
-          logger.error(`Unknown error sending message. The username/ID might be invalid or the user hasn't started a chat with the bot.`);
+          
+          // If we tried with numeric ID, try with username
+          else {
+            logger.info(`Trying with username: @${cleanUsername}`);
+            
+            const alternativeRequestData = {
+              chat_id: `@${cleanUsername}`,
+              text: message,
+              parse_mode: parseMode
+            };
+            
+            try {
+              const alternativeResponse = await axios.post(`${this.apiUrl}/sendMessage`, alternativeRequestData);
+              
+              if (alternativeResponse.data && alternativeResponse.data.ok) {
+                logger.info(`Successfully sent message to username @${cleanUsername}`);
+                return true;
+              }
+            } catch (alternativeError: any) {
+              logger.error(`Error sending message to username @${cleanUsername}:`, alternativeError.message);
+            }
+          }
         }
+        
+        return false;
       }
-
-      // If we're here, all attempts have failed
-      // No fallback to hardcoded ID - this is not a good practice
-      logger.warn(`Failed to send message to ${isNumericId ? 'ID ' + cleanUsername : 'username @' + cleanUsername}`);
-      logger.warn(`No fallback attempt will be made - user must verify their Telegram settings`);
-
-      // All attempts failed, log the failure
-      logger.error(`All attempts to send Telegram message failed`);
-      return false;
     } catch (error: any) {
-      logger.error('Error sending Telegram message:', error.message);
-      if (error.response) {
-        logger.error(`Response status: ${error.response.status}`);
-        logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
-      }
+      logger.error('Error in sendMessage:', error);
       return false;
     }
   }
@@ -213,21 +210,16 @@ class TelegramService {
     actionUrl?: string,
     actionText?: string
   ): Promise<boolean> {
-    // Format message with HTML
-    let formattedMessage = `<b>📢 ${title}</b>\n\n`;
-    formattedMessage += `<i>${message}</i>\n\n`;
-
-    // Add divider
-    formattedMessage += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
-    // Add action link if provided
-    if (actionUrl && actionText) {
-      formattedMessage += `<b>🔗 <a href="${actionUrl}">${actionText}</a></b>\n\n`;
+    // Create HTML formatted message
+    let formattedMessage = `<b>${title}</b>\n\n`;
+    formattedMessage += `${message}\n\n`;
+    
+    // Add action button if URL is provided
+    if (actionUrl) {
+      const buttonText = actionText || 'View Details';
+      formattedMessage += `<a href="${actionUrl}">${buttonText}</a>`;
     }
-
-    // Add signature
-    formattedMessage += `<i>Thank you for using MyPts - Your Digital Currency Solution</i>`;
-
+    
     return this.sendMessage(username, formattedMessage, 'HTML');
   }
 
@@ -238,88 +230,57 @@ class TelegramService {
    */
   public async checkUsername(username: string): Promise<{valid: boolean, reason?: string}> {
     if (!this.botToken) {
-      logger.warn('Cannot check Telegram username: Bot token not set');
       return { valid: false, reason: 'Bot token not set' };
     }
-
-    try {
-      // Clean up username (remove @ if present)
-      const cleanUsername = username.startsWith('@') ? username.substring(1) : username;
-
-      // Check if username follows Telegram's username format
-      const usernameRegex = /^[a-zA-Z0-9_]{5,32}$/;
-      if (!usernameRegex.test(cleanUsername)) {
-        return {
-          valid: false,
-          reason: 'Invalid username format. Telegram usernames must be 5-32 characters and can only contain letters, numbers, and underscores.'
-        };
-      }
-
-      // Try to get chat information
+    
+    if (!username) {
+      return { valid: false, reason: 'Username is empty' };
+    }
+    
+    // Clean up username (remove @ if present)
+    const cleanUsername = username.startsWith('@') ? username.substring(1) : username;
+    
+    // Check if it's a numeric ID
+    const isNumericId = /^\d+$/.test(cleanUsername);
+    
+    // If it's a numeric ID, we need to check if it's a valid chat ID
+    if (isNumericId) {
       try {
-        logger.info(`Checking if username @${cleanUsername} is valid`);
-
-        // Let's try a simpler approach - just try to send a test message
-        // This is more reliable than checking if the username exists
-        logger.info(`Attempting to send a test message to @${cleanUsername}`);
-
-        const testMessage = "This is a test message to verify your Telegram connection. If you receive this, your connection is working!";
-
-        try {
-          const response = await axios.post(`${this.apiUrl}/sendMessage`, {
-            chat_id: `@${cleanUsername}`,
-            text: testMessage,
-            parse_mode: 'Markdown'
-          });
-
-          logger.info(`Test message response: ${JSON.stringify(response.data)}`);
-
-          if (response.data && response.data.ok) {
-            logger.info(`Successfully sent test message to @${cleanUsername}`);
-            return { valid: true };
-          } else {
-            logger.warn(`Failed to send test message to @${cleanUsername}: ${JSON.stringify(response.data)}`);
-            return { valid: false, reason: 'Failed to send test message' };
-          }
-        } catch (sendError: any) {
-          logger.warn(`Error sending test message to @${cleanUsername}`);
-
-          if (sendError.response) {
-            const errorCode = sendError.response.data?.error_code;
-            const errorDescription = sendError.response.data?.description || '';
-
-            logger.warn(`Error code: ${errorCode}, Description: ${errorDescription}`);
-
-            if (errorDescription.includes('chat not found')) {
-              return { valid: false, reason: 'Username not found' };
-            } else if (errorDescription.includes('bot can\'t initiate conversation')) {
-              return { valid: false, reason: 'User needs to start chat with bot first' };
-            } else {
-              return { valid: false, reason: errorDescription || 'Failed to send message' };
-            }
-          } else {
-            logger.warn(`No response data available: ${sendError.message}`);
-            return { valid: false, reason: sendError.message || 'Network error' };
-          }
+        // Try to send a test message
+        const testMessage = 'Checking if this chat ID is valid. Please ignore this message.';
+        const result = await this.sendMessage(cleanUsername, testMessage);
+        
+        if (result) {
+          return { valid: true };
+        } else {
+          return { valid: false, reason: 'Failed to send test message to chat ID' };
         }
       } catch (error: any) {
-        logger.error(`Unexpected error checking username @${cleanUsername}:`, error);
-
-        if (error.response) {
-          logger.error(`Response status: ${error.response.status}`);
-          logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
-          return { valid: false, reason: error.response.data?.description || 'API error' };
-        } else if (error.request) {
-          logger.error(`No response received: ${error.message}`);
-          return { valid: false, reason: 'No response from Telegram API' };
-        } else {
-          logger.error(`Error message: ${error.message}`);
-          return { valid: false, reason: error.message || 'Unknown error' };
-        }
+        return { valid: false, reason: `Error checking chat ID: ${error.message}` };
+      }
+    }
+    
+    // If it's a username, check if it's valid
+    if (cleanUsername.length < 5) {
+      return { valid: false, reason: 'Username is too short (minimum 5 characters)' };
+    }
+    
+    if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
+      return { valid: false, reason: 'Username contains invalid characters (only letters, numbers, and underscore are allowed)' };
+    }
+    
+    try {
+      // Try to send a test message
+      const testMessage = 'Checking if this username is valid. Please ignore this message.';
+      const result = await this.sendMessage(`@${cleanUsername}`, testMessage);
+      
+      if (result) {
+        return { valid: true };
+      } else {
+        return { valid: false, reason: 'Failed to send test message to username' };
       }
     } catch (error: any) {
-      logger.error('Error checking Telegram username:', error.message);
-      return { valid: false, reason: 'Internal error' };
+      return { valid: false, reason: `Error checking username: ${error.message}` };
     }
   }
 
@@ -372,48 +333,54 @@ class TelegramService {
   ): Promise<boolean> {
     logger.info(`Sending transaction notification to Telegram recipient: ${username}`);
     logger.info(`Transaction data: ${JSON.stringify(transactionData)}`);
-    logger.info(`Transaction title: ${title}`);
-    logger.info(`Transaction message: ${message}`);
-
+    
     // Format transaction details
     const formattedAmount = transactionData.amount > 0
       ? `+${transactionData.amount}`
       : `${transactionData.amount}`;
-
-    // Create message with stylish HTML formatting
-    let formattedMessage = `<b>🎉 ${title}</b>\n\n`;
-    formattedMessage += `<i>${message}</i>\n\n`;
-    formattedMessage += `<b>📊 Transaction Summary:</b>\n`;
+    
+    // Debug logging
+    console.log('[TELEGRAM DEBUG] Using new format for all transactions');
+    console.log('[TELEGRAM DEBUG] Transaction type:', transactionData.type);
+    
+    // Always use the new format
+    const displayTitle = "MyPts Purchase Successful";
+    const date = new Date().toLocaleDateString('en-US', { 
+      month: '2-digit', 
+      day: '2-digit', 
+      year: 'numeric' 
+    });
+    
+    // Create the transaction ID portion - use short ID or full ID
+    const shortId = transactionData.id.length > 6 ? 
+      transactionData.id.substring(0, 6) : transactionData.id;
+    
+    // Build the message
+    let formattedMessage = `<b>🎉 ${displayTitle}</b>\n\n`;
+    formattedMessage += `Transaction #${shortId} (${date})\n`;
     formattedMessage += `━━━━━━━━━━━━━━━━━━━━━━\n`;
-    formattedMessage += `<b>🔹 Type:</b> ${transactionData.type.replace('_', ' ')}\n`;
-    formattedMessage += `<b>🔹 Amount:</b> <code>${formattedAmount} MyPts</code>\n`;
-    formattedMessage += `<b>🔹 Balance:</b> <code>${transactionData.balance.toLocaleString()} MyPts</code>\n`;
-    formattedMessage += `<b>🔹 Status:</b> ✅ ${transactionData.status}\n`;
-    formattedMessage += `<b>🔹 Date:</b> ${new Date().toLocaleString()}\n`;
+    formattedMessage += `🔹 Type: ${transactionData.type.replace('_', ' ')}\n`;
+    formattedMessage += `🔹 Amount: ${formattedAmount} MyPts\n`;
+    formattedMessage += `🔹 Balance: ${transactionData.balance.toLocaleString()} MyPts\n`;
+    formattedMessage += `🔹 Payment: Credit Card\n`;
+    formattedMessage += `🔹 Status: ✅ ${transactionData.status}\n`;
     formattedMessage += `━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
-    // Add action URL as HTML link
-    if (actionUrl) {
-      // Make sure the URL is properly formatted with https://
-      const formattedUrl = actionUrl.startsWith('http') ? actionUrl : `https://${actionUrl}`;
-
-      // Format as a proper HTML link that Telegram can render
-      // Make the link more prominent with a button-like appearance
-      formattedMessage += `<b>🔗 <a href="${formattedUrl}">👉 VIEW TRANSACTION DETAILS 👈</a></b>\n\n`;
-
-      // Log the URL for debugging
-      logger.info(`Adding transaction detail link: ${formattedUrl}`);
-
-      // Add a note about the link
-      formattedMessage += `<i>Click the link above to view complete transaction details in your dashboard</i>\n\n`;
-    } else {
-      // If no URL is provided, just show text without a link
-      formattedMessage += `<b>🔗 View Transaction Details in your MyPts Dashboard</b>\n\n`;
-    }
-
+    
+    // Format URLs
+    const baseUrl = config.CLIENT_URL.startsWith('http') ? 
+      config.CLIENT_URL : `https://${config.CLIENT_URL}`;
+    const transactionUrl = actionUrl?.startsWith('http') ? 
+      actionUrl : `${baseUrl}${actionUrl}`;
+    const receiptUrl = `${baseUrl}/dashboard/transactions/${transactionData.id}/receipt`;
+    const helpUrl = `${baseUrl}/help`;
+    
+    // Add links
+    formattedMessage += `<a href="${transactionUrl}">🔗 View Details</a>  |  `;
+    formattedMessage += `<a href="${receiptUrl}">📝 Receipt</a>  |  `;
+    formattedMessage += `<a href="${helpUrl}">❓ Help</a>\n\n`;
     formattedMessage += `<i>Thank you for using MyPts - Your Digital Currency Solution</i>`;
-
-    // Use HTML mode for formatting
+    
+    // Send the message
     return this.sendMessage(username, formattedMessage, 'HTML');
   }
 }

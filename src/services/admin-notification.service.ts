@@ -10,6 +10,8 @@ import mongoose from "mongoose";
 import { ProfileModel } from "../models/profile.model";
 import { NotificationService } from "./notification.service";
 import telegramService from "./telegram.service";
+import { User } from "../models/User";
+import { Notification } from "../models/Notification";
 
 /**
  * Send a transaction notification to the admin hub email
@@ -418,13 +420,26 @@ export const createAdminNotification = async (notification: {
 export const notifyUserOfCompletedTransaction = async (
   transaction: IMyPtsTransaction & { _id: mongoose.Types.ObjectId }
 ): Promise<void> => {
-  // Explicit console log for guaranteed visibility
   console.log('[DEBUG] Entered notifyUserOfCompletedTransaction', {
-    transactionId: transaction?._id?.toString?.() || transaction?._id,
+    transactionId: transaction._id,
+    type: transaction.type,
+    amount: transaction.amount,
   });
   logger.info("[DEBUG] Entered notifyUserOfCompletedTransaction", {
-    transactionId: transaction?._id?.toString?.() || transaction?._id,
+    transactionId: transaction._id,
+    type: transaction.type,
+    amount: transaction.amount,
   });
+
+  // Deduplicate: skip if notification already created for this transaction
+  const existingNotification = await Notification.findOne({
+    'relatedTo.model': 'Transaction',
+    'relatedTo.id': transaction._id,
+  });
+  if (existingNotification) {
+    logger.info(`Skipping duplicate user notification for transaction ${transaction._id}`);
+    return;
+  }
 
   try {
     // Get the profile
@@ -440,10 +455,8 @@ export const notifyUserOfCompletedTransaction = async (
     });
 
     // Get the user associated with the profile with all notification preferences
-    const user = await mongoose
-      .model("User")
-      .findById(profile.owner)
-      .select("+telegramNotifications");
+    const user = await User.findById(profile.owner).select("+telegramNotifications");
+    console.log('[DEBUG] notifyUserOfCompletedTransaction - retrieved user:', user);
     if (!user) {
       logger.error(`User not found for profile: ${profile._id}`);
       return;
@@ -486,7 +499,7 @@ export const notifyUserOfCompletedTransaction = async (
       amount: transaction.amount,
     });
 
-    await notificationService.createNotification({
+    const createdNotification = await notificationService.createNotification({
       recipient: user._id,
       type: "system_notification",
       title,
@@ -509,6 +522,7 @@ export const notifyUserOfCompletedTransaction = async (
       },
     });
 
+    console.log('[DEBUG] notifyUserOfCompletedTransaction - createdNotification:', createdNotification);
     logger.info(`Transaction notification created for user ${user._id}`);
 
     // Send email notification if possible
@@ -548,95 +562,6 @@ export const notifyUserOfCompletedTransaction = async (
     } catch (emailError) {
       logger.error(`Error sending transaction completion email: ${emailError}`);
       // Continue even if email fails
-    }
-
-    // --- TELEGRAM NOTIFICATION LOGIC ---
-    try {
-      // Log the full user object for debugging
-      logger.info(
-        "[DEBUG] Full user object at notification time:",
-        JSON.stringify(user, null, 2)
-      );
-      // Also log to console for maximum debug visibility
-      console.log('[DEBUG] Full user object at notification time:', user);
-      // Extra debug logging for Telegram notification logic
-      logger.info("[DEBUG] Telegram notification check:", {
-        enabled: user.telegramNotifications?.enabled,
-        purchaseConfirmations:
-          user.telegramNotifications?.preferences?.purchaseConfirmations,
-        type: transaction.type,
-        telegramId: user.telegramNotifications?.telegramId,
-        telegramUsername: user.telegramNotifications?.username,
-      });
-      // Check if Telegram notifications are enabled and purchase confirmations are preferred
-      if (
-        user.telegramNotifications?.enabled &&
-        user.telegramNotifications?.preferences?.purchaseConfirmations &&
-        (transaction.type === TransactionType.BUY_MYPTS ||
-          transaction.type === TransactionType.SELL_MYPTS)
-      ) {
-        const telegramUsernameOrId =
-          user.telegramNotifications.telegramId ||
-          user.telegramNotifications.username;
-        if (telegramUsernameOrId) {
-          logger.info(
-            `[DEBUG] telegramUsernameOrId resolved: ${telegramUsernameOrId}`
-          );
-          logger.info(
-            `Attempting to send Telegram notification to ${telegramUsernameOrId} for transaction ${transaction._id}`
-          );
-
-          // Create a properly formatted transaction detail URL with full https:// prefix
-          const baseUrl = process.env.CLIENT_URL || "https://my-pts-dashboard-management.vercel.app";
-          // Ensure the base URL has the https:// prefix
-          const formattedBaseUrl = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
-          const transactionDetailUrl = `${formattedBaseUrl}/dashboard/transactions/${transaction._id}`;
-
-          logger.info(`Transaction detail URL: ${transactionDetailUrl}`);
-
-          const telegramResult = await telegramService.sendTransactionNotification(
-            telegramUsernameOrId,
-            title,
-            message,
-            {
-              id: transaction._id.toString(),
-              type: transaction.type,
-              amount: transaction.amount,
-              balance: transaction.balance,
-              status: transaction.status || "COMPLETED",
-            },
-            transactionDetailUrl
-          );
-          logger.info(
-            `[DEBUG] telegramService.sendTransactionNotification result: ${telegramResult}`
-          );
-          if (telegramResult) {
-            logger.info(
-              `Telegram notification sent successfully to ${telegramUsernameOrId}`
-            );
-          } else {
-            logger.warn(
-              `Telegram notification failed for ${telegramUsernameOrId}`
-            );
-          }
-        } else {
-          logger.warn(
-            "[DEBUG] Telegram notification enabled but no username or ID found on user object"
-          );
-        }
-      } else {
-        logger.info(
-          "[DEBUG] Telegram notification not sent: not enabled or preference not set for purchase confirmations",
-          {
-            enabled: user.telegramNotifications?.enabled,
-            purchaseConfirmations:
-              user.telegramNotifications?.preferences?.purchaseConfirmations,
-            type: transaction.type,
-          }
-        );
-      }
-    } catch (telegramError) {
-      logger.error(`Error sending Telegram notification: ${telegramError}`);
     }
 
     logger.info(`User notified of completed transaction: ${transaction._id}`);
