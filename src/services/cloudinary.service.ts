@@ -57,6 +57,29 @@ class CloudinaryService {
         }
     }
 
+    public async uploadAndReturnAllInfo(
+        fileData: string | Buffer,
+        options: UploadOptions = {}
+    ): Promise<UploadApiResponse> {
+        try {
+
+            console.log('Uploading file with options:', options);
+            const uploadOptions = {
+                folder: options.folder,
+                resource_type: options.resourceType || this.detectResourceType(fileData),
+                transformation: options.transformation,
+                overwrite: options.overwrite,
+                tags: options.tags,
+            };
+
+            console.log('Uploading file with options:', uploadOptions);
+            const file = Buffer.isBuffer(fileData) ? `data:application/octet-stream;base64,${fileData.toString('base64')}` : fileData;
+            return await cloudinary.uploader.upload(file, uploadOptions);
+        } catch (error) {
+            this.handleUploadError(error as UploadApiErrorResponse);
+        }
+    }
+
     /**
   * Delete any file type by URL or public ID
   */
@@ -261,6 +284,7 @@ class CloudinaryService {
     }
 
     private handleUploadError(error: UploadApiErrorResponse): never {
+        console.error('Cloudinary upload error:', error);
         throw new Error(`Upload failed: ${error.message || 'Unknown error'}`);
     }
 }

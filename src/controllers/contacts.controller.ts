@@ -5,17 +5,6 @@ import mongoose from 'mongoose';
 import { ProfileType, Gender, PhoneType } from '../models/Contact';
 import CloudinaryService from '../services/cloudinary.service';
 
-// Helper function to validate user authentication
-const validateAuthenticatedUser = (req: Request): { userId: string, user: IUser } => {
-  if (!req.user) {
-    throw new Error('Authentication required');
-  }
-  const user = req.user as IUser;
-  return {
-    userId: user._id.toString(), // Convert ObjectId to string
-    user: user
-  };
-};
 
 // Helper function to validate contact data
 const validateContactData = (data: any) => {
