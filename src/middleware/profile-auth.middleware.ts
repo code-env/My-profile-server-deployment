@@ -23,10 +23,32 @@ export const attachProfile = async (
     const requestedProfileId = req.query.profileId || req.header('X-Profile-Id');
 
     if (requestedProfileId) {
-      const requestedProfile = await ProfileModel.findOne({
+      // First try to find the profile directly
+      let requestedProfile = await ProfileModel.findOne({
         _id: requestedProfileId,
         owner: (req.user as any)._id
       });
+
+      // If not found, check if the requestedProfileId is actually a user ID
+      if (!requestedProfile) {
+        logger.info(`Profile not found directly. Checking if ${requestedProfileId} is a user ID...`);
+
+        // Check if the requestedProfileId matches the user's ID
+        if (requestedProfileId === (req.user as any)._id.toString()) {
+          logger.info(`ProfileId matches userId. Looking for user's profiles...`);
+
+          // Find the user's profiles
+          const userProfiles = await ProfileModel.find({
+            owner: (req.user as any)._id
+          }).sort({ createdAt: 1 }); // Get oldest profile first
+
+          if (userProfiles && userProfiles.length > 0) {
+            // Use the first profile
+            requestedProfile = userProfiles[0];
+            logger.info(`Using user's first profile: ${requestedProfile._id}`);
+          }
+        }
+      }
 
       if (!requestedProfile) {
         return res.status(404).json({

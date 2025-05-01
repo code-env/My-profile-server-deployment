@@ -15,7 +15,7 @@ export const getUserNotificationPreferences = asyncHandler(async (req: Request, 
   const user: any = req.user!;
 
   try {
-    const userDoc = await User.findById(user._id).select('notifications');
+    const userDoc = await User.findById(user._id).select('notifications telegramNotifications');
 
     if (!userDoc) {
       throw createHttpError(404, 'User not found');

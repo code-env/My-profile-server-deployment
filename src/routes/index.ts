@@ -60,7 +60,7 @@ import { testRoutes } from './test.routes';
 import { enforceLicenseValidation } from '../middleware/enforce-license.middleware';
 import session from 'express-session';
 import passport from 'passport';
-import socialRoutes from './socials.auth.route';
+import socialAuthRoutes from './auth.social.routes';
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -96,11 +96,19 @@ export const setupRoutes = (app: Application): void => {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Direct route for Google OAuth callback to match what's configured in Google Developer Console
+  app.get('/api/auth/google/callback', (req, res, next) => {
+    console.log('Received Google callback at /api/auth/google/callback');
+    // Import the controller
+    const { SocialAuthController } = require('../controllers/auth.social.controller');
+    // Call the controller method directly
+    SocialAuthController.googleCallback(req, res, next);
+  });
 
   // Public routes
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
-  app.use('/api/sauth', socialRoutes);
+  app.use('/api/auth/social', socialAuthRoutes);
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);

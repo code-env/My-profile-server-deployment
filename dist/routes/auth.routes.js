@@ -325,6 +325,16 @@ router.post('/google/mobile', async (req, res) => {
                     refreshTokens: [],
                 });
                 await user.save();
+                // Create a default profile for new users
+                try {
+                    const { ProfileService } = require('../services/profile.service');
+                    const profileService = new ProfileService();
+                    await profileService.createDefaultProfile(user._id.toString());
+                    logger_1.logger.info(`Default profile created for new Google user ${user._id}`);
+                }
+                catch (profileError) {
+                    logger_1.logger.error(`Error creating default profile for Google user ${user._id}:`, profileError);
+                }
             }
         }
         // Generate tokens

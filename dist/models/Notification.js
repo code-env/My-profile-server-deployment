@@ -60,6 +60,9 @@ const notificationSchema = new mongoose_1.Schema({
             'security_alert',
             'system_notification',
             'achievement_unlocked',
+            'sell_submitted',
+            'sell_request',
+            'sell_completed'
         ],
     },
     title: {

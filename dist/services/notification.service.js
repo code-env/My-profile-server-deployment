@@ -27,7 +27,6 @@ class NotificationService {
     }
     async handleNotificationCreated(notification) {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
-        console.log('Entering handleNotificationCreated with notification:', notification);
         // Deduplicate event handling
         const notifId = notification._id.toString();
         if (NotificationService.processedNotificationIds.has(notifId)) {
@@ -37,12 +36,12 @@ class NotificationService {
         NotificationService.processedNotificationIds.add(notifId);
         // Transaction-level dedupe: skip if already processed
         if (((_a = notification.relatedTo) === null || _a === void 0 ? void 0 : _a.model) === 'Transaction') {
-            const txId = notification.relatedTo.id.toString();
-            if (NotificationService.processedTransactionIds.has(txId)) {
-                logger_1.logger.info(`Skipping duplicate transaction notification for transaction ${txId}`);
+            const key = `${notification.relatedTo.id.toString()}:${notification.type}`;
+            if (NotificationService.processedTransactionTypeKeys.has(key)) {
+                logger_1.logger.info(`Skipping duplicate transaction notification for ${key}`);
                 return;
             }
-            NotificationService.processedTransactionIds.add(txId);
+            NotificationService.processedTransactionTypeKeys.add(key);
         }
         try {
             // Log detailed notification information
@@ -63,8 +62,8 @@ class NotificationService {
                 this.io.to(`user:${notification.recipient}`).emit('notification:new', notification);
                 logger_1.logger.info(`Emitted notification to socket for user ${notification.recipient}`);
             }
-            // Get the user to check notification preferences - explicitly select telegramNotifications
-            const user = await User_1.User.findById(notification.recipient).select('+telegramNotifications');
+            // Get the user to check notification preferences - explicitly select telegramNotifications and notifications
+            const user = await User_1.User.findById(notification.recipient).select('notifications telegramNotifications');
             if (!user) {
                 logger_1.logger.warn(`User not found for notification: ${notification.recipient}`);
                 return;
@@ -108,16 +107,13 @@ class NotificationService {
             }
         }
         catch (error) {
-            console.error('Error in handleNotificationCreated:', error);
             logger_1.logger.error('Error handling notification creation:', error);
         }
     }
     async sendPushNotification(notification) {
         var _a, _b, _c, _d, _e;
-        console.log('[DEBUG] sendPushNotification - entering with notification:', notification);
         try {
             const user = await User_1.User.findById(notification.recipient);
-            console.log('[DEBUG] sendPushNotification - user found:', user);
             if (!user)
                 return;
             // Check if push notifications are enabled for this user
@@ -135,7 +131,6 @@ class NotificationService {
             const pushTokens = devicesWithPushTokens
                 .map(device => device.pushToken)
                 .filter((token) => token !== undefined && token !== null);
-            console.log('[DEBUG] sendPushNotification - pushTokens list:', pushTokens);
             // If no valid tokens, exit early
             if (pushTokens.length === 0) {
                 logger_1.logger.info(`No valid push tokens found for user ${user._id}`);
@@ -171,7 +166,6 @@ class NotificationService {
                 logger_1.logger.info(`Push notification type ${notification.type} disabled for user ${user._id}`);
                 return;
             }
-            console.log('[DEBUG] sendPushNotification - shouldSend true, type:', notification.type);
             // Declare result container for firebase response
             let result;
             // Send notification based on type
@@ -200,8 +194,6 @@ class NotificationService {
                 }
                 result = await firebase_service_1.default.sendMulticastPushNotification(pushTokens, notification.title, notification.message, data);
             }
-            console.log('[DEBUG] sendPushNotification - calling firebase with metadata:', notification.metadata);
-            console.log('[DEBUG] sendPushNotification - pushTokens:', pushTokens);
             // Handle invalid tokens
             if (result.invalidTokens.length > 0) {
                 logger_1.logger.info(`Found ${result.invalidTokens.length} invalid push tokens for user ${user._id}`);
@@ -214,17 +206,14 @@ class NotificationService {
                     }
                 });
             }
-            console.log('[DEBUG] sendPushNotification - firebaseService result:', result);
             logger_1.logger.info(`Push notification sent to ${result.success} devices for user ${user._id}`);
         }
         catch (error) {
-            console.error('Error in sendPushNotification:', error);
             logger_1.logger.error('Error sending push notification:', error);
         }
     }
     async sendEmailNotification(notification, user) {
         var _a, _b, _c;
-        console.log('Entering sendEmailNotification with notification:', notification);
         try {
             if (!user.email) {
                 logger_1.logger.info(`No email found for user ${user._id}`);
@@ -291,13 +280,11 @@ class NotificationService {
             }
         }
         catch (error) {
-            console.error('Error in sendEmailNotification:', error);
             logger_1.logger.error('Error sending email notification:', error);
         }
     }
     async sendTelegramNotification(notification, user) {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
-        console.log('Entering sendTelegramNotification with notification:', notification);
         logger_1.logger.info(`Attempting to send Telegram notification for user ${user._id}`, {
             notificationType: notification.type,
             relatedModel: (_a = notification.relatedTo) === null || _a === void 0 ? void 0 : _a.model,
@@ -437,25 +424,21 @@ class NotificationService {
             logger_1.logger.info(`Telegram notification sent to ${telegramId ? 'ID: ' + telegramId : '@' + telegramUsername}`);
         }
         catch (error) {
-            console.error('Error in sendTelegramNotification:', error);
             logger_1.logger.error('Error sending Telegram notification:', error);
         }
     }
     async createNotification(data) {
-        console.log('Entering createNotification with data:', data);
         try {
             const notification = await Notification_1.Notification.create(data);
             exports.notificationEvents.emit('notification:created', notification);
             return notification;
         }
         catch (error) {
-            console.error('Error in createNotification:', error);
             logger_1.logger.error('Error creating notification:', error);
             throw error;
         }
     }
     async getUserNotifications(userId, query) {
-        console.log('Entering getUserNotifications with userId and query:', userId, query);
         try {
             const { isRead, isArchived = false, limit = 10, page = 1 } = query;
             const filter = {
@@ -482,53 +465,43 @@ class NotificationService {
             };
         }
         catch (error) {
-            console.error('Error in getUserNotifications:', error);
             logger_1.logger.error('Error getting user notifications:', error);
         }
     }
     async markAsRead(notificationId, userId) {
-        console.log('Entering markAsRead with notificationId and userId:', notificationId, userId);
         try {
             return Notification_1.Notification.findOneAndUpdate({ _id: notificationId, recipient: userId }, { isRead: true }, { new: true });
         }
         catch (error) {
-            console.error('Error in markAsRead:', error);
             logger_1.logger.error('Error marking notification as read:', error);
         }
     }
     async markAllAsRead(userId) {
-        console.log('Entering markAllAsRead with userId:', userId);
         try {
             return Notification_1.Notification.updateMany({ recipient: userId, isRead: false }, { isRead: true });
         }
         catch (error) {
-            console.error('Error in markAllAsRead:', error);
             logger_1.logger.error('Error marking all notifications as read:', error);
         }
     }
     async archiveNotification(notificationId, userId) {
-        console.log('Entering archiveNotification with notificationId and userId:', notificationId, userId);
         try {
             return Notification_1.Notification.findOneAndUpdate({ _id: notificationId, recipient: userId }, { isArchived: true }, { new: true });
         }
         catch (error) {
-            console.error('Error in archiveNotification:', error);
             logger_1.logger.error('Error archiving notification:', error);
         }
     }
     async deleteNotification(notificationId, userId) {
-        console.log('Entering deleteNotification with notificationId and userId:', notificationId, userId);
         try {
             return Notification_1.Notification.findOneAndDelete({ _id: notificationId, recipient: userId });
         }
         catch (error) {
-            console.error('Error in deleteNotification:', error);
             logger_1.logger.error('Error deleting notification:', error);
         }
     }
     // Helper method to create common notification types
     async createProfileViewNotification(profileId, viewerId, profileOwnerId) {
-        console.log('Entering createProfileViewNotification with profileId, viewerId, and profileOwnerId:', profileId, viewerId, profileOwnerId);
         try {
             const viewer = await User_1.User.findById(viewerId).select('firstName lastName');
             if (!viewer)
@@ -546,12 +519,10 @@ class NotificationService {
             });
         }
         catch (error) {
-            console.error('Error in createProfileViewNotification:', error);
             logger_1.logger.error('Error creating profile view notification:', error);
         }
     }
     async createConnectionRequestNotification(requesterId, recipientId) {
-        console.log('Entering createConnectionRequestNotification with requesterId and recipientId:', requesterId, recipientId);
         try {
             const requester = await User_1.User.findById(requesterId).select('firstName lastName');
             if (!requester)
@@ -573,12 +544,10 @@ class NotificationService {
             });
         }
         catch (error) {
-            console.error('Error in createConnectionRequestNotification:', error);
             logger_1.logger.error('Error creating connection request notification:', error);
         }
     }
     async createProfileConnectionRequestNotification(requesterProfileId, receiverProfileId, connectionId) {
-        console.log('Entering createProfileConnectionRequestNotification with requesterProfileId and receiverProfileId:', requesterProfileId, receiverProfileId);
         try {
             // Get the profiles
             const ProfileModel = mongoose_1.default.model('Profile');
@@ -610,12 +579,10 @@ class NotificationService {
             });
         }
         catch (error) {
-            console.error('Error in createProfileConnectionRequestNotification:', error);
             logger_1.logger.error('Error creating profile connection request notification:', error);
         }
     }
     async createProfileConnectionAcceptedNotification(requesterProfileId, receiverProfileId, connectionId) {
-        console.log('Entering createProfileConnectionAcceptedNotification with requesterProfileId and receiverProfileId:', requesterProfileId, receiverProfileId);
         try {
             // Get the profiles
             const ProfileModel = mongoose_1.default.model('Profile');
@@ -647,12 +614,10 @@ class NotificationService {
             });
         }
         catch (error) {
-            console.error('Error in createProfileConnectionAcceptedNotification:', error);
             logger_1.logger.error('Error creating profile connection accepted notification:', error);
         }
     }
     async createEndorsementNotification(endorserId, recipientId, skill) {
-        console.log('Entering createEndorsementNotification with endorserId, recipientId, and skill:', endorserId, recipientId, skill);
         try {
             const endorser = await User_1.User.findById(endorserId).select('firstName lastName');
             if (!endorser)
@@ -670,7 +635,6 @@ class NotificationService {
             });
         }
         catch (error) {
-            console.error('Error in createEndorsementNotification:', error);
             logger_1.logger.error('Error creating endorsement notification:', error);
         }
     }
@@ -680,7 +644,6 @@ class NotificationService {
      * @returns Count of unread notifications
      */
     async getUnreadCount(userId) {
-        console.log('Entering getUnreadCount with userId:', userId);
         try {
             const count = await Notification_1.Notification.countDocuments({
                 recipient: userId,
@@ -690,7 +653,6 @@ class NotificationService {
             return count;
         }
         catch (error) {
-            console.error('Error in getUnreadCount:', error);
             logger_1.logger.error('Error getting unread notification count:', error);
             return 0;
         }
@@ -701,5 +663,5 @@ exports.NotificationService = NotificationService;
 NotificationService.listenerRegistered = false;
 // Track processed notification events to avoid duplicate sends
 NotificationService.processedNotificationIds = new Set();
-// Track processed transaction IDs to avoid duplicate sends per transaction
-NotificationService.processedTransactionIds = new Set();
+// Track processed notifications per transaction and type to avoid duplicate TX notifications
+NotificationService.processedTransactionTypeKeys = new Set();

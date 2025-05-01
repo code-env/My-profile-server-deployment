@@ -16,8 +16,8 @@ export class NotificationService {
   private static listenerRegistered = false;
   // Track processed notification events to avoid duplicate sends
   private static processedNotificationIds = new Set<string>();
-  // Track processed transaction IDs to avoid duplicate sends per transaction
-  private static processedTransactionIds = new Set<string>();
+  // Track processed notifications per transaction and type to avoid duplicate TX notifications
+  private static processedTransactionTypeKeys = new Set<string>();
 
   constructor() {
     // Register event listener only once
@@ -32,7 +32,6 @@ export class NotificationService {
   }
 
   private async handleNotificationCreated(notification: INotification) {
-    console.log('Entering handleNotificationCreated with notification:', notification);
     // Deduplicate event handling
     const notifId = notification._id.toString();
     if (NotificationService.processedNotificationIds.has(notifId)) {
@@ -42,12 +41,12 @@ export class NotificationService {
     NotificationService.processedNotificationIds.add(notifId);
     // Transaction-level dedupe: skip if already processed
     if (notification.relatedTo?.model === 'Transaction') {
-      const txId = notification.relatedTo.id.toString();
-      if (NotificationService.processedTransactionIds.has(txId)) {
-        logger.info(`Skipping duplicate transaction notification for transaction ${txId}`);
+      const key = `${notification.relatedTo.id.toString()}:${notification.type}`;
+      if (NotificationService.processedTransactionTypeKeys.has(key)) {
+        logger.info(`Skipping duplicate transaction notification for ${key}`);
         return;
       }
-      NotificationService.processedTransactionIds.add(txId);
+      NotificationService.processedTransactionTypeKeys.add(key);
     }
     try {
       // Log detailed notification information
@@ -71,8 +70,8 @@ export class NotificationService {
         logger.info(`Emitted notification to socket for user ${notification.recipient}`);
       }
 
-      // Get the user to check notification preferences - explicitly select telegramNotifications
-      const user = await User.findById(notification.recipient).select('+telegramNotifications');
+      // Get the user to check notification preferences - explicitly select telegramNotifications and notifications
+      const user = await User.findById(notification.recipient).select('notifications telegramNotifications');
       if (!user) {
         logger.warn(`User not found for notification: ${notification.recipient}`);
         return;
@@ -120,16 +119,13 @@ export class NotificationService {
       }
 
     } catch (error) {
-      console.error('Error in handleNotificationCreated:', error);
       logger.error('Error handling notification creation:', error);
     }
   }
 
   public async sendPushNotification(notification: INotification) {
-    console.log('[DEBUG] sendPushNotification - entering with notification:', notification);
     try {
       const user = await User.findById(notification.recipient);
-      console.log('[DEBUG] sendPushNotification - user found:', user);
       if (!user) return;
 
       // Check if push notifications are enabled for this user
@@ -150,7 +146,6 @@ export class NotificationService {
       const pushTokens = devicesWithPushTokens
         .map(device => device.pushToken)
         .filter((token): token is string => token !== undefined && token !== null);
-      console.log('[DEBUG] sendPushNotification - pushTokens list:', pushTokens);
 
       // If no valid tokens, exit early
       if (pushTokens.length === 0) {
@@ -189,7 +184,6 @@ export class NotificationService {
         logger.info(`Push notification type ${notification.type} disabled for user ${user._id}`);
         return;
       }
-      console.log('[DEBUG] sendPushNotification - shouldSend true, type:', notification.type);
 
       // Declare result container for firebase response
       let result: { success: number; failure: number; invalidTokens: string[] };
@@ -239,8 +233,6 @@ export class NotificationService {
           data
         );
       }
-      console.log('[DEBUG] sendPushNotification - calling firebase with metadata:', notification.metadata);
-      console.log('[DEBUG] sendPushNotification - pushTokens:', pushTokens);
 
       // Handle invalid tokens
       if (result.invalidTokens.length > 0) {
@@ -259,16 +251,13 @@ export class NotificationService {
         );
       }
 
-      console.log('[DEBUG] sendPushNotification - firebaseService result:', result);
       logger.info(`Push notification sent to ${result.success} devices for user ${user._id}`);
     } catch (error) {
-      console.error('Error in sendPushNotification:', error);
       logger.error('Error sending push notification:', error);
     }
   }
 
   private async sendEmailNotification(notification: INotification, user: any) {
-    console.log('Entering sendEmailNotification with notification:', notification);
     try {
       if (!user.email) {
         logger.info(`No email found for user ${user._id}`);
@@ -342,13 +331,11 @@ export class NotificationService {
         );
       }
     } catch (error) {
-      console.error('Error in sendEmailNotification:', error);
       logger.error('Error sending email notification:', error);
     }
   }
 
   private async sendTelegramNotification(notification: INotification, user: any) {
-    console.log('Entering sendTelegramNotification with notification:', notification);
     logger.info(`Attempting to send Telegram notification for user ${user._id}`, {
       notificationType: notification.type,
       relatedModel: notification.relatedTo?.model,
@@ -518,19 +505,16 @@ export class NotificationService {
 
       logger.info(`Telegram notification sent to ${telegramId ? 'ID: ' + telegramId : '@' + telegramUsername}`);
     } catch (error) {
-      console.error('Error in sendTelegramNotification:', error);
       logger.error('Error sending Telegram notification:', error);
     }
   }
 
   async createNotification(data: Partial<INotification | any>) {
-    console.log('Entering createNotification with data:', data);
     try {
       const notification = await Notification.create(data);
       notificationEvents.emit('notification:created', notification);
       return notification;
     } catch (error) {
-      console.error('Error in createNotification:', error);
       logger.error('Error creating notification:', error);
       throw error;
     }
@@ -542,7 +526,6 @@ export class NotificationService {
     limit?: number;
     page?: number;
   }) {
-    console.log('Entering getUserNotifications with userId and query:', userId, query);
     try {
       const { isRead, isArchived = false, limit = 10, page = 1 } = query;
 
@@ -573,13 +556,11 @@ export class NotificationService {
         },
       };
     } catch (error) {
-      console.error('Error in getUserNotifications:', error);
       logger.error('Error getting user notifications:', error);
     }
   }
 
   async markAsRead(notificationId: mongoose.Types.ObjectId, userId: mongoose.Types.ObjectId) {
-    console.log('Entering markAsRead with notificationId and userId:', notificationId, userId);
     try {
       return Notification.findOneAndUpdate(
         { _id: notificationId, recipient: userId },
@@ -587,26 +568,22 @@ export class NotificationService {
         { new: true }
       );
     } catch (error) {
-      console.error('Error in markAsRead:', error);
       logger.error('Error marking notification as read:', error);
     }
   }
 
   async markAllAsRead(userId: mongoose.Types.ObjectId) {
-    console.log('Entering markAllAsRead with userId:', userId);
     try {
       return Notification.updateMany(
         { recipient: userId, isRead: false },
         { isRead: true }
       );
     } catch (error) {
-      console.error('Error in markAllAsRead:', error);
       logger.error('Error marking all notifications as read:', error);
     }
   }
 
   async archiveNotification(notificationId: mongoose.Types.ObjectId, userId: mongoose.Types.ObjectId) {
-    console.log('Entering archiveNotification with notificationId and userId:', notificationId, userId);
     try {
       return Notification.findOneAndUpdate(
         { _id: notificationId, recipient: userId },
@@ -614,24 +591,20 @@ export class NotificationService {
         { new: true }
       );
     } catch (error) {
-      console.error('Error in archiveNotification:', error);
       logger.error('Error archiving notification:', error);
     }
   }
 
   async deleteNotification(notificationId: mongoose.Types.ObjectId, userId: mongoose.Types.ObjectId) {
-    console.log('Entering deleteNotification with notificationId and userId:', notificationId, userId);
     try {
       return Notification.findOneAndDelete({ _id: notificationId, recipient: userId });
     } catch (error) {
-      console.error('Error in deleteNotification:', error);
       logger.error('Error deleting notification:', error);
     }
   }
 
   // Helper method to create common notification types
   async createProfileViewNotification(profileId: mongoose.Types.ObjectId, viewerId: mongoose.Types.ObjectId, profileOwnerId: mongoose.Types.ObjectId) {
-    console.log('Entering createProfileViewNotification with profileId, viewerId, and profileOwnerId:', profileId, viewerId, profileOwnerId);
     try {
       const viewer:any = await User.findById(viewerId).select('firstName lastName');
       if (!viewer) return;
@@ -648,13 +621,11 @@ export class NotificationService {
         priority: 'low',
       });
     } catch (error :any) {
-      console.error('Error in createProfileViewNotification:', error);
       logger.error('Error creating profile view notification:', error);
     }
   }
 
   async createConnectionRequestNotification(requesterId: mongoose.Types.ObjectId, recipientId: mongoose.Types.ObjectId) {
-    console.log('Entering createConnectionRequestNotification with requesterId and recipientId:', requesterId, recipientId);
     try {
       const requester:any = await User.findById(requesterId).select('firstName lastName');
       if (!requester) return;
@@ -675,13 +646,11 @@ export class NotificationService {
         priority: 'medium',
       });
     } catch (error) {
-      console.error('Error in createConnectionRequestNotification:', error);
       logger.error('Error creating connection request notification:', error);
     }
   }
 
   async createProfileConnectionRequestNotification(requesterProfileId: mongoose.Types.ObjectId, receiverProfileId: mongoose.Types.ObjectId, connectionId: mongoose.Types.ObjectId) {
-    console.log('Entering createProfileConnectionRequestNotification with requesterProfileId and receiverProfileId:', requesterProfileId, receiverProfileId);
     try {
       // Get the profiles
       const ProfileModel = mongoose.model('Profile');
@@ -713,13 +682,11 @@ export class NotificationService {
         }
       });
     } catch (error) {
-      console.error('Error in createProfileConnectionRequestNotification:', error);
       logger.error('Error creating profile connection request notification:', error);
     }
   }
 
   async createProfileConnectionAcceptedNotification(requesterProfileId: mongoose.Types.ObjectId, receiverProfileId: mongoose.Types.ObjectId, connectionId: mongoose.Types.ObjectId) {
-    console.log('Entering createProfileConnectionAcceptedNotification with requesterProfileId and receiverProfileId:', requesterProfileId, receiverProfileId);
     try {
       // Get the profiles
       const ProfileModel = mongoose.model('Profile');
@@ -751,13 +718,11 @@ export class NotificationService {
         }
       });
     } catch (error) {
-      console.error('Error in createProfileConnectionAcceptedNotification:', error);
       logger.error('Error creating profile connection accepted notification:', error);
     }
   }
 
   async createEndorsementNotification(endorserId: mongoose.Types.ObjectId, recipientId: mongoose.Types.ObjectId, skill: string) {
-    console.log('Entering createEndorsementNotification with endorserId, recipientId, and skill:', endorserId, recipientId, skill);
     try {
       const endorser:any = await User.findById(endorserId).select('firstName lastName');
       if (!endorser) return;
@@ -774,7 +739,6 @@ export class NotificationService {
         priority: 'medium',
       });
     } catch (error) {
-      console.error('Error in createEndorsementNotification:', error);
       logger.error('Error creating endorsement notification:', error);
     }
   }
@@ -785,7 +749,6 @@ export class NotificationService {
    * @returns Count of unread notifications
    */
   async getUnreadCount(userId: mongoose.Types.ObjectId): Promise<number> {
-    console.log('Entering getUnreadCount with userId:', userId);
     try {
       const count = await Notification.countDocuments({
         recipient: userId,
@@ -795,7 +758,6 @@ export class NotificationService {
 
       return count;
     } catch (error) {
-      console.error('Error in getUnreadCount:', error);
       logger.error('Error getting unread notification count:', error);
       return 0;
     }

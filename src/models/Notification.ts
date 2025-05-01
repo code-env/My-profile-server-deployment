@@ -50,6 +50,9 @@ const notificationSchema = new Schema<INotification>(
         'security_alert',
         'system_notification',
         'achievement_unlocked',
+        'sell_submitted',
+        'sell_request',
+        'sell_completed'
       ],
     },
     title: {

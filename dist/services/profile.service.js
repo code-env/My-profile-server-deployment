@@ -1,45 +1,15 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProfileService = void 0;
 const profile_model_1 = require("../models/profile.model");
-const mongoose_1 = __importStar(require("mongoose"));
+const mongoose_1 = require("mongoose");
 const http_errors_1 = __importDefault(require("http-errors"));
+const logger_1 = require("../utils/logger");
+const User_1 = require("../models/User");
+const crypto_1 = require("../utils/crypto");
 class ProfileService {
     async createProfile(userId) {
         console.log('👤 Creating new profile for user:', userId);
@@ -250,7 +220,8 @@ class ProfileService {
         //     }
         //   };
         // }
-        const projectId = new mongoose_1.default.Types.ObjectId();
+        // Uncomment and use this when portfolio functionality is implemented
+        // const projectId = new mongoose.Types.ObjectId();
         // profile.portfolio.projects.push({
         //   id: projectId.toString(),
         //   ...project,
@@ -326,6 +297,67 @@ class ProfileService {
         // await profile.save();
         console.log('✅ Endorsement added successfully');
         return { success: true, message: 'Skill endorsed successfully' };
+    }
+    /**
+     * Create a default personal profile for a newly registered user
+     * @param userId The user ID
+     * @returns The created profile
+     */
+    async createDefaultProfile(userId) {
+        try {
+            logger_1.logger.info(`Creating default profile for user: ${userId}`);
+            // Check if user already has a profile
+            const existingProfiles = await profile_model_1.ProfileModel.find({ owner: userId });
+            if (existingProfiles.length > 0) {
+                logger_1.logger.info(`User ${userId} already has ${existingProfiles.length} profiles. Skipping default profile creation.`);
+                return existingProfiles[0];
+            }
+            // Get user data
+            const user = await User_1.User.findById(userId);
+            if (!user) {
+                throw (0, http_errors_1.default)(404, 'User not found');
+            }
+            // Generate a unique connect link
+            const connectLink = await (0, crypto_1.generateUniqueConnectLink)();
+            // Create a default personal profile
+            const profile = new profile_model_1.ProfileModel({
+                name: `${user.fullName}'s Profile`,
+                description: `Personal profile for ${user.fullName}`,
+                profileType: 'personal',
+                profileCategory: 'individual',
+                owner: userId,
+                managers: [userId],
+                connectLink,
+                claimed: true,
+                claimedBy: userId,
+                claimedAt: new Date(),
+                settings: {
+                    visibility: 'public',
+                    allowComments: true,
+                    allowMessages: true,
+                    autoAcceptConnections: false,
+                    emailNotifications: {
+                        connections: true,
+                        messages: true,
+                        comments: true,
+                        mentions: true,
+                        updates: true
+                    }
+                }
+            });
+            // Save the profile
+            const savedProfile = await profile.save();
+            // Add profile to user's profiles array
+            await User_1.User.findByIdAndUpdate(userId, {
+                $addToSet: { profiles: savedProfile._id }
+            });
+            logger_1.logger.info(`Default profile created successfully for user ${userId}: ${savedProfile._id}`);
+            return savedProfile;
+        }
+        catch (error) {
+            logger_1.logger.error(`Error creating default profile for user ${userId}:`, error);
+            throw error;
+        }
     }
 }
 exports.ProfileService = ProfileService;

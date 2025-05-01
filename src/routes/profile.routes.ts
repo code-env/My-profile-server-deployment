@@ -48,7 +48,7 @@ router.get('/user-profiles', (req, _res, next) => {
   next();
 }, authenticateToken, getUserProfilesGrouped)
 router.route('/:id')
-  .get(checkProfileOwnership, getProfileInfo)
+  .get(authenticateToken, getProfileInfo) // Use authenticateToken instead of checkProfileOwnership
   .put(requireRole(['user', 'superadmin', 'admin']), updateProfileNew)
   .delete(requireRole(['user', 'superadmin']), deleteProfile);
 

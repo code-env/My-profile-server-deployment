@@ -56,3 +56,22 @@ export const generateProfileAccessToken = (profileId: string): string => {
     }
   );
 };
+
+/**
+ * Generates a unique connect link for profiles
+ * @returns A promise that resolves to a unique connect link string
+ */
+export const generateUniqueConnectLink = async (): Promise<string> => {
+  // Generate a random string for the connect link
+  const randomPart = Math.random().toString(36).substring(2, 10);
+  const timestamp = Date.now().toString(36);
+
+  // Combine random part and timestamp for uniqueness
+  const connectLink = `mypts-${randomPart}-${timestamp}`;
+
+  // In a real implementation, you might want to check if this link already exists in the database
+  // and generate a new one if it does. For simplicity, we're assuming the combination of
+  // random string and timestamp will be unique enough.
+
+  return connectLink;
+};

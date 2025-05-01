@@ -63,7 +63,7 @@ const test_routes_1 = require("./test.routes");
 const enforce_license_middleware_1 = require("../middleware/enforce-license.middleware");
 const express_session_1 = __importDefault(require("express-session"));
 const passport_1 = __importDefault(require("passport"));
-const socials_auth_route_1 = __importDefault(require("./socials.auth.route"));
+const auth_social_routes_1 = __importDefault(require("./auth.social.routes"));
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -91,10 +91,18 @@ const setupRoutes = (app) => {
     }));
     app.use(passport_1.default.initialize());
     app.use(passport_1.default.session());
+    // Direct route for Google OAuth callback to match what's configured in Google Developer Console
+    app.get('/api/auth/google/callback', (req, res, next) => {
+        console.log('Received Google callback at /api/auth/google/callback');
+        // Import the controller
+        const { SocialAuthController } = require('../controllers/auth.social.controller');
+        // Call the controller method directly
+        SocialAuthController.googleCallback(req, res, next);
+    });
     // Public routes
     app.use('/api/auth', auth_routes_1.default);
     app.use('/api/users', user_routes_1.default);
-    app.use('/api/sauth', socials_auth_route_1.default);
+    app.use('/api/auth/social', auth_social_routes_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     // app.use('/api/connections', protect, connectionRoutes);
