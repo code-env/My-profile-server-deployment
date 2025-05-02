@@ -63,7 +63,7 @@ class NotificationService {
                 logger_1.logger.info(`Emitted notification to socket for user ${notification.recipient}`);
             }
             // Get the user to check notification preferences - explicitly select telegramNotifications and notifications
-            const user = await User_1.User.findById(notification.recipient).select('notifications telegramNotifications');
+            const user = await User_1.User.findById(notification.recipient).select('notifications telegramNotifications devices');
             if (!user) {
                 logger_1.logger.warn(`User not found for notification: ${notification.recipient}`);
                 return;
@@ -170,13 +170,17 @@ class NotificationService {
             let result;
             // Send notification based on type
             if (notification.type === 'system_notification' && ((_c = notification.relatedTo) === null || _c === void 0 ? void 0 : _c.model) === 'Transaction' && notification.metadata) {
-                // For transaction notifications, use the transaction template
-                result = await firebase_service_1.default.sendTransactionNotification(pushTokens, notification.title, notification.message, {
-                    id: notification.relatedTo.id.toString(),
-                    type: notification.metadata.transactionType || 'Transaction',
-                    amount: notification.metadata.amount || 0,
+                // For transaction notifications, send multicast with transaction metadata
+                const data = {
+                    notificationType: notification.type,
+                    notificationId: notification._id.toString(),
+                    relatedModel: notification.relatedTo.model,
+                    relatedId: notification.relatedTo.id.toString(),
+                    transactionType: notification.metadata.transactionType || 'Transaction',
+                    amount: `${notification.metadata.amount || 0}`,
                     status: notification.metadata.status || 'Unknown'
-                });
+                };
+                result = await firebase_service_1.default.sendMulticastPushNotification(pushTokens, notification.title, notification.message, data);
             }
             else {
                 // For other notifications, use the standard template

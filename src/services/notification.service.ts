@@ -71,7 +71,7 @@ export class NotificationService {
       }
 
       // Get the user to check notification preferences - explicitly select telegramNotifications and notifications
-      const user = await User.findById(notification.recipient).select('notifications telegramNotifications');
+      const user = await User.findById(notification.recipient).select('notifications telegramNotifications devices');
       if (!user) {
         logger.warn(`User not found for notification: ${notification.recipient}`);
         return;
@@ -190,17 +190,21 @@ export class NotificationService {
 
       // Send notification based on type
       if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction' && notification.metadata) {
-        // For transaction notifications, use the transaction template
-        result = await firebaseService.sendTransactionNotification(
+        // For transaction notifications, send multicast with transaction metadata
+        const data: Record<string, string> = {
+          notificationType: notification.type,
+          notificationId: notification._id.toString(),
+          relatedModel: notification.relatedTo.model,
+          relatedId: notification.relatedTo.id.toString(),
+          transactionType: notification.metadata.transactionType || 'Transaction',
+          amount: `${notification.metadata.amount || 0}`,
+          status: notification.metadata.status || 'Unknown'
+        };
+        result = await firebaseService.sendMulticastPushNotification(
           pushTokens,
           notification.title,
           notification.message,
-          {
-            id: notification.relatedTo.id.toString(),
-            type: notification.metadata.transactionType || 'Transaction',
-            amount: notification.metadata.amount || 0,
-            status: notification.metadata.status || 'Unknown'
-          }
+          data
         );
       } else {
         // For other notifications, use the standard template

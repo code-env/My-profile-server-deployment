@@ -139,21 +139,58 @@ export class UserControllers {
           .status(404)
           .json({ success: false, message: "User not found" });
       }
-      // Return user data with profiles
+
+      // Get MyPts balance for each profile
+      const profilesWithBalance = await Promise.all(
+        profiles.map(async (profile) => {
+          try {
+            // Get MyPts balance
+            const myPts = await profile.getMyPts();
+
+            // Get MyPts value information (optional)
+            const valueInfo = await profile.getMyPtsValue('USD');
+
+            return {
+              _id: profile._id,
+              name: profile.name,
+              type: (profile as any).type || {
+                category: "unknown",
+                subtype: profile.profileType || "unknown",
+              },
+              description: profile.description || "",
+              accessToken: profile.accessToken || "",
+              // Include balance information
+              balance: {
+                balance: myPts.balance,
+                lifetimeEarned: myPts.lifetimeEarned,
+                lifetimeSpent: myPts.lifetimeSpent,
+                lastTransaction: myPts.lastTransaction,
+                value: valueInfo
+              }
+            };
+          } catch (error) {
+            console.error(`Error getting MyPts balance for profile ${profile._id}:`, error);
+            // Return profile without balance if there's an error
+            return {
+              _id: profile._id,
+              name: profile.name,
+              type: (profile as any).type || {
+                category: "unknown",
+                subtype: profile.profileType || "unknown",
+              },
+              description: profile.description || "",
+              accessToken: profile.accessToken || ""
+            };
+          }
+        })
+      );
+
+      // Return user data with profiles including balance
       res.status(200).json({
         success: true,
         user: {
           ...userFromDb,
-          profiles: profiles.map((profile) => ({
-            _id: profile._id,
-            name: profile.name,
-            type: (profile as any).type || {
-              category: "unknown",
-              subtype: profile.profileType || "unknown",
-            },
-            description: profile.description || "",
-            accessToken: profile.accessToken || "",
-          })),
+          profiles: profilesWithBalance,
         },
       });
     } catch (error: any) {

@@ -60,6 +60,7 @@ const notification_test_routes_1 = __importDefault(require("./notification-test.
 const user_device_routes_1 = __importDefault(require("./user-device.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
+const analytics_routes_1 = __importDefault(require("./analytics.routes"));
 const enforce_license_middleware_1 = require("../middleware/enforce-license.middleware");
 const express_session_1 = __importDefault(require("express-session"));
 const passport_1 = __importDefault(require("passport"));
@@ -110,6 +111,7 @@ const setupRoutes = (app) => {
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
     app.use('/api/plans', auth_middleware_1.protect, plan_routes_1.default);
     app.use('/api/relationships', auth_middleware_1.protect, relationshipType_routes_1.default);
+    app.use('/api/analytics', auth_middleware_1.protect, analytics_routes_1.default);
     app.use('/api/logs', logs_routes_1.default);
     app.use('/api/my-pts', auth_middleware_1.protect, my_pts_routes_1.default);
     app.use('/api/my-pts-value', auth_middleware_1.protect, my_pts_value_routes_1.default);
