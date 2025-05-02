@@ -25,14 +25,14 @@ interface ICelebration extends IPlan {
 const CelebrationSchema = new Schema<ICelebration>({
     gifts: [
         {
-          _id: { type: Types.ObjectId, default: () => new Types.ObjectId() },
-          description: String,
-          requestedBy: { type: Types.ObjectId, ref: 'Profile' },
-          promisedBy: { type: Types.ObjectId, ref: 'Profile' },
-          received: Boolean,
-          link: String,
+            _id: { type: Types.ObjectId, default: () => new Types.ObjectId() },
+            description: String,
+            requestedBy: { type: Types.ObjectId, ref: 'Profile' },
+            promisedBy: { type: Types.ObjectId, ref: 'Profile' },
+            received: Boolean,
+            link: String,
         },
-      ],
+    ],
     category: {
         type: String,
         enum: ['birthday', 'anniversary', 'holiday', 'achievement', 'other'],

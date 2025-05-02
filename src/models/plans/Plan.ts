@@ -1,4 +1,6 @@
-// import Joi from 'joi/lib';
+import { IBooking } from './booking.schema';
+import Joi from 'joi/lib';
+
 import mongoose, { Document, Schema, Model, Types } from 'mongoose';
 
 export enum PlanType {
@@ -6,7 +8,8 @@ export enum PlanType {
   EVENT = 'event',
   MEETING = 'meeting',
   APPOINTMENT = 'appointment',
-  CELEBRATION = 'celebration'
+  CELEBRATION = 'celebration',
+  INTERACTION = 'interaction',
 }
 
 
@@ -63,6 +66,33 @@ interface IPlanBase {
     title: string;
     createdBy: Types.ObjectId;
   }>;
+
+  bookingSettings: {
+    timeZone: string;
+    dateFormat: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
+    timeFormat: '12h' | '24h';
+    firstDayOfWeek: number; // 0 = Sunday, 1 = Monday
+    availability: Array<{
+      day: number; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      startTime: string;
+      endTime: string;
+    }>;
+    slotDuration: number; // in minutes
+    bufferTime: number; // in minutes
+    maxConcurrentBookings: number;
+    maxReschedules?: number;
+    cancellationPolicy?: 'flexible' | 'moderate' | 'strict' | 'non-refundable';
+    // pricing?: 
+    payment?: {
+      currency: string;
+      amount: number;
+      paymentMethods: string[];
+      paymentLink?: string;
+    };
+  };
+
+  bookings?: IBooking[];
+
   createdBy: Types.ObjectId;
   updatedBy: Types.ObjectId;
   createdAt: Date;
@@ -145,11 +175,43 @@ const PlanSchema = new Schema<IPlan>(
       userId: { type: Schema.Types.ObjectId, ref: 'Profile', required: true },
       createdAt: { type: Date, default: Date.now }
     }],
+
+    bookingSettings: {
+      timeZone: { type: String, default: 'UTC' },
+      dateFormat: { type: String, enum: ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'], default: 'MM/DD/YYYY' },
+      timeFormat: { type: String, enum: ['12h', '24h'], default: '24h' },
+      firstDayOfWeek: { type: Number, default: 1 }, // 0 = Sunday, 1 = Monday
+      availability: [{
+        day: { type: Number, min: 0, max: 6 },
+        startTime: { type: String },
+        endTime: { type: String }
+      }],
+      slotDuration: { type: Number, default: 30 }, // in minutes
+      bufferTime: { type: Number, default: 15 }, // in minutes
+      maxConcurrentBookings: { type: Number, default: 1 },
+      maxReschedules: { type: Number },
+      cancellationPolicy: { 
+        type: String, 
+        enum: ['flexible', 'moderate', 'strict', 'non-refundable'] 
+      },
+
+      payment: {
+        currency: { type: String, default: 'MyPts' },
+        amount: { type: Number, default: 0 },
+        paymentMethods: [{ type: String }],
+        paymentLink: { type: String }
+      }
+    },
     links: [{
       url: { type: String, required: true },
       title: { type: String, required: true },
       createdBy: { type: Schema.Types.ObjectId, ref: 'Profile', required: true },
       createdAt: { type: Date, default: Date.now }
+    }],
+
+    bookings: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Booking'
     }],
     createdBy: { type: Schema.Types.ObjectId, ref: 'Profile', required: true },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'Profile', required: true },
@@ -172,6 +234,8 @@ PlanSchema.index({ startTime: 1 });
 PlanSchema.index({ endTime: 1 });
 PlanSchema.index({ participants: 1 });
 PlanSchema.index({ createdBy: 1 });
+
+
 // Base model
 const PlanModel = mongoose.model<IPlan>('Plan', PlanSchema);
 

@@ -160,6 +160,25 @@ const celebrationSchema = basePlanSchema.keys({
   })).default([])
 });
 
+// Interaction-specific validation schema
+const interactionSchema = basePlanSchema.keys({
+  planType: Joi.string().valid(PlanType.INTERACTION).required(),
+  profile: objectId().required(),
+  relationship: Joi.string().required(),
+  lastContact: Joi.date().iso().required(),
+  nextContact: Joi.date().iso(),
+  frequency: Joi.string(),
+  mode: Joi.string().valid('call', 'email', 'meeting', 'chat').required(),
+  physicalLocation: Joi.object({
+    address: Joi.string(),
+    coordinates: Joi.object({
+      lat: Joi.number(),
+      lng: Joi.number()
+    })
+  }),
+  category: Joi.string().valid('business', 'personal', 'networking').required()
+});
+
 export class PlanValidator {
   static validatePlan(planType: PlanType, data: any) {
     let schema;
@@ -169,6 +188,7 @@ export class PlanValidator {
       case PlanType.APPOINTMENT: schema = appointmentSchema; break;
       case PlanType.EVENT: schema = eventSchema; break;
       case PlanType.CELEBRATION: schema = celebrationSchema; break;
+      case PlanType.INTERACTION: schema = interactionSchema; break;
       default: throw new Error(`Invalid plan type: ${planType}`);
     }
 

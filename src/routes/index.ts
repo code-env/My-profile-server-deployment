@@ -44,6 +44,9 @@ import profileRoutes from './profile.routes';
 import profileConnectionRoutes from './profile-connection.routes';
 import contactRoutes from './contact.route';
 import RelationshipTypeRoutes from './relationshipType.routes';
+import taskRoutes from './task.routes';
+import eventRoutes from './event.routes';
+import listRoutes from './list.routes';
 import logsRoutes from './logs.routes';
 import myPtsRoutes from './my-pts.routes';
 import myPtsValueRoutes from './my-pts-value.routes';
@@ -55,8 +58,8 @@ import userNotificationPreferencesRoutes from './user-notification-preferences.r
 import notificationTestRoutes from './notification-test.routes';
 import userDeviceRoutes from './user-device.routes';
 import { protect } from '../middleware/auth.middleware';
-import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
+
 import { enforceLicenseValidation } from '../middleware/enforce-license.middleware';
 import session from 'express-session';
 import passport from 'passport';
@@ -116,6 +119,9 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/profile-connections', protect, profileConnectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
   app.use('/api/plans', protect, planRoutes);
+  app.use('/api/tasks', protect, taskRoutes);
+  app.use('/api/lists', protect, listRoutes);
+  app.use('/api/events', protect, eventRoutes);
   app.use('/api/relationships', protect, RelationshipTypeRoutes);
   app.use('/api/logs', logsRoutes);
   app.use('/api/my-pts', protect, myPtsRoutes);
