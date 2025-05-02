@@ -1,168 +1,58 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.analyticsController = void 0;
-const my_pts_model_1 = require("../models/my-pts.model");
-const my_pts_value_model_1 = require("../models/my-pts-value.model");
-const logger_1 = require("../utils/logger");
-exports.analyticsController = {
-    async getDashboardAnalytics(req, res) {
-        try {
-            const user = req.user;
-            const timeframe = req.query.timeframe || 'month';
-            const currency = String(req.query.currency || 'USD');
-            const userId = (user === null || user === void 0 ? void 0 : user._id) || (user === null || user === void 0 ? void 0 : user.id);
-            // Calculate date range based on timeframe
-            const now = new Date();
-            let startDate = new Date();
-            switch (timeframe) {
-                case 'day':
-                    startDate.setDate(now.getDate() - 1);
-                    break;
-                case 'week':
-                    startDate.setDate(now.getDate() - 7);
-                    break;
-                case 'month':
-                    startDate.setMonth(now.getMonth() - 1);
-                    break;
-                case 'year':
-                    startDate.setFullYear(now.getFullYear() - 1);
-                    break;
-                default:
-                    startDate.setMonth(now.getMonth() - 1);
-            }
-            // Get transactions for the period
-            const transactions = await my_pts_model_1.MyPtsTransactionModel.find({
-                userId,
-                createdAt: { $gte: startDate, $lte: now }
-            }).sort({ createdAt: 1 });
-            // Get value history
-            const valueHistory = await my_pts_value_model_1.MyPtsValueModel.find({
-                createdAt: { $gte: startDate, $lte: now }
-            }).sort({ createdAt: 1 });
-            // Group transactions by type for distribution
-            const distribution = await my_pts_model_1.MyPtsTransactionModel.aggregate([
-                {
-                    $match: {
-                        userId,
-                        createdAt: { $gte: startDate, $lte: now }
-                    }
-                },
-                {
-                    $group: {
-                        _id: '$type',
-                        count: { $sum: 1 },
-                        volume: { $sum: { $abs: '$amount' } }
-                    }
-                }
-            ]);
-            // Format response data
-            const response = {
-                transactionHistory: {
-                    incoming: transactions
-                        .filter((t) => t.amount > 0)
-                        .map((t) => ({ timestamp: t.createdAt, value: t.amount })),
-                    outgoing: transactions
-                        .filter((t) => t.amount < 0)
-                        .map((t) => ({ timestamp: t.createdAt, value: Math.abs(t.amount) }))
-                },
-                balanceTrend: transactions.map((t) => ({
-                    timestamp: t.createdAt,
-                    value: t.balance
-                })),
-                valueHistory: valueHistory.map((v) => ({
-                    timestamp: v.effectiveDate,
-                    value: v.baseValue,
-                    totalSupply: v.totalSupply,
-                    totalValue: v.totalValueUSD,
-                    exchangeRate: v.getValueInCurrency(currency)
-                })),
-                activityDistribution: distribution.map((d) => ({
-                    type: d._id,
-                    count: d.count,
-                    volume: d.volume
-                }))
-            };
-            res.json({
-                success: true,
-                data: response
-            });
-        }
-        catch (error) {
-            logger_1.logger.error('Error in getDashboardAnalytics:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch analytics data'
-            });
-        }
-    },
-    async getTransactionHistory(req, res) {
-        try {
-            const user = req.user;
-            const { startDate, endDate } = req.query;
-            const userId = (user === null || user === void 0 ? void 0 : user._id) || (user === null || user === void 0 ? void 0 : user.id);
-            if (!startDate || !endDate) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Start date and end date are required'
-                });
-            }
-            const transactions = await my_pts_model_1.MyPtsTransactionModel.find({
-                userId,
-                createdAt: {
-                    $gte: new Date(startDate),
-                    $lte: new Date(endDate)
-                }
-            }).sort({ createdAt: 1 });
-            const history = transactions.map((t) => ({
-                timestamp: t.createdAt,
-                value: t.amount
-            }));
-            res.json({
-                success: true,
-                data: history
-            });
-        }
-        catch (error) {
-            logger_1.logger.error('Error in getTransactionHistory:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch transaction history'
-            });
-        }
-    },
-    async getBalanceTrend(req, res) {
-        try {
-            const user = req.user;
-            const { startDate, endDate } = req.query;
-            const userId = (user === null || user === void 0 ? void 0 : user._id) || (user === null || user === void 0 ? void 0 : user.id);
-            if (!startDate || !endDate) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Start date and end date are required'
-                });
-            }
-            const transactions = await my_pts_model_1.MyPtsTransactionModel.find({
-                userId,
-                createdAt: {
-                    $gte: new Date(startDate),
-                    $lte: new Date(endDate)
-                }
-            }).sort({ createdAt: 1 });
-            const trend = transactions.map((t) => ({
-                timestamp: t.createdAt,
-                value: t.balance
-            }));
-            res.json({
-                success: true,
-                data: trend
-            });
-        }
-        catch (error) {
-            logger_1.logger.error('Error in getBalanceTrend:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch balance trend'
-            });
-        }
-    }
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getUserAnalytics = exports.getProfileAnalytics = exports.trackEngagement = exports.trackProfileView = void 0;
+const express_async_handler_1 = __importDefault(require("express-async-handler"));
+const http_errors_1 = __importDefault(require("http-errors"));
+const mongoose_1 = __importDefault(require("mongoose"));
+const analytics_service_1 = require("../services/analytics.service");
+const analyticsService = new analytics_service_1.AnalyticsService();
+// @desc    Track profile view
+// @route   POST /api/analytics/profiles/:id/view
+// @access  Private
+exports.trackProfileView = (0, express_async_handler_1.default)(async (req, res) => {
+    const user = req.user;
+    const { id: profileId } = req.params;
+    const { ownerId } = req.body;
+    const analytics = await analyticsService.trackProfileView(new mongoose_1.default.Types.ObjectId(profileId), ownerId, user === null || user === void 0 ? void 0 : user._id, req.headers['user-agent'], req.ip);
+    res.json(analytics);
+});
+// @desc    Track profile engagement
+// @route   POST /api/analytics/profiles/:id/engage
+// @access  Private
+exports.trackEngagement = (0, express_async_handler_1.default)(async (req, res) => {
+    const user = req.user;
+    const { id: profileId } = req.params;
+    const { ownerId, type, metadata } = req.body;
+    if (!['like', 'comment', 'share', 'download', 'connect', 'message'].includes(type)) {
+        throw (0, http_errors_1.default)(400, 'Invalid engagement type');
+    }
+    const analytics = await analyticsService.trackEngagement(new mongoose_1.default.Types.ObjectId(profileId), ownerId, user._id, type, metadata);
+    res.json(analytics);
+});
+// @desc    Get profile analytics
+// @route   GET /api/analytics/profiles/:id
+// @access  Private
+exports.getProfileAnalytics = (0, express_async_handler_1.default)(async (req, res) => {
+    const { id: profileId } = req.params;
+    const { period } = req.query;
+    // Validate period
+    if (period && !['day', 'week', 'month', 'year'].includes(period)) {
+        throw (0, http_errors_1.default)(400, 'Invalid period specified');
+    }
+    const analytics = await analyticsService.getProfileAnalytics(new mongoose_1.default.Types.ObjectId(profileId), period);
+    if (!analytics) {
+        throw (0, http_errors_1.default)(404, 'Analytics not found for this profile');
+    }
+    res.json(analytics);
+});
+// @desc    Get user's profiles analytics
+// @route   GET /api/analytics/user
+// @access  Private
+exports.getUserAnalytics = (0, express_async_handler_1.default)(async (req, res) => {
+    const user = req.user;
+    const analytics = await analyticsService.getUserAnalytics(user._id);
+    res.json(analytics);
+});
