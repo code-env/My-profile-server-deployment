@@ -10,6 +10,31 @@ const logger_1 = require("../utils/logger");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const handlebars_1 = __importDefault(require("handlebars"));
+// Register Handlebars helpers
+handlebars_1.default.registerHelper('gt', function (a, b) {
+    return a > b;
+});
+handlebars_1.default.registerHelper('eq', function (a, b) {
+    return a === b;
+});
+handlebars_1.default.registerHelper('formatNumber', function (num) {
+    return num.toLocaleString();
+});
+handlebars_1.default.registerHelper('formatDate', function (timestamp) {
+    if (!timestamp)
+        return '';
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime()))
+        return '';
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+});
 class EmailService {
     static async loadAndCompileTemplate(templateName) {
         const templatePath = path_1.default.join(__dirname, '../templates', `${templateName}.html`);

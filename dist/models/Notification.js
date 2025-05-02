@@ -60,6 +60,9 @@ const notificationSchema = new mongoose_1.Schema({
             'security_alert',
             'system_notification',
             'achievement_unlocked',
+            'sell_submitted',
+            'sell_request',
+            'sell_completed'
         ],
     },
     title: {
@@ -73,7 +76,7 @@ const notificationSchema = new mongoose_1.Schema({
     relatedTo: {
         model: {
             type: String,
-            enum: ['Profile', 'User', 'Comment', 'Message'],
+            enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction'],
         },
         id: {
             type: mongoose_1.Schema.Types.ObjectId,

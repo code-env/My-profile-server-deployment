@@ -53,13 +53,17 @@ import myPtsValueRoutes from './my-pts-value.routes';
 import myPtsHubRoutes from './my-pts-hub.routes';
 import adminNotificationRoutes from './admin-notification.routes';
 import stripeRoutes from './stripe.routes';
+import notificationRoutes from './notification.routes';
+import userNotificationPreferencesRoutes from './user-notification-preferences.routes';
+import notificationTestRoutes from './notification-test.routes';
+import userDeviceRoutes from './user-device.routes';
 import { protect } from '../middleware/auth.middleware';
 import { testRoutes } from './test.routes';
 
 import { enforceLicenseValidation } from '../middleware/enforce-license.middleware';
 import session from 'express-session';
 import passport from 'passport';
-import socialRoutes from './socials.auth.route';
+import socialAuthRoutes from './auth.social.routes';
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -95,11 +99,19 @@ export const setupRoutes = (app: Application): void => {
   app.use(passport.initialize());
   app.use(passport.session());
 
+  // Direct route for Google OAuth callback to match what's configured in Google Developer Console
+  app.get('/api/auth/google/callback', (req, res, next) => {
+    console.log('Received Google callback at /api/auth/google/callback');
+    // Import the controller
+    const { SocialAuthController } = require('../controllers/auth.social.controller');
+    // Call the controller method directly
+    SocialAuthController.googleCallback(req, res, next);
+  });
 
   // Public routes
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
-  app.use('/api/sauth', socialRoutes);
+  app.use('/api/auth/social', socialAuthRoutes);
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
@@ -117,6 +129,10 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/my-pts-hub', protect, myPtsHubRoutes);
   app.use('/api/admin/notifications', protect, adminNotificationRoutes);
   app.use('/api/stripe', stripeRoutes);
+  app.use('/api/notifications', protect, notificationRoutes);
+  app.use('/api/user/notification-preferences', protect, userNotificationPreferencesRoutes);
+  app.use('/api/user/devices', protect, userDeviceRoutes);
+  app.use('/api/test/notifications', protect, notificationTestRoutes);
 
   // Test email route
   app.get('/api/test/email', async (req, res) => {

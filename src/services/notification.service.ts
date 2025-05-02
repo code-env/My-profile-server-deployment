@@ -4,15 +4,27 @@ import { logger } from '../utils/logger';
 import { EventEmitter } from 'events';
 import { Server as SocketServer } from 'socket.io';
 import mongoose from 'mongoose';
+import EmailService from './email.service';
+import telegramService from './telegram.service';
+import firebaseService from './firebase.service';
 
 export const notificationEvents = new EventEmitter();
 
 export class NotificationService {
   private io: SocketServer | null = null;
+  // Track whether we've already subscribed to notificationEvents
+  private static listenerRegistered = false;
+  // Track processed notification events to avoid duplicate sends
+  private static processedNotificationIds = new Set<string>();
+  // Track processed notifications per transaction and type to avoid duplicate TX notifications
+  private static processedTransactionTypeKeys = new Set<string>();
 
   constructor() {
-    // Listen for notification events
-    notificationEvents.on('notification:created', this.handleNotificationCreated.bind(this));
+    // Register event listener only once
+    if (!NotificationService.listenerRegistered) {
+      notificationEvents.on('notification:created', this.handleNotificationCreated.bind(this));
+      NotificationService.listenerRegistered = true;
+    }
   }
 
   setSocketServer(io: SocketServer) {
@@ -20,44 +32,493 @@ export class NotificationService {
   }
 
   private async handleNotificationCreated(notification: INotification) {
-    console.log('Entering handleNotificationCreated with notification:', notification);
+    // Deduplicate event handling
+    const notifId = notification._id.toString();
+    if (NotificationService.processedNotificationIds.has(notifId)) {
+      logger.info(`Skipping duplicate event handling for notification ${notifId}`);
+      return;
+    }
+    NotificationService.processedNotificationIds.add(notifId);
+    // Transaction-level dedupe: skip if already processed
+    if (notification.relatedTo?.model === 'Transaction') {
+      const key = `${notification.relatedTo.id.toString()}:${notification.type}`;
+      if (NotificationService.processedTransactionTypeKeys.has(key)) {
+        logger.info(`Skipping duplicate transaction notification for ${key}`);
+        return;
+      }
+      NotificationService.processedTransactionTypeKeys.add(key);
+    }
     try {
+      // Log detailed notification information
+      logger.info(`Processing notification for user ${notification.recipient}`, {
+        notificationType: notification.type,
+        relatedModel: notification.relatedTo?.model,
+        relatedId: notification.relatedTo?.id,
+        title: notification.title
+      });
+
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
+        logger.info(`Processing transaction notification`, {
+          transactionId: notification.relatedTo.id,
+          metadata: notification.metadata
+        });
+      }
+
       // Emit to connected socket if available
       if (this.io) {
         this.io.to(`user:${notification.recipient}`).emit('notification:new', notification);
+        logger.info(`Emitted notification to socket for user ${notification.recipient}`);
       }
 
+      // Get the user to check notification preferences - explicitly select telegramNotifications and notifications
+      const user = await User.findById(notification.recipient).select('notifications telegramNotifications devices');
+      if (!user) {
+        logger.warn(`User not found for notification: ${notification.recipient}`);
+        return;
+      }
+
+      // Log the user's notification preferences for debugging
+      logger.info(`Retrieved user for notification: ${notification.recipient}`, {
+        hasUser: !!user,
+        hasTelegramNotifications: !!user.telegramNotifications,
+        telegramEnabled: user.telegramNotifications?.enabled,
+        telegramUsername: user.telegramNotifications?.username,
+        telegramId: user.telegramNotifications?.telegramId
+      });
+
+      logger.info(`User notification preferences`, {
+        userId: user._id,
+        pushEnabled: user.notifications.push,
+        emailEnabled: user.notifications.email,
+        telegramEnabled: user.telegramNotifications?.enabled,
+        telegramUsername: user.telegramNotifications?.username,
+        telegramId: user.telegramNotifications?.telegramId
+      });
+
       // Send push notification if user has enabled them
-      await this.sendPushNotification(notification);
+      if (user.notifications.push) {
+        logger.info(`Sending push notification to user ${user._id}`);
+        await this.sendPushNotification(notification);
+      }
+
+      // Send email notification if user has enabled them
+      if (user.notifications.email) {
+        logger.info(`Sending email notification to user ${user._id}`);
+        await this.sendEmailNotification(notification, user);
+      }
+
+      // Send Telegram notification if user has enabled them
+      if (user.telegramNotifications?.enabled) {
+        logger.info(`Sending Telegram notification to user ${user._id}`, {
+          telegramUsername: user.telegramNotifications.username,
+          telegramId: user.telegramNotifications.telegramId
+        });
+        await this.sendTelegramNotification(notification, user);
+      } else {
+        logger.info(`Telegram notifications not enabled for user ${user._id}`);
+      }
 
     } catch (error) {
-      console.error('Error in handleNotificationCreated:', error);
       logger.error('Error handling notification creation:', error);
     }
   }
 
-  private async sendPushNotification(notification: INotification) {
-    console.log('Entering sendPushNotification with notification:', notification);
+  public async sendPushNotification(notification: INotification) {
     try {
       const user = await User.findById(notification.recipient);
       if (!user) return;
 
-      // TODO: Implement push notification logic here
-      // This could integrate with Firebase Cloud Messaging, OneSignal, or other providers
+      // Check if push notifications are enabled for this user
+      if (!user.notifications.push) {
+        logger.info(`Push notifications disabled for user ${user._id}`);
+        return;
+      }
+
+      // Check if the user has any devices with push tokens
+      const devicesWithPushTokens = user.devices?.filter(device => device.pushToken);
+
+      if (!devicesWithPushTokens || devicesWithPushTokens.length === 0) {
+        logger.info(`No push-enabled devices found for user ${user._id}`);
+        return;
+      }
+
+      // Extract push tokens from devices and filter out undefined values
+      const pushTokens = devicesWithPushTokens
+        .map(device => device.pushToken)
+        .filter((token): token is string => token !== undefined && token !== null);
+
+      // If no valid tokens, exit early
+      if (pushTokens.length === 0) {
+        logger.info(`No valid push tokens found for user ${user._id}`);
+        return;
+      }
+
+      // Check notification type to determine if it should be sent
+      let shouldSend = true;
+
+      // Get user's push notification preferences
+      const preferences = {
+        transactions: true,
+        transactionUpdates: true,
+        purchaseConfirmations: true,
+        saleConfirmations: true,
+        security: true
+      };
+
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
+        // For transaction notifications, check specific transaction preferences
+        const metadata = notification.metadata || {};
+
+        if (metadata.transactionType === 'BUY_MYPTS' && !preferences.purchaseConfirmations) {
+          shouldSend = false;
+        } else if (metadata.transactionType === 'SELL_MYPTS' && !preferences.saleConfirmations) {
+          shouldSend = false;
+        } else if (!preferences.transactions) {
+          shouldSend = false;
+        }
+      } else if (notification.type === 'security_alert' && !preferences.security) {
+        shouldSend = false;
+      }
+
+      if (!shouldSend) {
+        logger.info(`Push notification type ${notification.type} disabled for user ${user._id}`);
+        return;
+      }
+
+      // Declare result container for firebase response
+      let result: { success: number; failure: number; invalidTokens: string[] };
+
+      // Send notification based on type
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction' && notification.metadata) {
+        // For transaction notifications, send multicast with transaction metadata
+        const data: Record<string, string> = {
+          notificationType: notification.type,
+          notificationId: notification._id.toString(),
+          relatedModel: notification.relatedTo.model,
+          relatedId: notification.relatedTo.id.toString(),
+          transactionType: notification.metadata.transactionType || 'Transaction',
+          amount: `${notification.metadata.amount || 0}`,
+          status: notification.metadata.status || 'Unknown'
+        };
+        result = await firebaseService.sendMulticastPushNotification(
+          pushTokens,
+          notification.title,
+          notification.message,
+          data
+        );
+      } else {
+        // For other notifications, use the standard template
+        // Create data object with proper type definition
+        const data: {
+          notificationType: string;
+          notificationId: string;
+          clickAction: string;
+          url: string;
+          timestamp: string;
+          relatedModel?: string;
+          relatedId?: string;
+        } = {
+          notificationType: notification.type,
+          notificationId: notification._id ? notification._id.toString() : '',
+          clickAction: notification.action?.url ? 'OPEN_URL' : 'OPEN_APP',
+          url: notification.action?.url || '',
+          timestamp: Date.now().toString()
+        };
+
+        if (notification.relatedTo) {
+          data.relatedModel = notification.relatedTo.model;
+          data.relatedId = notification.relatedTo.id.toString();
+        }
+
+        result = await firebaseService.sendMulticastPushNotification(
+          pushTokens,
+          notification.title,
+          notification.message,
+          data
+        );
+      }
+
+      // Handle invalid tokens
+      if (result.invalidTokens.length > 0) {
+        logger.info(`Found ${result.invalidTokens.length} invalid push tokens for user ${user._id}`);
+
+        // Remove invalid tokens from user's devices
+        await User.updateOne(
+          { _id: user._id },
+          {
+            $pull: {
+              devices: {
+                pushToken: { $in: result.invalidTokens }
+              }
+            }
+          }
+        );
+      }
+
+      logger.info(`Push notification sent to ${result.success} devices for user ${user._id}`);
     } catch (error) {
-      console.error('Error in sendPushNotification:', error);
       logger.error('Error sending push notification:', error);
     }
   }
 
+  private async sendEmailNotification(notification: INotification, user: any) {
+    try {
+      if (!user.email) {
+        logger.info(`No email found for user ${user._id}`);
+        return;
+      }
+
+      // Check if email notifications are enabled for this user
+      if (!user.notifications.email) {
+        logger.info(`Email notifications disabled for user ${user._id}`);
+        return;
+      }
+
+      // Check notification type to determine email template and content
+      let emailSubject = notification.title;
+      let emailTemplate = 'notification-email';
+      let templateData: any = {
+        title: notification.title,
+        message: notification.message,
+        actionUrl: notification.action?.url || '',
+        actionText: notification.action?.text || '',
+        appName: 'MyPts',
+        year: new Date().getFullYear()
+      };
+
+      // For transaction notifications, use specific templates based on transaction type
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
+        templateData.transactionId = notification.relatedTo.id;
+        templateData.metadata = notification.metadata || {};
+
+        // Add timestamp if not present
+        if (!templateData.metadata.timestamp) {
+          templateData.metadata.timestamp = new Date().toISOString();
+        }
+
+        // Choose template based on transaction type
+        if (templateData.metadata.transactionType === 'BUY_MYPTS') {
+          emailTemplate = 'purchase-confirmation-email';
+          emailSubject = 'Purchase Confirmation - MyPts';
+        } else if (templateData.metadata.transactionType === 'SELL_MYPTS') {
+          emailTemplate = 'sale-confirmation-email';
+          emailSubject = 'Sale Confirmation - MyPts';
+        } else {
+          emailTemplate = 'transaction-notification';
+        }
+      } else if (notification.type === 'security_alert') {
+        emailTemplate = 'security-alert-email';
+        templateData.metadata = notification.metadata || {};
+
+        // Add timestamp if not present
+        if (!templateData.metadata.timestamp) {
+          templateData.metadata.timestamp = new Date().toISOString();
+        }
+      }
+
+      // Load and compile the template
+      try {
+        const template = await EmailService.loadAndCompileTemplate(emailTemplate);
+        const emailContent = template(templateData);
+
+        // Send the email
+        await EmailService.sendEmail(user.email, emailSubject, emailContent);
+        logger.info(`Email notification sent to ${user.email} using template ${emailTemplate}`);
+      } catch (templateError) {
+        // Fallback to a simple email if template fails
+        logger.error(`Error with email template ${emailTemplate}, falling back to simple email: ${templateError}`);
+        await EmailService.sendAdminNotification(
+          user.email,
+          emailSubject,
+          `<p>${notification.message}</p>` +
+          (notification.action ? `<p><a href="${notification.action.url}">${notification.action.text}</a></p>` : '')
+        );
+      }
+    } catch (error) {
+      logger.error('Error sending email notification:', error);
+    }
+  }
+
+  private async sendTelegramNotification(notification: INotification, user: any) {
+    logger.info(`Attempting to send Telegram notification for user ${user._id}`, {
+      notificationType: notification.type,
+      relatedModel: notification.relatedTo?.model,
+      relatedId: notification.relatedTo?.id,
+      userTelegramSettings: user.telegramNotifications || 'Not available'
+    });
+    const metadataMap: Map<string, any> = notification.metadata instanceof Map
+      ? notification.metadata
+      : new Map(Object.entries(notification.metadata || {}));
+    try {
+      // Double-check if telegramNotifications is available
+      if (!user.telegramNotifications) {
+        logger.error(`Telegram notifications object not available for user ${user._id} - trying to reload user`);
+        // Try to reload the user with explicit selection of telegramNotifications
+        user = await User.findById(user._id).select('+telegramNotifications');
+
+        if (!user || !user.telegramNotifications) {
+          logger.error(`Failed to reload user ${user._id} with telegramNotifications`);
+          return;
+        }
+
+        logger.info(`Successfully reloaded user ${user._id} with telegramNotifications`, {
+          telegramEnabled: user.telegramNotifications.enabled,
+          telegramUsername: user.telegramNotifications.username,
+          telegramId: user.telegramNotifications.telegramId
+        });
+      }
+
+      if (!user.telegramNotifications?.enabled) {
+        logger.info(`Telegram notifications not enabled for user ${user._id}`);
+        return;
+      }
+
+      // Check for either username or telegramId
+      if (!user.telegramNotifications?.username && !user.telegramNotifications?.telegramId) {
+        logger.info(`No Telegram username or ID set for user ${user._id}`);
+        return;
+      }
+
+      // Prefer telegramId if available, otherwise use username
+      const telegramId = user.telegramNotifications.telegramId;
+      const telegramUsername = user.telegramNotifications.username;
+
+      // Double-check that we have at least one valid recipient
+      if (!telegramId && !telegramUsername) {
+        logger.warn(`User ${user._id} has Telegram notifications enabled but no recipient information`);
+        return;
+      }
+
+      const telegramRecipient = telegramId || telegramUsername;
+
+      logger.info(`User ${user._id} has Telegram notifications enabled with recipient: ${telegramRecipient}`, {
+        telegramId,
+        telegramUsername,
+        telegramEnabled: user.telegramNotifications.enabled,
+        telegramPreferences: user.telegramNotifications.preferences
+      });
+
+      logger.info(`Preparing to send Telegram notification to user ${user._id} via ${telegramId ? 'ID: ' + telegramId : '@' + telegramUsername}`);
+
+      // Check if this notification type is enabled for Telegram
+      const preferences = user.telegramNotifications.preferences || {
+        transactions: true,
+        transactionUpdates: true,
+        purchaseConfirmations: true,
+        saleConfirmations: true,
+        security: true,
+        connectionRequests: false,
+        messages: false
+      };
+
+      logger.info(`User ${user._id} Telegram preferences: ${JSON.stringify(preferences)}`);
+
+      // Check notification type to determine if it should be sent
+      let shouldSend = true;
+
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
+        // For transaction notifications, check specific transaction preferences
+        const txType = metadataMap.get('transactionType') || 'Transaction';
+        const txAmount = metadataMap.get('amount') || 0;
+        const txBalance = metadataMap.get('balance') || 0;
+        const txStatus = metadataMap.get('status') || 'Unknown';
+
+        if (txType === 'BUY_MYPTS' && !preferences.purchaseConfirmations) {
+          logger.info(`Purchase confirmations disabled for user ${user._id}`);
+          shouldSend = false;
+        } else if (txType === 'SELL_MYPTS' && !preferences.saleConfirmations) {
+          logger.info(`Sale confirmations disabled for user ${user._id}`);
+          shouldSend = false;
+        } else if (!preferences.transactions) {
+          logger.info(`Transaction notifications disabled for user ${user._id}`);
+          shouldSend = false;
+        } else {
+          // Default to true for transaction notifications
+          logger.info(`Transaction notifications enabled for user ${user._id}`);
+          shouldSend = true;
+        }
+      } else if (notification.type === 'security_alert' && !preferences.security) {
+        logger.info(`Security alerts disabled for user ${user._id}`);
+        shouldSend = false;
+      }
+
+      if (!shouldSend) {
+        logger.info(`Telegram notification type ${notification.type} disabled for user ${user._id}`);
+        return;
+      }
+
+      logger.info(`Proceeding to send Telegram notification to ${telegramId ? 'ID: ' + telegramId : '@' + telegramUsername}`);
+
+      // Send notification based on type
+      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction' && notification.metadata) {
+        logger.info(`Sending transaction notification via Telegram to ${telegramRecipient}`);
+        logger.info(`Transaction metadata: ${JSON.stringify(Object.fromEntries(metadataMap))}`);
+
+        const transactionId = notification.relatedTo.id.toString();
+
+        // Use the action URL if provided, otherwise construct one
+        let transactionDetailUrl;
+        if (notification.action?.url) {
+          // Use the provided URL but ensure it has https:// prefix
+          transactionDetailUrl = notification.action.url.startsWith('http')
+            ? notification.action.url
+            : `https://${notification.action.url}`;
+        } else {
+          // Construct a URL with the proper base URL
+          const baseUrl = process.env.CLIENT_URL || "https://my-pts-dashboard-management.vercel.app";
+          // Ensure the base URL has the https:// prefix
+          const formattedBaseUrl = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
+          transactionDetailUrl = `${formattedBaseUrl}/dashboard/transactions/${transactionId}`;
+        }
+
+        logger.info(`Transaction detail URL for notification: ${transactionDetailUrl}`);
+
+        // Extract values from metadata map
+        const txType = metadataMap.get('transactionType') || 'Transaction';
+        const txAmount = metadataMap.get('amount') || 0;
+        const txBalance = metadataMap.get('balance') || 0;
+        const txStatus = metadataMap.get('status') || 'Unknown';
+        const result = await telegramService.sendTransactionNotification(
+          telegramRecipient,
+          notification.title,
+          notification.message,
+          {
+            id: transactionId,
+            type: txType,
+            amount: txAmount,
+            balance: txBalance,
+            status: txStatus
+          },
+          transactionDetailUrl
+        );
+
+        logger.info(`Transaction notification result: ${result ? 'Success' : 'Failed'}`);
+      } else {
+        logger.info(`Sending standard notification via Telegram to ${telegramRecipient}`);
+
+        const result = await telegramService.sendNotification(
+          telegramRecipient,
+          notification.title,
+          notification.message,
+          notification.action?.url,
+          notification.action?.text
+        );
+
+        logger.info(`Standard notification result: ${result ? 'Success' : 'Failed'}`);
+      }
+
+      logger.info(`Telegram notification sent to ${telegramId ? 'ID: ' + telegramId : '@' + telegramUsername}`);
+    } catch (error) {
+      logger.error('Error sending Telegram notification:', error);
+    }
+  }
+
   async createNotification(data: Partial<INotification | any>) {
-    console.log('Entering createNotification with data:', data);
     try {
       const notification = await Notification.create(data);
       notificationEvents.emit('notification:created', notification);
       return notification;
     } catch (error) {
-      console.error('Error in createNotification:', error);
       logger.error('Error creating notification:', error);
       throw error;
     }
@@ -69,7 +530,6 @@ export class NotificationService {
     limit?: number;
     page?: number;
   }) {
-    console.log('Entering getUserNotifications with userId and query:', userId, query);
     try {
       const { isRead, isArchived = false, limit = 10, page = 1 } = query;
 
@@ -100,13 +560,11 @@ export class NotificationService {
         },
       };
     } catch (error) {
-      console.error('Error in getUserNotifications:', error);
       logger.error('Error getting user notifications:', error);
     }
   }
 
   async markAsRead(notificationId: mongoose.Types.ObjectId, userId: mongoose.Types.ObjectId) {
-    console.log('Entering markAsRead with notificationId and userId:', notificationId, userId);
     try {
       return Notification.findOneAndUpdate(
         { _id: notificationId, recipient: userId },
@@ -114,26 +572,22 @@ export class NotificationService {
         { new: true }
       );
     } catch (error) {
-      console.error('Error in markAsRead:', error);
       logger.error('Error marking notification as read:', error);
     }
   }
 
   async markAllAsRead(userId: mongoose.Types.ObjectId) {
-    console.log('Entering markAllAsRead with userId:', userId);
     try {
       return Notification.updateMany(
         { recipient: userId, isRead: false },
         { isRead: true }
       );
     } catch (error) {
-      console.error('Error in markAllAsRead:', error);
       logger.error('Error marking all notifications as read:', error);
     }
   }
 
   async archiveNotification(notificationId: mongoose.Types.ObjectId, userId: mongoose.Types.ObjectId) {
-    console.log('Entering archiveNotification with notificationId and userId:', notificationId, userId);
     try {
       return Notification.findOneAndUpdate(
         { _id: notificationId, recipient: userId },
@@ -141,24 +595,20 @@ export class NotificationService {
         { new: true }
       );
     } catch (error) {
-      console.error('Error in archiveNotification:', error);
       logger.error('Error archiving notification:', error);
     }
   }
 
   async deleteNotification(notificationId: mongoose.Types.ObjectId, userId: mongoose.Types.ObjectId) {
-    console.log('Entering deleteNotification with notificationId and userId:', notificationId, userId);
     try {
       return Notification.findOneAndDelete({ _id: notificationId, recipient: userId });
     } catch (error) {
-      console.error('Error in deleteNotification:', error);
       logger.error('Error deleting notification:', error);
     }
   }
 
   // Helper method to create common notification types
   async createProfileViewNotification(profileId: mongoose.Types.ObjectId, viewerId: mongoose.Types.ObjectId, profileOwnerId: mongoose.Types.ObjectId) {
-    console.log('Entering createProfileViewNotification with profileId, viewerId, and profileOwnerId:', profileId, viewerId, profileOwnerId);
     try {
       const viewer:any = await User.findById(viewerId).select('firstName lastName');
       if (!viewer) return;
@@ -175,13 +625,11 @@ export class NotificationService {
         priority: 'low',
       });
     } catch (error :any) {
-      console.error('Error in createProfileViewNotification:', error);
       logger.error('Error creating profile view notification:', error);
     }
   }
 
   async createConnectionRequestNotification(requesterId: mongoose.Types.ObjectId, recipientId: mongoose.Types.ObjectId) {
-    console.log('Entering createConnectionRequestNotification with requesterId and recipientId:', requesterId, recipientId);
     try {
       const requester:any = await User.findById(requesterId).select('firstName lastName');
       if (!requester) return;
@@ -202,13 +650,11 @@ export class NotificationService {
         priority: 'medium',
       });
     } catch (error) {
-      console.error('Error in createConnectionRequestNotification:', error);
       logger.error('Error creating connection request notification:', error);
     }
   }
 
   async createProfileConnectionRequestNotification(requesterProfileId: mongoose.Types.ObjectId, receiverProfileId: mongoose.Types.ObjectId, connectionId: mongoose.Types.ObjectId) {
-    console.log('Entering createProfileConnectionRequestNotification with requesterProfileId and receiverProfileId:', requesterProfileId, receiverProfileId);
     try {
       // Get the profiles
       const ProfileModel = mongoose.model('Profile');
@@ -240,13 +686,11 @@ export class NotificationService {
         }
       });
     } catch (error) {
-      console.error('Error in createProfileConnectionRequestNotification:', error);
       logger.error('Error creating profile connection request notification:', error);
     }
   }
 
   async createProfileConnectionAcceptedNotification(requesterProfileId: mongoose.Types.ObjectId, receiverProfileId: mongoose.Types.ObjectId, connectionId: mongoose.Types.ObjectId) {
-    console.log('Entering createProfileConnectionAcceptedNotification with requesterProfileId and receiverProfileId:', requesterProfileId, receiverProfileId);
     try {
       // Get the profiles
       const ProfileModel = mongoose.model('Profile');
@@ -278,13 +722,11 @@ export class NotificationService {
         }
       });
     } catch (error) {
-      console.error('Error in createProfileConnectionAcceptedNotification:', error);
       logger.error('Error creating profile connection accepted notification:', error);
     }
   }
 
   async createEndorsementNotification(endorserId: mongoose.Types.ObjectId, recipientId: mongoose.Types.ObjectId, skill: string) {
-    console.log('Entering createEndorsementNotification with endorserId, recipientId, and skill:', endorserId, recipientId, skill);
     try {
       const endorser:any = await User.findById(endorserId).select('firstName lastName');
       if (!endorser) return;
@@ -301,8 +743,27 @@ export class NotificationService {
         priority: 'medium',
       });
     } catch (error) {
-      console.error('Error in createEndorsementNotification:', error);
       logger.error('Error creating endorsement notification:', error);
+    }
+  }
+
+  /**
+   * Get the count of unread notifications for a user
+   * @param userId User ID
+   * @returns Count of unread notifications
+   */
+  async getUnreadCount(userId: mongoose.Types.ObjectId): Promise<number> {
+    try {
+      const count = await Notification.countDocuments({
+        recipient: userId,
+        isRead: false,
+        isArchived: false
+      });
+
+      return count;
+    } catch (error) {
+      logger.error('Error getting unread notification count:', error);
+      return 0;
     }
   }
 }

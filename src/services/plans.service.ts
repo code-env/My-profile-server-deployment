@@ -26,7 +26,7 @@ class PlanService {
         }
     }
 
-    async validatePlan(planType: PlanType, data: any, isPartial: boolean = false) {
+      async validatePlan(planType: PlanType, data: any, isPartial: boolean = false) {
         if (isPartial) {
             return PlanValidator.validatePartialPlan(planType, data);
         }
@@ -65,7 +65,7 @@ class PlanService {
         );
 
         if (error) {
-            throw new Error(`Validation failed: ${error.details.map(d => d.message).join(', ')}`);
+            throw new Error(`Validation failed: ${error.details.map((d: { message: any; }) => d.message).join(', ')}`);
         }
 
         // Update the plan
@@ -1073,6 +1073,5 @@ class PlanService {
     }
     
 }
-
 
 export default new PlanService();

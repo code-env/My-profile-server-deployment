@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface INotification extends Document {
+  _id: mongoose.Types.ObjectId;
   recipient: mongoose.Types.ObjectId;
   sender?: mongoose.Types.ObjectId;
   type: string;
@@ -49,6 +50,9 @@ const notificationSchema = new Schema<INotification>(
         'security_alert',
         'system_notification',
         'achievement_unlocked',
+        'sell_submitted',
+        'sell_request',
+        'sell_completed'
       ],
     },
     title: {
@@ -62,7 +66,7 @@ const notificationSchema = new Schema<INotification>(
     relatedTo: {
       model: {
         type: String,
-        enum: ['Profile', 'User', 'Comment', 'Message'],
+        enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction'],
       },
       id: {
         type: Schema.Types.ObjectId,

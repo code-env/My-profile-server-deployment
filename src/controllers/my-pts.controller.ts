@@ -344,7 +344,30 @@ export const buyMyPts = async (req: Request, res: Response) => {
             transactionId: transaction._id
           });
 
-          // Process the successful payment (will be handled by webhook)
+          // Process the successful payment
+          // Update transaction status to completed
+          transaction.status = TransactionStatus.COMPLETED;
+          await transaction.save();
+
+          // Update MyPts balance
+          myPts.balance += amount;
+          myPts.lifetimeEarned += amount;
+          myPts.lastTransaction = new Date();
+          await myPts.save();
+
+          // Notify the user of the completed transaction
+          try {
+            console.log('[DIRECT_PURCHASE] About to call notifyUserOfCompletedTransaction for transaction:', transaction._id.toString());
+            logger.info(`[DIRECT_PURCHASE] Notifying user of completed transaction: ${transaction._id}`);
+            await notifyUserOfCompletedTransaction(transaction);
+            console.log('[DIRECT_PURCHASE] Successfully called notifyUserOfCompletedTransaction for transaction:', transaction._id.toString());
+            logger.info(`[DIRECT_PURCHASE] User notified of completed transaction: ${transaction._id}`);
+          } catch (notifyError) {
+            console.log('[DIRECT_PURCHASE] Error calling notifyUserOfCompletedTransaction:', notifyError);
+            logger.error(`[DIRECT_PURCHASE] Error notifying user of completed transaction: ${transaction._id}`, notifyError);
+            // Continue even if notification fails
+          }
+
           return res.status(200).json({
             success: true,
             requiresAction: false,
@@ -508,11 +531,46 @@ export const sellMyPts = async (req: Request, res: Response) => {
 
       await session.commitTransaction();
 
-      // Store the transaction for the response
+      // Commit and respond immediately
       transactionRecord = transaction[0];
 
-      // Send notification to admin for approval
-      await notifyAdminsOfTransaction(transactionRecord);
+      // Immediate response
+      res.status(200).json({
+        success: true,
+        data: {
+          transaction: transactionRecord,
+          balance: myPts.balance, // Current balance (unchanged)
+          status: TransactionStatus.RESERVED,
+          message: 'Your sell request has been submitted and is pending admin approval. Your MyPts will remain in your account until approved. You will be notified once processed.'
+        }
+      });
+
+      // Fire-and-forget notifications
+      (async () => {
+        try {
+          await notifyAdminsOfTransaction(transactionRecord);
+        } catch (err) {
+          logger.error('Error notifying admins of sell request:', err);
+        }
+        try {
+          const notifService = new NotificationService();
+
+          await notifService.createNotification({
+            recipient: profile.owner,
+            type: 'sell_submitted',
+            title: 'MyPts Sale Request Submitted',
+            message: `Your request to sell ${amount} MyPts is pending admin approval.`,
+            relatedTo: {
+              model: 'Transaction',
+              id: transactionRecord._id
+            },
+            priority: 'low',
+          });
+        } catch (err) {
+          logger.error('Error sending sell_submitted notification:', err);
+        }
+      })();
+      return;
     } catch (error) {
       await session.abortTransaction();
       throw error;
@@ -520,15 +578,6 @@ export const sellMyPts = async (req: Request, res: Response) => {
       session.endSession();
     }
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        transaction: transactionRecord,
-        balance: myPts.balance, // Current balance (unchanged)
-        status: TransactionStatus.RESERVED,
-        message: 'Your sell request has been submitted and is pending admin approval. Your MyPts will remain in your account until approved. You will be notified once processed.'
-      }
-    });
   } catch (error: any) {
     logger.error(`Error selling MyPts: ${error.message}`, { error });
     return res.status(500).json({ success: false, message: 'Failed to sell MyPts' });
@@ -810,8 +859,8 @@ export const rejectSellTransaction = async (req: Request, res: Response) => {
       await notificationService.createNotification({
         recipient: profile.owner,
         type: 'system_notification',
-        title: 'Sell Request Rejected',
-        message: `Your request to sell ${transaction.metadata?.requestedAmount || Math.abs(transaction.amount)} MyPts has been rejected.`,
+        title: 'MyPts Sale Declined',
+        message: `We regret to inform you that your sale request for ${transaction.metadata?.requestedAmount || Math.abs(transaction.amount)} MyPts has been declined.${reason ? ` Reason: ${reason}.` : ''} Please visit your dashboard for more details or contact our support team if you need assistance.`,
         relatedTo: {
           model: 'Transaction',
           id: transaction._id
@@ -832,19 +881,19 @@ export const rejectSellTransaction = async (req: Request, res: Response) => {
       try {
         const user = await mongoose.model('User').findById(profile.owner);
         if (user && user.email) {
-          const emailSubject = 'MyPts Sell Request Rejected';
+          const emailSubject = 'MyPts Sale Request Declined';
 
           // Create email content
           const emailContent = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #333;">Sell Request Rejected</h2>
-              <p>Your request to sell ${transaction.metadata?.requestedAmount || Math.abs(transaction.amount)} MyPts has been rejected.</p>
+              <h2 style="color: #333;">MyPts Sale Request Declined</h2>
+              <p>We regret to inform you that your sale request for ${transaction.metadata?.requestedAmount || Math.abs(transaction.amount)} MyPts has been declined.${reason ? ` Reason: ${reason}.` : ''} Please review the details in your dashboard or contact our support team for assistance.</p>
               <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                <p><strong>Reason:</strong> ${reason || 'Rejected by admin'}</p>
+                <p><strong>Reason for Decline:</strong> ${reason || 'Rejected by admin'}</p>
                 <p><strong>Transaction ID:</strong> ${transaction._id}</p>
                 <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
               </div>
-              <p>If you have any questions, please contact support.</p>
+              <p>Thank you for choosing MyPts. We’re here to help if you need any support.</p>
             </div>
           `;
 
@@ -1276,7 +1325,7 @@ export const awardMyPts = async (req: Request, res: Response) => {
         amount - hub.reserveSupply,
         `Automatic issuance for admin award to profile ${profileId}`,
         mongoose.Types.ObjectId.createFromHexString(user._id),
-        { automatic: true, profileId, reason }
+        { automatic: true, profileId: profileId, reason }
       );
     }
 

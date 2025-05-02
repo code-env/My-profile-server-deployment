@@ -1,5 +1,6 @@
 import { IBooking } from './booking.schema';
 import Joi from 'joi/lib';
+
 import mongoose, { Document, Schema, Model, Types } from 'mongoose';
 
 export enum PlanType {
@@ -111,10 +112,10 @@ const PlanSchema = new Schema<IPlan>(
     endTime: { type: Date },
     duration: { type: Number },
     repeat: {
-      frequency: { 
-        type: String, 
-        enum: ['none', 'daily', 'weekly', 'monthly', 'yearly', 'custom'], 
-        default: 'none' 
+      frequency: {
+        type: String,
+        enum: ['none', 'daily', 'weekly', 'monthly', 'yearly', 'custom'],
+        default: 'none'
       },
       interval: { type: Number, default: 1 },
       daysOfWeek: [{ type: Number, min: 0, max: 6 }],
@@ -125,16 +126,16 @@ const PlanSchema = new Schema<IPlan>(
       timeBefore: { type: Number, required: true },
       type: { type: String, enum: ['before', 'after', 'at time'], default: 'before' },
       status: { type: String, enum: ['pending', 'sent', 'failed'], default: 'pending' },
-      method: { 
-        type: String, 
-        enum: ['notification', 'email', 'sms', 'call'], 
-        default: 'notification' 
+      method: {
+        type: String,
+        enum: ['notification', 'email', 'sms', 'call'],
+        default: 'notification'
       }
     }],
-    visibility: { 
-      type: String, 
-      enum: ['public', 'private', 'selected'], 
-      default: 'private' 
+    visibility: {
+      type: String,
+      enum: ['public', 'private', 'selected'],
+      default: 'private'
     },
     participants: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
     color: { type: String, default: '#1DA1F2' },
@@ -142,11 +143,11 @@ const PlanSchema = new Schema<IPlan>(
       points: { type: Number, default: 0 },
       description: { type: String }
     },
-      
-    priority: { 
-      type: String, 
-      enum: ['low', 'medium', 'high', 'critical'], 
-      default: 'medium' 
+
+    priority: {
+      type: String,
+      enum: ['low', 'medium', 'high', 'critical'],
+      default: 'medium'
     },
     notes: { type: String },
     attachments: [{
@@ -218,7 +219,7 @@ const PlanSchema = new Schema<IPlan>(
     updatedAt: { type: Date, default: Date.now },
     planType: { type: String, required: true, enum: ['task', 'event', 'meeting', 'appointment', 'celebration'] }
   },
-  { 
+  {
     timestamps: true,
     discriminatorKey: 'planType'
   }

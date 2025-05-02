@@ -54,12 +54,17 @@ const my_pts_value_routes_1 = __importDefault(require("./my-pts-value.routes"));
 const my_pts_hub_routes_1 = __importDefault(require("./my-pts-hub.routes"));
 const admin_notification_routes_1 = __importDefault(require("./admin-notification.routes"));
 const stripe_routes_1 = __importDefault(require("./stripe.routes"));
+const notification_routes_1 = __importDefault(require("./notification.routes"));
+const user_notification_preferences_routes_1 = __importDefault(require("./user-notification-preferences.routes"));
+const notification_test_routes_1 = __importDefault(require("./notification-test.routes"));
+const user_device_routes_1 = __importDefault(require("./user-device.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
+const analytics_routes_1 = __importDefault(require("./analytics.routes"));
 const enforce_license_middleware_1 = require("../middleware/enforce-license.middleware");
 const express_session_1 = __importDefault(require("express-session"));
 const passport_1 = __importDefault(require("passport"));
-const socials_auth_route_1 = __importDefault(require("./socials.auth.route"));
+const auth_social_routes_1 = __importDefault(require("./auth.social.routes"));
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -87,10 +92,18 @@ const setupRoutes = (app) => {
     }));
     app.use(passport_1.default.initialize());
     app.use(passport_1.default.session());
+    // Direct route for Google OAuth callback to match what's configured in Google Developer Console
+    app.get('/api/auth/google/callback', (req, res, next) => {
+        console.log('Received Google callback at /api/auth/google/callback');
+        // Import the controller
+        const { SocialAuthController } = require('../controllers/auth.social.controller');
+        // Call the controller method directly
+        SocialAuthController.googleCallback(req, res, next);
+    });
     // Public routes
     app.use('/api/auth', auth_routes_1.default);
     app.use('/api/users', user_routes_1.default);
-    app.use('/api/sauth', socials_auth_route_1.default);
+    app.use('/api/auth/social', auth_social_routes_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     // app.use('/api/connections', protect, connectionRoutes);
@@ -98,12 +111,17 @@ const setupRoutes = (app) => {
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
     app.use('/api/plans', auth_middleware_1.protect, plan_routes_1.default);
     app.use('/api/relationships', auth_middleware_1.protect, relationshipType_routes_1.default);
+    app.use('/api/analytics', auth_middleware_1.protect, analytics_routes_1.default);
     app.use('/api/logs', logs_routes_1.default);
     app.use('/api/my-pts', auth_middleware_1.protect, my_pts_routes_1.default);
     app.use('/api/my-pts-value', auth_middleware_1.protect, my_pts_value_routes_1.default);
     app.use('/api/my-pts-hub', auth_middleware_1.protect, my_pts_hub_routes_1.default);
     app.use('/api/admin/notifications', auth_middleware_1.protect, admin_notification_routes_1.default);
     app.use('/api/stripe', stripe_routes_1.default);
+    app.use('/api/notifications', auth_middleware_1.protect, notification_routes_1.default);
+    app.use('/api/user/notification-preferences', auth_middleware_1.protect, user_notification_preferences_routes_1.default);
+    app.use('/api/user/devices', auth_middleware_1.protect, user_device_routes_1.default);
+    app.use('/api/test/notifications', auth_middleware_1.protect, notification_test_routes_1.default);
     // Test email route
     app.get('/api/test/email', async (req, res) => {
         try {

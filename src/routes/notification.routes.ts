@@ -1,30 +1,33 @@
 import express from 'express';
 import { protect } from '../middleware/auth.middleware';
-import {
-  getNotifications,
-  markAsRead,
-  markAllAsRead,
-  archiveNotification,
-  deleteNotification,
-} from '../controllers/notification.controller';
+import { NotificationController } from '../controllers/notification.controller';
 
 const router = express.Router();
 
 router.use(protect);
 
+// Get user notifications
 router.route('/')
-  .get(getNotifications);
+  .get(NotificationController.getUserNotifications);
 
+// Get unread notifications count
+router.route('/unread-count')
+  .get(NotificationController.getUnreadNotificationsCount);
+
+// Mark all notifications as read
 router.route('/read-all')
-  .put(markAllAsRead);
+  .put(NotificationController.markAllNotificationsAsRead);
 
+// Mark notification as read
 router.route('/:id/read')
-  .put(markAsRead);
+  .put(NotificationController.markNotificationAsRead);
 
+// Archive notification
 router.route('/:id/archive')
-  .put(archiveNotification);
+  .put(NotificationController.archiveNotification);
 
+// Delete notification
 router.route('/:id')
-  .delete(deleteNotification);
+  .delete(NotificationController.deleteNotification);
 
 export default router;

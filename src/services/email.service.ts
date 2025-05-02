@@ -5,6 +5,35 @@ import fs from 'fs';
 import path from 'path';
 import Handlebars from 'handlebars';
 
+// Register Handlebars helpers
+Handlebars.registerHelper('gt', function(a, b) {
+  return a > b;
+});
+
+Handlebars.registerHelper('eq', function(a, b) {
+  return a === b;
+});
+
+Handlebars.registerHelper('formatNumber', function(num) {
+  return num.toLocaleString();
+});
+
+Handlebars.registerHelper('formatDate', function(timestamp) {
+  if (!timestamp) return '';
+
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return '';
+
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+});
+
 class EmailService {
   private static transporter = nodemailer.createTransport({
     // service: "gmail",  // REMOVE THIS LINE
@@ -50,7 +79,7 @@ class EmailService {
     return this.loadAndCompileTemplate(templateName);
   }
 
-  private static async sendEmail(to: string, subject: string, html: string) {
+  public static async sendEmail(to: string, subject: string, html: string) {
     try {
       await this.transporter.sendMail({
         from: `${config.APP_NAME} <${config.SMTP_FROM}>`,

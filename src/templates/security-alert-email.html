@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security Alert</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9f9;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .header {
+      text-align: center;
+      padding: 20px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .logo {
+      max-width: 150px;
+      height: auto;
+    }
+    .content {
+      padding: 20px 0;
+    }
+    .alert-details {
+      background-color: #fef7f7;
+      border-left: 4px solid #dc3545;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    .footer {
+      text-align: center;
+      padding: 20px 0;
+      font-size: 12px;
+      color: #999;
+      border-top: 1px solid #eee;
+    }
+    .button {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #dc3545;
+      color: #ffffff !important;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: bold;
+      margin-top: 15px;
+    }
+    .warning-icon {
+      width: 60px;
+      height: 60px;
+      background-color: #dc3545;
+      border-radius: 50%;
+      margin: 0 auto 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .warning-icon svg {
+      width: 30px;
+      height: 30px;
+      fill: #ffffff;
+    }
+    .device-info {
+      background-color: #f5f5f5;
+      border-radius: 4px;
+      padding: 15px;
+      margin: 15px 0;
+    }
+    .device-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .device-row:last-child {
+      border-bottom: none;
+    }
+    .device-label {
+      font-weight: bold;
+      color: #555;
+    }
+    .device-value {
+      text-align: right;
+    }
+    @media only screen and (max-width: 600px) {
+      .container {
+        width: 100%;
+        border-radius: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="cid:company-logo" alt="{{appName}}" class="logo">
+      <h1>Security Alert</h1>
+    </div>
+    <div class="content">
+      <div style="text-align: center;">
+        <div class="warning-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" fill="#ffffff"/>
+          </svg>
+        </div>
+        <h2>{{title}}</h2>
+      </div>
+      
+      <div class="alert-details">
+        <p>{{message}}</p>
+      </div>
+      
+      {{#if metadata.deviceInfo}}
+      <div class="device-info">
+        <h3>Device Information</h3>
+        
+        <div class="device-row">
+          <span class="device-label">IP Address:</span>
+          <span class="device-value">{{metadata.deviceInfo.ipAddress}}</span>
+        </div>
+        
+        <div class="device-row">
+          <span class="device-label">Device:</span>
+          <span class="device-value">{{metadata.deviceInfo.deviceType}}</span>
+        </div>
+        
+        <div class="device-row">
+          <span class="device-label">Browser:</span>
+          <span class="device-value">{{metadata.deviceInfo.browser}}</span>
+        </div>
+        
+        <div class="device-row">
+          <span class="device-label">Location:</span>
+          <span class="device-value">{{metadata.deviceInfo.location}}</span>
+        </div>
+        
+        <div class="device-row">
+          <span class="device-label">Time:</span>
+          <span class="device-value">{{formatDate metadata.timestamp}}</span>
+        </div>
+      </div>
+      {{/if}}
+      
+      <div style="text-align: center;">
+        <a href="{{actionUrl}}" class="button">{{actionText}}</a>
+      </div>
+      
+      <p style="margin-top: 20px;">If this was you, you can ignore this message. If you didn't perform this action, please secure your account immediately by changing your password and enabling two-factor authentication.</p>
+      
+      <p>For additional help, please contact our support team.</p>
+    </div>
+    <div class="footer">
+      <p>&copy; {{year}} {{appName}}. All rights reserved.</p>
+      <p>This is an automated message, please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>

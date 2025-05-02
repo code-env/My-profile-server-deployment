@@ -38,6 +38,21 @@ interface INotificationPreferences {
   marketing: boolean;
 }
 
+interface ITelegramNotificationPreferences {
+  enabled: boolean;
+  username: string;
+  telegramId?: string;
+  preferences: {
+    transactions: boolean;
+    transactionUpdates: boolean;
+    purchaseConfirmations: boolean;
+    saleConfirmations: boolean;
+    security: boolean;
+    connectionRequests: boolean;
+    messages: boolean;
+  };
+}
+
 export interface IOTPData {
   hash?: string;
   expiry?: Date;
@@ -124,6 +139,7 @@ export interface IUser extends Document {
   biometricAuth: IBiometricAuth;
   devices: IDevice[];
   notifications: INotificationPreferences;
+  telegramNotifications?: ITelegramNotificationPreferences;
   social: {
     followers: mongoose.Types.ObjectId[];
     following: mongoose.Types.ObjectId[];
@@ -296,6 +312,20 @@ const userSchema = new Schema<IUser>(
       push: { type: Boolean, default: true },
       sms: { type: Boolean, default: false },
       marketing: { type: Boolean, default: false },
+    },
+    telegramNotifications: {
+      enabled: { type: Boolean, default: false },
+      username: { type: String, default: '' },
+      telegramId: { type: String }, // No default value - will be set during verification
+      preferences: {
+        transactions: { type: Boolean, default: true },
+        transactionUpdates: { type: Boolean, default: true },
+        purchaseConfirmations: { type: Boolean, default: true },
+        saleConfirmations: { type: Boolean, default: true },
+        security: { type: Boolean, default: true },
+        connectionRequests: { type: Boolean, default: false },
+        messages: { type: Boolean, default: false }
+      }
     },
     social: {
       followers: [{

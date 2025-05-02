@@ -1,105 +1,129 @@
-import { getSetting } from '../models/admin-settings.model';
-import EmailService from './email.service';
-import { logger } from '../utils/logger';
-import { AdminNotificationModel } from '../models/admin-notification.model';
-import { IMyPtsTransaction, TransactionType } from '../interfaces/my-pts.interface';
-import mongoose from 'mongoose';
-import { ProfileModel } from '../models/profile.model';
-import { NotificationService } from './notification.service';
+import { getSetting } from "../models/admin-settings.model";
+import EmailService from "./email.service";
+import { logger } from "../utils/logger";
+import { AdminNotificationModel } from "../models/admin-notification.model";
+import {
+  IMyPtsTransaction,
+  TransactionType,
+} from "../interfaces/my-pts.interface";
+import mongoose from "mongoose";
+import { ProfileModel } from "../models/profile.model";
+import { NotificationService } from "./notification.service";
+import telegramService from "./telegram.service";
+import { User } from "../models/User";
+import { Notification } from "../models/Notification";
 
 /**
  * Send a transaction notification to the admin hub email
  * @param transaction The transaction to notify about
  */
-export const notifyAdminsOfTransaction = async (transaction: IMyPtsTransaction & { _id: mongoose.Types.ObjectId }): Promise<void> => {
+export const notifyAdminsOfTransaction = async (
+  transaction: IMyPtsTransaction & { _id: mongoose.Types.ObjectId }
+): Promise<void> => {
   try {
     // Get admin hub email from settings
-    const adminHubEmail = await getSetting<string>('adminHubEmail', 'admin@mypts.com');
+    const adminHubEmail = await getSetting<string>(
+      "adminHubEmail",
+      "admin@mypts.com"
+    );
 
     // Get notification preferences
     const notificationPreferences = await getSetting<{
       transactions: boolean;
       profileRegistrations: boolean;
       systemAlerts: boolean;
-    }>('notificationPreferences', {
+    }>("notificationPreferences", {
       transactions: true,
       profileRegistrations: true,
-      systemAlerts: true
+      systemAlerts: true,
     });
 
     // Check if transaction notifications are enabled
     if (!notificationPreferences.transactions) {
-      logger.info('Transaction notifications are disabled');
+      logger.info("Transaction notifications are disabled");
       return;
     }
 
     // Fetch profile information
-    const profileInfo = await mongoose.model('Profile').findById(transaction.profileId).lean().exec();
+    const profileInfo = await mongoose
+      .model("Profile")
+      .findById(transaction.profileId)
+      .lean()
+      .exec();
 
     // Determine transaction badge color
-    let transactionBadge = '';
-    let transactionBadgeText = '';
+    let transactionBadge = "";
+    let transactionBadgeText = "";
 
     // Use if/else instead of switch to avoid TypeScript enum comparison issues
     if (transaction.type === TransactionType.BUY_MYPTS) {
-      transactionBadge = 'badge-green';
-      transactionBadgeText = 'Purchase';
+      transactionBadge = "badge-green";
+      transactionBadgeText = "Purchase";
     } else if (transaction.type === TransactionType.SELL_MYPTS) {
-      transactionBadge = 'badge-blue';
-      transactionBadgeText = 'Sale';
+      transactionBadge = "badge-blue";
+      transactionBadgeText = "Sale";
     } else if (transaction.type === TransactionType.EARN_MYPTS) {
-      transactionBadge = 'badge-purple';
-      transactionBadgeText = 'Earned';
+      transactionBadge = "badge-purple";
+      transactionBadgeText = "Earned";
     } else if (transaction.type === TransactionType.PURCHASE_PRODUCT) {
-      transactionBadge = 'badge-red';
-      transactionBadgeText = 'Spent';
+      transactionBadge = "badge-red";
+      transactionBadgeText = "Spent";
     } else if (transaction.type === TransactionType.RECEIVE_PRODUCT_PAYMENT) {
-      transactionBadge = 'badge-green';
-      transactionBadgeText = 'Received';
+      transactionBadge = "badge-green";
+      transactionBadgeText = "Received";
     } else if (transaction.type === TransactionType.DONATION_SENT) {
-      transactionBadge = 'badge-purple';
-      transactionBadgeText = 'Donation Sent';
+      transactionBadge = "badge-purple";
+      transactionBadgeText = "Donation Sent";
     } else if (transaction.type === TransactionType.DONATION_RECEIVED) {
-      transactionBadge = 'badge-green';
-      transactionBadgeText = 'Donation Received';
+      transactionBadge = "badge-green";
+      transactionBadgeText = "Donation Received";
     } else if (transaction.type === TransactionType.ADJUSTMENT) {
-      transactionBadge = 'badge-purple';
-      transactionBadgeText = 'Adjustment';
+      transactionBadge = "badge-purple";
+      transactionBadgeText = "Adjustment";
     } else {
       // Default case for any other transaction types
-      transactionBadge = 'badge-blue';
-      transactionBadgeText = 'Transaction';
+      transactionBadge = "badge-blue";
+      transactionBadgeText = "Transaction";
     }
 
     // Determine profile badge class
-    let profileBadgeClass = 'badge-blue';
-    if (profileInfo && typeof profileInfo === 'object' && 'type' in profileInfo &&
-        profileInfo.type && typeof profileInfo.type === 'object' && 'category' in profileInfo.type) {
+    let profileBadgeClass = "badge-blue";
+    if (
+      profileInfo &&
+      typeof profileInfo === "object" &&
+      "type" in profileInfo &&
+      profileInfo.type &&
+      typeof profileInfo.type === "object" &&
+      "category" in profileInfo.type
+    ) {
       const category = profileInfo.type.category.toLowerCase();
       switch (category) {
-        case 'individual':
-          profileBadgeClass = 'badge-blue';
+        case "individual":
+          profileBadgeClass = "badge-blue";
           break;
-        case 'functional':
-          profileBadgeClass = 'badge-green';
+        case "functional":
+          profileBadgeClass = "badge-green";
           break;
-        case 'group':
-          profileBadgeClass = 'badge-purple';
+        case "group":
+          profileBadgeClass = "badge-purple";
           break;
         default:
-          profileBadgeClass = 'badge-blue';
+          profileBadgeClass = "badge-blue";
       }
     }
 
     // Format date
-    const formattedDate = new Date(transaction.createdAt).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
+    const formattedDate = new Date(transaction.createdAt).toLocaleString(
+      "en-US",
+      {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }
+    );
 
     // Create email subject
     const emailSubject = `MyPts Transaction: ${transaction.type} - ${Math.abs(transaction.amount)} MyPts`;
@@ -111,48 +135,60 @@ export const notifyAdminsOfTransaction = async (transaction: IMyPtsTransaction &
       }
 
       // Safe property access with type checking
-      const getProfileProperty = (obj: any, prop: string, defaultValue: any = undefined) => {
-        return obj && typeof obj === 'object' && prop in obj ? obj[prop] : defaultValue;
+      const getProfileProperty = (
+        obj: any,
+        prop: string,
+        defaultValue: any = undefined
+      ) => {
+        return obj && typeof obj === "object" && prop in obj
+          ? obj[prop]
+          : defaultValue;
       };
 
       // Get profile name safely
-      const profileName = getProfileProperty(profileInfo, 'name', 'Unknown Profile');
+      const profileName = getProfileProperty(
+        profileInfo,
+        "name",
+        "Unknown Profile"
+      );
 
       // Get profile type information safely
-      const profileType = getProfileProperty(profileInfo, 'type', {});
+      const profileType = getProfileProperty(profileInfo, "type", {});
       const profileCategory =
-        getProfileProperty(profileType, 'category') ||
-        getProfileProperty(profileInfo, 'profileCategory', 'Unknown');
+        getProfileProperty(profileType, "category") ||
+        getProfileProperty(profileInfo, "profileCategory", "Unknown");
       const profileSubtype =
-        getProfileProperty(profileType, 'subtype') ||
-        getProfileProperty(profileInfo, 'profileType');
+        getProfileProperty(profileType, "subtype") ||
+        getProfileProperty(profileInfo, "profileType");
 
       return {
-        id: getProfileProperty(profileInfo, '_id', '').toString(),
+        id: getProfileProperty(profileInfo, "_id", "").toString(),
         name: profileName,
-        initial: (profileName || 'U')[0].toUpperCase(),
-        email: getProfileProperty(profileInfo, 'email'),
-        description: getProfileProperty(profileInfo, 'description'),
+        initial: (profileName || "U")[0].toUpperCase(),
+        email: getProfileProperty(profileInfo, "email"),
+        description: getProfileProperty(profileInfo, "description"),
         category: profileCategory,
         type: profileSubtype,
         badgeClass: profileBadgeClass,
-        claimed: getProfileProperty(profileInfo, 'claimed', false),
-        createdAt: getProfileProperty(profileInfo, 'createdAt')
-          ? new Date(getProfileProperty(profileInfo, 'createdAt')).toLocaleString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
+        claimed: getProfileProperty(profileInfo, "claimed", false),
+        createdAt: getProfileProperty(profileInfo, "createdAt")
+          ? new Date(
+              getProfileProperty(profileInfo, "createdAt")
+            ).toLocaleString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
             })
-          : 'Unknown',
-        profileImage: getProfileProperty(profileInfo, 'profileImage')
+          : "Unknown",
+        profileImage: getProfileProperty(profileInfo, "profileImage"),
       };
     };
 
     // Prepare template data
     const templateData = {
-      appName: 'MyPts',
-      title: 'New MyPts Transaction',
-      subtitle: `${Math.abs(transaction.amount)} MyPts ${transaction.amount > 0 ? 'added to' : 'removed from'} profile`,
+      appName: "MyPts",
+      title: "New MyPts Transaction",
+      subtitle: `${Math.abs(transaction.amount)} MyPts ${transaction.amount > 0 ? "added to" : "removed from"} profile`,
       isTransaction: true,
       transactionType: transaction.type,
       transactionBadge,
@@ -164,13 +200,14 @@ export const notifyAdminsOfTransaction = async (transaction: IMyPtsTransaction &
       description: transaction.description,
       metadata: JSON.stringify(transaction.metadata || {}, null, 2),
       year: new Date().getFullYear(),
-      actionUrl: `${process.env.ADMIN_URL || 'http://localhost:3000'}/admin/transactions`,
-      actionText: 'View All Transactions',
-      profile: getProfileData()
+      actionUrl: `${process.env.ADMIN_URL || "http://localhost:3000"}/admin/transactions`,
+      actionText: "View All Transactions",
+      profile: getProfileData(),
     };
 
     // Load and compile the template
-    const template = await EmailService.loadAndCompileTemplate('apple-notification');
+    const template =
+      await EmailService.loadAndCompileTemplate("apple-notification");
     const emailContent = template(templateData);
 
     // Send email notification
@@ -184,18 +221,18 @@ export const notifyAdminsOfTransaction = async (transaction: IMyPtsTransaction &
 
     // Create admin notification record
     await createAdminNotification({
-      type: 'TRANSACTION',
+      type: "TRANSACTION",
       title: `New Transaction: ${transaction.type}`,
-      message: `${Math.abs(transaction.amount)} MyPts ${transaction.amount > 0 ? 'added to' : 'removed from'} profile ${transaction.profileId}`,
+      message: `${Math.abs(transaction.amount)} MyPts ${transaction.amount > 0 ? "added to" : "removed from"} profile ${transaction.profileId}`,
       referenceId: transaction._id.toString(),
       metadata: {
         transactionType: transaction.type,
         amount: transaction.amount,
-        profileId: transaction.profileId
-      }
+        profileId: transaction.profileId,
+      },
     });
 
-    logger.info('Admin notification created for transaction');
+    logger.info("Admin notification created for transaction");
   } catch (error) {
     logger.error(`Error notifying admins of transaction: ${error}`);
   }
@@ -219,66 +256,69 @@ export const notifyAdminsOfProfileRegistration = async (profile: {
 }): Promise<void> => {
   try {
     // Get admin hub email from settings
-    const adminHubEmail = await getSetting<string>('adminHubEmail', 'admin@mypts.com');
+    const adminHubEmail = await getSetting<string>(
+      "adminHubEmail",
+      "admin@mypts.com"
+    );
 
     // Get notification preferences
     const notificationPreferences = await getSetting<{
       transactions: boolean;
       profileRegistrations: boolean;
       systemAlerts: boolean;
-    }>('notificationPreferences', {
+    }>("notificationPreferences", {
       transactions: true,
       profileRegistrations: true,
-      systemAlerts: true
+      systemAlerts: true,
     });
 
     // Check if profile registration notifications are enabled
     if (!notificationPreferences.profileRegistrations) {
-      logger.info('Profile registration notifications are disabled');
+      logger.info("Profile registration notifications are disabled");
       return;
     }
 
     // Determine profile badge class
-    let profileBadgeClass = 'badge-blue';
+    let profileBadgeClass = "badge-blue";
     if (profile.type?.category) {
       const category = profile.type.category.toLowerCase();
       switch (category) {
-        case 'individual':
-          profileBadgeClass = 'badge-blue';
+        case "individual":
+          profileBadgeClass = "badge-blue";
           break;
-        case 'functional':
-          profileBadgeClass = 'badge-green';
+        case "functional":
+          profileBadgeClass = "badge-green";
           break;
-        case 'group':
-          profileBadgeClass = 'badge-purple';
+        case "group":
+          profileBadgeClass = "badge-purple";
           break;
         default:
-          profileBadgeClass = 'badge-blue';
+          profileBadgeClass = "badge-blue";
       }
     } else if (profile.profileCategory) {
       const category = profile.profileCategory.toLowerCase();
       switch (category) {
-        case 'individual':
-          profileBadgeClass = 'badge-blue';
+        case "individual":
+          profileBadgeClass = "badge-blue";
           break;
-        case 'functional':
-          profileBadgeClass = 'badge-green';
+        case "functional":
+          profileBadgeClass = "badge-green";
           break;
-        case 'group':
-          profileBadgeClass = 'badge-purple';
+        case "group":
+          profileBadgeClass = "badge-purple";
           break;
         default:
-          profileBadgeClass = 'badge-blue';
+          profileBadgeClass = "badge-blue";
       }
     }
 
     // Format date
-    const formattedDate = new Date(profile.createdAt).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    const formattedDate = new Date(profile.createdAt).toLocaleString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
 
     // Create email subject
@@ -288,33 +328,35 @@ export const notifyAdminsOfProfileRegistration = async (profile: {
     const profileData = {
       id: profile._id.toString(),
       name: profile.name,
-      initial: (profile.name || 'U')[0].toUpperCase(),
+      initial: (profile.name || "U")[0].toUpperCase(),
       email: profile.email,
       description: profile.description,
-      category: profile.type?.category || profile.profileCategory || 'Unknown',
+      category: profile.type?.category || profile.profileCategory || "Unknown",
       type: profile.type?.subtype || profile.profileType,
       badgeClass: profileBadgeClass,
       claimed: profile.claimed || false,
       createdAt: formattedDate,
-      profileImage: profile.profileImage
+      profileImage: profile.profileImage,
     };
 
     // Prepare template data
     const templateData = {
-      appName: 'MyPts',
-      title: 'New Profile Registration',
-      subtitle: 'A new profile has been registered in the system',
+      appName: "MyPts",
+      title: "New Profile Registration",
+      subtitle: "A new profile has been registered in the system",
       isTransaction: false,
       date: formattedDate,
-      description: 'A new profile has been registered in the MyPts system. Details are provided below.',
+      description:
+        "A new profile has been registered in the MyPts system. Details are provided below.",
       year: new Date().getFullYear(),
-      actionUrl: `${process.env.ADMIN_URL || 'http://localhost:3000'}/admin/profiles`,
-      actionText: 'View All Profiles',
-      profile: profileData
+      actionUrl: `${process.env.ADMIN_URL || "http://localhost:3000"}/admin/profiles`,
+      actionText: "View All Profiles",
+      profile: profileData,
     };
 
     // Load and compile the template
-    const template = await EmailService.loadAndCompileTemplate('apple-notification');
+    const template =
+      await EmailService.loadAndCompileTemplate("apple-notification");
     const emailContent = template(templateData);
 
     // Send email notification
@@ -324,23 +366,25 @@ export const notifyAdminsOfProfileRegistration = async (profile: {
       emailContent
     );
 
-    logger.info(`Profile registration notification email sent to ${adminHubEmail}`);
+    logger.info(
+      `Profile registration notification email sent to ${adminHubEmail}`
+    );
 
     // Create admin notification record
     await createAdminNotification({
-      type: 'PROFILE_REGISTRATION',
-      title: 'New Profile Registration',
+      type: "PROFILE_REGISTRATION",
+      title: "New Profile Registration",
       message: `New profile registered: ${profile.name}`,
       referenceId: profile._id.toString(),
       metadata: {
         name: profile.name,
         email: profile.email,
         profileType: profile.type?.category || profile.profileCategory,
-        profileSubtype: profile.type?.subtype || profile.profileType
-      }
+        profileSubtype: profile.type?.subtype || profile.profileType,
+      },
     });
 
-    logger.info('Admin notification created for profile registration');
+    logger.info("Admin notification created for profile registration");
   } catch (error) {
     logger.error(`Error notifying admins of profile registration: ${error}`);
   }
@@ -364,18 +408,39 @@ export const createAdminNotification = async (notification: {
       referenceId: notification.referenceId,
       metadata: notification.metadata,
       isRead: false,
-      createdAt: new Date()
+      createdAt: new Date(),
     });
   } catch (error) {
     logger.error(`Error creating admin notification: ${error}`);
   }
 };
 
-/**
- * Notify a user of a completed transaction
- * @param transaction The completed transaction
- */
-export const notifyUserOfCompletedTransaction = async (transaction: IMyPtsTransaction & { _id: mongoose.Types.ObjectId }): Promise<void> => {
+//Notify a user of a completed transaction
+// @param transaction The completed transaction
+export const notifyUserOfCompletedTransaction = async (
+  transaction: IMyPtsTransaction & { _id: mongoose.Types.ObjectId }
+): Promise<void> => {
+  console.log('[DEBUG] Entered notifyUserOfCompletedTransaction', {
+    transactionId: transaction._id,
+    type: transaction.type,
+    amount: transaction.amount,
+  });
+  logger.info("[DEBUG] Entered notifyUserOfCompletedTransaction", {
+    transactionId: transaction._id,
+    type: transaction.type,
+    amount: transaction.amount,
+  });
+
+  // Deduplicate: skip if notification already created for this transaction
+  const existingNotification = await Notification.findOne({
+    'relatedTo.model': 'Transaction',
+    'relatedTo.id': transaction._id,
+  });
+  if (existingNotification) {
+    logger.info(`Skipping duplicate user notification for transaction ${transaction._id}`);
+    return;
+  }
+
   try {
     // Get the profile
     const profile = await ProfileModel.findById(transaction.profileId);
@@ -384,57 +449,81 @@ export const notifyUserOfCompletedTransaction = async (transaction: IMyPtsTransa
       return;
     }
 
-    // Get the user associated with the profile
-    const user = await mongoose.model('User').findById(profile.owner);
+    logger.info(`Found profile for transaction: ${transaction._id}`, {
+      profileId: profile._id,
+      profileOwner: profile.owner,
+    });
+
+    // Get the user associated with the profile with all notification preferences
+    const user = await User.findById(profile.owner).select("+telegramNotifications");
+    console.log('[DEBUG] notifyUserOfCompletedTransaction - retrieved user:', user);
     if (!user) {
       logger.error(`User not found for profile: ${profile._id}`);
       return;
     }
 
+    // Log user details to verify Telegram settings
+    logger.info(`Found user for transaction notification: ${user._id}`, {
+      telegramEnabled: user.telegramNotifications?.enabled,
+      telegramUsername: user.telegramNotifications?.username,
+      telegramId: user.telegramNotifications?.telegramId,
+      telegramPreferences: user.telegramNotifications?.preferences,
+    });
+
     // Create a notification service instance
     const notificationService = new NotificationService();
 
     // Determine transaction type and message
-    let title = 'Transaction Completed';
-    let message = '';
-    let priority: 'low' | 'medium' | 'high' = 'medium';
+    let title = "Transaction Completed";
+    let message = "";
+    let priority: "low" | "medium" | "high" = "medium";
 
     if (transaction.type === TransactionType.SELL_MYPTS) {
-      title = 'MyPts Sale Completed';
+      title = "MyPts Sale Completed";
       message = `Your sale of ${Math.abs(transaction.amount)} MyPts has been processed and payment has been sent.`;
-      priority = 'high';
+      priority = "high";
     } else if (transaction.type === TransactionType.BUY_MYPTS) {
-      title = 'MyPts Purchase Completed';
+      title = "MyPts Purchase Completed";
       message = `Your purchase of ${transaction.amount} MyPts has been completed.`;
-      priority = 'medium';
+      priority = "medium";
     } else {
       title = `${transaction.type} Completed`;
       message = `Your ${transaction.type} transaction of ${Math.abs(transaction.amount)} MyPts has been completed.`;
-      priority = 'medium';
+      priority = "medium";
     }
 
     // Create a notification for the user
-    await notificationService.createNotification({
+    logger.info(`Creating transaction notification for user ${user._id}`, {
+      transactionId: transaction._id,
+      transactionType: transaction.type,
+      amount: transaction.amount,
+    });
+
+    const createdNotification = await notificationService.createNotification({
       recipient: user._id,
-      type: 'system_notification',
+      type: "system_notification",
       title,
       message,
       relatedTo: {
-        model: 'Transaction',
-        id: transaction._id
+        model: "Transaction",
+        id: transaction._id,
       },
       action: {
-        text: 'View Transaction',
-        url: `/dashboard/transactions/${transaction._id}`
+        text: "View Transaction",
+        url: `/dashboard/transactions/${transaction._id}`,
       },
       priority,
       metadata: {
         transactionId: transaction._id.toString(),
         transactionType: transaction.type,
         amount: transaction.amount,
-        balance: transaction.balance
-      }
+        balance: transaction.balance,
+        status: transaction.status || "COMPLETED",
+      },
     });
+
+    console.log('[DEBUG] notifyUserOfCompletedTransaction - createdNotification:', createdNotification);
+    logger.info(`Transaction notification created for user ${user._id}`);
 
     // Send email notification if possible
     try {
@@ -463,7 +552,11 @@ export const notifyUserOfCompletedTransaction = async (transaction: IMyPtsTransa
         `;
 
         // Send the email using the admin notification method
-        await EmailService.sendAdminNotification(user.email, emailSubject, emailContent);
+        await EmailService.sendAdminNotification(
+          user.email,
+          emailSubject,
+          emailContent
+        );
         logger.info(`Transaction completion email sent to ${user.email}`);
       }
     } catch (emailError) {

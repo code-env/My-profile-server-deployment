@@ -7,78 +7,79 @@ import mongoose from 'mongoose';
 
 const notificationService = new NotificationService();
 
-// @desc    Get user notifications
-// @route   GET /api/notifications
-// @access  Private
-export const getNotifications = asyncHandler(async (req: Request, res: Response) => {
-  const user: any = req.user!;
-  const { isRead, isArchived, page, limit } = req.query;
+// Create a NotificationController object to export
+export const NotificationController = {
+  getUserNotifications: asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+    const { isRead, isArchived, page, limit } = req.query;
 
-  const result = await notificationService.getUserNotifications(user._id, {
-    isRead: isRead === 'true',
-    isArchived: isArchived === 'true',
-    page: Number(page) || 1,
-    limit: Number(limit) || 10,
-  });
+    const result = await notificationService.getUserNotifications(user._id, {
+      isRead: isRead === 'true',
+      isArchived: isArchived === 'true',
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
+    });
 
-  res.json(result);
-});
+    res.json(result);
+  }),
 
-// @desc    Mark notification as read
-// @route   PUT /api/notifications/:id/read
-// @access  Private
-export const markAsRead = asyncHandler(async (req: Request, res: Response) => {
-  const user: any = req.user!;
-  const { id } = req.params;
+  markNotificationAsRead: asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+    const { id } = req.params;
 
-  const notification = await notificationService.markAsRead(    new mongoose.Types.ObjectId(id), user._id);
-  
-  if (!notification) {
-    throw createHttpError(404, 'Notification not found');
-  }
+    const notification = await notificationService.markAsRead(new mongoose.Types.ObjectId(id), user._id);
 
-  res.json(notification);
-});
+    if (!notification) {
+      throw createHttpError(404, 'Notification not found');
+    }
 
-// @desc    Mark all notifications as read
-// @route   PUT /api/notifications/read-all
-// @access  Private
-export const markAllAsRead = asyncHandler(async (req: Request, res: Response) => {
-  const user: any = req.user!;
+    res.json(notification);
+  }),
 
-  await notificationService.markAllAsRead(user._id);
-  
-  res.json({ message: 'All notifications marked as read' });
-});
+  markAllNotificationsAsRead: asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
 
-// @desc    Archive notification
-// @route   PUT /api/notifications/:id/archive
-// @access  Private
-export const archiveNotification = asyncHandler(async (req: Request, res: Response) => {
-  const user: any = req.user!;
-  const { id } = req.params;
+    await notificationService.markAllAsRead(user._id);
 
-  const notification = await notificationService.archiveNotification(new mongoose.Types.ObjectId(id), user._id);
-  
-  if (!notification) {
-    throw createHttpError(404, 'Notification not found');
-  }
+    res.json({ message: 'All notifications marked as read' });
+  }),
 
-  res.json(notification);
-});
+  archiveNotification: asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+    const { id } = req.params;
 
-// @desc    Delete notification
-// @route   DELETE /api/notifications/:id
-// @access  Private
-export const deleteNotification = asyncHandler(async (req: Request, res: Response) => {
-  const user: any = req.user!;
-  const { id } = req.params;
+    const notification = await notificationService.archiveNotification(new mongoose.Types.ObjectId(id), user._id);
 
-  const notification = await notificationService.deleteNotification(new mongoose.Types.ObjectId(id), user._id);
-  
-  if (!notification) {
-    throw createHttpError(404, 'Notification not found');
-  }
+    if (!notification) {
+      throw createHttpError(404, 'Notification not found');
+    }
 
-  res.json({ message: 'Notification deleted' });
-});
+    res.json(notification);
+  }),
+
+  deleteNotification: asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+    const { id } = req.params;
+
+    const notification = await notificationService.deleteNotification(new mongoose.Types.ObjectId(id), user._id);
+
+    if (!notification) {
+      throw createHttpError(404, 'Notification not found');
+    }
+
+    res.json({ message: 'Notification deleted' });
+  }),
+
+  getUnreadNotificationsCount: asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    const count = await notificationService.getUnreadCount(user._id);
+
+    res.json({
+      success: true,
+      data: {
+        count
+      }
+    });
+  })
+};

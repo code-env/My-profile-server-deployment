@@ -1,8 +1,10 @@
 import { ProfileModel, ProfileDocument } from '../models/profile.model';
 import { Profile, PersonalInfo, ContactInfo, SocialInfo } from '../types/profile.types';
-import mongoose, { isValidObjectId } from 'mongoose';
+import { isValidObjectId } from 'mongoose';
 import createHttpError from 'http-errors';
 import { logger } from '../utils/logger';
+import { User } from '../models/User';
+import { generateUniqueConnectLink } from '../utils/crypto';
 
 export class ProfileService {
   async createProfile(userId: string): Promise<ProfileDocument> {
@@ -315,7 +317,8 @@ export class ProfileService {
     //   };
     // }
 
-    const projectId = new mongoose.Types.ObjectId();
+    // Uncomment and use this when portfolio functionality is implemented
+    // const projectId = new mongoose.Types.ObjectId();
     // profile.portfolio.projects.push({
     //   id: projectId.toString(),
     //   ...project,
@@ -433,5 +436,74 @@ export class ProfileService {
 
     console.log('✅ Endorsement added successfully');
     return { success: true, message: 'Skill endorsed successfully' };
+  }
+
+  /**
+   * Create a default personal profile for a newly registered user
+   * @param userId The user ID
+   * @returns The created profile
+   */
+  async createDefaultProfile(userId: string): Promise<ProfileDocument> {
+    try {
+      logger.info(`Creating default profile for user: ${userId}`);
+
+      // Check if user already has a profile
+      const existingProfiles = await ProfileModel.find({ owner: userId });
+
+      if (existingProfiles.length > 0) {
+        logger.info(`User ${userId} already has ${existingProfiles.length} profiles. Skipping default profile creation.`);
+        return existingProfiles[0];
+      }
+
+      // Get user data
+      const user = await User.findById(userId);
+      if (!user) {
+        throw createHttpError(404, 'User not found');
+      }
+
+      // Generate a unique connect link
+      const connectLink = await generateUniqueConnectLink();
+
+      // Create a default personal profile
+      const profile = new ProfileModel({
+        name: `${user.fullName}'s Profile`,
+        description: `Personal profile for ${user.fullName}`,
+        profileType: 'personal',
+        profileCategory: 'individual',
+        owner: userId,
+        managers: [userId],
+        connectLink,
+        claimed: true,
+        claimedBy: userId,
+        claimedAt: new Date(),
+        settings: {
+          visibility: 'public',
+          allowComments: true,
+          allowMessages: true,
+          autoAcceptConnections: false,
+          emailNotifications: {
+            connections: true,
+            messages: true,
+            comments: true,
+            mentions: true,
+            updates: true
+          }
+        }
+      });
+
+      // Save the profile
+      const savedProfile = await profile.save();
+
+      // Add profile to user's profiles array
+      await User.findByIdAndUpdate(userId, {
+        $addToSet: { profiles: savedProfile._id }
+      });
+
+      logger.info(`Default profile created successfully for user ${userId}: ${savedProfile._id}`);
+      return savedProfile;
+    } catch (error) {
+      logger.error(`Error creating default profile for user ${userId}:`, error);
+      throw error;
+    }
   }
 }

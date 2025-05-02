@@ -622,6 +622,16 @@ class AuthService {
             // Clear verification data
             user.verificationData = undefined;
             await user.save();
+            try {
+                // Create a default profile for the user
+                const profileService = new (require('../services/profile.service').ProfileService)();
+                await profileService.createDefaultProfile(userId);
+                logger_1.logger.info(`Default profile created for user ${userId} after successful verification`);
+            }
+            catch (profileError) {
+                // Log the error but don't fail the verification process
+                logger_1.logger.error(`Error creating default profile for user ${userId}:`, profileError);
+            }
             return {
                 success: true,
                 message: "OTP verified successfully",

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateProfileAccessToken = exports.generateReferralCode = void 0;
+exports.generateUniqueConnectLink = exports.generateProfileAccessToken = exports.generateReferralCode = void 0;
 exports.generateOTP = generateOTP;
 /**
  * Utility functions for cryptographic operations
@@ -54,3 +54,19 @@ const generateProfileAccessToken = (profileId) => {
     });
 };
 exports.generateProfileAccessToken = generateProfileAccessToken;
+/**
+ * Generates a unique connect link for profiles
+ * @returns A promise that resolves to a unique connect link string
+ */
+const generateUniqueConnectLink = async () => {
+    // Generate a random string for the connect link
+    const randomPart = Math.random().toString(36).substring(2, 10);
+    const timestamp = Date.now().toString(36);
+    // Combine random part and timestamp for uniqueness
+    const connectLink = `mypts-${randomPart}-${timestamp}`;
+    // In a real implementation, you might want to check if this link already exists in the database
+    // and generate a new one if it does. For simplicity, we're assuming the combination of
+    // random string and timestamp will be unique enough.
+    return connectLink;
+};
+exports.generateUniqueConnectLink = generateUniqueConnectLink;
