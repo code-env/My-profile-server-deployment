@@ -1,9 +1,10 @@
 import mongoose from 'mongoose';
-import { Task, ITask, ISubTask, RepeatSettings, Reminder, Reward, Attachment, Comment, Location, PriorityLevel, TaskCategory } from '../models/Tasks';
+import { ISubTask, RepeatSettings, Reminder, Reward, Attachment, Comment, Location, PriorityLevel, TaskCategory } from '../models/plans-shared';
 import { IUser, User } from '../models/User';
 import { IProfile } from '../interfaces/profile.interface';
 import { TaskStatus } from 'twilio/lib/rest/taskrouter/v1/workspace/task';
 import { List } from '../models/List';
+import { ITask, Task } from '../models/Tasks';
 
 class TaskService {
     /**
@@ -49,28 +50,26 @@ class TaskService {
     }
 
     private async createListsFromSubtasks(task: ITask): Promise<void> {
-        const listPromises = task.subTasks.map(async (subTask: ISubTask) => {
-            const list = new List({
-                name: task.name || subTask.description || 'New List',
-                type: 'Todo',
-                createdBy: task.createdBy,
-                relatedTask: task._id,
-                items: [{
-                    name: subTask.description || 'Complete subtask',
-                    isCompleted: subTask.isCompleted || false,
-                    createdAt: subTask.createdAt || new Date()
-                }],
-                // Copy relevant properties from the task
-                visibility: task.visibility,
-                color: task.color,
-                priority: task.priority,
-                category: task.category
-            });
-
-            return list.save();
+        console.log(task);
+        const listPromise = new List({
+            name: task.name || 'New List',
+            type: 'Todo',
+            createdBy: task.createdBy,
+            relatedTask: task._id,
+            items: task.subTasks.map((subTask: ISubTask) => ({
+                name: subTask.description || 'Complete subtask',
+                isCompleted: subTask.isCompleted || false,
+                createdAt: subTask.createdAt || new Date()
+            })),
+            // Copy relevant properties from the task
+            visibility: task.visibility,
+            color: task.color,
+            priority: task.priority,
+            category: task.category
         });
+        await listPromise.save();
+        task.relatedList = listPromise._id as mongoose.Types.ObjectId;
 
-        await Promise.all(listPromises);
     }
 
     private adjustAllDayEvent(task: ITask): void {
@@ -102,7 +101,7 @@ class TaskService {
             .populate('createdBy', 'name email')
             .populate('participants', 'name email')
             .populate('profile', 'name avatar')
-            .populate('relatedList')
+            .populate('relatedList', 'name type items')
             .populate('attachments.uploadedBy', 'name email')
             .populate('comments.createdBy', 'name email')
             .populate('comments.likes', 'name email');
@@ -188,6 +187,18 @@ class TaskService {
         // Handle all-day event adjustments
         if (updateData.isAllDay) {
             this.adjustAllDayEvent(updateData as ITask);
+        }
+
+        console.log('Update Data:', updateData.attachments);
+        if (updateData.subTasks && updateData.subTasks.length > 0) {
+            await this.createListsFromSubtasks(updateData as ITask);
+        }
+
+        if (updateData.attachments && updateData.attachments.length > 0) {
+            updateData.attachments = updateData.attachments.map(attachment => ({
+                ...attachment,
+                uploadedAt: new Date(),
+            }));
         }
 
         const task = await Task.findOneAndUpdate(

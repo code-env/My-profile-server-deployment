@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import taskService from '../services/task.service';
+import eventService from '../services/event.service';
 import {
-    TaskStatus,
     PriorityLevel,
-    TaskCategory,
     RepeatFrequency,
     EndCondition,
     ReminderType,
@@ -15,30 +13,30 @@ import {
 import createHttpError from 'http-errors';
 import asyncHandler from 'express-async-handler';
 import CloudinaryService from '../services/cloudinary.service';
-import { request } from 'http';
 
-// Helper function to validate task data
-const validateTaskData = (data: any) => {
+// Helper function to validate event data
+const validateEventData = (data: any) => {
     const errors: string[] = [];
 
-    if (!data.name) errors.push('name is required');
+    if (!data.title) errors.push('title is required');
+    if (!data.startTime) errors.push('startTime is required');
+    if (!data.endTime) errors.push('endTime is required');
+    if (!data.eventType) errors.push('eventType is required');
 
     // Validate enums
     if (data.priority && !Object.values(PriorityLevel).includes(data.priority)) {
         errors.push(`priority must be one of: ${Object.values(PriorityLevel).join(', ')}`);
     }
-    if (data.category && !Object.values(TaskCategory).includes(data.category)) {
-        errors.push(`category must be one of: ${Object.values(TaskCategory).join(', ')}`);
-    }
-    if (data.status && !Object.values(TaskStatus).includes(data.status)) {
-        errors.push(`status must be one of: ${Object.values(TaskStatus).join(', ')}`);
-    }
     if (data.visibility && !Object.values(VisibilityType).includes(data.visibility)) {
         errors.push(`visibility must be one of: ${Object.values(VisibilityType).join(', ')}`);
     }
+    if (data.eventType && !['meeting', 'celebration', 'appointment'].includes(data.eventType)) {
+        errors.push(`eventType must be one of: meeting, celebration, appointment`);
+    }
 
-    if (!data.profileId) {
-        errors.push('profileId is required');
+    // Validate meeting-specific requirements
+    if (data.eventType === 'appointment' && !data.serviceProvider) {
+        errors.push('serviceProvider is required for meetings');
     }
 
     // Validate repeat settings if provided
@@ -68,27 +66,23 @@ const validateTaskData = (data: any) => {
     }
 };
 
-// @desc    Create a new task
-// @route   POST /tasks
+// @desc    Create a new event
+// @route   POST /events
 // @access  Private
-export const createTask = asyncHandler(async (req: Request, res: Response) => {
+export const createEvent = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
-
-    console.log('User ID:', user._id);
-    validateTaskData(req.body);
+    validateEventData(req.body);
 
     let uploadedFiles: Attachment[] = [];
 
     if (req.body.attachments && Array.isArray(req.body.attachments)) {
         const cloudinaryService = new CloudinaryService();
 
-        // Process each attachment object
         uploadedFiles = await Promise.all(
             req.body.attachments.map(async (attachment: { data: string; type: string }) => {
                 try {
                     const { data: base64String, type } = attachment;
 
-                    // Validate inputs
                     if (typeof base64String !== 'string' || !base64String.startsWith('data:')) {
                         throw new Error('Invalid base64 data format');
                     }
@@ -97,36 +91,32 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
                         throw new Error(`Invalid attachment type: ${type}`);
                     }
 
-                    // Determine Cloudinary resource type based on attachment type
                     let resourceType: 'image' | 'raw' = 'image';
                     if (type === 'File') {
                         resourceType = 'raw';
                     }
 
-                    // Extract file extension from base64 string
                     const fileTypeMatch = base64String.match(/^data:(image\/\w+|application\/\w+);base64,/);
                     const extension = fileTypeMatch ?
                         fileTypeMatch[1].split('/')[1] :
                         'dat';
 
-                    // Upload to Cloudinary
                     const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(
                         base64String,
                         {
-                            folder: 'task-attachments',
+                            folder: 'event-attachments',
                             resourceType,
                             tags: [`type-${type.toLowerCase()}`]
                         }
                     );
 
-                    // Create proper Attachment object
                     return {
                         type: type as 'Photo' | 'File' | 'Link' | 'Other',
                         url: uploadResult.secure_url,
                         name: uploadResult.original_filename || `attachment-${Date.now()}.${extension}`,
                         description: '',
                         uploadedAt: new Date(),
-                        uploadedBy: user._id, // This should already be an ObjectId
+                        uploadedBy: user._id,
                         size: uploadResult.bytes,
                         fileType: uploadResult.format || extension,
                         publicId: uploadResult.public_id
@@ -139,51 +129,46 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
         );
     }
 
-    // Create the task data object
-    const taskData = {
+    const eventData = {
         ...req.body,
         attachments: uploadedFiles,
         createdBy: user._id,
-        name: req.body.name,
+        startTime: new Date(req.body.startTime),
+        endTime: new Date(req.body.endTime)
     };
 
-    // Remove any undefined values that might cause validation issues
-    Object.keys(taskData).forEach(key => taskData[key] === undefined && delete taskData[key]);
-
-    console.log('Final task data being sent to service:', JSON.stringify(taskData, null, 2));
-
-    const task = await taskService.createTask(taskData); // Pass just the taskData
+    const event = await eventService.createEvent(eventData);
     res.status(201).json({
         success: true,
-        data: task,
-        message: 'Task created successfully',
+        data: event,
+        message: 'Event created successfully',
     });
 });
 
-// @desc    Get task by ID
-// @route   GET /tasks/:id
+// @desc    Get event by ID
+// @route   GET /events/:id
 // @access  Private
-export const getTaskById = asyncHandler(async (req: Request, res: Response) => {
+export const getEventById = asyncHandler(async (req: Request, res: Response) => {
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
+        throw createHttpError(400, 'Invalid event ID');
     }
 
-    const task = await taskService.getTaskById(req.params.id);
-    if (!task) {
-        throw createHttpError(404, 'Task not found');
+    const event = await eventService.getEventById(req.params.id);
+    if (!event) {
+        throw createHttpError(404, 'Event not found');
     }
 
     res.json({
         success: true,
-        data: task,
-        message: 'Task fetched successfully'
+        data: event,
+        message: 'Event fetched successfully'
     });
 });
 
-// @desc    Get all tasks for user
-// @route   GET /tasks
+// @desc    Get all events for user
+// @route   GET /events
 // @access  Private
-export const getUserTasks = asyncHandler(async (req: Request, res: Response) => {
+export const getUserEvents = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
     const filters: any = {};
 
@@ -191,8 +176,9 @@ export const getUserTasks = asyncHandler(async (req: Request, res: Response) => 
     if (req.query.status) filters.status = req.query.status;
     if (req.query.priority) filters.priority = req.query.priority;
     if (req.query.category) filters.category = req.query.category;
+    if (req.query.eventType) filters.eventType = req.query.eventType;
     if (req.query.isAllDay) filters.isAllDay = req.query.isAllDay === 'true';
-    if (req.query.profile) filters.profile = req.query.profile;
+    if (req.query.isGroupEvent) filters.isGroupEvent = req.query.isGroupEvent === 'true';
     if (req.query.search) filters.search = req.query.search;
 
     // Date filters
@@ -203,41 +189,37 @@ export const getUserTasks = asyncHandler(async (req: Request, res: Response) => 
         filters.toDate = new Date(req.query.toDate as string);
     }
 
-    const tasks = await taskService.getUserTasks(user._id, filters);
+    const events = await eventService.getUserEvents(user._id, filters);
     res.json({
         success: true,
-        data: tasks,
-        message: 'Tasks fetched successfully'
+        data: events,
+        message: 'Events fetched successfully'
     });
 });
 
-// @desc    Update a task
-// @route   PUT /tasks/:id
+// @desc    Update an event
+// @route   PUT /events/:id
 // @access  Private
-export const updateTask = asyncHandler(async (req: Request, res: Response) => {
+export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
+        throw createHttpError(400, 'Invalid event ID');
     }
 
-    validateTaskData(req.body);
+    validateEventData(req.body);
 
-    // check for attachement
     let uploadedFiles: Attachment[] = [];
 
     if (req.body.attachments && Array.isArray(req.body.attachments)) {
         const cloudinaryService = new CloudinaryService();
 
-        // Process each attachment object
         uploadedFiles = await Promise.all(
             req.body.attachments.map(async (attachment: { data: string; type: string }) => {
                 try {
                     const { data: base64String, type } = attachment;
 
-                    // Validate inputs
                     if (typeof base64String !== 'string' || !base64String.startsWith('data:')) {
-                        console.log(typeof base64String, base64String.startsWith('data:'));
                         throw new Error('Invalid base64 data format');
                     }
 
@@ -245,38 +227,29 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
                         throw new Error(`Invalid attachment type: ${type}`);
                     }
 
-                    // Determine Cloudinary resource type based on attachment type
                     let resourceType: 'image' | 'raw' = 'image';
                     if (type === 'File') {
                         resourceType = 'raw';
                     }
 
-                    // Extract file extension from base64 string
-                    const fileTypeMatch = base64String.match(/^data:(image\/\w+|application\/\w+);base64,/);
-                    const extension = fileTypeMatch ?
-                        fileTypeMatch[1].split('/')[1] :
-                        'dat';
-
-                    // Upload to Cloudinary
                     const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(
                         base64String,
                         {
-                            folder: 'task-attachments',
+                            folder: 'event-attachments',
                             resourceType,
                             tags: [`type-${type.toLowerCase()}`]
                         }
                     );
 
-                    // Create proper Attachment object
                     return {
                         type: type as 'Photo' | 'File' | 'Link' | 'Other',
                         url: uploadResult.secure_url,
-                        name: uploadResult.original_filename || `attachment-${Date.now()}.${extension}`,
+                        name: uploadResult.original_filename || `attachment-${Date.now()}`,
                         description: '',
                         uploadedAt: new Date(),
-                        uploadedBy: user._id, // This should already be an ObjectId
+                        uploadedBy: user._id,
                         size: uploadResult.bytes,
-                        fileType: uploadResult.format || extension,
+                        fileType: uploadResult.format,
                         publicId: uploadResult.public_id
                     };
                 } catch (error) {
@@ -285,216 +258,138 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
                 }
             })
         );
-
     }
 
-    const taskData = {
+    const eventData = {
         ...req.body,
         attachments: uploadedFiles,
-        updatedBy: user._id,
+        startTime: req.body.startTime ? new Date(req.body.startTime) : undefined,
+        endTime: req.body.endTime ? new Date(req.body.endTime) : undefined
     };
 
-    const task = await taskService.updateTask(req.params.id, user._id, taskData);
+    const event = await eventService.updateEvent(req.params.id, user._id, eventData);
     res.json({
         success: true,
-        data: task,
-        message: 'Task updated successfully'
+        data: event,
+        message: 'Event updated successfully'
     });
 });
 
-// @desc    Delete a task
-// @route   DELETE /tasks/:id
+// @desc    Delete an event
+// @route   DELETE /events/:id
 // @access  Private
-export const deleteTask = asyncHandler(async (req: Request, res: Response) => {
+export const deleteEvent = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
+        throw createHttpError(400, 'Invalid event ID');
     }
 
-    await taskService.deleteTask(req.params.id, user._id);
+    await eventService.deleteEvent(req.params.id, user._id);
     res.json({
         success: true,
         data: null,
-        message: 'Task deleted successfully'
+        message: 'Event deleted successfully'
     });
 });
 
-// @desc    Add subtask to task
-// @route   POST /tasks/:id/subtasks
+// @desc    Add agenda item to event
+// @route   POST /events/:id/agenda-items
 // @access  Private
-export const addSubTask = asyncHandler(async (req: Request, res: Response) => {
+export const addAgendaItem = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
+        throw createHttpError(400, 'Invalid event ID');
     }
 
     if (!req.body.description) {
-        throw createHttpError(400, 'Subtask description is required');
+        throw createHttpError(400, 'Agenda item description is required');
     }
 
-    const subTaskData = {
+    const agendaItemData = {
         description: req.body.description,
-        isCompleted: req.body.isCompleted || false,
+        assignedTo: req.body.assignedTo,
+        completed: req.body.completed || false
     };
 
-    const task = await taskService.addSubTask(req.params.id, user._id, subTaskData);
+    const event = await eventService.addAgendaItem(
+        req.params.id,
+        user._id,
+        agendaItemData
+    );
     res.json({
         success: true,
-        data: task,
-        message: 'Subtask added successfully'
+        data: event,
+        message: 'Agenda item added successfully'
     });
 });
 
-// @desc    Update subtask
-// @route   PUT /tasks/:id/subtasks/:subTaskIndex
+// @desc    Update agenda item
+// @route   PUT /events/:id/agenda-items/:agendaItemIndex
 // @access  Private
-export const updateSubTask = asyncHandler(async (req: Request, res: Response) => {
+export const updateAgendaItem = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
+        throw createHttpError(400, 'Invalid event ID');
     }
 
-    if (!req.params.subTaskIndex || isNaN(parseInt(req.params.subTaskIndex))) {
-        throw createHttpError(400, 'Invalid subtask index');
+    if (!req.params.agendaItemIndex || isNaN(parseInt(req.params.agendaItemIndex))) {
+        throw createHttpError(400, 'Invalid agenda item index');
     }
 
-    const subTaskIndex = parseInt(req.params.subTaskIndex);
-    const task = await taskService.updateSubTask(
+    const agendaItemIndex = parseInt(req.params.agendaItemIndex);
+    const event = await eventService.updateAgendaItem(
         req.params.id,
         user._id,
-        subTaskIndex,
+        agendaItemIndex,
         req.body
     );
 
     res.json({
         success: true,
-        data: task,
-        message: 'Subtask updated successfully'
+        data: event,
+        message: 'Agenda item updated successfully'
     });
 });
 
-// @desc    Delete subtask
-// @route   DELETE /tasks/:id/subtasks/:subTaskIndex
+// @desc    Delete agenda item
+// @route   DELETE /events/:id/agenda-items/:agendaItemIndex
 // @access  Private
-export const deleteSubTask = asyncHandler(async (req: Request, res: Response) => {
+export const deleteAgendaItem = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
+        throw createHttpError(400, 'Invalid event ID');
     }
 
-    if (!req.params.subTaskIndex || isNaN(parseInt(req.params.subTaskIndex))) {
-        throw createHttpError(400, 'Invalid subtask index');
+    if (!req.params.agendaItemIndex || isNaN(parseInt(req.params.agendaItemIndex))) {
+        throw createHttpError(400, 'Invalid agenda item index');
     }
 
-    const subTaskIndex = parseInt(req.params.subTaskIndex);
-    const task = await taskService.deleteSubTask(
+    const agendaItemIndex = parseInt(req.params.agendaItemIndex);
+    const event = await eventService.deleteAgendaItem(
         req.params.id,
         user._id,
-        subTaskIndex
+        agendaItemIndex
     );
 
     res.json({
         success: true,
-        data: task,
-        message: 'Subtask deleted successfully'
+        data: event,
+        message: 'Agenda item deleted successfully'
     });
 });
 
-// @desc    Add comment to task
-// @route   POST /tasks/:id/comments
-// @access  Private
-export const addComment = asyncHandler(async (req: Request, res: Response) => {
-    const user: any = req.user!;
-
-    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
-    }
-
-    if (!req.body.text) {
-        throw createHttpError(400, 'Comment text is required');
-    }
-
-    const task = await taskService.addComment(
-        req.params.id,
-        user._id,
-        req.body.text
-    );
-
-    res.json({
-        success: true,
-        data: task,
-        message: 'Comment added successfully'
-    });
-});
-
-// @desc    Like comment
-// @route   POST /tasks/:id/comments/:commentIndex/like
-// @access  Private
-export const likeComment = asyncHandler(async (req: Request, res: Response) => {
-    const user: any = req.user!;
-
-    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
-    }
-
-    if (!req.params.commentIndex || isNaN(parseInt(req.params.commentIndex))) {
-        throw createHttpError(400, 'Invalid comment index');
-    }
-
-    const commentIndex = parseInt(req.params.commentIndex);
-    const task = await taskService.likeComment(
-        req.params.id,
-        commentIndex,
-        user._id
-    );
-
-    res.json({
-        success: true,
-        data: task,
-        message: 'Comment liked successfully'
-    });
-});
-
-// @desc    Unlike comment
-// @route   DELETE /tasks/:id/comments/:commentIndex/like
-// @access  Private
-export const unlikeComment = asyncHandler(async (req: Request, res: Response) => {
-    const user: any = req.user!;
-
-    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
-    }
-
-    if (!req.params.commentIndex || isNaN(parseInt(req.params.commentIndex))) {
-        throw createHttpError(400, 'Invalid comment index');
-    }
-
-    const commentIndex = parseInt(req.params.commentIndex);
-    const task = await taskService.unlikeComment(
-        req.params.id,
-        commentIndex,
-        user._id
-    );
-
-    res.json({
-        success: true,
-        data: task,
-        message: 'Comment unliked successfully'
-    });
-});
-
-// @desc    Add attachment to task
-// @route   POST /tasks/:id/attachments
+// @desc    Add attachment to event
+// @route   POST /events/:id/attachments
 // @access  Private
 export const addAttachment = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
+        throw createHttpError(400, 'Invalid event ID');
     }
 
     if (!req.body.type || !req.body.url || !req.body.name) {
@@ -510,7 +405,7 @@ export const addAttachment = asyncHandler(async (req: Request, res: Response) =>
         fileType: req.body.fileType
     };
 
-    const task = await taskService.addAttachment(
+    const event = await eventService.addAttachment(
         req.params.id,
         user._id,
         attachmentData
@@ -518,19 +413,19 @@ export const addAttachment = asyncHandler(async (req: Request, res: Response) =>
 
     res.json({
         success: true,
-        data: task,
+        data: event,
         message: 'Attachment added successfully'
     });
 });
 
-// @desc    Remove attachment from task
-// @route   DELETE /tasks/:id/attachments/:attachmentIndex
+// @desc    Remove attachment from event
+// @route   DELETE /events/:id/attachments/:attachmentIndex
 // @access  Private
 export const removeAttachment = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid task ID');
+        throw createHttpError(400, 'Invalid event ID');
     }
 
     if (!req.params.attachmentIndex || isNaN(parseInt(req.params.attachmentIndex))) {
@@ -538,7 +433,7 @@ export const removeAttachment = asyncHandler(async (req: Request, res: Response)
     }
 
     const attachmentIndex = parseInt(req.params.attachmentIndex);
-    const task = await taskService.removeAttachment(
+    const event = await eventService.removeAttachment(
         req.params.id,
         user._id,
         attachmentIndex
@@ -546,7 +441,37 @@ export const removeAttachment = asyncHandler(async (req: Request, res: Response)
 
     res.json({
         success: true,
-        data: task,
+        data: event,
         message: 'Attachment removed successfully'
+    });
+});
+
+// @desc    Set service provider for event
+// @route   PUT /events/:id/service-provider
+// @access  Private
+export const setServiceProvider = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.profileId || !req.body.role) {
+        throw createHttpError(400, 'profileId and role are required');
+    }
+
+    const event = await eventService.setServiceProvider(
+        req.params.id,
+        user._id,
+        {
+            profileId: new mongoose.Types.ObjectId(req.body.profileId),
+            role: req.body.role
+        }
+    );
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Service provider set successfully'
     });
 });

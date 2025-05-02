@@ -84,9 +84,8 @@ const likeSchema = new Schema<Like>({
 const listCommentSchema = new Schema<ListComment>({
   text: { type: String, required: true },
   createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Profile',
-    required: true
+    type: Schema.Types.ObjectId,
+    ref: 'Users'
   },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date }
@@ -130,7 +129,6 @@ const listSchema = new Schema<IList>(
     createdBy: { 
       type: Schema.Types.ObjectId,
       ref: 'Users',
-      required: true
     },
     relatedTask: {
       type: Schema.Types.ObjectId,
