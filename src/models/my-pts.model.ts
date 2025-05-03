@@ -113,10 +113,24 @@ myPtsSchema.methods.addMyPts = async function(
   }
 
   // Update MyPts document
+  const previousBalance = this.balance;
   this.balance += amount;
   this.lifetimeEarned += amount;
   this.lastTransaction = new Date();
   await this.save();
+
+  // Check if balance has crossed the 1000 MyPts threshold for referral rewards
+  if (previousBalance < 1000 && this.balance >= 1000) {
+    try {
+      // Import here to avoid circular dependency
+      const { ProfileReferralService } = require('../services/profile-referral.service');
+      // Update referral status if this profile was referred by someone
+      await ProfileReferralService.checkThresholdAndUpdateStatus(this.profileId);
+    } catch (error) {
+      console.error('Error updating referral threshold status:', error);
+      // Don't throw the error to avoid disrupting the main transaction
+    }
+  }
 
   // Create transaction record
   const transaction = await MyPtsTransactionModel.create({

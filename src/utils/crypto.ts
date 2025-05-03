@@ -28,11 +28,13 @@ export function generateOTP(length: number = 6): string {
 export const generateReferralCode = (length: number = 8): string => {
   const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluding similar looking characters like I, 1, O, 0
   let result = '';
-  const randomValues = new Uint32Array(length);
-  crypto.getRandomValues(randomValues);
+
+  // Use Node.js crypto module for server-side random generation
+  const crypto = require('crypto');
 
   for (let i = 0; i < length; i++) {
-    result += charset[randomValues[i] % charset.length];
+    const randomIndex = crypto.randomInt(0, charset.length);
+    result += charset[randomIndex];
   }
 
   return result;
