@@ -310,6 +310,9 @@ class ProfileService {
             const existingProfiles = await profile_model_1.ProfileModel.find({ owner: userId });
             if (existingProfiles.length > 0) {
                 logger_1.logger.info(`User ${userId} already has ${existingProfiles.length} profiles. Skipping default profile creation.`);
+                // Ensure the profile has a referral record
+                const { ProfileReferralService } = require('./profile-referral.service');
+                await ProfileReferralService.initializeReferralCode(existingProfiles[0]._id);
                 return existingProfiles[0];
             }
             // Get user data
@@ -347,10 +350,38 @@ class ProfileService {
             });
             // Save the profile
             const savedProfile = await profile.save();
+            // Initialize referral code for the new profile
+            try {
+                const { ProfileReferralService } = require('./profile-referral.service');
+                await ProfileReferralService.initializeReferralCode(savedProfile._id);
+                logger_1.logger.info(`Initialized referral code for profile: ${savedProfile._id}`);
+            }
+            catch (error) {
+                logger_1.logger.error(`Error initializing referral code for profile ${savedProfile._id}:`, error);
+                // Don't throw the error to avoid disrupting the profile creation process
+            }
             // Add profile to user's profiles array
             await User_1.User.findByIdAndUpdate(userId, {
                 $addToSet: { profiles: savedProfile._id }
             });
+            // Create a referral record for the profile
+            const ProfileReferralService = require('./profile-referral.service').ProfileReferralService;
+            await ProfileReferralService.getProfileReferral(savedProfile._id);
+            // Check if the user was referred (has a referral code)
+            if (user.referralCode) {
+                try {
+                    // Validate the referral code
+                    const referringProfileId = await ProfileReferralService.validateReferralCode(user.referralCode);
+                    if (referringProfileId) {
+                        // Process the referral
+                        await ProfileReferralService.processReferral(savedProfile._id, referringProfileId);
+                        logger_1.logger.info(`Processed referral for profile ${savedProfile._id} with referral code ${user.referralCode}`);
+                    }
+                }
+                catch (referralError) {
+                    logger_1.logger.error(`Error processing referral for profile ${savedProfile._id}:`, referralError);
+                }
+            }
             logger_1.logger.info(`Default profile created successfully for user ${userId}: ${savedProfile._id}`);
             return savedProfile;
         }

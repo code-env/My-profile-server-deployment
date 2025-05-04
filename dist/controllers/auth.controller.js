@@ -116,7 +116,9 @@ class AuthController {
             };
             const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
             console.log("🔐 Registration request from:", clientInfo.ip, clientInfo.os);
-            const result = await auth_service_1.AuthService.register(user, clientInfo.ip, clientInfo.os);
+            // Check if referral code was provided
+            const referralCode = validatedData.referralCode || undefined;
+            const result = await auth_service_1.AuthService.register(user, clientInfo.ip, clientInfo.os, referralCode);
             // Return the response
             res.status(201).json({
                 success: true,

@@ -23,7 +23,8 @@ exports.registerSchema = zod_1.z.object({
     accountCategory: zod_1.z.enum(['PRIMARY_ACCOUNT', 'SECONDARY_ACCOUNT']),
     phoneNumber: zod_1.z.string()
         .regex(/^[\+\-\(\)\s0-9]+$/, 'Please enter a valid phone number'),
-    verificationMethod: zod_1.z.enum(['PHONE', 'EMAIL'])
+    verificationMethod: zod_1.z.enum(['PHONE', 'EMAIL']),
+    referralCode: zod_1.z.string().optional()
 });
 // Login schema
 exports.loginSchema = zod_1.z.object({
