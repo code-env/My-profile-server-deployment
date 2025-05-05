@@ -13,6 +13,7 @@ import EmailService from "./email.service";
 import WhatsAppService from "./whatsapp.service";
 import { CustomError } from "../utils/errors";
 import { sanitizeFilter } from "mongoose";
+import { ProfileReferralService } from "./profile-referral.service";
 
 /**
  * Advanced Authentication & Authorization Service
@@ -61,7 +62,8 @@ export class AuthService {
   static async register(
     user: IUser,
     ip?: string,
-    os?: string
+    os?: string,
+    referralCode?: string
   ): Promise<{ user: IUser; tokens: AuthTokens }> {
     try {
       // Check for existing user
@@ -78,6 +80,12 @@ export class AuthService {
             ? "Username already taken"
             : "Phone number already registered"
         );
+      }
+
+      // Store referral code temporarily if provided
+      // It will be processed when creating the profile
+      if (referralCode) {
+        user.referralCode = referralCode;
       }
 
       // Create new user with email verification token
@@ -748,8 +756,11 @@ static async login(
       try {
         // Create a default profile for the user
         const profileService = new (require('../services/profile.service').ProfileService)();
-        await profileService.createDefaultProfile(userId);
+        const defaultProfile = await profileService.createDefaultProfile(userId);
         logger.info(`Default profile created for user ${userId} after successful verification`);
+
+        // Referral processing is now handled in the profile service
+        // when the default profile is created
       } catch (profileError) {
         // Log the error but don't fail the verification process
         logger.error(`Error creating default profile for user ${userId}:`, profileError);

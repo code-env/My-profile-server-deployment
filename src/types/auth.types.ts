@@ -25,7 +25,8 @@ export const registerSchema = z.object({
   accountCategory: z.enum(['PRIMARY_ACCOUNT', 'SECONDARY_ACCOUNT']),
   phoneNumber: z.string()
     .regex(/^[\+\-\(\)\s0-9]+$/, 'Please enter a valid phone number'),
-  verificationMethod: z.enum(['PHONE', 'EMAIL'])
+  verificationMethod: z.enum(['PHONE', 'EMAIL']),
+  referralCode: z.string().optional()
 });
 
 // Login schema

@@ -44,23 +44,24 @@ import profileRoutes from './profile.routes';
 import profileConnectionRoutes from './profile-connection.routes';
 import contactRoutes from './contact.route';
 import RelationshipTypeRoutes from './relationshipType.routes';
-import taskRoutes from './task.routes';
-import eventRoutes from './event.routes';
-import listRoutes from './list.routes';
 import logsRoutes from './logs.routes';
-import interactionRoutes from './interaction.routes';
 import myPtsRoutes from './my-pts.routes';
 import myPtsValueRoutes from './my-pts-value.routes';
 import myPtsHubRoutes from './my-pts-hub.routes';
 import adminNotificationRoutes from './admin-notification.routes';
 import stripeRoutes from './stripe.routes';
+import taskRoutes from './task.routes';
+import listRoutes from './list.routes';
+import eventRoutes from './event.routes';
+import interactionRoutes from './interaction.routes';
 import notificationRoutes from './notification.routes';
 import userNotificationPreferencesRoutes from './user-notification-preferences.routes';
 import notificationTestRoutes from './notification-test.routes';
 import userDeviceRoutes from './user-device.routes';
+import profileReferralRoutes from './profile-referral.routes';
 import { protect } from '../middleware/auth.middleware';
+import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
-
 import { enforceLicenseValidation } from '../middleware/enforce-license.middleware';
 import session from 'express-session';
 import passport from 'passport';
@@ -135,6 +136,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/user/notification-preferences', protect, userNotificationPreferencesRoutes);
   app.use('/api/user/devices', protect, userDeviceRoutes);
   app.use('/api/test/notifications', protect, notificationTestRoutes);
+  app.use('/api/referrals', profileReferralRoutes);
 
   // Test email route
   app.get('/api/test/email', async (req, res) => {

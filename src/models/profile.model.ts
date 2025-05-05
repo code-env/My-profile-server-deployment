@@ -394,6 +394,19 @@ profileSchema.pre('save', async function(next) {
   next();
 });
 
+// Post-save middleware to create a referral code
+profileSchema.post('save', async function(doc) {
+  try {
+    // Import here to avoid circular dependency
+    const { ProfileReferralService } = require('../services/profile-referral.service');
+    await ProfileReferralService.initializeReferralCode(doc._id);
+    console.log(`Referral code initialized for profile: ${doc._id}`);
+  } catch (error) {
+    console.error(`Error initializing referral code for profile ${doc._id}:`, error);
+    // Don't throw the error to avoid disrupting the save operation
+  }
+});
+
 // Define interface for model type
 export interface IProfileModel extends Model<IProfile, {}, IProfileMethods> {}
 
