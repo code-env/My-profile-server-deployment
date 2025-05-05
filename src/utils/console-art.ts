@@ -32,6 +32,12 @@ ${chalk.cyan('│                                                               
 ${chalk.cyan('│  ')}${chalk.white('Marco Blaise')}${chalk.cyan('                                                    │')}
 ${chalk.cyan('│  ')}${chalk.dim('Lead software Eng. & System Architect')}${chalk.cyan('                              │')}
 ${chalk.cyan('│                                                                      │')}
+${chalk.cyan('│  ')}${chalk.white('Romaric')}${chalk.cyan('                                                    │')}
+${chalk.cyan('│  ')}${chalk.dim('Backend Developer')}${chalk.cyan('                                           │')}
+${chalk.cyan('│                                                                      │')}
+${chalk.cyan('│  ')}${chalk.white('Nfon')}${chalk.cyan('                                                    │')}
+${chalk.cyan('│  ')}${chalk.dim('Backend Developer')}${chalk.cyan('                                           │')}
+${chalk.cyan('│                                                                      │')}
 ${chalk.cyan('│                                                                      │')}
 ${chalk.cyan('╰──────────────────────────────────────────────────────────────────────╯')}`;
 

@@ -53,6 +53,7 @@ export interface ITask extends Document {
   updatedAt: Date;
   createdAt: Date;
   relatedList?: mongoose.Types.ObjectId | IList;
+  likes: mongoose.Types.ObjectId[];
 }
 
 const subTaskSchema = new Schema<ISubTask>({
@@ -107,7 +108,7 @@ const taskSchema = new Schema<ITask>(
     priority: { 
       type: String, 
       enum: Object.values(PriorityLevel),
-      default: PriorityLevel.Low
+      default: PriorityLevel.LOW
     },
     status: { 
       type: String, 
@@ -130,7 +131,8 @@ const taskSchema = new Schema<ITask>(
     relatedList: {
       type: Schema.Types.ObjectId,
       ref: 'List'
-    }
+    },
+    likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }]
   },
   {
     timestamps: true,

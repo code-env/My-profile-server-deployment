@@ -69,6 +69,8 @@ const InteractionSchema = new Schema<IInteraction>({
             lng: { type: Number }
         }
     },
+
+
     category: {
         type: String,
         enum: Object.values(InteractionCategory),

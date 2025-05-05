@@ -43,6 +43,7 @@ export interface Attachment {
 }
 
 export interface Location {
+  isPhysical?: boolean;
   name: string;
   address: string;
   coordinates?: {

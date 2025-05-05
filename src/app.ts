@@ -577,14 +577,17 @@ export class AppServer {
     await new Promise<void>((resolve, reject) => {
       this.server = this.app
         .listen(port, () => {
+          // Initialize both WebSocket and Socket.IO
           const { initializeWebSocket } = require("./utils/websocket");
           initializeWebSocket(this.server, this.app);
+
           const { log } = require("./utils/console-art");
           log.success(`🚀 Server running on port ${port}`);
+          log.info(`WebSocket (WS) available at /ws/logs`);
+          log.info(`Socket.IO available at /socket.io`);
+
           if (process.env.NODE_ENV === "production") {
-            log.info(
-              "Running in production mode (SSL/HTTPS handled by Render)"
-            );
+            log.info("Running in production mode (SSL/HTTPS handled by Render)");
           }
           resolve();
         })

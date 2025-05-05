@@ -48,6 +48,7 @@ import taskRoutes from './task.routes';
 import eventRoutes from './event.routes';
 import listRoutes from './list.routes';
 import logsRoutes from './logs.routes';
+import interactionRoutes from './interaction.routes';
 import myPtsRoutes from './my-pts.routes';
 import myPtsValueRoutes from './my-pts-value.routes';
 import myPtsHubRoutes from './my-pts-hub.routes';
@@ -122,6 +123,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/tasks', protect, taskRoutes);
   app.use('/api/lists', protect, listRoutes);
   app.use('/api/events', protect, eventRoutes);
+  app.use('/api/interactions', protect, interactionRoutes);
   app.use('/api/relationships', protect, RelationshipTypeRoutes);
   app.use('/api/logs', logsRoutes);
   app.use('/api/my-pts', protect, myPtsRoutes);

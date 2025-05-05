@@ -50,9 +50,9 @@ export enum RepeatFrequency {
   }
   
   export enum PriorityLevel {
-    Low = 'Low',
-    Medium = 'Medium',
-    High = 'High'
+    LOW = 'Low',
+    MEDIUM = 'Medium',
+    HIGH = 'High'
   }
   
   export enum TaskStatus {
