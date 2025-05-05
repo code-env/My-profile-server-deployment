@@ -48,9 +48,6 @@ const profile_routes_1 = __importDefault(require("./profile.routes"));
 const profile_connection_routes_1 = __importDefault(require("./profile-connection.routes"));
 const contact_route_1 = __importDefault(require("./contact.route"));
 const relationshipType_routes_1 = __importDefault(require("./relationshipType.routes"));
-const task_routes_1 = __importDefault(require("./task.routes"));
-const event_routes_1 = __importDefault(require("./event.routes"));
-const list_routes_1 = __importDefault(require("./list.routes"));
 const logs_routes_1 = __importDefault(require("./logs.routes"));
 const my_pts_routes_1 = __importDefault(require("./my-pts.routes"));
 const my_pts_value_routes_1 = __importDefault(require("./my-pts-value.routes"));
@@ -61,6 +58,7 @@ const notification_routes_1 = __importDefault(require("./notification.routes"));
 const user_notification_preferences_routes_1 = __importDefault(require("./user-notification-preferences.routes"));
 const notification_test_routes_1 = __importDefault(require("./notification-test.routes"));
 const user_device_routes_1 = __importDefault(require("./user-device.routes"));
+const profile_referral_routes_1 = __importDefault(require("./profile-referral.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
 const enforce_license_middleware_1 = require("../middleware/enforce-license.middleware");
@@ -112,9 +110,6 @@ const setupRoutes = (app) => {
     app.use('/api/profile-connections', auth_middleware_1.protect, profile_connection_routes_1.default);
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
     app.use('/api/plans', auth_middleware_1.protect, plan_routes_1.default);
-    app.use('/api/tasks', auth_middleware_1.protect, task_routes_1.default);
-    app.use('/api/lists', auth_middleware_1.protect, list_routes_1.default);
-    app.use('/api/events', auth_middleware_1.protect, event_routes_1.default);
     app.use('/api/relationships', auth_middleware_1.protect, relationshipType_routes_1.default);
     app.use('/api/logs', logs_routes_1.default);
     app.use('/api/my-pts', auth_middleware_1.protect, my_pts_routes_1.default);
@@ -126,6 +121,7 @@ const setupRoutes = (app) => {
     app.use('/api/user/notification-preferences', auth_middleware_1.protect, user_notification_preferences_routes_1.default);
     app.use('/api/user/devices', auth_middleware_1.protect, user_device_routes_1.default);
     app.use('/api/test/notifications', auth_middleware_1.protect, notification_test_routes_1.default);
+    app.use('/api/referrals', profile_referral_routes_1.default);
     // Test email route
     app.get('/api/test/email', async (req, res) => {
         try {

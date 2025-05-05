@@ -83,7 +83,7 @@ const errors_1 = require("../utils/errors");
  * @see ARCHITECTURE.md - System Design
  */
 class AuthService {
-    static async register(user, ip, os) {
+    static async register(user, ip, os, referralCode) {
         try {
             // Check for existing user
             const existingUser = await User_1.User.findOne({
@@ -95,6 +95,11 @@ class AuthService {
                     : existingUser.username === user.username
                         ? "Username already taken"
                         : "Phone number already registered");
+            }
+            // Store referral code temporarily if provided
+            // It will be processed when creating the profile
+            if (referralCode) {
+                user.referralCode = referralCode;
             }
             // Create new user with email verification token
             const otp = (0, crypto_1.generateOTP)(6);
@@ -625,8 +630,10 @@ class AuthService {
             try {
                 // Create a default profile for the user
                 const profileService = new (require('../services/profile.service').ProfileService)();
-                await profileService.createDefaultProfile(userId);
+                const defaultProfile = await profileService.createDefaultProfile(userId);
                 logger_1.logger.info(`Default profile created for user ${userId} after successful verification`);
+                // Referral processing is now handled in the profile service
+                // when the default profile is created
             }
             catch (profileError) {
                 // Log the error but don't fail the verification process
