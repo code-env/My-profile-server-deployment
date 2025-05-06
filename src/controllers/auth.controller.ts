@@ -552,7 +552,7 @@ console.log(user);
    */
   static async verifyOTP(req: Request, res: Response) {
     try {
-      const { _id, otp, verificationMethod } = req.body;
+      const { _id, otp, verificationMethod, issue } = req.body;
       const motive = req.body.motive || "login"; // Default to "login"
 
       if (!_id || !otp || !verificationMethod) {
@@ -572,60 +572,77 @@ console.log(user);
       if (result.success) {
         const user = result.user;
 
-        // If motive is "login", return full user details with tokens
-        if (motive === "login") {
-          const tokens = AuthService.generateTokens(_id, user!.email);
-
-          // Set cookies
-          res.cookie("accesstoken", tokens.accessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            path: "/",
-            maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
-          });
-
-          res.cookie("refreshtoken", tokens.refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            path: "/",
-            maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
-          });
-
-          return res.json({
-            success: true,
-            message: "OTP verified successfully",
-            tokens,
-            user: {
-              _id: user?._id,
-              email: user?.email,
-              username: user?.username,
-              fullname: user?.fullName,
-            }
-          });
-        }
-
-        // Handle other motives
-        let responseUser = {};
-        switch (motive) {
+        // Handle different verification purposes
+        switch (issue) {
           case "forgot_username":
-            responseUser = { username: user?.username };
-            break;
-          case "forgot_email":
-            responseUser = { email: user?.email };
-            break;
-          case "forgot_password":
-            responseUser = { email: user?.email }; // Assuming password reset needs an email
-            break;
-          default:
-            responseUser = {}; // No user details for unknown motives
-        }
+            return res.json({
+              success: true,
+              message: "Username retrieved successfully",
+              username: user?.username
+            });
 
-        return res.json({
-          success: true,
-          message: "OTP verified successfully",
-          user: responseUser,
-        });
+          case "forgot_email":
+            return res.json({
+              success: true,
+              message: "Email retrieved successfully",
+              email: user?.email
+            });
+
+          case "forgot_password":
+            // For password reset, we still need to let them set a new password
+            return res.json({
+              success: true,
+              message: "OTP verified successfully. You can now reset your password.",
+              email: user?.email
+            });
+
+          case "phone_number_change":
+          case "email_change":
+            // For changes, we verify their identity first, then they can make the change
+            return res.json({
+              success: true,
+              message: "Identity verified successfully. You can now make the requested change.",
+              currentValue: issue === "phone_number_change" ? user?.phoneNumber : user?.email
+            });
+
+          default:
+            // Handle regular login case
+            if (motive === "login") {
+              const tokens = AuthService.generateTokens(_id, user!.email);
+
+              res.cookie("accesstoken", tokens.accessToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                path: "/",
+                maxAge: 24 * 60 * 60 * 1000,
+              });
+
+              res.cookie("refreshtoken", tokens.refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                path: "/",
+                maxAge: 30 * 24 * 60 * 60 * 1000,
+              });
+
+              return res.json({
+                success: true,
+                message: "OTP verified successfully",
+                tokens,
+                user: {
+                  _id: user?._id,
+                  email: user?.email,
+                  username: user?.username,
+                  fullname: user?.fullName,
+                }
+              });
+            }
+
+            return res.json({
+              success: true,
+              message: "OTP verified successfully"
+            });
+        }
       }
 
       return res.status(400).json({
@@ -768,7 +785,7 @@ console.log(user);
       // But only proceed if user exists
       if (user) {
         const resetToken = randomBytes(32).toString("hex");
-        await AuthService.setResetToken(email, resetToken);
+        await AuthService.setResetToken(email, resetToken, 'reset_password', 'email');
 
         const clientInfo = await getClientInfo(req);
 
@@ -853,7 +870,7 @@ console.log(user);
         );
       }
 
-      await AuthService.resetPassword(token, password);
+      await AuthService.resetPassword(token, password, 'reset_password');
       res.json({
         success: true,
         message: "Password reset successful",
@@ -1336,14 +1353,60 @@ console.log(user);
   }
 
   /**
- * Handle trouble logging in by providing personalized assistance
- *
- * @route POST /api/auth/trouble-login
- * @param {Request} req Express request object
- * @param {Response} res Express response object
- *
- * @returns {Promise<void>} JSON response with helpful next steps
- */
+   * Retrieve forgotten information (email/username) after OTP validation
+   * @route POST /auth/retrieve-forgotten-info
+   */
+  static async retrieveForgottenInfo(req: Request, res: Response) {
+    try {
+      const { token, infoType } = req.body;
+
+      if (!token || !infoType) {
+        return res.status(400).json({
+          success: false,
+          message: "Token and infoType are required"
+        });
+      }
+
+      // Validate infoType
+      if (!['email', 'username', 'phone_number'].includes(infoType)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid infoType. Must be 'email', 'username', or 'phone_number'"
+        });
+      }
+
+      const result = await AuthService.retrieveForgottenInfo(token, infoType);
+
+      if (result.success && result.info) {
+        return res.json({
+          success: true,
+          message: `Your ${infoType} has been retrieved successfully`,
+          [infoType]: result.info
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: result.message || "Failed to retrieve information"
+      });
+    } catch (error) {
+      logger.error("Error retrieving forgotten info:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error retrieving information"
+      });
+    }
+  }
+
+  /**
+   * Handle trouble logging in by providing personalized assistance
+   *
+   * @route POST /api/auth/trouble-login
+   * @param {Request} req Express request object
+   * @param {Response} res Express response object
+   *
+   * @returns {Promise<void>} JSON response with helpful next steps
+   */
   static async troubleLogin(req: Request, res: Response): Promise<Response> {
     try {
       const { identifier, issue, verificationMethod } = req.body;
@@ -1439,6 +1502,8 @@ console.log(user);
         };
         await user.save();
 
+        console.log("Updated user verification data:", user.verificationData);
+
         if (method.toLocaleLowerCase() === "email") {
           await EmailService.sendVerificationEmail(user.email, otp, {
             ipAddress: req.ip,
@@ -1461,7 +1526,8 @@ console.log(user);
 
       // Trigger password reset if necessary
       let otpSent = null;
-      if (issue === "forgot_password" || issue === "forgot_username" || issue === "forgot_email" || issue === "phone_number_change" || issue === "email_change") {
+      const resetIssues = ["forgot_password", "forgot_username", "forgot_email", "phone_number_change", "email_change"];
+      if (resetIssues.includes(issue)) {
         otpSent = await handlePasswordReset(
           verificationMethod as "EMAIL" | "PHONE",
           identifier.toLowerCase()
@@ -1483,6 +1549,170 @@ console.log(user);
       return res.status(500).json({
         success: false,
         message: "Error processing your request. Please try again later.",
+      });
+    }
+  }
+
+  /**
+   * Change user's email address after verification
+   * @route POST /auth/change-email
+   */
+  static async changeEmail(req: Request, res: Response) {
+    try {
+      const { userId, newEmail } = req.body;
+
+      if (!userId || !newEmail) {
+        return res.status(400).json({
+          success: false,
+          message: "User ID and new email are required"
+        });
+      }
+
+      // Check if email is already in use
+      const existingUser = await User.findOne({ email: newEmail, _id: { $ne: userId } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: "Email is already in use"
+        });
+      }
+
+      // Update user's email
+      const user = await User.findByIdAndUpdate(
+        userId,
+        { 
+          email: newEmail,
+          isEmailVerified: true // Since they've already verified through OTP
+        },
+        { new: true }
+      );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found"
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Email updated successfully",
+        email: newEmail
+      });
+    } catch (error) {
+      logger.error("Change email error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update email"
+      });
+    }
+  }
+
+  /**
+   * Change user's phone number after verification
+   * @route POST /auth/change-phone
+   */
+  static async changePhoneNumber(req: Request, res: Response) {
+    try {
+      const { userId, newPhoneNumber, formattedPhoneNumber } = req.body;
+
+      if (!userId || !newPhoneNumber) {
+        return res.status(400).json({
+          success: false,
+          message: "User ID and new phone number are required"
+        });
+      }
+
+      // Check if phone number is already in use
+      const existingUser = await User.findOne({ phoneNumber: newPhoneNumber, _id: { $ne: userId } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: "Phone number is already in use"
+        });
+      }
+
+      // Update user's phone number
+      const user = await User.findByIdAndUpdate(
+        userId,
+        { 
+          phoneNumber: newPhoneNumber,
+          formattedPhoneNumber: formattedPhoneNumber || newPhoneNumber,
+          isPhoneVerified: true // Since they've already verified through OTP
+        },
+        { new: true }
+      );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found"
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Phone number updated successfully",
+        phoneNumber: newPhoneNumber,
+        formattedPhoneNumber: formattedPhoneNumber || newPhoneNumber
+      });
+    } catch (error) {
+      logger.error("Change phone number error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update phone number"
+      });
+    }
+  }
+
+  /**
+   * Change username after verification
+   * @route POST /auth/change-username
+   */
+  static async changeUsername(req: Request, res: Response) {
+    try {
+      const { userId, newUsername } = req.body;
+
+      if (!userId || !newUsername) {
+        return res.status(400).json({
+          success: false,
+          message: "User ID and new username are required"
+        });
+      }
+
+      // Check if username is already in use
+      const existingUser = await User.findOne({ username: newUsername.toLowerCase(), _id: { $ne: userId } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: "Username is already taken"
+        });
+      }
+
+      // Update user's username
+      const user = await User.findByIdAndUpdate(
+        userId,
+        { username: newUsername.toLowerCase() },
+        { new: true }
+      );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found"
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Username updated successfully",
+        username: newUsername.toLowerCase()
+      });
+    } catch (error) {
+      logger.error("Change username error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update username"
       });
     }
   }
