@@ -85,7 +85,7 @@ class EmailService {
     }
     static async sendPasswordResetEmail(email, code, deviceInfo) {
         try {
-            const template = await this.loadTemplate('verification-email');
+            const template = await this.loadTemplate('password-reset-link');
             const digits = code.split('');
             const html = template({
                 digits,

@@ -156,25 +156,25 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
       await myPts.save();
       console.log('[WEBHOOK DEBUG] Updated MyPts balance to:', myPts.balance);
 
-      // Move MyPts from reserve to circulation
+      // Move MyPts from holding to circulation
       const hub = await myPtsHubService.getHubState();
-      console.log('[WEBHOOK DEBUG] Current hub reserve:', hub.reserveSupply);
+      console.log('[WEBHOOK DEBUG] Current hub holding:', hub.holdingSupply);
 
-      // Check if there is enough in reserve
-      if (hub.reserveSupply < transaction.amount) {
-        // If not enough in reserve, issue more MyPts
-        console.log('[WEBHOOK DEBUG] Not enough in reserve, issuing more...');
+      // Check if there is enough in holding
+      if (hub.holdingSupply < transaction.amount) {
+        // If not enough in holding, issue more MyPts
+        console.log('[WEBHOOK DEBUG] Not enough in holding, issuing more...');
         await myPtsHubService.issueMyPts(
-          transaction.amount - hub.reserveSupply,
+          transaction.amount - hub.holdingSupply,
           `Automatic issuance for purchase by profile ${profile._id}`,
           undefined,
           { automatic: true, profileId: profile._id }
         );
       }
 
-      // Move from reserve to circulation
-      console.log('[WEBHOOK DEBUG] Moving MyPts from reserve to circulation');
-      await myPtsHubService.moveToCirculation(
+      // Move from holding to circulation
+      console.log('[WEBHOOK DEBUG] Moving MyPts from holding to circulation');
+      await myPtsHubService.moveFromHoldingToCirculation(
         transaction.amount,
         `Purchase by profile ${profile._id}`,
         undefined,
@@ -288,20 +288,20 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     referenceId: session.id,
   });
 
-  // Move MyPts from reserve to circulation
+  // Move MyPts from holding to circulation
   const hub = await myPtsHubService.getHubState();
-  if (hub.reserveSupply < amount) {
-    // If not enough in reserve, issue more MyPts
+  if (hub.holdingSupply < amount) {
+    // If not enough in holding, issue more MyPts
     await myPtsHubService.issueMyPts(
-      amount - hub.reserveSupply,
+      amount - hub.holdingSupply,
       `Automatic issuance for purchase by profile ${profile._id}`,
       undefined,
       { automatic: true, profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString() }
     );
   }
 
-  // Move from reserve to circulation
-  await myPtsHubService.moveToCirculation(
+  // Move from holding to circulation
+  await myPtsHubService.moveFromHoldingToCirculation(
     amount,
     `Purchase by profile ${profile._id}`,
     undefined,

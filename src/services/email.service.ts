@@ -36,7 +36,6 @@ Handlebars.registerHelper('formatDate', function(timestamp) {
 
 class EmailService {
   private static transporter = nodemailer.createTransport({
-    // service: "gmail",  // REMOVE THIS LINE
     host: config.SMTP_HOST,
     port: config.SMTP_PORT,
     secure: config.SMTP_PORT == 465, // Set dynamically: true if port is 465
@@ -70,7 +69,7 @@ class EmailService {
   }
 
   public static async loadAndCompileTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {
-    const templatePath = path.join(__dirname, '../templates', `${templateName}.html`);
+    const templatePath = path.join(__dirname, '../templates/emails', `${templateName}.hbs`); // Changed extension to .hbs and corrected path
     const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
     return Handlebars.compile(templateContent);
   }
@@ -133,24 +132,26 @@ class EmailService {
 
   public static async sendPasswordResetEmail(
     email: string,
-    code: string,
+    resetUrl: string,
+    name: string,
+    expiryMinutes: number,
     deviceInfo?: { ipAddress?: string; userAgent?: string }
   ): Promise<void> {
     try {
-      const template = await this.loadTemplate('verification-email');
-
-      const digits = code.split('');
+      const template = await this.loadTemplate('password-reset-link');
 
       const html = template({
-        digits,
+        resetUrl,
+        name,
+        expiryMinutes,
+        appName: config.APP_NAME || 'MyProfile',
         ipAddress: deviceInfo?.ipAddress || 'Unknown',
         deviceInfo: deviceInfo?.userAgent || 'Unknown Device',
-        baseUrl: config.BASE_URL || 'http://localhost:3000'
       });
 
       await this.sendEmail(
         email,
-        `Reset Your Password - ${config.APP_NAME}`,
+        `Reset Your Password - ${config.APP_NAME || 'MyProfile'}`,
         html
       );
     } catch (error: unknown) {

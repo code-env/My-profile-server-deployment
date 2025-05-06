@@ -56,7 +56,7 @@ import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
 import { logger } from "../utils/logger";
 import { CustomError } from "../utils/errors";
-import { User } from "../models/User";
+import { User } from "../models/User"; // Added User import
 import EmailService from "../services/email.service";
 import { randomBytes } from "crypto";
 import { config } from "../config/config";
@@ -761,18 +761,38 @@ console.log(user);
         throw new CustomError("MISSING_EMAIL", "Email is required");
       }
 
-      const resetToken = randomBytes(32).toString("hex");
-      await AuthService.setResetToken(email, resetToken);
+      // Fetch user first to ensure email exists and get name
+      const user = await User.findOne({ email }).select('fullName');
 
-      const clientInfo = await getClientInfo(req);
+      // Always return success message for security, even if user not found
+      // But only proceed if user exists
+      if (user) {
+        const resetToken = randomBytes(32).toString("hex");
+        await AuthService.setResetToken(email, resetToken);
 
-      // Send reset email
-      const resetUrl = `${config.CLIENT_URL}/reset-password?token=${resetToken}`;
-      await EmailService.sendPasswordResetEmail(email, resetToken, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
+        const clientInfo = await getClientInfo(req);
+
+        // Define expiry time (e.g., 60 minutes)
+        const expiryMinutes = 60;
+
+        // Send reset email
+        const resetUrl = `${config.CLIENT_URL}/reset-password?token=${resetToken}`;
+        await EmailService.sendPasswordResetEmail(
+          email,
+          resetUrl, // Pass the full URL
+          user.fullName || 'User', // Pass user's name (or default)
+          expiryMinutes, // Pass expiry time
+          { ipAddress: clientInfo.ip, userAgent: clientInfo.os }
+        );
+      } else {
+        // Log if user not found, but don't reveal this to the client
+        logger.warn(`Password reset requested for non-existent email: ${email}`);
+      }
 
       res.json({
         success: true,
-        message: "Password reset instructions sent to your email",
+        message:
+          "If an account exists with this email, password reset instructions have been sent", // Kept generic for security
       });
     } catch (error) {
       logger.error("Forgot password error:", error);
