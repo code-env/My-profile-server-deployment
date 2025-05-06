@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
 import { logger } from '../utils/logger';
 import { AppError, isAppError } from '../errors';
+import { randomBytes } from 'crypto';
+import EmailService from '../services/email.service';
+import { config } from '../config/config';
 
 export class PasswordController {
   /**
@@ -16,8 +19,21 @@ export class PasswordController {
         return;
       }
 
+      // Generate a reset token
+      const resetToken = randomBytes(32).toString('hex');
+
       // Call AuthService to handle the logic
-      await AuthService.initiatePasswordReset(email);
+      await AuthService.setResetToken(email, resetToken);
+
+      // Get client info for email
+      const clientInfo = {
+        ipAddress: req.ip || 'Unknown',
+        userAgent: req.get('user-agent') || 'Unknown'
+      };
+
+      // Send reset email with the token
+      const resetUrl = `${config.CLIENT_URL}/reset-password?token=${resetToken}`;
+      await EmailService.sendPasswordResetEmail(email, resetToken, clientInfo);
 
       res.status(200).json({
         success: true,
@@ -26,9 +42,9 @@ export class PasswordController {
     } catch (error) {
       logger.error('Forgot password error:', error);
       // Avoid revealing if email exists
-      res.status(200).json({ 
-        success: true, 
-        message: 'If an account with that email exists, a password reset link has been sent to your email.' 
+      res.status(200).json({
+        success: true,
+        message: 'If an account with that email exists, a password reset link has been sent to your email.'
       });
     }
   }
@@ -51,7 +67,7 @@ export class PasswordController {
       // e.g., if (newPassword.length < 8) { ... }
 
       // Call AuthService to handle the logic
-      await AuthService.resetPasswordWithToken(token, newPassword);
+      await AuthService.resetPassword(token, newPassword);
 
       res.status(200).json({
         success: true,
@@ -62,9 +78,9 @@ export class PasswordController {
       // Use isAppError or check specific error types (like AuthenticationError)
       const statusCode = isAppError(error) ? error.statusCode : 400; // Default to 400 for bad token/request
       const message = error instanceof Error ? error.message : 'Failed to reset password.';
-      
-      res.status(statusCode).json({ 
-        success: false, 
+
+      res.status(statusCode).json({
+        success: false,
         message: message
       });
     }
