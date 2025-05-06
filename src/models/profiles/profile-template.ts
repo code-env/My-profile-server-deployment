@@ -1,6 +1,4 @@
 /* -----------------------------------------------------------------------
-   src/models/profile-template.model.ts
-   -----------------------------------------------------------------------
    Mongoose/TypeScript model that lets an **admin** define the structure
    (sections, fields, validation, UI hints, etc.) of every profile type.
    End-users only store “instances” that reference one of these templates.
@@ -8,9 +6,7 @@
 
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
-/* ────────────────────────────────────────────────────────────────────
-   📌  Enums & helper types
-   ──────────────────────────────────────────────────────────────────── */
+
 export type ProfileCategory = 'individual' | 'accessory' | 'group';
 
 export const PROFILE_TYPE_ENUM = [
@@ -44,9 +40,9 @@ export interface IFieldValidation {
   regex?: string;         // JS-style regexp string
 }
 
-/* ────────────────────────────────────────────────────────────────────
+/*
    🧩  Field → Section → Template interfaces
-   ──────────────────────────────────────────────────────────────────── */
+   */
 export interface ITemplateField {
   key: string;            // e.g. "biography"
   label: string;          // i18n key or literal
@@ -92,10 +88,6 @@ export interface IProfileTemplate extends Document {
   updatedAt: Date;
 }
 
-/* ────────────────────────────────────────────────────────────────────
-   🔧  Schemas
-   ──────────────────────────────────────────────────────────────────── */
-/* Field schema ------------------------------------------------------ */
 const FieldSchema = new Schema<ITemplateField>(
   {
     key:        { type: String, required: true },
@@ -168,13 +160,13 @@ const TemplateSchema = new Schema<IProfileTemplate>(
   { timestamps: true }
 );
 
-/* Indexes ----------------------------------------------------------- */
+
 TemplateSchema.index(
   { profileCategory: 1, profileType: 1, version: -1 },
-  { unique: true }            // ensures (category,type,version) is unique
+  { unique: true }            
 );
 TemplateSchema.index({ isActive: 1 });
 
-/* Model ------------------------------------------------------------- */
+
 export const ProfileTemplate: Model<IProfileTemplate> =
   mongoose.model<IProfileTemplate>('ProfileTemplate', TemplateSchema);

@@ -1,10 +1,3 @@
-/* ---------------------------------------------------------------------
-   src/services/adminprofile.service.ts
-   ---------------------------------------------------------------------
-   CRUD service for **ProfileTemplate** documents.
-   Mirrors the coding style of the sample `ProfileService` you shared
-   (console logging + `createHttpError` for HTTP-friendly failures).
---------------------------------------------------------------------- */
 
 import {
     ProfileTemplate,
@@ -50,14 +43,14 @@ import {
     ): Promise<IProfileTemplate> {
       console.log('📄 Creating new template:', input.profileType, 'by admin', adminId);
   
-      /* sanity checks ------------------------------------------------ */
+    
       if (!PROFILE_TYPE_ENUM.includes(input.profileType)) {
         throw createHttpError(400, 'Invalid profileType');
       }
   
       const version = input.version ?? 1;
   
-      /* avoid duplicate (category,type,version) ---------------------- */
+
       const exists = await ProfileTemplate.findOne({
         profileCategory: input.profileCategory,
         profileType: input.profileType,
@@ -70,7 +63,7 @@ import {
         );
       }
   
-      /* create & persist -------------------------------------------- */
+      
       const template = new ProfileTemplate({
         ...input,
         version,
@@ -83,9 +76,7 @@ import {
       return template;
     }
   
-    /* ────────────────────────────────────────────────────────────────
-       READ
-       ──────────────────────────────────────────────────────────────── */
+    
     async listTemplates(filter?: {
       isActive?: boolean;
       category?: ProfileCategory;
@@ -114,9 +105,7 @@ import {
       return tpl;
     }
   
-    /* ────────────────────────────────────────────────────────────────
-       UPDATE
-       ──────────────────────────────────────────────────────────────── */
+    
     async updateTemplate(
       templateId: string,
       adminId: string,
@@ -146,9 +135,7 @@ import {
       return template;
     }
   
-    /* ────────────────────────────────────────────────────────────────
-       DELETE
-       ──────────────────────────────────────────────────────────────── */
+    
     async deleteTemplate(templateId: string): Promise<boolean> {
       console.log('🗑️  Deleting template:', templateId);
   
