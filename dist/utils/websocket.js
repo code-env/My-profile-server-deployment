@@ -26,8 +26,10 @@ const initializeWebSocket = (server, app) => {
         },
         path: '/socket.io' // Different path from WS
     });
-    // Initialize interaction service
+    // Initialize interaction service and set up socket server
+    console.log('Initializing interaction service...');
     interactionService = new interaction_service_1.InteractionService(Interaction_1.Interaction);
+    interactionService.setSocketServer(io);
     // Existing WS connection handling for logs
     wss.on('connection', (ws) => {
         clients.add(ws);
@@ -39,17 +41,6 @@ const initializeWebSocket = (server, app) => {
         ws.on('error', (error) => {
             logger_1.logger.error('WebSocket error:', error);
             clients.delete(ws);
-        });
-    });
-    // Socket.IO connection handling for interactions
-    io.on('connection', (socket) => {
-        const userId = socket.handshake.query.userId;
-        if (userId) {
-            interactionService.registerUserSocket(userId, socket);
-            logger_1.logger.info(`User ${userId} connected via Socket.IO`);
-        }
-        socket.on('disconnect', () => {
-            logger_1.logger.info('Socket.IO client disconnected');
         });
     });
     // Store instances in app.locals for middleware access

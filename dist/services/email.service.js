@@ -119,9 +119,12 @@ class EmailService {
     }
     static async sendPasswordResetEmail(email, resetUrl, name, expiryMinutes, deviceInfo) {
         try {
+            // Ensure the reset URL is properly encoded
+            const encodedResetUrl = encodeURI(resetUrl);
+            logger_1.logger.info(`Sending password reset email with URL: ${encodedResetUrl}`);
             const template = await this.loadTemplate('password-reset-link');
             const html = template({
-                resetUrl,
+                resetUrl: encodedResetUrl,
                 name,
                 expiryMinutes,
                 appName: config_1.config.APP_NAME || 'MyProfile',
@@ -129,6 +132,7 @@ class EmailService {
                 deviceInfo: (deviceInfo === null || deviceInfo === void 0 ? void 0 : deviceInfo.userAgent) || 'Unknown Device',
             });
             await this.sendEmail(email, `Reset Your Password - ${config_1.config.APP_NAME || 'MyProfile'}`, html);
+            logger_1.logger.info(`Password reset email sent successfully to ${email}`);
         }
         catch (error) {
             logger_1.logger.error('Failed to send password reset email:', error);
