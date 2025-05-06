@@ -13,6 +13,7 @@ import {
     unlikeComment,
     addAttachment,
     removeAttachment,
+    likeTask,
 } from '../controllers/task.controller';
 
 const router = express.Router();
@@ -33,6 +34,9 @@ router.delete('/:id/subtasks/:subTaskIndex', deleteSubTask);
 router.post('/:id/comments', addComment);
 router.post('/:id/comments/:commentIndex/like', likeComment);
 router.delete('/:id/comments/:commentIndex/like', unlikeComment);
+
+// Like routes
+router.post('/:id/like', likeTask);
 
 // Attachment routes
 router.post('/:id/attachments', addAttachment);

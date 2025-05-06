@@ -36,6 +36,12 @@ ${chalk_1.default.cyan('│                                                     
 ${chalk_1.default.cyan('│  ')}${chalk_1.default.white('Marco Blaise')}${chalk_1.default.cyan('                                                    │')}
 ${chalk_1.default.cyan('│  ')}${chalk_1.default.dim('Lead software Eng. & System Architect')}${chalk_1.default.cyan('                              │')}
 ${chalk_1.default.cyan('│                                                                      │')}
+${chalk_1.default.cyan('│  ')}${chalk_1.default.white('Romaric')}${chalk_1.default.cyan('                                                    │')}
+${chalk_1.default.cyan('│  ')}${chalk_1.default.dim('Backend Developer')}${chalk_1.default.cyan('                                           │')}
+${chalk_1.default.cyan('│                                                                      │')}
+${chalk_1.default.cyan('│  ')}${chalk_1.default.white('Nfon')}${chalk_1.default.cyan('                                                    │')}
+${chalk_1.default.cyan('│  ')}${chalk_1.default.dim('Backend Developer')}${chalk_1.default.cyan('                                           │')}
+${chalk_1.default.cyan('│                                                                      │')}
 ${chalk_1.default.cyan('│                                                                      │')}
 ${chalk_1.default.cyan('╰──────────────────────────────────────────────────────────────────────╯')}`;
 // Export colors for use in other files

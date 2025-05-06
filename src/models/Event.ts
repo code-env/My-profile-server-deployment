@@ -105,7 +105,7 @@ const EventSchema = new Schema<IEvent>(
     priority: {
       type: String,
       enum: Object.values(PriorityLevel),
-      default: PriorityLevel.Low
+      default: PriorityLevel.LOW
     },
     status: {
       type: String,

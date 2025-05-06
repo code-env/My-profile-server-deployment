@@ -5,6 +5,7 @@ import { IProfile } from '../interfaces/profile.interface';
 import { TaskStatus } from 'twilio/lib/rest/taskrouter/v1/workspace/task';
 import { List } from '../models/List';
 import { ITask, Task } from '../models/Tasks';
+import { Types } from 'mongoose';
 
 class TaskService {
     /**
@@ -15,7 +16,7 @@ class TaskService {
         const task = new Task({
             ...taskData,
             createdBy: taskData.createdBy || null,
-            profile: taskData.profile || null,
+            profile: taskData.profile|| null,
             subTasks: taskData.subTasks || [],
             isAllDay: taskData.isAllDay || false,
             repeat: taskData.repeat || {
@@ -437,6 +438,38 @@ class TaskService {
 
         task.attachments.splice(attachmentIndex, 1);
         await task.save();
+        return task;
+    }
+
+    async likeTask(taskId: string, userId: Types.ObjectId) {
+        const task = await Task.findById(taskId);
+        if (!task) {
+            throw new Error('Task not found');
+        }
+
+        if (!task.likes) {
+            task.likes = [];
+        }
+
+        if (!task.likes.includes(userId)) {
+            task.likes.push(userId);
+            await task.save();
+        }
+
+        return task;
+    }
+
+    async unlikeTask(taskId: string, userId: Types.ObjectId) {
+        const task = await Task.findById(taskId);
+        if (!task) {
+            throw new Error('Task not found');
+        }
+
+        if (task.likes) {
+            task.likes = task.likes.filter(id => !id.equals(userId));
+            await task.save();
+        }
+
         return task;
     }
 }
