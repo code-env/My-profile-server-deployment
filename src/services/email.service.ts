@@ -69,7 +69,8 @@ class EmailService {
   }
 
   public static async loadAndCompileTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {
-    const templatePath = path.join(__dirname, '../templates/emails', `${templateName}.hbs`); // Changed extension to .hbs and corrected path
+    // Adjust path for running from dist folder: ../../ goes up from dist/services to dist/
+    const templatePath = path.join(__dirname, '../../templates/emails', `${templateName}.hbs`); 
     const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
     return Handlebars.compile(templateContent);
   }

@@ -37,7 +37,8 @@ handlebars_1.default.registerHelper('formatDate', function (timestamp) {
 });
 class EmailService {
     static async loadAndCompileTemplate(templateName) {
-        const templatePath = path_1.default.join(__dirname, '../templates', `${templateName}.html`);
+        // Adjust path for running from dist folder: ../../ goes up from dist/services to dist/
+        const templatePath = path_1.default.join(__dirname, '../../templates/emails', `${templateName}.hbs`);
         const templateContent = await fs_1.default.promises.readFile(templatePath, 'utf-8');
         return handlebars_1.default.compile(templateContent);
     }
@@ -83,17 +84,18 @@ class EmailService {
             throw new Error(error instanceof Error ? error.message : 'Failed to send verification email');
         }
     }
-    static async sendPasswordResetEmail(email, code, deviceInfo) {
+    static async sendPasswordResetEmail(email, resetUrl, name, expiryMinutes, deviceInfo) {
         try {
             const template = await this.loadTemplate('password-reset-link');
-            const digits = code.split('');
             const html = template({
-                digits,
+                resetUrl,
+                name,
+                expiryMinutes,
+                appName: config_1.config.APP_NAME || 'MyProfile',
                 ipAddress: (deviceInfo === null || deviceInfo === void 0 ? void 0 : deviceInfo.ipAddress) || 'Unknown',
                 deviceInfo: (deviceInfo === null || deviceInfo === void 0 ? void 0 : deviceInfo.userAgent) || 'Unknown Device',
-                baseUrl: config_1.config.BASE_URL || 'http://localhost:3000'
             });
-            await this.sendEmail(email, `Reset Your Password - ${config_1.config.APP_NAME}`, html);
+            await this.sendEmail(email, `Reset Your Password - ${config_1.config.APP_NAME || 'MyProfile'}`, html);
         }
         catch (error) {
             logger_1.logger.error('Failed to send password reset email:', error);
@@ -167,7 +169,6 @@ class EmailService {
 }
 _a = EmailService;
 EmailService.transporter = nodemailer_1.default.createTransport({
-    // service: "gmail",  // REMOVE THIS LINE
     host: config_1.config.SMTP_HOST,
     port: config_1.config.SMTP_PORT,
     secure: config_1.config.SMTP_PORT == 465, // Set dynamically: true if port is 465
