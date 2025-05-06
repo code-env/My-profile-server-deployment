@@ -489,27 +489,38 @@ static async login(
    * Sets a password reset token for a user
    * @param email User's email
    * @param resetToken Reset token to set
+   * @param purpose The purpose of the token (e.g., 'reset_password', 'change_email')
+   * @param channel The channel for verification (e.g., 'email', 'sms')
    * @returns The updated user
    * @throws CustomError if user not found
    */
   static async setResetToken(
     email: string,
-    resetToken: string
+    resetToken: string,
+    purpose: 'registration' | 'login' | 'reset_password' | 'change_email',
+    channel: 'email' | 'sms' = 'email'
   ): Promise<IUser> {
+    console.log("Setting reset token for email:", email);
+    console.log("Purpose:", purpose);
+    
     const user = await User.findOne({ email });
     if (!user) {
       throw new CustomError("USER_NOT_FOUND", "No user found with this email");
     }
 
+    const expiryTime = new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000);
+    console.log("Setting token expiry to:", expiryTime);
+
     user.verificationToken = resetToken;
-    user.otpData = {
-      expiry: new Date(Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000),
+    user.verificationData = {
+      otp: resetToken,
+      otpExpiry: expiryTime,
       attempts: 0,
-      purpose: "reset_password",
-      channel: "email",
+      lastAttempt: new Date()
     };
 
     await user.save();
+    console.log("Saved user with new token and expiry");
     return user;
   }
 
@@ -517,38 +528,45 @@ static async login(
    * Resets a user's password using a valid reset token
    * @param token Reset token
    * @param newPassword New password to set
+   * @param purpose The purpose to validate against
    * @throws CustomError if token is invalid or expired
    */
   static async resetPassword(
     token: string,
-    newPassword: string
+    newPassword: string,
+    purpose: 'registration' | 'login' | 'reset_password' | 'change_email'
   ): Promise<void> {
     try {
-      const user = (await User.findOne({
-        verificationToken: token,
-        "otpData.purpose": "reset_password",
-        "otpData.expiry": { $gt: new Date() },
-      })) as any;
+      console.log("Resetting password with token:", token);
+      
+      // Find user by the OTP stored in verificationData
+      const user = await User.findOne({
+        "verificationData.otp": token,
+        "verificationData.otpExpiry": { $gt: new Date() }
+      });
 
       if (!user) {
+        console.log("No user found with valid OTP token");
         throw new CustomError(
           "INVALID_TOKEN",
           "Invalid or expired reset token"
         );
       }
 
-      // Update password and clear reset token data
+      console.log("Found user:", user.email);
+      console.log("Verification data:", user.verificationData);
+
+      // Update password and clear verification data
       user.password = newPassword;
-      user.verificationToken = undefined;
-      user.otpData = {
-        hash: undefined,
-        expiry: new Date(Date.now() + 10 * 60 * 1000),
+      user.verificationData = {
+        otp: undefined,
+        otpExpiry: undefined,
         attempts: 0,
-        channel: "email",
-        purpose: undefined,
+        lastAttempt: undefined
       };
 
       await user.save();
+      console.log("Password updated successfully");
     } catch (error) {
       logger.error("Password reset error:", error);
       throw error;
@@ -826,6 +844,167 @@ static async login(
     } catch (error) {
       logger.error("Get user sessions error:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Validate a reset token without actually resetting anything
+   * @param token The token to validate
+   * @returns The user if token is valid, null otherwise
+   */
+  static async validateResetToken(token: string): Promise<{ isValid: boolean; email?: string }> {
+    try {
+      console.log("Validating reset token:", token);
+      
+      // Find user by the OTP stored in verificationData
+      const user = await User.findOne({
+        "verificationData.otp": token,
+        "verificationData.otpExpiry": { $gt: new Date() }
+      });
+
+      if (!user) {
+        console.log("No user found with valid reset token");
+        return { isValid: false };
+      }
+
+      console.log("Found user with valid reset token:", user.email);
+      return { 
+        isValid: true, 
+        email: user.email 
+      };
+    } catch (error) {
+      logger.error("Token validation error:", error);
+      return { isValid: false };
+    }
+  }
+
+  /**
+   * Validate user identity for forgotten credentials
+   * @param identifier Email, username, or phone number
+   * @param type What is being recovered (password, username, email)
+   * @returns Validation result with masked sensitive info
+   */
+  static async validateUserIdentity(
+    identifier: string,
+    type: 'password' | 'username' | 'email'
+  ): Promise<{ 
+    success: boolean; 
+    message: string;
+    maskedInfo?: string;
+    userId?: string;
+  }> {
+    try {
+      // Find user based on identifier
+      const user = await User.findOne({
+        $or: [
+          { email: identifier.toLowerCase() },
+          { username: identifier.toLowerCase() },
+          { phoneNumber: identifier }
+        ]
+      });
+
+      if (!user) {
+        return {
+          success: false,
+          message: "No account found with this identifier"
+        };
+      }
+
+      // Mask sensitive information based on type
+      let maskedInfo: string | undefined;
+      switch (type) {
+        case 'email':
+          maskedInfo = user.email.replace(/(?<=.{3}).(?=.*@)/g, '*');
+          break;
+        case 'username':
+          maskedInfo = user.username.replace(/(?<=.{2}).(?=.{2})/g, '*');
+          break;
+        case 'password':
+          // For password reset, we'll mask the email that will receive instructions
+          maskedInfo = user.email.replace(/(?<=.{3}).(?=.*@)/g, '*');
+          break;
+      }
+
+      return {
+        success: true,
+        message: "Identity validated successfully",
+        maskedInfo,
+        userId: user._id.toString()
+      };
+    } catch (error) {
+      logger.error("Identity validation error:", error);
+      return {
+        success: false,
+        message: "Error validating identity"
+      };
+    }
+  }
+
+  /**
+   * Retrieve forgotten information after OTP validation
+   * @param token The OTP token
+   * @param infoType What information to retrieve ('email', 'username', etc)
+   */
+  static async retrieveForgottenInfo(
+    token: string,
+    infoType: 'email' | 'username' | 'phone_number'
+  ): Promise<{ success: boolean; info?: string; message?: string }> {
+    try {
+      console.log("Retrieving forgotten info. Type:", infoType);
+      console.log("Token:", token);
+
+      // Find user with valid OTP
+      const user = await User.findOne({
+        "verificationData.otp": token,
+        "verificationData.otpExpiry": { $gt: new Date() }
+      });
+
+      if (!user) {
+        console.log("No user found with valid token");
+        return {
+          success: false,
+          message: "Invalid or expired token"
+        };
+      }
+
+      // Return the requested information
+      let info: string;
+      switch (infoType) {
+        case 'email':
+          info = user.email;
+          break;
+        case 'username':
+          info = user.username;
+          break;
+        case 'phone_number':
+          info = user.phoneNumber;
+          break;
+        default:
+          return {
+            success: false,
+            message: "Invalid information type requested"
+          };
+      }
+
+      // Clear the verification data since it's been used
+      user.verificationData = {
+        otp: undefined,
+        otpExpiry: undefined,
+        attempts: 0,
+        lastAttempt: undefined
+      };
+      await user.save();
+
+      return {
+        success: true,
+        info
+      };
+    } catch (error) {
+      logger.error("Error retrieving forgotten info:", error);
+      return {
+        success: false,
+        message: "Error retrieving information"
+      };
     }
   }
 }

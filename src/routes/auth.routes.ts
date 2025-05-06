@@ -403,4 +403,9 @@ router.post('/google/mobile', async (req, res) => {
   }
 });
 
+// Change user information routes (after verification)
+router.post("/change-email", AuthController.changeEmail);
+router.post("/change-phone", AuthController.changePhoneNumber);
+router.post("/change-username", AuthController.changeUsername);
+
 export default router;

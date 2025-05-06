@@ -24,7 +24,7 @@ export class PasswordController {
       const resetToken = randomBytes(32).toString('hex');
 
       // Call AuthService to handle the logic
-      await AuthService.setResetToken(email, resetToken);
+      await AuthService.setResetToken(email, resetToken, 'reset_password', 'email');
 
       // Fetch user to get their name for the email
       const user = await User.findOne({ email });
@@ -79,7 +79,7 @@ export class PasswordController {
       // e.g., if (newPassword.length < 8) { ... }
 
       // Call AuthService to handle the logic
-      await AuthService.resetPassword(token, newPassword);
+      await AuthService.resetPassword(token, newPassword, 'reset_password');
 
       res.status(200).json({
         success: true,
