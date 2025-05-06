@@ -22,17 +22,37 @@ import {
   updateProfileNew,
   getAllProfiles,
 } from '../controllers/profile.controller';
+import {
+  createTemplate,
+  listTemplates,
+  getTemplateById,
+  updateTemplate,
+  deleteTemplate
+} from '../controllers/admin-profile-template.controller';
+
+
 
 const router = express.Router();
 
 // Initialize ProfileService
 const profileService = new ProfileService();
 
+
 // Apply authentication middleware to all routes
 // router.use(authenticateToken);
 
 // Profile creation and claiming
 // requireRole(['user', 'superadmin', 'admin'])
+
+router.post('t/create',createTemplate)
+router.get('t/list',listTemplates)
+router.get('t/:id',getTemplateById)
+router.put('t/:id',updateTemplate)
+router.delete('t/:id',deleteTemplate)
+
+
+
+
 router.post('/create-profile',requireRole(['user', 'superadmin', 'admin']), createProfile);
 router.post('/create-claimable', requireRole(['user', 'superadmin', 'admin']), createClaimableProfile);
 router.post('/claim', requireRole(['user', 'superadmin', 'admin']), claimProfile);

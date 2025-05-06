@@ -79,7 +79,7 @@ import {
       });
   
       await template.save();
-      console.log('✅ Template created:', template?_id.toString());
+      console.log('✅ Template created:', template._id );
       return template;
     }
   
