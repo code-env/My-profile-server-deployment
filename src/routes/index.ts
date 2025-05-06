@@ -48,6 +48,7 @@ import logsRoutes from './logs.routes';
 import myPtsRoutes from './my-pts.routes';
 import myPtsValueRoutes from './my-pts-value.routes';
 import myPtsHubRoutes from './my-pts-hub.routes';
+import adminRoutes from './admin.routes';
 import adminNotificationRoutes from './admin-notification.routes';
 import stripeRoutes from './stripe.routes';
 import taskRoutes from './task.routes';
@@ -130,6 +131,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/my-pts', protect, myPtsRoutes);
   app.use('/api/my-pts-value', protect, myPtsValueRoutes);
   app.use('/api/my-pts-hub', protect, myPtsHubRoutes);
+  app.use('/api/admin', protect, adminRoutes);
   app.use('/api/admin/notifications', protect, adminNotificationRoutes);
   app.use('/api/stripe', stripeRoutes);
   app.use('/api/notifications', protect, notificationRoutes);
