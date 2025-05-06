@@ -72,19 +72,44 @@ class EmailService {
     logger.debug(`loadAndCompileTemplate called for: ${templateName}`);
     logger.debug(`__dirname: ${__dirname}`);
 
-    // Correct path relative to __dirname (which is dist/services)
-    // ../ goes up one level to dist/, then down to templates/emails
-    const templatePath = path.join(__dirname, '../templates/emails', `${templateName}.hbs`);
-    logger.info(`Attempting to load email template from resolved path: ${templatePath}`);
+    // Try multiple possible paths to handle different environments
+    const possiblePaths = [
+      // Standard path (development)
+      path.join(__dirname, '../templates/emails', `${templateName}.hbs`),
+      // Production path with double templates folder
+      path.join(__dirname, '../templates/templates/emails', `${templateName}.hbs`),
+      // Fallback path
+      path.join(process.cwd(), 'dist/templates/emails', `${templateName}.hbs`),
+      // Another fallback path
+      path.join(process.cwd(), 'dist/templates/templates/emails', `${templateName}.hbs`),
+      // Source path
+      path.join(process.cwd(), 'src/templates/emails', `${templateName}.hbs`)
+    ];
 
-    try {
-      const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
-      logger.debug(`Successfully read template file: ${templatePath}`);
-      return Handlebars.compile(templateContent);
-    } catch (error) {
-      logger.error(`Error reading template file at ${templatePath}:`, error);
-      throw error; // Re-throw the error if reading fails
+    let templateContent = null;
+    let loadedPath = null;
+
+    // Try each path until we find one that works
+    for (const templatePath of possiblePaths) {
+      try {
+        logger.info(`Attempting to load email template from path: ${templatePath}`);
+        templateContent = await fs.promises.readFile(templatePath, 'utf-8');
+        loadedPath = templatePath;
+        logger.debug(`Successfully read template file: ${templatePath}`);
+        break;
+      } catch (error) {
+        logger.debug(`Template not found at ${templatePath}`);
+        // Continue to the next path
+      }
     }
+
+    if (!templateContent) {
+      const error = new Error(`Could not find template '${templateName}' in any of the expected locations`);
+      logger.error('Template loading error:', error);
+      throw error;
+    }
+
+    return Handlebars.compile(templateContent);
   }
 
   private static async loadTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {
