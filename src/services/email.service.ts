@@ -36,7 +36,6 @@ Handlebars.registerHelper('formatDate', function(timestamp) {
 
 class EmailService {
   private static transporter = nodemailer.createTransport({
-    // service: "gmail",  // REMOVE THIS LINE
     host: config.SMTP_HOST,
     port: config.SMTP_PORT,
     secure: config.SMTP_PORT == 465, // Set dynamically: true if port is 465
@@ -70,8 +69,46 @@ class EmailService {
   }
 
   public static async loadAndCompileTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {
-    const templatePath = path.join(__dirname, '../templates', `${templateName}.html`);
-    const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
+    logger.debug(`loadAndCompileTemplate called for: ${templateName}`);
+    logger.debug(`__dirname: ${__dirname}`);
+
+    // Try multiple possible paths to handle different environments
+    const possiblePaths = [
+      // Standard path (development)
+      path.join(__dirname, '../templates/emails', `${templateName}.hbs`),
+      // Production path with double templates folder
+      path.join(__dirname, '../templates/templates/emails', `${templateName}.hbs`),
+      // Fallback path
+      path.join(process.cwd(), 'dist/templates/emails', `${templateName}.hbs`),
+      // Another fallback path
+      path.join(process.cwd(), 'dist/templates/templates/emails', `${templateName}.hbs`),
+      // Source path
+      path.join(process.cwd(), 'src/templates/emails', `${templateName}.hbs`)
+    ];
+
+    let templateContent = null;
+    let loadedPath = null;
+
+    // Try each path until we find one that works
+    for (const templatePath of possiblePaths) {
+      try {
+        logger.info(`Attempting to load email template from path: ${templatePath}`);
+        templateContent = await fs.promises.readFile(templatePath, 'utf-8');
+        loadedPath = templatePath;
+        logger.debug(`Successfully read template file: ${templatePath}`);
+        break;
+      } catch (error) {
+        logger.debug(`Template not found at ${templatePath}`);
+        // Continue to the next path
+      }
+    }
+
+    if (!templateContent) {
+      const error = new Error(`Could not find template '${templateName}' in any of the expected locations`);
+      logger.error('Template loading error:', error);
+      throw error;
+    }
+
     return Handlebars.compile(templateContent);
   }
 
@@ -133,26 +170,34 @@ class EmailService {
 
   public static async sendPasswordResetEmail(
     email: string,
-    code: string,
+    resetUrl: string,
+    name: string,
+    expiryMinutes: number,
     deviceInfo?: { ipAddress?: string; userAgent?: string }
   ): Promise<void> {
     try {
-      const template = await this.loadTemplate('verification-email');
+      // Ensure the reset URL is properly encoded
+      const encodedResetUrl = encodeURI(resetUrl);
+      logger.info(`Sending password reset email with URL: ${encodedResetUrl}`);
 
-      const digits = code.split('');
+      const template = await this.loadTemplate('password-reset-link');
 
       const html = template({
-        digits,
+        resetUrl: encodedResetUrl,
+        name,
+        expiryMinutes,
+        appName: config.APP_NAME || 'MyProfile',
         ipAddress: deviceInfo?.ipAddress || 'Unknown',
         deviceInfo: deviceInfo?.userAgent || 'Unknown Device',
-        baseUrl: config.BASE_URL || 'http://localhost:3000'
       });
 
       await this.sendEmail(
         email,
-        `Reset Your Password - ${config.APP_NAME}`,
+        `Reset Your Password - ${config.APP_NAME || 'MyProfile'}`,
         html
       );
+
+      logger.info(`Password reset email sent successfully to ${email}`);
     } catch (error: unknown) {
       logger.error('Failed to send password reset email:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to send password reset email');

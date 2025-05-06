@@ -61,7 +61,7 @@ exports.socialAuthCallback = socialAuthCallback;
 const auth_service_1 = require("../services/auth.service");
 const logger_1 = require("../utils/logger");
 const errors_1 = require("../utils/errors");
-const User_1 = require("../models/User");
+const User_1 = require("../models/User"); // Added User import
 const email_service_1 = __importDefault(require("../services/email.service"));
 const crypto_1 = require("crypto");
 const config_1 = require("../config/config");
@@ -607,15 +607,30 @@ class AuthController {
             if (!email) {
                 throw new errors_1.CustomError("MISSING_EMAIL", "Email is required");
             }
-            const resetToken = (0, crypto_1.randomBytes)(32).toString("hex");
-            await auth_service_1.AuthService.setResetToken(email, resetToken);
-            const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
-            // Send reset email
-            const resetUrl = `${config_1.config.CLIENT_URL}/reset-password?token=${resetToken}`;
-            await email_service_1.default.sendPasswordResetEmail(email, resetToken, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
+            // Fetch user first to ensure email exists and get name
+            const user = await User_1.User.findOne({ email }).select('fullName');
+            // Always return success message for security, even if user not found
+            // But only proceed if user exists
+            if (user) {
+                const resetToken = (0, crypto_1.randomBytes)(32).toString("hex");
+                await auth_service_1.AuthService.setResetToken(email, resetToken);
+                const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
+                // Define expiry time (e.g., 60 minutes)
+                const expiryMinutes = 60;
+                // Send reset email
+                const resetUrl = `${config_1.config.CLIENT_URL}/reset-password?token=${resetToken}`;
+                await email_service_1.default.sendPasswordResetEmail(email, resetUrl, // Pass the full URL
+                user.fullName || 'User', // Pass user's name (or default)
+                expiryMinutes, // Pass expiry time
+                { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
+            }
+            else {
+                // Log if user not found, but don't reveal this to the client
+                logger_1.logger.warn(`Password reset requested for non-existent email: ${email}`);
+            }
             res.json({
                 success: true,
-                message: "Password reset instructions sent to your email",
+                message: "If an account exists with this email, password reset instructions have been sent", // Kept generic for security
             });
         }
         catch (error) {

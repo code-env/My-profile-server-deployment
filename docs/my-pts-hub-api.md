@@ -5,7 +5,7 @@ The MyPts Hub API provides endpoints for managing the global supply of MyPts in 
 ## Overview
 
 The MyPts Hub manages:
-- Total MyPts supply (50,833,912 MyPts initially)
+- Total MyPts supply (1,000,000,000 MyPts initially)
 - Circulating supply (MyPts held by profiles)
 - Reserve supply (MyPts held by the system)
 - Maximum supply cap (optional)
