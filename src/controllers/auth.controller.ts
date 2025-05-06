@@ -792,8 +792,15 @@ console.log(user);
         // Define expiry time (e.g., 60 minutes)
         const expiryMinutes = 60;
 
-        // Send reset email
-        const resetUrl = `${config.CLIENT_URL}/reset-password?token=${resetToken}`;
+        // Send reset email with properly encoded token
+        const encodedToken = encodeURIComponent(resetToken);
+
+        // Make sure we have a valid CLIENT_URL, with fallback to the hardcoded production URL
+        const clientUrl = config.CLIENT_URL || 'https://my-pts-dashboard-management.vercel.app';
+        const resetUrl = `${clientUrl}/reset-password?token=${encodedToken}`;
+
+        logger.info(`Generated reset URL in auth controller: ${resetUrl}`);
+
         await EmailService.sendPasswordResetEmail(
           email,
           resetUrl, // Pass the full URL
