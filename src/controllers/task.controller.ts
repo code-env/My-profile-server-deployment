@@ -1,21 +1,19 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import taskService from '../services/task.service';
+import { ITask } from '../models/Tasks';
 import {
-    TaskStatus,
-    PriorityLevel,
-    TaskCategory,
-    RepeatFrequency,
-    EndCondition,
-    ReminderType,
-    ReminderUnit,
-    VisibilityType,
-    Attachment
+    TaskStatus
 } from '../models/plans-shared';
 import createHttpError from 'http-errors';
 import asyncHandler from 'express-async-handler';
 import CloudinaryService from '../services/cloudinary.service';
 import { request } from 'http';
+import { InteractionService } from '../services/interaction.service';
+import { Interaction } from '../models/Interaction';
+import { Attachment, EndCondition, PriorityLevel, ReminderType, ReminderUnit, RepeatFrequency, TaskCategory, VisibilityType } from '../models/plans-shared';
+import { io as Client } from 'socket.io-client';
+import { emitSocialInteraction } from '../utils/socketEmitter';
 
 // Helper function to validate task data
 const validateTaskData = (data: any) => {
@@ -37,7 +35,7 @@ const validateTaskData = (data: any) => {
         errors.push(`visibility must be one of: ${Object.values(VisibilityType).join(', ')}`);
     }
 
-    if (!data.profileId) {
+    if (!data.profile) {
         errors.push('profileId is required');
     }
 
@@ -172,6 +170,11 @@ export const getTaskById = asyncHandler(async (req: Request, res: Response) => {
     if (!task) {
         throw createHttpError(404, 'Task not found');
     }
+
+    if (!task.profile) {
+        throw createHttpError(400, 'Task has no associated profile');
+    }
+
 
     res.json({
         success: true,
@@ -418,15 +421,54 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Comment text is required');
     }
 
-    const task = await taskService.addComment(
+    const task = await taskService.getTaskById(req.params.id);
+    if (!task) {
+        throw createHttpError(404, 'Task not found');
+    }
+
+    console.log('takeProfileId', task);
+
+    if (!task.profile) {
+        throw createHttpError(400, 'Task has no associated profile');
+    }
+
+    // Type assertions for IDs
+    const targetProfileId = (task.profile as any)._id.toString();
+    const profileId = (task.profile as any)._id.toString();
+
+    const updatedTask = await taskService.addComment(
         req.params.id,
         user._id,
         req.body.text
     );
 
+    try {
+        await emitSocialInteraction(user._id, {
+            type: 'comment',
+            profile: new Types.ObjectId(user._id),
+            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
+            contentId: (updatedTask as mongoose.Document).get('_id').toString(),
+            content: req.body.text
+        });
+    } catch (error) {
+        console.error('Failed to emit social interaction:', error);
+    }
+
+    try {
+        await emitSocialInteraction(user._id, {
+            type: 'like',
+            profile: new Types.ObjectId(user._id),
+            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
+            contentId: (updatedTask as mongoose.Document).get('_id').toString(),
+            content: ''
+        });
+    } catch (error) {
+        console.error('Failed to emit social interaction:', error);
+    }
+
     res.json({
         success: true,
-        data: task,
+        data: updatedTask,
         message: 'Comment added successfully'
     });
 });
@@ -451,6 +493,20 @@ export const likeComment = asyncHandler(async (req: Request, res: Response) => {
         commentIndex,
         user._id
     );
+
+    // Emit the social interaction event
+    try {
+        await emitSocialInteraction(user._id, {
+            type: 'like',
+            profile: new Types.ObjectId(user._id),
+            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
+            contentId: (task as mongoose.Document).get('_id').toString(),
+            content: ''
+        });
+    } catch (error) {
+        console.error('Failed to emit social interaction:', error);
+        // Don't throw the error as the like was still added successfully
+    }
 
     res.json({
         success: true,
@@ -550,3 +606,67 @@ export const removeAttachment = asyncHandler(async (req: Request, res: Response)
         message: 'Attachment removed successfully'
     });
 });
+
+export const likeTask = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    const profileId = new Types.ObjectId(req.params.profileId);
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid task ID');
+    }
+
+    const taskToLike = await taskService.getTaskById(req.params.id);
+
+    if (!taskToLike) {
+        throw createHttpError(404, 'Task not found');
+    }
+
+
+    if (!taskToLike.profile) {
+        throw createHttpError(400, 'Task has no associated profile');
+    }
+
+    const targetProfileId = new Types.ObjectId(taskToLike.get('profile')._id);
+
+    const task = await taskService.likeTask(req.params.id, profileId);
+
+    if (!task) {
+        throw createHttpError(404, 'Task not found');
+    }
+
+    // Emit the social interaction event
+    try {
+        await emitSocialInteraction(user._id, {
+            type: 'like',
+            profile: new Types.ObjectId(user._id),
+            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
+            contentId: (task as mongoose.Document).get('_id').toString(),
+            content: ''
+        });
+    } catch (error) {
+        console.error('Failed to emit social interaction:', error);
+    }
+
+    res.json({
+        success: true,
+        data: task,
+        message: 'Task liked successfully'
+    });
+});
+
+// export const unlikeTask = asyncHandler(async (req: Request, res: Response) => {
+//     const user: any = req.user!;
+
+//     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+//         throw createHttpError(400, 'Invalid task ID');
+//     }
+
+//     const task = await taskService.unlikeTask(req.params.id, user._id);
+
+//     res.json({
+//         success: true,
+//         data: task,
+//         message: 'Task unliked successfully'
+//     });
+// });
