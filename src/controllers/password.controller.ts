@@ -38,8 +38,11 @@ export class PasswordController {
         userAgent: req.get('user-agent') || 'Unknown'
       };
 
-      // Send reset email with the token
-      const resetUrl = `${config.CLIENT_URL}/reset-password?token=${resetToken}`;
+      // Send reset email with the token - ensure token is properly encoded
+      const encodedToken = encodeURIComponent(resetToken);
+      const resetUrl = `${config.CLIENT_URL}/reset-password?token=${encodedToken}`;
+      logger.info(`Generated reset URL: ${resetUrl}`);
+
       // Use user's name if available, otherwise use a default greeting
       const userName = user?.fullName || user?.username || 'User';
       await EmailService.sendPasswordResetEmail(email, resetUrl, userName, expiryMinutes, clientInfo);

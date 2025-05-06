@@ -176,10 +176,14 @@ class EmailService {
     deviceInfo?: { ipAddress?: string; userAgent?: string }
   ): Promise<void> {
     try {
+      // Ensure the reset URL is properly encoded
+      const encodedResetUrl = encodeURI(resetUrl);
+      logger.info(`Sending password reset email with URL: ${encodedResetUrl}`);
+
       const template = await this.loadTemplate('password-reset-link');
 
       const html = template({
-        resetUrl,
+        resetUrl: encodedResetUrl,
         name,
         expiryMinutes,
         appName: config.APP_NAME || 'MyProfile',
@@ -192,6 +196,8 @@ class EmailService {
         `Reset Your Password - ${config.APP_NAME || 'MyProfile'}`,
         html
       );
+
+      logger.info(`Password reset email sent successfully to ${email}`);
     } catch (error: unknown) {
       logger.error('Failed to send password reset email:', error);
       throw new Error(error instanceof Error ? error.message : 'Failed to send password reset email');
