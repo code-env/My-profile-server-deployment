@@ -197,7 +197,7 @@ export const updateMyPtsValue = async (req: Request, res: Response) => {
     const {
       baseValue,
       exchangeRates,
-      totalSupply = 50833912 // Default to the current supply if not provided
+      totalSupply = 1000000000 // Default to the current supply (1 billion) if not provided
     } = req.body;
 
     if (!baseValue || !exchangeRates || !Array.isArray(exchangeRates)) {
@@ -270,7 +270,7 @@ export const initializeMyPtsValue = async (req: Request, res: Response) => {
     }
 
     // Default values based on the provided information
-    const totalSupply = 50833912;
+    const totalSupply = 1000000000; // 1 billion total supply
     const baseValue = 0.024; // $0.024 USD per MyPt
     const totalValueUSD = totalSupply * baseValue;
 

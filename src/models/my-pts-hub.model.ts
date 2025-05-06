@@ -68,19 +68,19 @@ const myPtsHubSchema = new Schema<IMyPtsHub>(
     totalSupply: {
       type: Number,
       required: true,
-      default: 50833912,  // Initial supply from your requirements
+      default: 1000000000,  // 1 billion total supply
       min: 0
     },
     circulatingSupply: {
       type: Number,
       required: true,
-      default: 50833912,
+      default: 850000000,  // 85% of total supply
       min: 0
     },
     reserveSupply: {
       type: Number,
       required: true,
-      default: 0,
+      default: 150000000,  // 15% of total supply (holding)
       min: 0
     },
     maxSupply: {
@@ -551,9 +551,9 @@ myPtsHubSchema.statics.getHub = async function(): Promise<MyPtsHubDocument> {
 
   if (!hub) {
     hub = await this.create({
-      totalSupply: 50833912,
-      circulatingSupply: 50833912,
-      reserveSupply: 0,
+      totalSupply: 1000000000,  // 1 billion total supply
+      circulatingSupply: 850000000,  // 85% of total supply
+      reserveSupply: 150000000,  // 15% of total supply (holding)
       maxSupply: null,
       valuePerMyPt: 0.024,
       lastAdjustment: new Date()
