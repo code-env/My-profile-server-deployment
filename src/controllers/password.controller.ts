@@ -5,6 +5,7 @@ import { AppError, isAppError } from '../errors';
 import { randomBytes } from 'crypto';
 import EmailService from '../services/email.service';
 import { config } from '../config/config';
+import { User } from '../models/User';
 
 export class PasswordController {
   /**
@@ -25,6 +26,12 @@ export class PasswordController {
       // Call AuthService to handle the logic
       await AuthService.setResetToken(email, resetToken);
 
+      // Fetch user to get their name for the email
+      const user = await User.findOne({ email });
+
+      // Define expiry time for the reset link (e.g., 60 minutes)
+      const expiryMinutes = 60;
+
       // Get client info for email
       const clientInfo = {
         ipAddress: req.ip || 'Unknown',
@@ -33,7 +40,9 @@ export class PasswordController {
 
       // Send reset email with the token
       const resetUrl = `${config.CLIENT_URL}/reset-password?token=${resetToken}`;
-      await EmailService.sendPasswordResetEmail(email, resetToken, clientInfo);
+      // Use user's name if available, otherwise use a default greeting
+      const userName = user?.fullName || user?.username || 'User';
+      await EmailService.sendPasswordResetEmail(email, resetUrl, userName, expiryMinutes, clientInfo);
 
       res.status(200).json({
         success: true,
