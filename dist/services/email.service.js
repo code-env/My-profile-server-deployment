@@ -37,10 +37,34 @@ handlebars_1.default.registerHelper('formatDate', function (timestamp) {
 });
 class EmailService {
     static async loadAndCompileTemplate(templateName) {
-        // Adjust path for running from dist folder: ../../ goes up from dist/services to dist/
-        const templatePath = path_1.default.join(__dirname, '../../templates/emails', `${templateName}.hbs`);
-        const templateContent = await fs_1.default.promises.readFile(templatePath, 'utf-8');
-        return handlebars_1.default.compile(templateContent);
+        logger_1.logger.debug(`loadAndCompileTemplate called for: ${templateName}`);
+        logger_1.logger.debug(`__dirname: ${__dirname}`);
+        const cwd = process.cwd();
+        logger_1.logger.debug(`process.cwd(): ${cwd}`);
+        // Calculate path relative to CWD, assuming CWD is project root containing 'dist'
+        const templatePath = path_1.default.resolve(cwd, 'dist', 'templates', 'emails', `${templateName}.hbs`);
+        logger_1.logger.info(`Attempting to load email template from resolved path: ${templatePath}`); // Use info level for visibility
+        try {
+            const templateContent = await fs_1.default.promises.readFile(templatePath, 'utf-8');
+            logger_1.logger.debug(`Successfully read template file: ${templatePath}`);
+            return handlebars_1.default.compile(templateContent);
+        }
+        catch (error) {
+            logger_1.logger.error(`Error reading template file at ${templatePath}:`, error);
+            // Fallback attempt using previous __dirname logic just in case CWD is not project root
+            const fallbackPath = path_1.default.join(__dirname, '../../templates/emails', `${templateName}.hbs`);
+            logger_1.logger.warn(`Falling back to try template path: ${fallbackPath}`);
+            try {
+                const templateContentFallback = await fs_1.default.promises.readFile(fallbackPath, 'utf-8');
+                logger_1.logger.info(`Successfully read template file from fallback path: ${fallbackPath}`);
+                return handlebars_1.default.compile(templateContentFallback);
+            }
+            catch (fallbackError) {
+                logger_1.logger.error(`Error reading template file at fallback path ${fallbackPath}:`, fallbackError);
+                // If both fail, throw the original error from the primary path attempt
+                throw error;
+            }
+        }
     }
     static async loadTemplate(templateName) {
         return this.loadAndCompileTemplate(templateName);

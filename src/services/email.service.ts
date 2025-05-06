@@ -69,10 +69,34 @@ class EmailService {
   }
 
   public static async loadAndCompileTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {
-    // Adjust path for running from dist folder: ../../ goes up from dist/services to dist/
-    const templatePath = path.join(__dirname, '../../templates/emails', `${templateName}.hbs`); 
-    const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
-    return Handlebars.compile(templateContent);
+    logger.debug(`loadAndCompileTemplate called for: ${templateName}`);
+    logger.debug(`__dirname: ${__dirname}`);
+    const cwd = process.cwd();
+    logger.debug(`process.cwd(): ${cwd}`);
+
+    // Calculate path relative to CWD, assuming CWD is project root containing 'dist'
+    const templatePath = path.resolve(cwd, 'dist', 'templates', 'emails', `${templateName}.hbs`);
+    logger.info(`Attempting to load email template from resolved path: ${templatePath}`); // Use info level for visibility
+
+    try {
+      const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
+      logger.debug(`Successfully read template file: ${templatePath}`);
+      return Handlebars.compile(templateContent);
+    } catch (error) {
+      logger.error(`Error reading template file at ${templatePath}:`, error);
+      // Fallback attempt using previous __dirname logic just in case CWD is not project root
+      const fallbackPath = path.join(__dirname, '../../templates/emails', `${templateName}.hbs`);
+      logger.warn(`Falling back to try template path: ${fallbackPath}`);
+      try {
+        const templateContentFallback = await fs.promises.readFile(fallbackPath, 'utf-8');
+        logger.info(`Successfully read template file from fallback path: ${fallbackPath}`);
+        return Handlebars.compile(templateContentFallback);
+      } catch (fallbackError) {
+        logger.error(`Error reading template file at fallback path ${fallbackPath}:`, fallbackError);
+        // If both fail, throw the original error from the primary path attempt
+        throw error; 
+      }
+    }
   }
 
   private static async loadTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {
