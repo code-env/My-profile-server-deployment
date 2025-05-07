@@ -4,6 +4,7 @@
    End-users only store “instances” that reference one of these templates.
 ------------------------------------------------------------------------ */
 
+import { profile } from 'console';
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
 
@@ -75,8 +76,7 @@ export interface IProfileTemplate extends Document {
   profileType: ProfileType;
 
   name: string;            // human-readable: "Personal profile"
-  slug: string;            // machine slug: "personal"
-  version: number;         // 1, 2, 3…
+  slug: string;            // for the web slug: "personal"       // 1, 2, 3…
   isActive: boolean;       // “published / available”
 
   sections: ITemplateSection[];
@@ -147,15 +147,12 @@ const TemplateSchema = new Schema<IProfileTemplate>(
       index: true
     },
 
-    name:     { type: String, required: true },
-    slug:     { type: String, required: true, lowercase: true },
-    version:  { type: Number, default: 1 },
-    isActive: { type: Boolean, default: false },
-
+  
     sections: { type: [SectionSchema], default: [] },
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'Admin', required: true },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'Admin' }
+
   },
   { timestamps: true }
 );
