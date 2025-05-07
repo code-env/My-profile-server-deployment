@@ -44,11 +44,11 @@ const profileService = new ProfileService();
 // Profile creation and claiming
 // requireRole(['user', 'superadmin', 'admin'])
 
-router.post('t/create',createTemplate)
-router.get('t/list',listTemplates)
-router.get('t/:id',getTemplateById)
-router.put('t/:id',updateTemplate)
-router.delete('t/:id',deleteTemplate)
+router.post('/t/create',createTemplate)
+router.get('/t/list',listTemplates)
+router.get('/t/:id',getTemplateById)
+router.put('/t/:id',updateTemplate)
+router.delete('/t/:id',deleteTemplate)
 
 
 

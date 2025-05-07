@@ -350,4 +350,8 @@ router.post('/google/mobile', async (req, res) => {
         res.status(401).json({ error: 'Google authentication failed', message: err.message });
     }
 });
+// Change user information routes (after verification)
+router.post("/change-email", auth_controller_1.AuthController.changeEmail);
+router.post("/change-phone", auth_controller_1.AuthController.changePhoneNumber);
+router.post("/change-username", auth_controller_1.AuthController.changeUsername);
 exports.default = router;

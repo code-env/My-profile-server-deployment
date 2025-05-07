@@ -1,6 +1,4 @@
-/* ---------------------------------------------------------------------
-   src/controllers/admin-profile-template.controller.ts
-   --------------------------------------------------------------------- */
+
 
    import { Request, Response, NextFunction } from 'express';
    import createHttpError from 'http-errors';
@@ -8,17 +6,14 @@
    
    const service = new AdminProfileService();
    
-   /* helper ──────────────────────────────────────────────────────────── */
-   /** Pulls the current admin’s Mongo _id from whatever auth middleware
-    *  put it on the request.  Change this if your auth shape is different. */
+   
    const getAdminId = (req: Request) => {
-     // e.g. req.user = { _id: '...' } set by a JWT middleware
+    
      const id = (req as any).user?._id;
      if (!id) throw createHttpError(401, 'Admin identity not found on request');
      return id as string;
    };
    
-   /* CREATE ──────────────────────────────────────────────────────────── */
    export const createTemplate = async (
      req: Request,
      res: Response,
@@ -35,7 +30,7 @@
      }
    };
    
-   /* READ – list all / with filters ──────────────────────────────────── */
+   
    export const listTemplates = async (
      req: Request,
      res: Response,
@@ -45,7 +40,7 @@
        const filter = {
          isActive:
            req.query.isActive !== undefined
-             ? req.query.isActive === 'true' // cast from string
+             ? req.query.isActive === 'true' 
              : undefined,
          category: req.query.category as any,
          type: req.query.type as any
@@ -56,8 +51,7 @@
        next(err);
      }
    };
-   
-   /* READ – by id ────────────────────────────────────────────────────── */
+
    export const getTemplateById = async (
      req: Request,
      res: Response,
@@ -72,7 +66,7 @@
      }
    };
    
-   /* UPDATE ──────────────────────────────────────────────────────────── */
+  
    export const updateTemplate = async (
      req: Request,
      res: Response,
@@ -90,7 +84,7 @@
      }
    };
    
-   /* DELETE ──────────────────────────────────────────────────────────── */
+   
    export const deleteTemplate = async (
      req: Request,
      res: Response,
