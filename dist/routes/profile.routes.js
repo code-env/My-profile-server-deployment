@@ -30,7 +30,7 @@ router.get('/user-profiles', (req, _res, next) => {
 router.route('/:id')
     .get(authMiddleware_1.authenticateToken, profile_controller_1.getProfileInfo) // Use authenticateToken instead of checkProfileOwnership
     .put((0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.updateProfileNew)
-    .delete((0, roleMiddleware_1.requireRole)(['user', 'superadmin']), profile_controller_1.deleteProfile);
+    .delete((0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.deleteProfile);
 // Manager management
 router.post('/:id/managers', (0, roleMiddleware_1.requireRole)(['user', 'superadmin']), roleMiddleware_1.checkProfileOwnership, profile_controller_1.addProfileManager);
 router.delete('/:id/managers/:managerId', (0, roleMiddleware_1.requireRole)(['user', 'superadmin']), roleMiddleware_1.checkProfileOwnership, profile_controller_1.removeManager);

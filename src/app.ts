@@ -232,7 +232,7 @@ export class AppServer {
         origin: whitelistOrigins,
         credentials: true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+        allowedHeaders: ["Content-Type", "Authorization", "Cookie", "x-profile-token"],
         exposedHeaders: ["Content-Range", "X-Content-Range"],
         maxAge: 600,
       })
