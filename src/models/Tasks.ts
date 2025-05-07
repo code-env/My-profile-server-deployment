@@ -14,7 +14,8 @@ import {
   VisibilityType,
   TaskCategory,
   PriorityLevel,
-  TaskStatus
+  TaskStatus,
+  TaskType
 } from './plans-shared';
 import { 
   repeatSettingsSchema,
@@ -26,10 +27,13 @@ import {
 
 export interface ITask extends Document {
   name: string;
+  type: TaskType;
   description?: string;
   subTasks: ISubTask[];
   startTime?: Date;
   endTime?: Date;
+  scheduledTime?: Date;
+  completedAt?: Date;
   isAllDay: boolean;
   duration?: {
     hours: number;
