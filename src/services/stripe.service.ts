@@ -29,11 +29,14 @@ class StripeService {
     metadata: Record<string, any> = {}
   ): Promise<Stripe.PaymentIntent> {
     try {
+      // Use automatic_payment_methods instead of payment_method_types
+      // This allows the Payment Element to use automatic payment methods
       const paymentIntent = await this.stripe.paymentIntents.create({
         amount,
         currency,
         metadata,
-        payment_method_types: stripeConfig.paymentMethods,
+        automatic_payment_methods: { enabled: true },
+        // Remove payment_method_types to avoid conflicts with automatic_payment_methods
       });
 
       logger.info('Created payment intent', { paymentIntentId: paymentIntent.id });
