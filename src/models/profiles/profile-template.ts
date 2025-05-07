@@ -1,12 +1,4 @@
-/* -----------------------------------------------------------------------
-   Mongoose/TypeScript model that lets an **admin** define the structure
-   (sections, fields, validation, UI hints, etc.) of every profile type.
-   End-users only store “instances” that reference one of these templates.
------------------------------------------------------------------------- */
-
-import { profile } from 'console';
 import mongoose, { Document, Model, Schema } from 'mongoose';
-
 
 export type ProfileCategory = 'individual' | 'accessory' | 'group';
 
@@ -27,8 +19,8 @@ export type ProfileType = typeof PROFILE_TYPE_ENUM[number];
 
 export type FieldWidget =
   | 'text' | 'textarea' | 'number' | 'select' | 'multiselect'
-  | 'email' | 'url'    | 'phone'  | 'date'   | 'datetime'
-  | 'boolean' | 'file' | 'image'  | 'object' | 'list:text';
+  | 'email' | 'url' | 'phone' | 'date' | 'datetime'
+  | 'boolean' | 'file' | 'image' | 'object' | 'list:text';
 
 export interface IFieldOption {
   label: string;
@@ -36,50 +28,41 @@ export interface IFieldOption {
 }
 
 export interface IFieldValidation {
-  min?: number;           // length or numeric
+  min?: number;
   max?: number;
-  regex?: string;         // JS-style regexp string
+  regex?: string;
 }
 
-/*
-   🧩  Field → Section → Template interfaces
-   */
 export interface ITemplateField {
-  key: string;            // e.g. "biography"
-  label: string;          // i18n key or literal
-  widget: FieldWidget;
-  required?: boolean;
-  default?: any;
-  placeholder?: string;
-  options?: IFieldOption[];
-  validation?: IFieldValidation;
-  ui?: {
-    icon?: string;
-    hint?: string;
-    width?: 12 | 6 | 4 | 3;  // grid width in a 12-col system
-    order?: number;          // within the section
-  };
+  name: string;           
+  label: string;          
+  widget: FieldWidget;    
+  content?: any;          
+  order: number;          
+  enabled: boolean;       
+  required?: boolean;     
+  default?: any;          
+  placeholder?: string;   
+  options?: IFieldOption[]; 
+  validation?: IFieldValidation; 
 }
 
-export interface ITemplateSection {
-  key: string;             // "about", "contact", …
-  label: string;
-  order: number;
-  icon?: string;
-  collapsible?: boolean;
-  fields: ITemplateField[];
+export interface ITemplateCategory {
+  name: string;           
+  label: string;          
+  icon?: string;          
+  collapsible?: boolean;  
+  fields: ITemplateField[]; 
 }
 
 export interface IProfileTemplate extends Document {
-  /* header */
   profileCategory: ProfileCategory;
   profileType: ProfileType;
 
-  name: string;            // human-readable: "Personal profile"
-  slug: string;            // for the web slug: "personal"       // 1, 2, 3…
-  isActive: boolean;       // “published / available”
+  name: string;            // Human-readable name
+  slug: string;            // URL-friendly identifier for the web version
 
-  sections: ITemplateSection[];
+  categories: ITemplateCategory[];
 
   createdBy: mongoose.Types.ObjectId;
   updatedBy?: mongoose.Types.ObjectId;
@@ -90,48 +73,39 @@ export interface IProfileTemplate extends Document {
 
 const FieldSchema = new Schema<ITemplateField>(
   {
-    key:        { type: String, required: true },
-    label:      { type: String, required: true },
-    widget:     { type: String, required: true },
-    required:   { type: Boolean, default: false },
-    default:    { type: Schema.Types.Mixed },
-    placeholder:{ type: String },
-
-    options:    [{
+    name: { type: String, required: true },
+    label: { type: String, required: true },
+    widget: { type: String, required: true },
+    content: { type: Schema.Types.Mixed },
+    order: { type: Number, required: true },
+    enabled: { type: Boolean, default: false },
+    required: { type: Boolean, default: false },
+    default: { type: Schema.Types.Mixed },
+    placeholder: { type: String },
+    options: [{
       label: { type: String, required: true },
       value: Schema.Types.Mixed
     }],
-
     validation: {
-      min:   Number,
-      max:   Number,
+      min: Number,
+      max: Number,
       regex: String
-    },
-
-    ui: {
-      icon:  String,
-      hint:  String,
-      width: { type: Number, enum: [12, 6, 4, 3], default: 12 },
-      order: { type: Number, default: 0 }
     }
-  },
-  { _id: false }  // embedded – no individual ObjectId
-);
-
-/* Section schema ---------------------------------------------------- */
-const SectionSchema = new Schema<ITemplateSection>(
-  {
-    key:         { type: String, required: true },
-    label:       { type: String, required: true },
-    order:       { type: Number, default: 0 },
-    icon:        String,
-    collapsible: { type: Boolean, default: true },
-    fields:      { type: [FieldSchema], default: [] }
   },
   { _id: false }
 );
 
-/* Template schema --------------------------------------------------- */
+const CategorySchema = new Schema<ITemplateCategory>(
+  {
+    name: { type: String, required: true },
+    label: { type: String, required: true },
+    icon: String,
+    collapsible: { type: Boolean, default: true },
+    fields: { type: [FieldSchema], default: [] }
+  },
+  { _id: false }
+);
+
 const TemplateSchema = new Schema<IProfileTemplate>(
   {
     profileCategory: {
@@ -146,24 +120,19 @@ const TemplateSchema = new Schema<IProfileTemplate>(
       required: true,
       index: true
     },
-
-  
-    sections: { type: [SectionSchema], default: [] },
-
-    createdBy: { type: Schema.Types.ObjectId, ref: 'Admin', required: true },
-    updatedBy: { type: Schema.Types.ObjectId, ref: 'Admin' }
-
+    name: { type: String, required: true },
+    slug: { type: String, required: true, unique: true },
+    categories: { type: [CategorySchema], default: [] },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'SuperAdmin', required: true },
+    updatedBy: { type: Schema.Types.ObjectId, ref: 'SuperAdmin' }
   },
   { timestamps: true }
 );
 
-
 TemplateSchema.index(
-  { profileCategory: 1, profileType: 1, version: -1 },
-  { unique: true }            
+  { profileCategory: 1, profileType: 1 },
+  { unique: true }
 );
-TemplateSchema.index({ isActive: 1 });
-
 
 export const ProfileTemplate: Model<IProfileTemplate> =
   mongoose.model<IProfileTemplate>('ProfileTemplate', TemplateSchema);
