@@ -59,20 +59,28 @@ export class ProfileReferralService {
   /**
    * Validate a referral code and return the referring profile
    * @param referralCode The referral code to validate
-   * @returns The profile ID of the referring profile
+   * @returns The profile ID of the referring profile or null if invalid
    */
   static async validateReferralCode(referralCode: string) {
     try {
+      // Validate input
+      if (!referralCode || typeof referralCode !== 'string' || referralCode.trim() === '') {
+        logger.warn('Invalid referral code format provided');
+        return null;
+      }
+
       const referral = await ProfileReferralModel.findOne({ referralCode });
 
       if (!referral) {
-        throw new CustomError('INVALID_REFERRAL_CODE', 'Invalid referral code');
+        logger.warn(`No profile found with referral code: ${referralCode}`);
+        return null;
       }
 
       return referral.profileId;
     } catch (error) {
       logger.error('Error validating referral code:', error);
-      throw error;
+      // Return null instead of throwing to make this function more resilient
+      return null;
     }
   }
 
@@ -80,15 +88,42 @@ export class ProfileReferralService {
    * Process a new referral
    * @param referredProfileId The profile being referred
    * @param referrerProfileId The profile doing the referring
+   * @returns True if successful, false otherwise
    */
   static async processReferral(referredProfileId: mongoose.Types.ObjectId | string, referrerProfileId: mongoose.Types.ObjectId | string) {
     try {
-      const referredObjId = typeof referredProfileId === 'string' ? new mongoose.Types.ObjectId(referredProfileId) : referredProfileId;
-      const referrerObjId = typeof referrerProfileId === 'string' ? new mongoose.Types.ObjectId(referrerProfileId) : referrerProfileId;
+      // Validate inputs
+      if (!referredProfileId || !referrerProfileId) {
+        logger.warn('Invalid profile IDs provided for referral processing');
+        return false;
+      }
+
+      // Ensure we're working with valid ObjectIds
+      let referredObjId: mongoose.Types.ObjectId;
+      let referrerObjId: mongoose.Types.ObjectId;
+
+      try {
+        referredObjId = typeof referredProfileId === 'string' ? new mongoose.Types.ObjectId(referredProfileId) : referredProfileId;
+        referrerObjId = typeof referrerProfileId === 'string' ? new mongoose.Types.ObjectId(referrerProfileId) : referrerProfileId;
+      } catch (error) {
+        logger.error('Invalid ObjectId format for referral processing:', error);
+        return false;
+      }
+
+      // Prevent self-referrals
+      if (referredObjId.equals(referrerObjId)) {
+        logger.warn(`Self-referral detected for profile ${referredObjId}, skipping`);
+        return false;
+      }
 
       // Get or create referral records for both profiles
       const referrerReferral = await ProfileReferralModel.findOrCreate(referrerObjId);
       const referredReferral = await ProfileReferralModel.findOrCreate(referredObjId);
+
+      if (!referrerReferral || !referredReferral) {
+        logger.error('Failed to find or create referral records');
+        return false;
+      }
 
       // Set the referredBy field for the referred profile
       referredReferral.referredBy = referrerObjId;
@@ -98,9 +133,10 @@ export class ProfileReferralService {
       await referrerReferral.addReferredProfile(referredObjId);
 
       logger.info(`Processed referral: ${referrerObjId} referred ${referredObjId}`);
+      return true;
     } catch (error) {
       logger.error('Error processing referral:', error);
-      throw error;
+      return false;
     }
   }
 

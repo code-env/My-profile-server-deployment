@@ -156,9 +156,10 @@ export class SocialAuthController {
             signupType: 'google',
             isEmailVerified: true,
             profileImage: profile.picture,
-            // Add required fields with default values
-            dateOfBirth: new Date('1990-01-01'), // Default date of birth
-            countryOfResidence: 'United States', // Default country
+            // Set these fields to undefined to avoid validation errors
+            // They will be collected in the complete-profile page
+            dateOfBirth: undefined,
+            countryOfResidence: undefined,
             phoneNumber: '', // Empty phone number
             accountType: 'MYSELF', // Default account type
             accountCategory: 'PRIMARY_ACCOUNT', // Default account category
@@ -366,6 +367,8 @@ export class SocialAuthController {
           signupType: user.signupType,
           isEmailVerified: user.isEmailVerified,
           profileImage: user.profileImage,
+          dateOfBirth: user.dateOfBirth, // Include date of birth
+          countryOfResidence: user.countryOfResidence, // Include country of residence
           profileId: profileId, // Include profile ID in response
           profiles: user.profiles ? user.profiles.map(p => p.toString()) : [] // Include all profiles
         }

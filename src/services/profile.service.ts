@@ -518,20 +518,30 @@ export class ProfileService {
       const ProfileReferralService = require('./profile-referral.service').ProfileReferralService;
       await ProfileReferralService.getProfileReferral(savedProfile._id);
 
-      // Check if the user was referred (has a referral code)
-      if (user.referralCode) {
+      // Check if the user was referred (has a valid referral code)
+      if (user.referralCode && typeof user.referralCode === 'string' && user.referralCode.trim() !== '') {
         try {
           // Validate the referral code
           const referringProfileId = await ProfileReferralService.validateReferralCode(user.referralCode);
 
           if (referringProfileId) {
             // Process the referral
-            await ProfileReferralService.processReferral(savedProfile._id, referringProfileId);
-            logger.info(`Processed referral for profile ${savedProfile._id} with referral code ${user.referralCode}`);
+            const referralProcessed = await ProfileReferralService.processReferral(savedProfile._id, referringProfileId);
+
+            if (referralProcessed) {
+              logger.info(`Successfully processed referral for profile ${savedProfile._id} with referral code ${user.referralCode}`);
+            } else {
+              logger.warn(`Failed to process referral for profile ${savedProfile._id} with referral code ${user.referralCode}`);
+            }
+          } else {
+            logger.info(`Referral code ${user.referralCode} is invalid or not found, skipping referral processing`);
           }
         } catch (referralError) {
           logger.error(`Error processing referral for profile ${savedProfile._id}:`, referralError);
+          // Don't throw the error to avoid disrupting the profile creation process
         }
+      } else {
+        logger.info(`No valid referral code found for user ${userId}, skipping referral processing`);
       }
 
       logger.info(`Default profile created successfully for user ${userId}: ${savedProfile._id}`);

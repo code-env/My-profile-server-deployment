@@ -178,11 +178,17 @@ const userSchema = new Schema<IUser>(
     },
     dateOfBirth: {
       type: Date,
-      required: true,
+      required: function() {
+        // Only required if not a social login or if social login is complete
+        return !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
+      },
     },
     countryOfResidence: {
       type: String,
-      required: true,
+      required: function() {
+        // Only required if not a social login or if social login is complete
+        return !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
+      },
     },
     phoneNumber: {
       type: String,

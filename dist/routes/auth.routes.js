@@ -14,6 +14,8 @@ const logger_1 = require("../utils/logger");
 const email_service_1 = __importDefault(require("../services/email.service"));
 const whatsapp_service_1 = __importDefault(require("../services/whatsapp.service"));
 const User_1 = require("../models/User");
+// Import the JavaScript version of the controller
+const { AuthUpdateController } = require("../controllers/auth.update.controller");
 const router = express_1.default.Router();
 // API Documentation endpoint
 router.get("/", (req, res) => {
@@ -316,8 +318,10 @@ router.post('/google/mobile', async (req, res) => {
                     signupType: 'google',
                     isEmailVerified: true,
                     password: 'oauth2-user-no-password',
-                    dateOfBirth: new Date(),
-                    countryOfResidence: 'Unknown',
+                    // Set dateOfBirth to undefined to avoid validation errors
+                    // They will be collected in the complete-profile page
+                    dateOfBirth: undefined,
+                    countryOfResidence: undefined,
                     accountType: 'MYSELF',
                     accountCategory: 'PRIMARY_ACCOUNT',
                     verificationMethod: 'EMAIL',
@@ -354,4 +358,6 @@ router.post('/google/mobile', async (req, res) => {
 router.post("/change-email", auth_controller_1.AuthController.changeEmail);
 router.post("/change-phone", auth_controller_1.AuthController.changePhoneNumber);
 router.post("/change-username", auth_controller_1.AuthController.changeUsername);
+// Update profile information
+router.post("/update-profile", authMiddleware_1.authenticateToken, AuthUpdateController.updateProfile);
 exports.default = router;
