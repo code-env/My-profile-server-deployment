@@ -208,13 +208,44 @@ class AuthController {
                 throw new Error('User not found');
             }
             const tokens = auth_service_1.AuthService.generateTokens(result.userId, user.email);
+            // Get client info for session tracking
+            const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
+            // Store session information
+            const userDoc = await User_1.User.findById(result.userId);
+            if (userDoc) {
+                // Initialize sessions array if it doesn't exist
+                if (!userDoc.sessions) {
+                    userDoc.sessions = [];
+                }
+                // Add refresh token to sessions with device info
+                userDoc.sessions.push({
+                    refreshToken: tokens.refreshToken,
+                    deviceInfo: {
+                        userAgent: req.headers['user-agent'] || 'Unknown',
+                        ip: req.ip || req.socket.remoteAddress || 'Unknown',
+                        deviceType: clientInfo.device || 'Unknown'
+                    },
+                    lastUsed: new Date(),
+                    createdAt: new Date(),
+                    isActive: true
+                });
+                // Limit the number of sessions to 10
+                if (userDoc.sessions.length > 10) {
+                    // Sort by lastUsed (most recent first) and keep only the 10 most recent
+                    userDoc.sessions.sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime());
+                    userDoc.sessions = userDoc.sessions.slice(0, 10);
+                }
+                // Update last login time
+                userDoc.lastLogin = new Date();
+                await userDoc.save();
+            }
             // Set tokens in HTTP-only cookies
             res.cookie("accesstoken", tokens.accessToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
-                maxAge: 24 * 60 * 60 * 1000, // 24 hours
+                maxAge: 1 * 60 * 60 * 1000, // 1 hour
             });
             res.cookie("refreshtoken", tokens.refreshToken, {
                 httpOnly: true,
@@ -472,6 +503,7 @@ class AuthController {
                                 secure: process.env.NODE_ENV === "production",
                                 path: "/",
                                 maxAge: 24 * 60 * 60 * 1000,
+
                             });
                             res.cookie("refreshtoken", tokens.refreshToken, {
                                 httpOnly: true,
@@ -554,15 +586,21 @@ class AuthController {
             }
             // Get request info for security tracking
             const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
-            // Call AuthService to handle token refresh
-            const tokens = await auth_service_1.AuthService.refreshAccessToken(refreshToken);
+            // Extract device information for session tracking
+            const deviceInfo = {
+                userAgent: req.headers['user-agent'] || 'Unknown',
+                ip: req.ip || req.socket.remoteAddress || 'Unknown',
+                deviceType: clientInfo.device || 'Unknown'
+            };
+            // Call AuthService to handle token refresh with device info
+            const tokens = await auth_service_1.AuthService.refreshAccessToken(refreshToken, deviceInfo);
             // Set new tokens in cookies
             res.cookie("accesstoken", tokens.accessToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "lax",
                 path: "/",
-                maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
+                maxAge: 1 * 60 * 60 * 1000, // 1 hour (matches JWT_ACCESS_EXPIRATION)
             });
             res.cookie("refreshtoken", tokens.refreshToken, {
                 httpOnly: true,
@@ -631,8 +669,12 @@ class AuthController {
                 const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
                 // Define expiry time (e.g., 60 minutes)
                 const expiryMinutes = 60;
-                // Send reset email
-                const resetUrl = `${config_1.config.CLIENT_URL}/reset-password?token=${resetToken}`;
+                // Send reset email with properly encoded token
+                const encodedToken = encodeURIComponent(resetToken);
+                // Make sure we have a valid CLIENT_URL, with fallback to the hardcoded production URL
+                const clientUrl = config_1.config.CLIENT_URL || 'https://my-pts-dashboard-management.vercel.app';
+                const resetUrl = `${clientUrl}/reset-password?token=${encodedToken}`;
+                logger_1.logger.info(`Generated reset URL in auth controller: ${resetUrl}`);
                 await email_service_1.default.sendPasswordResetEmail(email, resetUrl, // Pass the full URL
                 user.fullName || 'User', // Pass user's name (or default)
                 expiryMinutes, // Pass expiry time

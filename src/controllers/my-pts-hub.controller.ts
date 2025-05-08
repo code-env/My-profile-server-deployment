@@ -17,6 +17,7 @@ export const getHubState = async (req: Request, res: Response) => {
         totalSupply: hub.totalSupply,
         circulatingSupply: hub.circulatingSupply,
         reserveSupply: hub.reserveSupply,
+        holdingSupply: hub.holdingSupply,
         maxSupply: hub.maxSupply,
         valuePerMyPt: hub.valuePerMyPt,
         lastAdjustment: hub.lastAdjustment,

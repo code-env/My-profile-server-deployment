@@ -75,6 +75,8 @@ import { validateLicenseMiddleware } from "./middleware/license.middleware";
 import WhatsAppService from "./services/whatsapp.service";
 import { initializeMyPtsHub } from "./startup/initialize-my-pts-hub";
 import { advancedTrackingMiddleware } from "./middleware/advanced-tracking.middleware";
+import { scheduleTokenCleanup } from "./jobs/cleanupTokens";
+import { scheduleScalableTokenCleanup } from "./jobs/scalableTokenCleanup";
 import { licenseConfig } from "./config/license.config";
 // Import passport configuration
 import "./config/passport";
@@ -232,7 +234,7 @@ export class AppServer {
         origin: whitelistOrigins,
         credentials: true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+        allowedHeaders: ["Content-Type", "Authorization", "Cookie", "x-profile-token"],
         exposedHeaders: ["Content-Range", "X-Content-Range"],
         maxAge: 600,
       })
@@ -511,6 +513,19 @@ export class AppServer {
       // Initialize admin settings
       const { initializeDefaultSettings } = require('./models/admin-settings.model');
       await initializeDefaultSettings();
+
+      // Schedule token cleanup job
+      // Use scalable token cleanup for large user bases (1M+ users)
+      const useScalableCleanup = process.env.USE_SCALABLE_CLEANUP === 'true' ||
+                                process.env.NODE_ENV === 'production';
+
+      if (useScalableCleanup) {
+        logger.info('Using scalable token cleanup for large user bases');
+        scheduleScalableTokenCleanup();
+      } else {
+        logger.info('Using standard token cleanup');
+        scheduleTokenCleanup();
+      }
 
       // Always use HTTP server as Render handles SSL/HTTPS
       await this.startHttpServer();

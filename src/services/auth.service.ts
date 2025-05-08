@@ -55,7 +55,7 @@ import { ProfileReferralService } from "./profile-referral.service";
 export class AuthService {
   public static readonly MAX_LOGIN_ATTEMPTS = 20000;
   private static readonly LOCK_TIME_MINUTES = 15;
-  private static readonly ACCESS_TOKEN_EXPIRY = "24h";    // Increased
+  private static readonly ACCESS_TOKEN_EXPIRY = "1h";    // Reduced for better security
   private static readonly REFRESH_TOKEN_EXPIRY = "30d";   // Increased
   public static readonly OTP_EXPIRY_MINUTES = 10;
 
@@ -397,7 +397,7 @@ static async login(
     return { accessToken, refreshToken };
   }
 
-  static async refreshAccessToken(refreshToken: string): Promise<AuthTokens> {
+  static async refreshAccessToken(refreshToken: string, deviceInfo?: any): Promise<AuthTokens> {
     try {
       // Verify the refresh token
       const decoded = (jwt as any).verify(
@@ -409,36 +409,94 @@ static async login(
         throw new CustomError("INVALID_TOKEN", "Invalid token type");
       }
 
-      // Find user and check if refresh token exists
+      // Find user
       const user = (await User.findById(decoded.userId)) as any;
-      if (!user || !user.refreshTokens?.includes(refreshToken)) {
-        throw new CustomError("INVALID_TOKEN", "Invalid refresh token");
+      if (!user) {
+        throw new CustomError("INVALID_TOKEN", "Invalid refresh token - user not found");
       }
 
-      // Implement refresh token rotation for enhanced security
-      // Remove the used refresh token and generate a new one
+      // Check if token exists in refreshTokens array (legacy support)
+      const tokenExists = user.refreshTokens?.includes(refreshToken);
+
+      // Check if token exists in sessions array
+      const sessionIndex = user.sessions?.findIndex(
+        (session: any) => session.refreshToken === refreshToken
+      );
+
+      // If token doesn't exist in either place, it's invalid
+      if (!tokenExists && sessionIndex === -1) {
+        throw new CustomError("INVALID_TOKEN", "Invalid refresh token - token not found");
+      }
+
+      // Generate new tokens
       const newRefreshToken = jwt.sign(
         { userId: user._id.toString(), email: user.email, type: "refresh" },
         config.JWT_REFRESH_SECRET,
         { expiresIn: this.REFRESH_TOKEN_EXPIRY }
       );
 
-      // Generate new access token
       const accessToken = jwt.sign(
         { userId: user._id.toString(), email: user.email },
         config.JWT_SECRET,
         { expiresIn: this.ACCESS_TOKEN_EXPIRY }
       );
 
-      // Update refresh tokens list (implement rotation)
-      user.refreshTokens = user.refreshTokens.filter(
-        (token: string) => token !== refreshToken
-      );
-      user.refreshTokens.push(newRefreshToken);
-      await user.save();
+      // Update the session information
+      const now = new Date();
 
-      // Add metadata to help with session management
-      user.lastTokenRefresh = new Date();
+      // If token was in the legacy refreshTokens array, migrate it to sessions
+      if (tokenExists) {
+        // Remove from refreshTokens array
+        user.refreshTokens = user.refreshTokens.filter(
+          (token: string) => token !== refreshToken
+        );
+
+        // Initialize sessions array if it doesn't exist
+        if (!user.sessions) {
+          user.sessions = [];
+        }
+
+        // Add to sessions with device info
+        user.sessions.push({
+          refreshToken: newRefreshToken,
+          deviceInfo: deviceInfo || {
+            userAgent: 'Unknown (migrated)',
+            ip: 'Unknown',
+            deviceType: 'Unknown'
+          },
+          lastUsed: now,
+          createdAt: now,
+          isActive: true
+        });
+
+        // Limit the number of sessions to 10
+        if (user.sessions.length > 10) {
+          // Sort by lastUsed (most recent first) and keep only the 10 most recent
+          user.sessions.sort((a: any, b: any) =>
+            new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
+          );
+          user.sessions = user.sessions.slice(0, 10);
+        }
+      }
+      // If token was in the sessions array, update that session
+      else if (sessionIndex !== -1) {
+        // Update the existing session with the new token
+        user.sessions[sessionIndex].refreshToken = newRefreshToken;
+        user.sessions[sessionIndex].lastUsed = now;
+
+        // Update device info if provided
+        if (deviceInfo) {
+          user.sessions[sessionIndex].deviceInfo = {
+            ...user.sessions[sessionIndex].deviceInfo,
+            ...deviceInfo
+          };
+        }
+      }
+
+      // Update last token refresh time
+      user.lastTokenRefresh = now;
+
+      // Save the user
       await user.save();
 
       return { accessToken, refreshToken: newRefreshToken };
@@ -453,11 +511,67 @@ static async login(
       const user = await User.findById(userId);
       if (!user) return;
 
-      // Clear all refresh tokens on logout for better security
-      user.refreshTokens = [];
+      // If a specific refresh token is provided, only invalidate that session
+      if (refreshToken) {
+        // Check if token exists in refreshTokens array (legacy support)
+        if (user.refreshTokens?.includes(refreshToken)) {
+          user.refreshTokens = user.refreshTokens.filter(
+            (token: string) => token !== refreshToken
+          );
+        }
+
+        // Check if token exists in sessions array
+        if (user.sessions?.length > 0) {
+          const sessionIndex = user.sessions.findIndex(
+            (session: any) => session.refreshToken === refreshToken
+          );
+
+          if (sessionIndex !== -1) {
+            // Mark the session as inactive instead of removing it
+            user.sessions[sessionIndex].isActive = false;
+          }
+        }
+      } else {
+        // If no specific token is provided, clear all sessions
+        user.refreshTokens = [];
+
+        if (user.sessions?.length > 0) {
+          // Mark all sessions as inactive
+          user.sessions.forEach((session: any) => {
+            session.isActive = false;
+          });
+        }
+      }
+
       await user.save();
     } catch (error) {
       logger.error("Logout error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Logout from all devices
+   * @param userId User ID
+   */
+  static async logoutAll(userId: string): Promise<void> {
+    try {
+      const user = await User.findById(userId);
+      if (!user) return;
+
+      // Clear all refresh tokens
+      user.refreshTokens = [];
+
+      // Mark all sessions as inactive
+      if (user.sessions?.length > 0) {
+        user.sessions.forEach((session: any) => {
+          session.isActive = false;
+        });
+      }
+
+      await user.save();
+    } catch (error) {
+      logger.error("Logout all error:", error);
       throw error;
     }
   }
@@ -502,7 +616,7 @@ static async login(
   ): Promise<IUser> {
     console.log("Setting reset token for email:", email);
     console.log("Purpose:", purpose);
-    
+
     const user = await User.findOne({ email });
     if (!user) {
       throw new CustomError("USER_NOT_FOUND", "No user found with this email");
@@ -538,7 +652,7 @@ static async login(
   ): Promise<void> {
     try {
       console.log("Resetting password with token:", token);
-      
+
       // Find user by the OTP stored in verificationData
       const user = await User.findOne({
         "verificationData.otp": token,
@@ -855,7 +969,7 @@ static async login(
   static async validateResetToken(token: string): Promise<{ isValid: boolean; email?: string }> {
     try {
       console.log("Validating reset token:", token);
-      
+
       // Find user by the OTP stored in verificationData
       const user = await User.findOne({
         "verificationData.otp": token,
@@ -868,9 +982,9 @@ static async login(
       }
 
       console.log("Found user with valid reset token:", user.email);
-      return { 
-        isValid: true, 
-        email: user.email 
+      return {
+        isValid: true,
+        email: user.email
       };
     } catch (error) {
       logger.error("Token validation error:", error);
@@ -887,8 +1001,8 @@ static async login(
   static async validateUserIdentity(
     identifier: string,
     type: 'password' | 'username' | 'email'
-  ): Promise<{ 
-    success: boolean; 
+  ): Promise<{
+    success: boolean;
     message: string;
     maskedInfo?: string;
     userId?: string;

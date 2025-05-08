@@ -85,7 +85,7 @@ router.get('/user-profiles', (req, _res, next) => {
 router.route('/:id')
   .get(authenticateToken, getProfileInfo) // Use authenticateToken instead of checkProfileOwnership
   .put(requireRole(['user', 'superadmin', 'admin']), updateProfileNew)
-  .delete(requireRole(['user', 'superadmin']), deleteProfile);
+  .delete(requireRole(['user', 'superadmin', 'admin']), deleteProfile);
 
 // Manager management
 router.post('/:id/managers', requireRole(['user', 'superadmin']), checkProfileOwnership, addProfileManager);

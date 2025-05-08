@@ -7,6 +7,7 @@
     "start": "nodemon dist/server.js",
     "dev": "nodemon src/server.ts",
     "build": "tsc && cp -r src/templates dist/templates && cp -r public dist/public",
+    "build:bun": "bun build ./src/server.ts --outdir ./dist --target node && cp -r src/templates dist/templates && cp -r public dist/public",
     "postinstall": "npm run build",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -24,7 +25,13 @@
     "prestart": "npm run license:validate",
     "predev": "npm run license:validate",
     "test:sockets": "ts-node src/scripts/test-socket-interactions.ts",
-    "test:sockets:watch": "nodemon --exec ts-node src/scripts/test-socket-interactions.ts"
+    "test:sockets:watch": "nodemon --exec ts-node src/scripts/test-socket-interactions.ts",
+    "migrate-tokens": "ts-node src/scripts/migrate-refresh-tokens.ts",
+    "cleanup-tokens": "ts-node src/scripts/run-token-cleanup.ts",
+    "cleanup-tokens:prod": "node dist/scripts/run-token-cleanup.js",
+    "cleanup-tokens:scalable": "ts-node src/scripts/run-scalable-token-cleanup.ts",
+    "cleanup-tokens:scalable:prod": "node dist/scripts/run-scalable-token-cleanup.js",
+    "cleanup-tokens:scalable:bun": "bun run src/scripts/run-scalable-token-cleanup.ts"
   },
   "keywords": [
     "authentication",
@@ -37,11 +44,13 @@
   "license": "ISC",
   "dependencies": {
     "@types/express-session": "^1.18.1",
+    "@types/node-cron": "^3.0.11",
     "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
     "bowser": "^2.11.0",
     "canvas": "^3.0.0",
     "cloudinary": "^2.6.0",
+    "colors": "^1.4.0",
     "compression": "^1.7.5",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
@@ -67,6 +76,7 @@
     "memcached": "^2.2.2",
     "mongoose": "^8.0.3",
     "morgan": "^1.10.0",
+    "node-cron": "^3.0.3",
     "nodemailer": "^6.9.16",
     "passport": "^0.6.0",
     "passport-facebook": "^3.0.0",
@@ -86,8 +96,7 @@
     "whatsapp-web.js": "^1.26.0",
     "winston": "^3.11.0",
     "ws": "^8.18.0",
-    "zod": "^3.22.4",
-    "colors": "^1.4.0"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -123,15 +132,19 @@
     "jest": "^29.5.0",
     "nodemon": "^3.0.2",
     "prettier": "^3.1.1",
+    "socket.io-client": "^4.7.0",
     "ts-jest": "^29.1.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3",
-    "socket.io-client": "^4.7.0"
+    "typescript": "^5.3.3"
   },
   "jest": {
     "preset": "ts-jest",
-   "testEnvironment": "node",
-    "testMatch": ["**/__tests__/**/*.test.ts"],
-    "setupFilesAfterEnv": ["./jest.setup.js"]
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/__tests__/**/*.test.ts"
+    ],
+    "setupFilesAfterEnv": [
+      "./jest.setup.js"
+    ]
   }
 }

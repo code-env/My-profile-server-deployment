@@ -562,12 +562,13 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
 });
 
 
-// @desc    Delete a profile
+// @desc    Delete a profile or user account
 // @route   DELETE /api/profiles/:id
 // @access  Private
 export const deleteProfile = asyncHandler(async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { deleteUserAccount } = req.query; // New parameter to indicate if user account should be deleted
     const user = req.user as any;
 
     // Validate profile exists
@@ -576,23 +577,42 @@ export const deleteProfile = asyncHandler(async (req: Request, res: Response) =>
       throw createHttpError(404, 'Profile not found');
     }
 
-    // Check if user is owner or superadmin
-    if (profile.owner.toString() !== user._id.toString() && user.role !== 'superadmin') {
+    // Check if user is owner, admin, or superadmin
+    if (profile.owner.toString() !== user._id.toString() && user.role !== 'superadmin' && user.role !== 'admin') {
       throw createHttpError(403, 'Not authorized to delete this profile');
     }
 
-    // Remove profile from owner's profiles array
-    await User.findByIdAndUpdate(profile.owner, {
-      $pull: { profiles: profile._id }
-    });
+    // If deleteUserAccount is true, delete the user and all their profiles
+    if (deleteUserAccount === 'true') {
+      logger.info(`Deleting user account ${profile.owner} and all associated profiles`);
 
-    // Delete the profile
-    await ProfileModel.deleteOne({ _id: id });
+      // Delete all profiles owned by the user
+      await ProfileModel.deleteMany({ owner: profile.owner });
 
-    res.json({
-      success: true,
-      message: 'Profile deleted successfully'
-    });
+      // Delete the user account
+      await User.findByIdAndDelete(profile.owner);
+
+      res.json({
+        success: true,
+        message: 'User account and all associated profiles deleted successfully'
+      });
+    } else {
+      // Just delete the specific profile
+      logger.info(`Deleting profile ${id}`);
+
+      // Remove profile from owner's profiles array
+      await User.findByIdAndUpdate(profile.owner, {
+        $pull: { profiles: profile._id }
+      });
+
+      // Delete the profile
+      await ProfileModel.deleteOne({ _id: id });
+
+      res.json({
+        success: true,
+        message: 'Profile deleted successfully'
+      });
+    }
   } catch (error) {
     logger.error('Delete profile error:', error);
     res.status(error instanceof Error ? 400 : 500).json({

@@ -634,23 +634,34 @@ myPtsHubSchema.methods.updateValuePerMyPt = async function(newValue: number): Pr
 
 /**
  * Static method to get the hub (singleton)
+ * Always returns the latest document from the database
  */
 myPtsHubSchema.statics.getHub = async function(): Promise<MyPtsHubDocument> {
-  let hub = await this.findOne();
+  try {
+    // Always get the latest document from the database
+    let hub = await this.findOne().sort({ updatedAt: -1 });
 
-  if (!hub) {
-    hub = await this.create({
-      totalSupply: 1000000000,  // 1 billion total supply
-      circulatingSupply: 0,     // No MyPts in circulation initially
-      reserveSupply: 0,         // No MyPts in reserve initially
-      holdingSupply: 150000000, // 15% of total supply in holding
-      maxSupply: null,
-      valuePerMyPt: 0.024,
-      lastAdjustment: new Date()
-    });
+    if (!hub) {
+      logger.info('No MyPtsHub document found, creating a new one');
+      hub = await this.create({
+        totalSupply: 1000000000,  // 1 billion total supply
+        circulatingSupply: 0,     // No MyPts in circulation initially
+        reserveSupply: 0,         // No MyPts in reserve initially
+        holdingSupply: 150000000, // 15% of total supply in holding
+        maxSupply: null,
+        valuePerMyPt: 0.024,
+        lastAdjustment: new Date()
+      });
+      logger.info('Created new MyPtsHub document', { hubId: hub._id.toString() });
+    } else {
+      logger.debug('Found existing MyPtsHub document', { hubId: hub._id.toString() });
+    }
+
+    return hub;
+  } catch (error) {
+    logger.error('Error getting MyPtsHub document', { error });
+    throw error;
   }
-
-  return hub;
 };
 
 /**

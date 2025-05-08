@@ -82,7 +82,7 @@ export const initializeDefaultSettings = async (): Promise<void> => {
     // Admin hub email
     await setSetting(
       'adminHubEmail',
-      'nebam0667@gmail.com',
+      'admin@getmyprofile.online',
       'Email address for admin notifications'
     );
 

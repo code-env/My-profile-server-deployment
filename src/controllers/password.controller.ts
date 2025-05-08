@@ -40,7 +40,11 @@ export class PasswordController {
 
       // Send reset email with the token - ensure token is properly encoded
       const encodedToken = encodeURIComponent(resetToken);
-      const resetUrl = `${config.CLIENT_URL}/reset-password?token=${encodedToken}`;
+
+      // Make sure we have a valid CLIENT_URL, with fallback to the hardcoded production URL
+      const clientUrl = config.CLIENT_URL || 'https://my-pts-dashboard-management.vercel.app';
+      const resetUrl = `${clientUrl}/reset-password?token=${encodedToken}`;
+
       logger.info(`Generated reset URL: ${resetUrl}`);
 
       // Use user's name if available, otherwise use a default greeting
