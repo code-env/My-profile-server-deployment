@@ -274,18 +274,18 @@ export const buyMyPts = async (req: Request, res: Response) => {
       amountInCents
     });
 
-    // Get the hub and check reserve supply
+    // Get the hub and check holding supply
     const hub = await myPtsHubService.getHubState();
+    logger.info('Current hub holding supply', { holdingSupply: hub.holdingSupply, amount });
 
-    // Check if there are enough MyPts in reserve
-    if (hub.reserveSupply < amount) {
-      // If not enough in reserve, issue more MyPts
-      await myPtsHubService.issueMyPts(
-        amount - hub.reserveSupply,
-        `Automatic issuance for purchase by profile ${profile._id}`,
-        undefined,
-        { automatic: true, profileId: profile._id }
-      );
+    // We'll handle the actual movement of MyPts when the payment is confirmed in the webhook
+    // This is just a check to log the current state
+    if (hub.holdingSupply < amount) {
+      logger.warn('Holding supply may be insufficient for purchase', {
+        holdingSupply: hub.holdingSupply,
+        requestedAmount: amount,
+        deficit: amount - hub.holdingSupply
+      });
     }
 
     const myPts = await profile.getMyPts();

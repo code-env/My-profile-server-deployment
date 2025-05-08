@@ -16,11 +16,11 @@ const generateTokens = (userId: string, email: string) => {
   const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || '';
 
   // Use string literals instead of config values to avoid type errors
-  const accessTokenOptions: SignOptions = { 
-    expiresIn: "24h" // Same as config.JWT_ACCESS_EXPIRATION
+  const accessTokenOptions: SignOptions = {
+    expiresIn: "1h" // Reduced for better security
   };
 
-  const refreshTokenOptions: SignOptions = { 
+  const refreshTokenOptions: SignOptions = {
     expiresIn: "30d" // Same as config.JWT_REFRESH_EXPIRATION
   };
 
@@ -116,11 +116,11 @@ passport.use(
         await user.save();
 
         const result: AuthUserResult = {
-          user: user.toObject(), 
-          accessToken: newAccessToken, 
-          refreshToken: newRefreshToken 
+          user: user.toObject(),
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken
         };
-        
+
         return done(null, result);
       } catch (error) {
         logger.error('Google auth error:', error);
@@ -200,11 +200,11 @@ passport.use(
         await user.save();
 
         const result: AuthUserResult = {
-          user: user.toObject(), 
-          accessToken: newAccessToken, 
-          refreshToken: newRefreshToken 
+          user: user.toObject(),
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken
         };
-        
+
         return done(null, result);
       } catch (error) {
         logger.error('Facebook auth error:', error);
@@ -289,11 +289,11 @@ passport.use(
         await user.save();
 
         const result: AuthUserResult = {
-          user: user.toObject(), 
-          accessToken: newAccessToken, 
-          refreshToken: newRefreshToken 
+          user: user.toObject(),
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken
         };
-        
+
         return done(null, result);
       } catch (error) {
         logger.error('LinkedIn auth error:', error);

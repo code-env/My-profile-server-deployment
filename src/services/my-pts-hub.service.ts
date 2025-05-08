@@ -36,7 +36,7 @@ class MyPtsHubService {
    * Loads the hub document and ensures it exists
    */
   public async initialize(): Promise<void> {
-    if (this.initialized) return;
+    if (this.initialized && this.hub !== null) return;
 
     if (this.initializationPromise) {
       return this.initializationPromise;
@@ -44,15 +44,30 @@ class MyPtsHubService {
 
     this.initializationPromise = (async () => {
       try {
+        // Always get a fresh copy of the hub document
         this.hub = await MyPtsHubModel.getHub();
 
         // Verify the hub data is consistent with the actual MyPts in the system
         await this.verifySystemConsistency();
 
         this.initialized = true;
-        logger.info('MyPtsHubService initialized successfully');
+
+        // Make sure this.hub is defined before accessing its properties
+        if (this.hub) {
+          logger.info('MyPtsHubService initialized successfully', {
+            hubId: this.hub._id?.toString() || 'unknown',
+            totalSupply: this.hub.totalSupply,
+            circulatingSupply: this.hub.circulatingSupply,
+            reserveSupply: this.hub.reserveSupply
+          });
+        } else {
+          logger.info('MyPtsHubService initialized successfully, but hub is null');
+        }
       } catch (error) {
         logger.error('Failed to initialize MyPtsHubService', { error });
+        // Reset the initialized flag so we can try again next time
+        this.initialized = false;
+        this.hub = null;
         throw error;
       } finally {
         this.initializationPromise = null;
@@ -91,10 +106,30 @@ class MyPtsHubService {
 
   /**
    * Get the current hub state
+   * Always fetches the latest document from the database to avoid stale references
    */
   public async getHubState(): Promise<MyPtsHubDocument> {
     await this.ensureInitialized();
-    return this.hub!;
+
+    try {
+      // Always fetch the latest document from the database
+      const latestHub = await MyPtsHubModel.getHub();
+
+      // Update our cached reference
+      this.hub = latestHub;
+
+      return latestHub;
+    } catch (error) {
+      logger.error('Failed to get latest hub state', { error });
+
+      // Fall back to cached version if available
+      if (this.hub) {
+        logger.warn('Using cached hub state due to database error');
+        return this.hub;
+      }
+
+      throw error;
+    }
   }
 
   /**
@@ -338,9 +373,10 @@ class MyPtsHubService {
 
   /**
    * Ensure the service is initialized
+   * Also reinitializes if the hub document is null
    */
   private async ensureInitialized(): Promise<void> {
-    if (!this.initialized) {
+    if (!this.initialized || this.hub === null) {
       await this.initialize();
     }
   }

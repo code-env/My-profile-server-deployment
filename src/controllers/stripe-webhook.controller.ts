@@ -156,30 +156,52 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
       await myPts.save();
       console.log('[WEBHOOK DEBUG] Updated MyPts balance to:', myPts.balance);
 
+      // Update the profile's myPtsBalance field to match the MyPts balance
+      await ProfileModel.findByIdAndUpdate(profile._id, {
+        myPtsBalance: myPts.balance
+      });
+      console.log('[WEBHOOK DEBUG] Updated profile myPtsBalance to:', myPts.balance);
+
       // Move MyPts from holding to circulation
       const hub = await myPtsHubService.getHubState();
       console.log('[WEBHOOK DEBUG] Current hub holding:', hub.holdingSupply);
 
-      // Check if there is enough in holding
-      if (hub.holdingSupply < transaction.amount) {
-        // If not enough in holding, issue more MyPts
-        console.log('[WEBHOOK DEBUG] Not enough in holding, issuing more...');
-        await myPtsHubService.issueMyPts(
-          transaction.amount - hub.holdingSupply,
-          `Automatic issuance for purchase by profile ${profile._id}`,
+      // Always move from holding to circulation, regardless of available amount
+      // This ensures we don't increase totalSupply unnecessarily
+      const amountToMove = Math.min(transaction.amount, hub.holdingSupply);
+
+      if (amountToMove > 0) {
+        // Move available amount from holding to circulation
+        console.log(`[WEBHOOK DEBUG] Moving ${amountToMove} MyPts from holding to circulation`);
+        await myPtsHubService.moveFromHoldingToCirculation(
+          amountToMove,
+          `Purchase by profile ${profile._id}`,
           undefined,
-          { automatic: true, profileId: profile._id }
+          { profileId: profile._id, transactionId: transaction._id }
         );
       }
 
-      // Move from holding to circulation
-      console.log('[WEBHOOK DEBUG] Moving MyPts from holding to circulation');
-      await myPtsHubService.moveFromHoldingToCirculation(
-        transaction.amount,
-        `Purchase by profile ${profile._id}`,
-        undefined,
-        { profileId: profile._id, transactionId: transaction._id }
-      );
+      // If we still need more MyPts (holding was insufficient)
+      if (amountToMove < transaction.amount) {
+        const remainingAmount = transaction.amount - amountToMove;
+        console.log(`[WEBHOOK DEBUG] Holding supply insufficient. Issuing ${remainingAmount} additional MyPts`);
+
+        // Issue the remaining amount needed
+        await myPtsHubService.issueMyPts(
+          remainingAmount,
+          `Automatic issuance for purchase by profile ${profile._id} (holding insufficient)`,
+          undefined,
+          { automatic: true, profileId: profile._id }
+        );
+
+        // Move the newly issued MyPts to circulation
+        await myPtsHubService.moveToCirculation(
+          remainingAmount,
+          `Moving newly issued MyPts to circulation for profile ${profile._id}`,
+          undefined,
+          { profileId: profile._id, transactionId: transaction._id }
+        );
+      }
 
       // Notify admins
       console.log('[WEBHOOK DEBUG] Notifying admins of transaction');
@@ -273,6 +295,15 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   myPts.lastTransaction = new Date();
   await myPts.save();
 
+  // Update the profile's myPtsBalance field to match the MyPts balance
+  await ProfileModel.findByIdAndUpdate(profile._id, {
+    myPtsBalance: myPts.balance
+  });
+  logger.info('Updated profile myPtsBalance', {
+    profileId: profile._id.toString(),
+    myPtsBalance: myPts.balance
+  });
+
   // Create transaction record
   const transaction = await MyPtsTransactionModel.create({
     profileId: profile._id,
@@ -290,23 +321,44 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
   // Move MyPts from holding to circulation
   const hub = await myPtsHubService.getHubState();
-  if (hub.holdingSupply < amount) {
-    // If not enough in holding, issue more MyPts
-    await myPtsHubService.issueMyPts(
-      amount - hub.holdingSupply,
-      `Automatic issuance for purchase by profile ${profile._id}`,
+  logger.info('Current hub holding supply', { holdingSupply: hub.holdingSupply, amount });
+
+  // Always move from holding to circulation, regardless of available amount
+  // This ensures we don't increase totalSupply unnecessarily
+  const amountToMove = Math.min(amount, hub.holdingSupply);
+
+  if (amountToMove > 0) {
+    // Move available amount from holding to circulation
+    logger.info(`Moving ${amountToMove} MyPts from holding to circulation`);
+    await myPtsHubService.moveFromHoldingToCirculation(
+      amountToMove,
+      `Purchase by profile ${profile._id}`,
       undefined,
-      { automatic: true, profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString() }
+      { profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString(), transactionId: transaction._id.toString() }
     );
   }
 
-  // Move from holding to circulation
-  await myPtsHubService.moveFromHoldingToCirculation(
-    amount,
-    `Purchase by profile ${profile._id}`,
-    undefined,
-    { profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString(), transactionId: transaction._id.toString() }
-  );
+  // If we still need more MyPts (holding was insufficient)
+  if (amountToMove < amount) {
+    const remainingAmount = amount - amountToMove;
+    logger.info(`Holding supply insufficient. Issuing ${remainingAmount} additional MyPts`);
+
+    // Issue the remaining amount needed
+    await myPtsHubService.issueMyPts(
+      remainingAmount,
+      `Automatic issuance for purchase by profile ${profile._id} (holding insufficient)`,
+      undefined,
+      { automatic: true, profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString() }
+    );
+
+    // Move the newly issued MyPts to circulation
+    await myPtsHubService.moveToCirculation(
+      remainingAmount,
+      `Moving newly issued MyPts to circulation for profile ${profile._id}`,
+      undefined,
+      { profileId: (profile._id as unknown as mongoose.Types.ObjectId).toString(), transactionId: transaction._id.toString() }
+    );
+  }
 
   // Notify admins
   await notifyAdminsOfTransaction(transaction);

@@ -1,0 +1,359 @@
+
+profile template sample req data
+
+{
+    "profileCategory": "individual",
+    "profileType": "dummy",
+    "name": "dummy-Professional Profile Template",
+    "slug": "professional-template",
+    "categories": [
+      {
+        "name": "basic_info",
+        "label": "Basic Information",
+        "icon": "user",
+        "collapsible": false,
+        "fields": [
+          {
+            "name": "full_name",
+            "label": "Full Name",
+            "widget": "text",
+            "order": 1,
+            "enabled": true,
+            "required": true,
+            "placeholder": "Enter your full name",
+            "validation": {
+              "min": 2,
+              "max": 100
+            },
+            "options": []
+          },
+          {
+            "name": "job_title",
+            "label": "Job Title",
+            "widget": "text",
+            "order": 2,
+            "enabled": true,
+            "required": true,
+            "placeholder": "Your professional title",
+            "options": []
+          }
+        ]
+      },
+      {
+        "name": "contact",
+        "label": "Contact Information",
+        "icon": "phone",
+        "collapsible": true,
+        "fields": [
+          {
+            "name": "email",
+            "label": "Email Address",
+            "widget": "email",
+            "order": 1,
+            "enabled": true,
+            "required": true,
+            "placeholder": "your.email@example.com",
+            "validation": {
+              "regex": "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$"
+            },
+            "options": []
+          },
+          {
+            "name": "phone",
+            "label": "Phone Number",
+            "widget": "phone",
+            "order": 2,
+            "enabled": true,
+            "required": false,
+            "placeholder": "+1234567890",
+            "options": []
+          },
+          {
+            "name": "social_links",
+            "label": "Social Media Links",
+            "widget": "list:text",
+            "order": 3,
+            "enabled": true,
+            "required": false,
+            "placeholder": "https://linkedin.com/in/yourprofile",
+            "options": []
+          }
+        ]
+      },
+      {
+        "name": "professional",
+        "label": "Professional Details",
+        "icon": "briefcase",
+        "collapsible": true,
+        "fields": [
+          {
+            "name": "skills",
+            "label": "Skills",
+            "widget": "multiselect",
+            "order": 1,
+            "enabled": true,
+            "required": false,
+            "options": [
+              {
+                "label": "JavaScript",
+                "value": "js"
+              },
+              {
+                "label": "TypeScript",
+                "value": "ts"
+              },
+              {
+                "label": "React",
+                "value": "react"
+              }
+            ]
+          },
+          {
+            "name": "experience",
+            "label": "Years of Experience",
+            "widget": "number",
+            "order": 2,
+            "enabled": true,
+            "required": false,
+            "validation": {
+              "min": 0,
+              "max": 50
+            },
+            "options": []
+          },
+          {
+            "name": "resume",
+            "label": "Upload Resume",
+            "widget": "file",
+            "order": 3,
+            "enabled": false,
+            "required": false,
+            "options": []
+          }
+        ]
+      }
+    ],
+    "createdBy": "681a5eaa74eed7c84b9778dd",
+    "_id": "681c04368d728074da0ed55a",
+    "createdAt": "2025-05-08T01:09:10.177Z",
+    "updatedAt": "2025-05-08T01:09:10.177Z",
+    "__v": 0
+  }
+
+
+
+return result after creating a profile template with the above template
+
+  {
+    "status": "success",
+    "message": "Profile template created successfully",
+    "data": {
+      "_id": "681c04368d728074da0ed55a",
+      "profileCategory": "individual",
+      "profileType": "dummy",
+      "name": "dummy-Professional Profile Template",
+      "slug": "professional-template",
+      "createdBy": {
+        "_id": "681a5eaa74eed7c84b9778dd",
+        "username": null,
+        "__v": 0
+      },
+      "__v": 0,
+      "createdAt": "2025-05-08T01:09:10.177Z",
+      "updatedAt": "2025-05-08T01:09:10.177Z"
+    }
+  }
+  {
+    "profileCategory": "individual",
+    "profileType": "dummy",
+    "name": "dummy-Professional Profile Template",
+    "slug": "professional-template",
+    "categories": [
+      {
+        "name": "basic_info",
+        "label": "Basic Information",
+        "icon": "user",
+        "collapsible": false,
+        "fields": [
+          {
+            "name": "full_name",
+            "label": "Full Name",
+            "widget": "text",
+            "order": 1,
+            "enabled": true,
+            "required": true,
+            "placeholder": "Enter your full name",
+            "validation": {
+              "min": 2,
+              "max": 100
+            }
+          },
+          {
+            "name": "job_title",
+            "label": "Job Title",
+            "widget": "text",
+            "order": 2,
+            "enabled": true,
+            "required": true,
+            "placeholder": "Your professional title"
+          }
+        ]
+      },
+      {
+        "name": "contact",
+        "label": "Contact Information",
+        "icon": "phone",
+        "collapsible": true,
+        "fields": [
+          {
+            "name": "email",
+            "label": "Email Address",
+            "widget": "email",
+            "order": 1,
+            "enabled": true,
+            "required": true,
+            "placeholder": "your.email@example.com",
+            "validation": {
+              "regex": "^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$"
+            }
+          },
+          {
+            "name": "phone",
+            "label": "Phone Number",
+            "widget": "phone",
+            "order": 2,
+            "enabled": true,
+            "placeholder": "+1234567890"
+          },
+          {
+            "name": "social_links",
+            "label": "Social Media Links",
+            "widget": "list:text",
+            "order": 3,
+            "enabled": true,
+            "placeholder": "https://linkedin.com/in/yourprofile"
+          }
+        ]
+      },
+      {
+        "name": "professional",
+        "label": "Professional Details",
+        "icon": "briefcase",
+        "fields": [
+          {
+            "name": "skills",
+            "label": "Skills",
+            "widget": "multiselect",
+            "order": 1,
+            "enabled": true,
+            "options": [
+              { "label": "JavaScript", "value": "js" },
+              { "label": "TypeScript", "value": "ts" },
+              { "label": "React", "value": "react" }
+            ]
+          },
+          {
+            "name": "experience",
+            "label": "Years of Experience",
+            "widget": "number",
+            "order": 2,
+            "enabled": true,
+            "validation": {
+              "min": 0,
+              "max": 50
+            }
+          },
+          {
+            "name": "resume",
+            "label": "Upload Resume",
+            "widget": "file",
+            "order": 3,
+            "enabled": false
+          }
+        ]
+      }
+    ]
+  }
+
+
+
+
+
+  profile sample 
+
+
+  {
+    "templatedId": "681c04368d728074da0ed55a",
+    "profileCategory": "individual",
+    "profileType": "dummy",
+    "profileInformation": {
+      "username": "john.doe",
+      "profileLink": "john-doe-profile",
+      "connectLink": "connect-john-doe",
+      "followLink": "follow-john-doe"
+    },
+    "sections": [
+      {
+        "key": "basic_info",
+        "label": "Basic Information",
+        "fields": [
+          {
+            "key": "full_name",
+            "value": "John Doe",
+            "enabled": true
+          },
+          {
+            "key": "job_title",
+            "value": "Software Engineer",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "label": "Contact Information",
+        "fields": [
+          {
+            "key": "email",
+            "value": "john.doe@example.com",
+            "enabled": true
+          },
+          {
+            "key": "phone",
+            "value": "+1234567890",
+            "enabled": true
+          },
+          {
+            "key": "social_links",
+            "value": [
+              "https://linkedin.com/in/johndoe",
+              "https://twitter.com/johndoe"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "professional",
+        "label": "Professional Details",
+        "fields": [
+          {
+            "key": "skills",
+            "value": ["js", "ts", "react"],
+            "enabled": true
+          },
+          {
+            "key": "experience",
+            "value": 7,
+            "enabled": true
+          },
+          {
+            "key": "resume",
+            "value": null,
+            "enabled": false
+          }
+        ]
+      }
+    ]
+  }
+  

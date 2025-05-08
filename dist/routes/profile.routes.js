@@ -8,6 +8,7 @@ const authMiddleware_1 = require("../middleware/authMiddleware");
 const roleMiddleware_1 = require("../middleware/roleMiddleware");
 const profile_service_1 = require("../services/profile.service");
 const profile_controller_1 = require("../controllers/profile.controller");
+const admin_profile_template_controller_1 = require("../controllers/admin-profile-template.controller");
 const router = express_1.default.Router();
 // Initialize ProfileService
 const profileService = new profile_service_1.ProfileService();
@@ -15,6 +16,11 @@ const profileService = new profile_service_1.ProfileService();
 // router.use(authenticateToken);
 // Profile creation and claiming
 // requireRole(['user', 'superadmin', 'admin'])
+router.post('t/create', admin_profile_template_controller_1.createTemplate);
+router.get('t/list', admin_profile_template_controller_1.listTemplates);
+router.get('t/:id', admin_profile_template_controller_1.getTemplateById);
+router.put('t/:id', admin_profile_template_controller_1.updateTemplate);
+router.delete('t/:id', admin_profile_template_controller_1.deleteTemplate);
 router.post('/create-profile', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.createProfile);
 router.post('/create-claimable', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.createClaimableProfile);
 router.post('/claim', (0, roleMiddleware_1.requireRole)(['user', 'superadmin', 'admin']), profile_controller_1.claimProfile);

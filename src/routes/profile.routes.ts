@@ -22,17 +22,52 @@ import {
   updateProfileNew,
   getAllProfiles,
 } from '../controllers/profile.controller';
+import {
+  createTemplate,
+  listTemplates,
+  getTemplateById,
+  updateTemplate,
+  deleteTemplate
+} from '../controllers/admin-profile-template.controller';
+
+
 
 const router = express.Router();
 
 // Initialize ProfileService
 const profileService = new ProfileService();
 
+
 // Apply authentication middleware to all routes
 // router.use(authenticateToken);
 
 // Profile creation and claiming
 // requireRole(['user', 'superadmin', 'admin'])
+
+
+// Admin routes for managing profile templates
+router.post('/t/create',createTemplate)
+router.get('/t/list',listTemplates)
+router.get('/t/:id',getTemplateById)
+router.put('/t/:id',updateTemplate)
+router.delete('/t/:id',deleteTemplate)
+
+
+// new Profile creation
+
+import { profileController } from '../controllers/new-profile.controller';
+
+
+router.post('/p', profileController.createProfile.bind(profileController));
+router.post('/p/:profileId/fields', profileController.setEnabledFields.bind(profileController));
+router.put('/p/:profileId/content', profileController.updateProfileContent.bind(profileController));
+router.get('/p/:profileId', profileController.getProfile.bind(profileController));
+router.get('/p/', profileController.getUserProfiles.bind(profileController));
+router.delete('/p/:profileId', profileController.deleteProfile.bind(profileController));
+router.post('/default', profileController.createDefaultProfile.bind(profileController));
+
+
+
 router.post('/create-profile',requireRole(['user', 'superadmin', 'admin']), createProfile);
 router.post('/create-claimable', requireRole(['user', 'superadmin', 'admin']), createClaimableProfile);
 router.post('/claim', requireRole(['user', 'superadmin', 'admin']), claimProfile);
