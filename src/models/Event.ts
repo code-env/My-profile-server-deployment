@@ -21,7 +21,7 @@ import { commentSchema } from './plans-shared/comment.schema';
 export interface IEvent extends Document {
   title: string;
   description?: string;
-  eventType: 'meeting' | 'celebration' | 'appointment';
+  eventType: 'individual'|'meeting' | 'celebration' | 'appointment';
   startTime: Date;
   endTime: Date;
   isAllDay: boolean;
@@ -32,7 +32,7 @@ export interface IEvent extends Document {
   repeat: RepeatSettings;
   reminders: Reminder[];
   visibility: VisibilityType;
-  participants: Types.ObjectId[] | IProfile[];
+  participants?: Types.ObjectId[] | IProfile[];
   reward?: Reward;
   color: string;
   category: string;

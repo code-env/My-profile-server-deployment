@@ -3,7 +3,8 @@ import mongoose, { Types } from 'mongoose';
 import taskService from '../services/task.service';
 import { ITask } from '../models/Tasks';
 import {
-    TaskStatus
+    TaskStatus,
+    TaskType
 } from '../models/plans-shared';
 import createHttpError from 'http-errors';
 import asyncHandler from 'express-async-handler';
@@ -22,43 +23,49 @@ const validateTaskData = (data: any) => {
     if (!data.name) errors.push('name is required');
 
     // Validate enums
-    if (data.priority && !Object.values(PriorityLevel).includes(data.priority)) {
-        errors.push(`priority must be one of: ${Object.values(PriorityLevel).join(', ')}`);
+    if (data.priority && !Object.keys(PriorityLevel).includes(data.priority)) {
+        errors.push(`priority must be one of: ${Object.keys(PriorityLevel).join(', ')}`);
     }
-    if (data.category && !Object.values(TaskCategory).includes(data.category)) {
-        errors.push(`category must be one of: ${Object.values(TaskCategory).join(', ')}`);
+    if (data.category && !Object.keys(TaskCategory).includes(data.category)) {
+        errors.push(`category must be one of: ${Object.keys(TaskCategory).join(', ')}`);
     }
-    if (data.status && !Object.values(TaskStatus).includes(data.status)) {
-        errors.push(`status must be one of: ${Object.values(TaskStatus).join(', ')}`);
+    if (data.status && !Object.keys(TaskStatus).includes(data.status)) {
+        errors.push(`status must be one of: ${Object.keys(TaskStatus).join(', ')}`);
     }
-    if (data.visibility && !Object.values(VisibilityType).includes(data.visibility)) {
-        errors.push(`visibility must be one of: ${Object.values(VisibilityType).join(', ')}`);
+    if (data.visibility && !Object.keys(VisibilityType).includes(data.visibility)) {
+        errors.push(`visibility must be one of: ${Object.keys(VisibilityType).join(', ')}`);
     }
 
     if (!data.profile) {
         errors.push('profileId is required');
     }
 
+
+
     // Validate repeat settings if provided
     if (data.repeat) {
-        if (data.repeat.frequency && !Object.values(RepeatFrequency).includes(data.repeat.frequency)) {
-            errors.push(`repeat.frequency must be one of: ${Object.values(RepeatFrequency).join(', ')}`);
+        if (data.repeat.frequency && !Object.keys(RepeatFrequency).includes(data.repeat.frequency)) {
+            errors.push(`repeat.frequency must be one of: ${Object.keys(RepeatFrequency).join(', ')}`);
         }
-        if (data.repeat.endCondition && !Object.values(EndCondition).includes(data.repeat.endCondition)) {
-            errors.push(`repeat.endCondition must be one of: ${Object.values(EndCondition).join(', ')}`);
+        if (data.repeat.endCondition && !Object.keys(EndCondition).includes(data.repeat.endCondition)) {
+            errors.push(`repeat.endCondition must be one of: ${Object.keys(EndCondition).join(', ')}`);
         }
     }
 
     // Validate reminders if provided
     if (data.reminders && Array.isArray(data.reminders)) {
         data.reminders.forEach((reminder: any, index: number) => {
-            if (reminder.type && !Object.values(ReminderType).includes(reminder.type)) {
-                errors.push(`reminders[${index}].type must be one of: ${Object.values(ReminderType).join(', ')}`);
+            if (reminder.type && !Object.keys(ReminderType).includes(reminder.type)) {
+                errors.push(`reminders[${index}].type must be one of: ${Object.keys(ReminderType).join(', ')}`);
             }
-            if (reminder.unit && !Object.values(ReminderUnit).includes(reminder.unit)) {
-                errors.push(`reminders[${index}].unit must be one of: ${Object.values(ReminderUnit).join(', ')}`);
+            if (reminder.unit && !Object.keys(ReminderUnit).includes(reminder.unit)) {
+                errors.push(`reminders[${index}].unit must be one of: ${Object.keys(ReminderUnit).join(', ')}`);
             }
         });
+    }
+
+    if (data.type && !Object.keys(TaskType).includes(data.type)) {
+        errors.push(`type must be one of: ${Object.keys(TaskType).join(', ')}`);
     }
 
     if (errors.length > 0) {
@@ -654,19 +661,3 @@ export const likeTask = asyncHandler(async (req: Request, res: Response) => {
         message: 'Task liked successfully'
     });
 });
-
-// export const unlikeTask = asyncHandler(async (req: Request, res: Response) => {
-//     const user: any = req.user!;
-
-//     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-//         throw createHttpError(400, 'Invalid task ID');
-//     }
-
-//     const task = await taskService.unlikeTask(req.params.id, user._id);
-
-//     res.json({
-//         success: true,
-//         data: task,
-//         message: 'Task unliked successfully'
-//     });
-// });

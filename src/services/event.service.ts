@@ -10,6 +10,7 @@ import {
 } from '../models/plans-shared';
 
 import { IEvent, Event } from '../models/Event';
+import { checkTimeOverlap } from '../utils/timeUtils';
 
 class EventService {
     /**
@@ -19,6 +20,22 @@ class EventService {
         // Validate meeting-specific requirements
         if (eventData.eventType === 'appointment' && !eventData.serviceProvider) {
             throw new Error('Service provider is required for meetings');
+        }
+
+        // Check for time overlap if the event has a time range
+        if (eventData.startTime && eventData.endTime) {
+            const overlapCheck = await checkTimeOverlap(
+                eventData.createdBy?.toString() || '',
+                {
+                    startTime: eventData.startTime,
+                    endTime: eventData.endTime,
+                    isAllDay: eventData.isAllDay || false
+                }
+            );
+
+            if (overlapCheck.overlaps) {
+                throw new Error(`Time conflict with existing items: ${overlapCheck.conflictingItems.map(item => `${item.type}: ${item.title}`).join(', ')}`);
+            }
         }
 
         const event = new Event({

@@ -29,6 +29,17 @@ export enum RepeatFrequency {
     Weeks1 = '1 week before',
     Custom = 'Custom'
   }
+
+  export enum TaskType {
+    Chores = 'Chores',
+    Routine = 'Routine',
+    Assignment = 'Assignment',
+    Todo = 'Todo',
+    Shift = 'Shift',
+    Checkup = 'Checkup',
+    Event = 'Event',
+    Other = 'Other'
+  }
   
   export enum ReminderUnit {
     Minutes = 'Minutes',

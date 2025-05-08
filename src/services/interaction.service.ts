@@ -13,7 +13,13 @@ export class InteractionService {
     private io: any; // Socket.IO server instance
 
     constructor(private interactionModel: Model<IInteraction>) {
-        console.log('InteractionService initialized');
+
+        // log with info like this {"metadata":{"service":"my-profile-api","timestamp":"2025-05-07 15:45:44:818"}}
+        const metadata = {
+            service: 'interaction-service',
+            timestamp: new Date().toISOString()
+        };
+        console.info(`InteractionService initialized ${JSON.stringify(metadata)}`);
     }
 
     setSocketServer(io: any) {

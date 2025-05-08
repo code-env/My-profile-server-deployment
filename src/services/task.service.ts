@@ -6,15 +6,32 @@ import { TaskStatus } from 'twilio/lib/rest/taskrouter/v1/workspace/task';
 import { List } from '../models/List';
 import { ITask, Task } from '../models/Tasks';
 import { Types } from 'mongoose';
+import { checkTimeOverlap } from '../utils/timeUtils';
 
 class TaskService {
     /**
      * Create a new task with all fields
      */
     async createTask(taskData: Partial<ITask>): Promise<ITask> {
+        // Check for time overlap if the task has a time range
+        if (taskData.startTime && taskData.endTime) {
+            const overlapCheck = await checkTimeOverlap(
+                taskData.createdBy?.toString() || '',
+                {
+                    startTime: taskData.startTime,
+                    endTime: taskData.endTime,
+                    isAllDay: taskData.isAllDay || false
+                }
+            );
+
+            if (overlapCheck.overlaps) {
+                throw new Error(`Time conflict with existing items: ${overlapCheck.conflictingItems.map(item => `${item.type}: ${item.title}`).join(', ')}`);
+            }
+        }
 
         const task = new Task({
             ...taskData,
+            type: taskData.type || 'Todo',
             createdBy: taskData.createdBy || null,
             profile: taskData.profile|| null,
             subTasks: taskData.subTasks || [],
@@ -99,13 +116,13 @@ class TaskService {
         }
 
         return Task.findById(taskId)
-            .populate('createdBy', 'name email')
-            .populate('participants', 'name email')
-            .populate('profile', 'name avatar')
+            .populate('createdBy', 'fullName email')
+            .populate('participants', 'fullName email')
+            .populate('profile', 'fullName avatar')
             .populate('relatedList', 'name type items')
-            .populate('attachments.uploadedBy', 'name email')
-            .populate('comments.createdBy', 'name email')
-            .populate('comments.likes', 'name email');
+            .populate('attachments.uploadedBy', 'fullName email')
+            .populate('comments.createdBy', 'fullName email')
+            .populate('comments.likes', 'fullName email');
     }
 
     /**
@@ -172,9 +189,9 @@ class TaskService {
                 startTime: 1,
                 createdAt: -1
             })
-            .populate('createdBy', 'name email')
-            .populate('participants', 'name email')
-            .populate('profile', 'name avatar');
+            .populate('createdBy', 'fullName email')
+            .populate('participants', 'fullName email')
+            .populate('profile', 'fullName avatar');
     }
 
     /**
