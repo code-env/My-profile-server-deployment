@@ -6,9 +6,9 @@ export type ProfileDocument = IProfile & Document;
 export type ProfileCategory = 'individual' | 'accessory' | 'group';
 export type ProfileType =
   | 'personal' | 'academic' | 'work' | 'professional' | 'proprietor' | 'freelancer' | 'artist' | 'influencer' | 'athlete' | 'provider' | 'merchant' | 'vendor'
-  | 'emergency' | 'medical' | 'pet' | 'ecommerce' | 'home' | 'transportation' | 'driver' | 'event' | 'dependent' | 'rider'
+  | 'emergency' | 'medical' | 'pet' | 'ecommerce' | 'home' | 'transportation' | 'driver' | 'event' | 'dependent' | 'rider' | 'dummy'
   | 'group' | 'team' | 'family' | 'neighborhood' | 'company' | 'business' | 'association' | 'organization' | 'institution' | 'community';
-
+ 
 interface IProfile {
   profileCategory: ProfileCategory;
   profileType: ProfileType;
@@ -185,6 +185,7 @@ interface ITemplateField {
   widget: FieldWidget;
   required?: boolean;
   default?: any;
+  enabled: boolean;
   placeholder?: string;
   options?: IFieldOption[];
   validation?: IFieldValidation;

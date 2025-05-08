@@ -44,12 +44,27 @@ const profileService = new ProfileService();
 // Profile creation and claiming
 // requireRole(['user', 'superadmin', 'admin'])
 
+
+// Admin routes for managing profile templates
 router.post('/t/create',createTemplate)
 router.get('/t/list',listTemplates)
 router.get('/t/:id',getTemplateById)
 router.put('/t/:id',updateTemplate)
 router.delete('/t/:id',deleteTemplate)
 
+
+// new Profile creation
+
+import { profileController } from '../controllers/new-profile.controller';
+
+
+router.post('/p', profileController.createProfile.bind(profileController));
+router.post('/p/:profileId/fields', profileController.setEnabledFields.bind(profileController));
+router.put('/p/:profileId/content', profileController.updateProfileContent.bind(profileController));
+router.get('/p/:profileId', profileController.getProfile.bind(profileController));
+router.get('/p/', profileController.getUserProfiles.bind(profileController));
+router.delete('/p/:profileId', profileController.deleteProfile.bind(profileController));
+router.post('/default', profileController.createDefaultProfile.bind(profileController));
 
 
 

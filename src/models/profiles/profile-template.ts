@@ -6,7 +6,7 @@ export const PROFILE_TYPE_ENUM = [
   // individual
   'personal', 'academic', 'work', 'professional', 'proprietor',
   'freelancer', 'artist', 'influencer', 'athlete', 'provider',
-  'merchant', 'vendor',
+  'merchant', 'vendor', "dummy",
   // accessory
   'emergency', 'medical', 'pet', 'ecommerce', 'home', 'transportation',
   'driver', 'event', 'dependent', 'rider',
@@ -39,9 +39,10 @@ export interface ITemplateField {
   widget: FieldWidget;    
   content?: any;          
   order: number;          
-  enabled: boolean;       
+  enabled: boolean;
+  value?: any;      
   required?: boolean;     
-  default?: any;          
+  default?: any;        
   placeholder?: string;   
   options?: IFieldOption[]; 
   validation?: IFieldValidation; 
