@@ -20,7 +20,7 @@ const generateTokens = (userId, email) => {
     const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || '';
     // Use string literals instead of config values to avoid type errors
     const accessTokenOptions = {
-        expiresIn: "24h" // Same as config.JWT_ACCESS_EXPIRATION
+        expiresIn: "1h" // Reduced for better security
     };
     const refreshTokenOptions = {
         expiresIn: "30d" // Same as config.JWT_REFRESH_EXPIRATION

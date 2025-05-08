@@ -356,30 +356,75 @@ class AuthService {
         const refreshToken = jwt.sign({ userId, email, type: "refresh" }, config_1.config.JWT_REFRESH_SECRET, { expiresIn: this.REFRESH_TOKEN_EXPIRY });
         return { accessToken, refreshToken };
     }
-    static async refreshAccessToken(refreshToken) {
-        var _a;
+    static async refreshAccessToken(refreshToken, deviceInfo) {
+        var _a, _b;
         try {
             // Verify the refresh token
             const decoded = jwt.verify(refreshToken, config_1.config.JWT_REFRESH_SECRET);
             if (decoded.type !== "refresh") {
                 throw new errors_1.CustomError("INVALID_TOKEN", "Invalid token type");
             }
-            // Find user and check if refresh token exists
+            // Find user
             const user = (await User_1.User.findById(decoded.userId));
-            if (!user || !((_a = user.refreshTokens) === null || _a === void 0 ? void 0 : _a.includes(refreshToken))) {
-                throw new errors_1.CustomError("INVALID_TOKEN", "Invalid refresh token");
+            if (!user) {
+                throw new errors_1.CustomError("INVALID_TOKEN", "Invalid refresh token - user not found");
             }
-            // Implement refresh token rotation for enhanced security
-            // Remove the used refresh token and generate a new one
+            // Check if token exists in refreshTokens array (legacy support)
+            const tokenExists = (_a = user.refreshTokens) === null || _a === void 0 ? void 0 : _a.includes(refreshToken);
+            // Check if token exists in sessions array
+            const sessionIndex = (_b = user.sessions) === null || _b === void 0 ? void 0 : _b.findIndex((session) => session.refreshToken === refreshToken);
+            // If token doesn't exist in either place, it's invalid
+            if (!tokenExists && sessionIndex === -1) {
+                throw new errors_1.CustomError("INVALID_TOKEN", "Invalid refresh token - token not found");
+            }
+            // Generate new tokens
             const newRefreshToken = jwt.sign({ userId: user._id.toString(), email: user.email, type: "refresh" }, config_1.config.JWT_REFRESH_SECRET, { expiresIn: this.REFRESH_TOKEN_EXPIRY });
-            // Generate new access token
             const accessToken = jwt.sign({ userId: user._id.toString(), email: user.email }, config_1.config.JWT_SECRET, { expiresIn: this.ACCESS_TOKEN_EXPIRY });
-            // Update refresh tokens list (implement rotation)
-            user.refreshTokens = user.refreshTokens.filter((token) => token !== refreshToken);
-            user.refreshTokens.push(newRefreshToken);
-            await user.save();
-            // Add metadata to help with session management
-            user.lastTokenRefresh = new Date();
+            // Update the session information
+            const now = new Date();
+            // If token was in the legacy refreshTokens array, migrate it to sessions
+            if (tokenExists) {
+                // Remove from refreshTokens array
+                user.refreshTokens = user.refreshTokens.filter((token) => token !== refreshToken);
+                // Initialize sessions array if it doesn't exist
+                if (!user.sessions) {
+                    user.sessions = [];
+                }
+                // Add to sessions with device info
+                user.sessions.push({
+                    refreshToken: newRefreshToken,
+                    deviceInfo: deviceInfo || {
+                        userAgent: 'Unknown (migrated)',
+                        ip: 'Unknown',
+                        deviceType: 'Unknown'
+                    },
+                    lastUsed: now,
+                    createdAt: now,
+                    isActive: true
+                });
+                // Limit the number of sessions to 10
+                if (user.sessions.length > 10) {
+                    // Sort by lastUsed (most recent first) and keep only the 10 most recent
+                    user.sessions.sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime());
+                    user.sessions = user.sessions.slice(0, 10);
+                }
+            }
+            // If token was in the sessions array, update that session
+            else if (sessionIndex !== -1) {
+                // Update the existing session with the new token
+                user.sessions[sessionIndex].refreshToken = newRefreshToken;
+                user.sessions[sessionIndex].lastUsed = now;
+                // Update device info if provided
+                if (deviceInfo) {
+                    user.sessions[sessionIndex].deviceInfo = {
+                        ...user.sessions[sessionIndex].deviceInfo,
+                        ...deviceInfo
+                    };
+                }
+            }
+            // Update last token refresh time
+            user.lastTokenRefresh = now;
+            // Save the user
             await user.save();
             return { accessToken, refreshToken: newRefreshToken };
         }
@@ -389,16 +434,65 @@ class AuthService {
         }
     }
     static async logout(userId, refreshToken) {
+        var _a, _b, _c;
         try {
             const user = await User_1.User.findById(userId);
             if (!user)
                 return;
-            // Clear all refresh tokens on logout for better security
-            user.refreshTokens = [];
+            // If a specific refresh token is provided, only invalidate that session
+            if (refreshToken) {
+                // Check if token exists in refreshTokens array (legacy support)
+                if ((_a = user.refreshTokens) === null || _a === void 0 ? void 0 : _a.includes(refreshToken)) {
+                    user.refreshTokens = user.refreshTokens.filter((token) => token !== refreshToken);
+                }
+                // Check if token exists in sessions array
+                if (((_b = user.sessions) === null || _b === void 0 ? void 0 : _b.length) > 0) {
+                    const sessionIndex = user.sessions.findIndex((session) => session.refreshToken === refreshToken);
+                    if (sessionIndex !== -1) {
+                        // Mark the session as inactive instead of removing it
+                        user.sessions[sessionIndex].isActive = false;
+                    }
+                }
+            }
+            else {
+                // If no specific token is provided, clear all sessions
+                user.refreshTokens = [];
+                if (((_c = user.sessions) === null || _c === void 0 ? void 0 : _c.length) > 0) {
+                    // Mark all sessions as inactive
+                    user.sessions.forEach((session) => {
+                        session.isActive = false;
+                    });
+                }
+            }
             await user.save();
         }
         catch (error) {
             logger_1.logger.error("Logout error:", error);
+            throw error;
+        }
+    }
+    /**
+     * Logout from all devices
+     * @param userId User ID
+     */
+    static async logoutAll(userId) {
+        var _a;
+        try {
+            const user = await User_1.User.findById(userId);
+            if (!user)
+                return;
+            // Clear all refresh tokens
+            user.refreshTokens = [];
+            // Mark all sessions as inactive
+            if (((_a = user.sessions) === null || _a === void 0 ? void 0 : _a.length) > 0) {
+                user.sessions.forEach((session) => {
+                    session.isActive = false;
+                });
+            }
+            await user.save();
+        }
+        catch (error) {
+            logger_1.logger.error("Logout all error:", error);
             throw error;
         }
     }
@@ -847,6 +941,6 @@ class AuthService {
 exports.AuthService = AuthService;
 AuthService.MAX_LOGIN_ATTEMPTS = 20000;
 AuthService.LOCK_TIME_MINUTES = 15;
-AuthService.ACCESS_TOKEN_EXPIRY = "24h"; // Increased
+AuthService.ACCESS_TOKEN_EXPIRY = "1h"; // Reduced for better security
 AuthService.REFRESH_TOKEN_EXPIRY = "30d"; // Increased
 AuthService.OTP_EXPIRY_MINUTES = 10;

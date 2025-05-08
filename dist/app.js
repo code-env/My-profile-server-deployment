@@ -76,6 +76,8 @@ const license_middleware_1 = require("./middleware/license.middleware");
 const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"));
 const initialize_my_pts_hub_1 = require("./startup/initialize-my-pts-hub");
 const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
+const cleanupTokens_1 = require("./jobs/cleanupTokens");
+const scalableTokenCleanup_1 = require("./jobs/scalableTokenCleanup");
 // Import passport configuration
 require("./config/passport");
 const license_service_1 = require("./services/license.service");
@@ -458,6 +460,18 @@ class AppServer {
             // Initialize admin settings
             const { initializeDefaultSettings } = require('./models/admin-settings.model');
             await initializeDefaultSettings();
+            // Schedule token cleanup job
+            // Use scalable token cleanup for large user bases (1M+ users)
+            const useScalableCleanup = process.env.USE_SCALABLE_CLEANUP === 'true' ||
+                process.env.NODE_ENV === 'production';
+            if (useScalableCleanup) {
+                logger_1.logger.info('Using scalable token cleanup for large user bases');
+                (0, scalableTokenCleanup_1.scheduleScalableTokenCleanup)();
+            }
+            else {
+                logger_1.logger.info('Using standard token cleanup');
+                (0, cleanupTokens_1.scheduleTokenCleanup)();
+            }
             // Always use HTTP server as Render handles SSL/HTTPS
             await this.startHttpServer();
             console.log("\n" + chalk_1.default.black(chalk_1.default.bgGreen(" SERVER READY ")));

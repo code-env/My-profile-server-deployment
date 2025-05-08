@@ -325,13 +325,52 @@ export class AuthController {
       }
       const tokens = AuthService.generateTokens(result.userId!, user.email);
 
+      // Get client info for session tracking
+      const clientInfo = await getClientInfo(req);
+
+      // Store session information
+      const userDoc = await User.findById(result.userId);
+      if (userDoc) {
+        // Initialize sessions array if it doesn't exist
+        if (!userDoc.sessions) {
+          userDoc.sessions = [];
+        }
+
+        // Add refresh token to sessions with device info
+        userDoc.sessions.push({
+          refreshToken: tokens.refreshToken,
+          deviceInfo: {
+            userAgent: req.headers['user-agent'] || 'Unknown',
+            ip: req.ip || req.socket.remoteAddress || 'Unknown',
+            deviceType: clientInfo.device || 'Unknown'
+          },
+          lastUsed: new Date(),
+          createdAt: new Date(),
+          isActive: true
+        });
+
+        // Limit the number of sessions to 10
+        if (userDoc.sessions.length > 10) {
+          // Sort by lastUsed (most recent first) and keep only the 10 most recent
+          userDoc.sessions.sort((a: any, b: any) =>
+            new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
+          );
+          userDoc.sessions = userDoc.sessions.slice(0, 10);
+        }
+
+        // Update last login time
+        userDoc.lastLogin = new Date();
+
+        await userDoc.save();
+      }
+
       // Set tokens in HTTP-only cookies
       res.cookie("accesstoken", tokens.accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        maxAge: 1 * 60 * 60 * 1000, // 1 hour
       });
 
       res.cookie("refreshtoken", tokens.refreshToken, {
@@ -341,7 +380,7 @@ export class AuthController {
         path: "/",
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
-console.log(user);
+      console.log(user);
 
       res.status(200).json({
         success: true,
@@ -614,7 +653,7 @@ console.log(user);
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 path: "/",
-                maxAge: 24 * 60 * 60 * 1000,
+                maxAge: 1 * 60 * 60 * 1000, // 1 hour
               });
 
               res.cookie("refreshtoken", tokens.refreshToken, {
@@ -704,8 +743,15 @@ console.log(user);
       // Get request info for security tracking
       const clientInfo = await getClientInfo(req);
 
-      // Call AuthService to handle token refresh
-      const tokens = await AuthService.refreshAccessToken(refreshToken);
+      // Extract device information for session tracking
+      const deviceInfo = {
+        userAgent: req.headers['user-agent'] || 'Unknown',
+        ip: req.ip || req.socket.remoteAddress || 'Unknown',
+        deviceType: clientInfo.device || 'Unknown'
+      };
+
+      // Call AuthService to handle token refresh with device info
+      const tokens = await AuthService.refreshAccessToken(refreshToken, deviceInfo);
 
       // Set new tokens in cookies
       res.cookie("accesstoken", tokens.accessToken, {
@@ -713,7 +759,7 @@ console.log(user);
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
+        maxAge: 1 * 60 * 60 * 1000, // 1 hour (matches JWT_ACCESS_EXPIRATION)
       });
 
       res.cookie("refreshtoken", tokens.refreshToken, {
@@ -1587,7 +1633,7 @@ console.log(user);
       // Update user's email
       const user = await User.findByIdAndUpdate(
         userId,
-        { 
+        {
           email: newEmail,
           isEmailVerified: true // Since they've already verified through OTP
         },
@@ -1642,7 +1688,7 @@ console.log(user);
       // Update user's phone number
       const user = await User.findByIdAndUpdate(
         userId,
-        { 
+        {
           phoneNumber: newPhoneNumber,
           formattedPhoneNumber: formattedPhoneNumber || newPhoneNumber,
           isPhoneVerified: true // Since they've already verified through OTP
