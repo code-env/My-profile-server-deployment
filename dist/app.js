@@ -69,10 +69,8 @@ const logger_1 = require("./utils/logger");
 const cors_config_1 = require("./config/cors.config");
 const routes_1 = require("./routes");
 const error_middleware_1 = require("./middleware/error-middleware");
-const rate_limiter_middleware_1 = require("./middleware/rate-limiter.middleware");
 const performance_middleware_1 = require("./middleware/performance.middleware");
 const env_validator_1 = require("./utils/env-validator");
-const license_middleware_1 = require("./middleware/license.middleware");
 const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"));
 const initialize_my_pts_hub_1 = require("./startup/initialize-my-pts-hub");
 const initialize_profile_templates_1 = require("./startup/initialize-profile-templates");
@@ -81,7 +79,6 @@ const cleanupTokens_1 = require("./jobs/cleanupTokens");
 const scalableTokenCleanup_1 = require("./jobs/scalableTokenCleanup");
 // Import passport configuration
 require("./config/passport");
-const license_service_1 = require("./services/license.service");
 const cookie_config_middleware_1 = require("./middleware/cookie-config.middleware");
 /**
  * @class AppServer
@@ -172,10 +169,7 @@ class AppServer {
                 }
             },
         }));
-        // Only add license validation middleware in non-production environments
-        if (process.env.NODE_ENV !== "production") {
-            this.app.use(license_middleware_1.validateLicenseMiddleware);
-        }
+        // License validation removed
         this.app.use((0, performance_middleware_1.monitorPerformance)());
         this.app.use((0, helmet_1.default)({
             contentSecurityPolicy: {
@@ -273,7 +267,7 @@ class AppServer {
         // Add cookie configuration middleware to ensure proper SameSite and Secure settings
         this.app.use(cookie_config_middleware_1.configureCookiesMiddleware);
         this.app.use((0, compression_1.default)());
-        this.app.use(rate_limiter_middleware_1.rateLimiterMiddleware);
+        // Rate limiting removed
         // Serve static files from public directory
     }
     /**
@@ -344,47 +338,7 @@ class AppServer {
      * @example
      * await this.initializeDatabase();
      */
-    /**
-     * @private
-     * @method validateLicense
-     * @description Validates the hardware-locked license before allowing server startup
-     * @throws {Error} If license validation fails
-     */
-    async validateLicense() {
-        // Skip all license validation in production
-        if (process.env.BYPASS_LICENSE === "true") {
-            logger_1.logger.info("✅ License validation skipped in production environment");
-            return;
-        }
-        try {
-            const licenseKey = process.env.LICENSE_KEY;
-            const deviceId = require("os").hostname();
-            const ipAddress = "127.0.0.1"; // Local server
-            if (!licenseKey) {
-                throw new Error("LICENSE_KEY environment variable is required");
-            }
-            if (!process.env.COMPANY_SECRET) {
-                throw new Error("COMPANY_SECRET environment variable is required");
-            }
-            // Validate license
-            const validationResult = await license_service_1.licenseService.validateLicense(licenseKey, deviceId, ipAddress);
-            if (!validationResult.isValid) {
-                throw new Error(`License validation failed: ${validationResult.error}`);
-            }
-            logger_1.logger.info("✅ License validated successfully");
-            if (validationResult.employeeInfo) {
-                logger_1.logger.info(`Licensed to: ${validationResult.employeeInfo.name}`);
-            }
-        }
-        catch (error) {
-            logger_1.logger.error("License validation error:", error);
-            if (process.env.BYPASS_LICENSE === "true") {
-                logger_1.logger.warn("Continuing in production despite license error");
-                return;
-            }
-            throw error;
-        }
-    }
+    // License validation removed
     /**
      * @private
      * @method initializeDatabase

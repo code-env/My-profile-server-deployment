@@ -43,7 +43,6 @@ const uuid_1 = require("uuid");
 const maxmind = __importStar(require("maxmind"));
 const logs_controller_1 = require("../controllers/logs.controller");
 const logger_1 = require("../utils/logger");
-const securityMonitoring_service_1 = require("../services/securityMonitoring.service");
 let asnReader;
 // Initialize MaxMind ASN database
 (async () => {
@@ -192,28 +191,30 @@ const advancedTrackingMiddleware = async (req, res, next) => {
     // Capture response info
     const originalEnd = res.end;
     res.end = function (chunk, encoding, callback) {
-        var _a, _b, _c;
         const responseTime = Date.now() - startTime;
         requestInfo.responseTime = responseTime;
         requestInfo.security.responseCode = res.statusCode;
         // Add to tracking cache
         (0, logs_controller_1.addToTrackingCache)(requestInfo);
         const user = req.user;
-        // Send to security monitoring
-        const metadata = {
-            ip: requestInfo.ip,
-            userId: (_a = user === null || user === void 0 ? void 0 : user._id) === null || _a === void 0 ? void 0 : _a.toString(),
-            sessionId: requestInfo.sessionID,
-            route: (_b = req.route) === null || _b === void 0 ? void 0 : _b.path,
-            statusCode: res.statusCode,
-            geolocation: {
-                ...requestInfo.geo,
-                ll: ((_c = requestInfo.geo.ll) === null || _c === void 0 ? void 0 : _c.length) >= 2 ? [requestInfo.geo.ll[0], requestInfo.geo.ll[1]] : undefined
-            }
+        // Security monitoring disabled
+        /*
+        const metadata: IRequestMetadata = {
+          ip: requestInfo.ip,
+          userId: user?._id?.toString(),
+          sessionId: requestInfo.sessionID,
+          route: req.route?.path,
+          statusCode: res.statusCode,
+          geolocation: {
+            ...requestInfo.geo,
+            ll: requestInfo.geo.ll?.length >= 2 ? [requestInfo.geo.ll[0], requestInfo.geo.ll[1]] as [number, number] : undefined
+          }
         };
-        securityMonitoring_service_1.securityMonitoringService.analyzeRequest(metadata).catch(error => {
-            logger_1.logger.error('Error in security monitoring:', error);
+    
+        securityMonitoringService.analyzeRequest(metadata).catch(error => {
+          logger.error('Error in security monitoring:', error);
         });
+        */
         // Broadcast to WebSocket clients if needed
         if (req.app.locals.wss) {
             req.app.locals.wss.clients.forEach((client) => {

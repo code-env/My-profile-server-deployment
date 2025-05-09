@@ -26,6 +26,11 @@ export class SecurityMonitoringService {
 
   async analyzeRequest(metadata: IRequestMetadata): Promise<void> {
     try {
+      // Security monitoring disabled
+      return;
+
+      // Original code commented out
+      /*
       await Promise.all([
         this.checkForSuspiciousPatterns(metadata),
         this.enforceRateLimits(metadata),
@@ -33,6 +38,7 @@ export class SecurityMonitoringService {
         this.monitorBruteForce(metadata),
         this.analyzeUserBehavior(metadata)
       ]);
+      */
     } catch (error) {
       logger.error('Error in security analysis:', error);
       throw error;

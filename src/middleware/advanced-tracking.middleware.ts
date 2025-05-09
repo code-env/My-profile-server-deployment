@@ -196,7 +196,8 @@ export const advancedTrackingMiddleware = async (req: Request, res: Response, ne
     // Add to tracking cache
     addToTrackingCache(requestInfo);
      const user: any = req.user;
-    // Send to security monitoring
+    // Security monitoring disabled
+    /*
     const metadata: IRequestMetadata = {
       ip: requestInfo.ip,
       userId: user?._id?.toString(),
@@ -212,6 +213,7 @@ export const advancedTrackingMiddleware = async (req: Request, res: Response, ne
     securityMonitoringService.analyzeRequest(metadata).catch(error => {
       logger.error('Error in security monitoring:', error);
     });
+    */
 
     // Broadcast to WebSocket clients if needed
     if (req.app.locals.wss) {

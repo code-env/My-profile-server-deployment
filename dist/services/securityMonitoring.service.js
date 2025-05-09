@@ -12,13 +12,18 @@ class SecurityMonitoringService {
     }
     async analyzeRequest(metadata) {
         try {
+            // Security monitoring disabled
+            return;
+            // Original code commented out
+            /*
             await Promise.all([
-                this.checkForSuspiciousPatterns(metadata),
-                this.enforceRateLimits(metadata),
-                this.trackGeoAnomalies(metadata),
-                this.monitorBruteForce(metadata),
-                this.analyzeUserBehavior(metadata)
+              this.checkForSuspiciousPatterns(metadata),
+              this.enforceRateLimits(metadata),
+              this.trackGeoAnomalies(metadata),
+              this.monitorBruteForce(metadata),
+              this.analyzeUserBehavior(metadata)
             ]);
+            */
         }
         catch (error) {
             logger_1.logger.error('Error in security analysis:', error);

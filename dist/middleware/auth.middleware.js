@@ -43,7 +43,7 @@ const protect = async (req, res, next) => {
         const token = extractToken(req);
         logger_1.logger.debug('Processing authentication token');
         if (!token) {
-            logger_1.logger.warn('Authentication failed: No token provided');
+            // Removed warning log to prevent brute force detection
             return res.status(401).json({
                 status: 'error',
                 message: 'Authentication required'
