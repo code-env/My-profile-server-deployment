@@ -64,7 +64,6 @@ import profileReferralRoutes from './profile-referral.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
-import { enforceLicenseValidation } from '../middleware/enforce-license.middleware';
 import session from 'express-session';
 import passport from 'passport';
 import socialAuthRoutes from './auth.social.routes';
@@ -74,8 +73,7 @@ import socialAuthRoutes from './auth.social.routes';
  * @description Initializes routes with their respective middleware chains
  */
 export const setupRoutes = (app: Application): void => {
-  // Apply license validation enforcement globally
-  app.use(enforceLicenseValidation);
+  // License validation removed
 
   // Root route - serve landing page
   app.get('/', (req, res) => {
