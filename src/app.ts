@@ -58,7 +58,6 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import compression from "compression";
 import morgan from "morgan";
-import { MongoError } from "mongodb";
 import chalk from "chalk";
 
 // Internal imports
@@ -67,7 +66,6 @@ import { logger } from "./utils/logger";
 import { whitelistOrigins } from "./config/cors.config";
 import { setupRoutes } from "./routes";
 import { errorHandler } from "./middleware/error-middleware";
-import { rateLimiterMiddleware } from "./middleware/rate-limiter.middleware";
 import { monitorPerformance } from "./middleware/performance.middleware";
 import { validateEnv } from "./utils/env-validator";
 import WhatsAppService from "./services/whatsapp.service";
@@ -287,7 +285,8 @@ export class AppServer {
     this.app.use(configureCookiesMiddleware);
 
     this.app.use(compression());
-    this.app.use(rateLimiterMiddleware);
+
+    // Rate limiting removed
 
     // Serve static files from public directory
   }
