@@ -13,7 +13,7 @@ import { request } from 'http';
 import { InteractionService } from '../services/interaction.service';
 import { Interaction } from '../models/Interaction';
 import { Attachment, EndCondition, PriorityLevel, ReminderType, ReminderUnit, RepeatFrequency, TaskCategory, VisibilityType } from '../models/plans-shared';
-import { io as Client } from 'socket.io-client';
+import Client from 'socket.io-client';
 import { emitSocialInteraction } from '../utils/socketEmitter';
 
 // Helper function to validate task data

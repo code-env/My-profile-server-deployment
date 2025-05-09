@@ -1,4 +1,4 @@
-import { io as Client } from 'socket.io-client';
+import Client from 'socket.io-client';
 import { Types } from 'mongoose';
 
 interface SocialInteractionData {

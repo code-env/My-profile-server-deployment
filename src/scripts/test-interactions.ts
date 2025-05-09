@@ -1,4 +1,4 @@
-import { io as Client } from 'socket.io-client';
+import Client from 'socket.io-client';
 import { Types } from 'mongoose';
 
 const SERVER_URL = 'http://localhost:3000';
@@ -103,4 +103,4 @@ async function testInteractions() {
 }
 
 // Run the tests
-testInteractions().catch(console.error); 
+testInteractions().catch(console.error);
