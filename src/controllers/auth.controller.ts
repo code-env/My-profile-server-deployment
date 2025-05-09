@@ -305,25 +305,21 @@ export class AuthController {
 
       const result = await AuthService.login({ identifier, password }, req);
 
-      console.log("🚀 ~ AuthController ~ login ~ result:", result)
-      if (result.success == false) {
+      console.log("🚀 ~ AuthController ~ login ~ result:", result);
+      if (!result.success || !result.tokens) {
         res.status(401).json({
           success: false,
           user: {
             id: result.userId,
           },
-          message: "Invalid credentials",
+          message:
+            result.message || "Invalid credentials or token generation failed",
         });
         return;
       }
 
-      // Generate tokens
-      // Fetch user to get email
-      const user = await User.findById(result.userId).select('email');
-      if (!user) {
-        throw new Error('User not found');
-      }
-      const tokens = AuthService.generateTokens(result.userId!, user.email);
+      // Use tokens directly from the AuthService.login result
+      const tokens = result.tokens;
 
       // Get client info for session tracking
       const clientInfo = await getClientInfo(req);
@@ -340,20 +336,21 @@ export class AuthController {
         userDoc.sessions.push({
           refreshToken: tokens.refreshToken,
           deviceInfo: {
-            userAgent: req.headers['user-agent'] || 'Unknown',
-            ip: req.ip || req.socket.remoteAddress || 'Unknown',
-            deviceType: clientInfo.device || 'Unknown'
+            userAgent: req.headers["user-agent"] || "Unknown",
+            ip: req.ip || req.socket.remoteAddress || "Unknown",
+            deviceType: clientInfo.device || "Unknown",
           },
           lastUsed: new Date(),
           createdAt: new Date(),
-          isActive: true
+          isActive: true,
         });
 
         // Limit the number of sessions to 10
         if (userDoc.sessions.length > 10) {
           // Sort by lastUsed (most recent first) and keep only the 10 most recent
-          userDoc.sessions.sort((a: any, b: any) =>
-            new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
+          userDoc.sessions.sort(
+            (a: any, b: any) =>
+              new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
           );
           userDoc.sessions = userDoc.sessions.slice(0, 10);
         }
@@ -364,23 +361,23 @@ export class AuthController {
         await userDoc.save();
       }
 
-      // Set tokens in HTTP-only cookies
+      // Set tokens in HTTP-only cookies with proper settings
+      // Note: The cookie-config middleware will handle SameSite and Secure settings in production
       res.cookie("accesstoken", tokens.accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
         path: "/",
         maxAge: 1 * 60 * 60 * 1000, // 1 hour
       });
 
       res.cookie("refreshtoken", tokens.refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
         path: "/",
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
-      console.log(user);
+
+      // Also include tokens in the response for the frontend to store in localStorage
+      // This provides a fallback mechanism if cookies don't work properly
+      console.log("Setting tokens in response for localStorage backup");
 
       res.status(200).json({
         success: true,
@@ -388,9 +385,11 @@ export class AuthController {
           id: result.userId,
         },
         message: "Login successful",
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        },
       });
-
-
     } catch (error) {
       logger.error("Login error:", error);
       res.status(400).json({
@@ -399,7 +398,6 @@ export class AuthController {
       });
     }
   }
-
   // static async login(req: Request, res: Response) {
   //   try {
   //     const validatedData = await loginSchema.parseAsync(req.body);
