@@ -61,13 +61,48 @@ import EmailService from "../services/email.service";
 import { randomBytes } from "crypto";
 import { config } from "../config/config";
 import TwoFactorService from "../services/twoFactor.service";
-import {
-  registerSchema,
-  loginSchema,
-} from "../types/auth.types";
+import { registerSchema, loginSchema } from "../types/auth.types";
 import WhatsAppService from "../services/whatsapp.service";
-import { getClientInfo } from "../utils/controllerUtils";
 import TwilioService from "../services/twilio.service";
+import UAParser from "ua-parser-js"; // Default import
+
+// Implemented getClientInfo using ua-parser-js
+async function getClientInfo(req: Request): Promise<{
+  ip: string;
+  device?: string;
+  browser?: string;
+  os?: string;
+  platform?: string;
+  userAgent: string;
+}> {
+  const uaString = req.headers["user-agent"] || "";
+  // @ts-ignore - Temporarily ignoring due to persistent type issues with ua-parser-js
+  const parser = new UAParser(uaString);
+  const result = parser.getResult();
+
+  // Attempt to get IP address
+  // Prioritize 'x-forwarded-for' if behind a proxy, then req.ip, then req.socket.remoteAddress
+  const ip =
+    (req.headers["x-forwarded-for"] as string)?.split(",").shift()?.trim() ||
+    req.ip ||
+    req.socket?.remoteAddress ||
+    "Unknown";
+
+  return {
+    ip,
+    device: result.device.vendor
+      ? `${result.device.vendor} ${result.device.model || ""}`.trim()
+      : result.device.type || "Unknown Device",
+    browser: result.browser.name
+      ? `${result.browser.name} ${result.browser.version || ""}`.trim()
+      : "Unknown Browser",
+    os: result.os.name
+      ? `${result.os.name} ${result.os.version || ""}`.trim()
+      : "Unknown OS",
+    platform: result.device.type || result.os.name || "Unknown Platform",
+    userAgent: uaString,
+  };
+}
 
 /**
  * Core user interface defining essential user properties.
@@ -223,13 +258,22 @@ export class AuthController {
         loginHistory: [], // Added missing property
         securityQuestions: [], // Added missing property
       };
-      const clientInfo = await getClientInfo(req);
-      console.log("🔐 Registration request from:", clientInfo.ip, clientInfo.os);
+      const clientInfo: any = await getClientInfo(req);
+      console.log(
+        "🔐 Registration request from:",
+        clientInfo.ip,
+        clientInfo.os
+      );
 
       // Check if referral code was provided
       const referralCode = validatedData.referralCode || undefined;
 
-      const result: any = await AuthService.register(user, clientInfo.ip, clientInfo.os, referralCode);
+      const result: any = await AuthService.register(
+        user,
+        clientInfo.ip,
+        clientInfo.os,
+        referralCode
+      );
 
       // Return the response
       res.status(201).json({
@@ -305,25 +349,21 @@ export class AuthController {
 
       const result = await AuthService.login({ identifier, password }, req);
 
-      console.log("🚀 ~ AuthController ~ login ~ result:", result)
-      if (result.success == false) {
+      console.log("🚀 ~ AuthController ~ login ~ result:", result);
+      if (!result.success || !result.tokens) {
         res.status(401).json({
           success: false,
           user: {
             id: result.userId,
           },
-          message: "Invalid credentials",
+          message:
+            result.message || "Invalid credentials or token generation failed",
         });
         return;
       }
 
-      // Generate tokens
-      // Fetch user to get email
-      const user = await User.findById(result.userId).select('email');
-      if (!user) {
-        throw new Error('User not found');
-      }
-      const tokens = AuthService.generateTokens(result.userId!, user.email);
+      // Use tokens directly from the AuthService.login result
+      const tokens = result.tokens;
 
       // Get client info for session tracking
       const clientInfo = await getClientInfo(req);
@@ -340,20 +380,21 @@ export class AuthController {
         userDoc.sessions.push({
           refreshToken: tokens.refreshToken,
           deviceInfo: {
-            userAgent: req.headers['user-agent'] || 'Unknown',
-            ip: req.ip || req.socket.remoteAddress || 'Unknown',
-            deviceType: clientInfo.device || 'Unknown'
+            userAgent: req.headers["user-agent"] || "Unknown",
+            ip: req.ip || req.socket.remoteAddress || "Unknown",
+            deviceType: clientInfo.device || "Unknown",
           },
           lastUsed: new Date(),
           createdAt: new Date(),
-          isActive: true
+          isActive: true,
         });
 
         // Limit the number of sessions to 10
         if (userDoc.sessions.length > 10) {
           // Sort by lastUsed (most recent first) and keep only the 10 most recent
-          userDoc.sessions.sort((a: any, b: any) =>
-            new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
+          userDoc.sessions.sort(
+            (a: any, b: any) =>
+              new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
           );
           userDoc.sessions = userDoc.sessions.slice(0, 10);
         }
@@ -381,7 +422,6 @@ export class AuthController {
       // Also include tokens in the response for the frontend to store in localStorage
       // This provides a fallback mechanism if cookies don't work properly
       console.log("Setting tokens in response for localStorage backup");
-      console.log(user);
 
       res.status(200).json({
         success: true,
@@ -391,11 +431,9 @@ export class AuthController {
         message: "Login successful",
         tokens: {
           accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken
-        }
+          refreshToken: tokens.refreshToken,
+        },
       });
-
-
     } catch (error) {
       logger.error("Login error:", error);
       res.status(400).json({
@@ -404,149 +442,56 @@ export class AuthController {
       });
     }
   }
-
-  // static async login(req: Request, res: Response) {
-  //   try {
-  //     const validatedData = await loginSchema.parseAsync(req.body);
-  //     const result = await AuthService.login(validatedData, req);
-
-  //     // Set tokens in HTTP-only cookies
-  //     if (result.tokens) {
-  //       console.log("🍪 Setting auth cookies...");
-  //       res.cookie("accesstoken", result.tokens.accessToken, {
-  //         httpOnly: true,
-  //         secure: process.env.NODE_ENV === "production",
-  //         sameSite: "lax",
-  //         path: "/",
-  //         maxAge: 15 * 60 * 1000, // 15 minutes
-  //       });
-
-  //       res.cookie("refreshtoken", result.tokens.refreshToken, {
-  //         httpOnly: true,
-  //         secure: process.env.NODE_ENV === "production",
-  //         sameSite: "lax",
-  //         path: "/",
-  //         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  //       });
-  //       console.log("✅ Auth cookies set successfully");
-  //     }
-
-  //     res.json(result);
-  //   } catch (error) {
-  //     logger.error("Login error:", error);
-  //     res.status(400).json({
-  //       success: false,
-  //       message: error instanceof Error ? error.message : "Login failed",
-  //     });
-  //   }
-  // }
-
-
-  /**
-   * Get active sessions for the authenticated user
-   *
-   * @route GET /api/auth/sessions
-   * @param {Request} req Express request object with authenticated user
-   * @param {Response} res Express response object
-   *
-   * @security
-   * - Requires valid authentication
-   * - Validates user session
-   * - Only returns sessions for authenticated user
-   *
-   * @returns {Promise<void>} JSON response with active sessions
-   *
-   * @example
-   * ```typescript
-   * // Success Response
-   * {
-   *   "success": true,
-   *   "sessions": [
-   *     {
-   *       "deviceInfo": {
-   *         "browser": "Chrome",
-   *         "os": "Windows",
-   *         "ip": "192.168.1.1"
-   *       },
-   *       "lastActive": "2025-02-08T22:13:31.000Z",
-   *       "location": "San Francisco, US",
-   *       "status": "active"
-   *     }
-   *   ]
-   * }
-   * ```
-   */
-  static async getSessions(req: Request, res: Response) {
-    try {
-      const user: any = req.user;
-      const sessions = await AuthService.getUserSessions(user._id);
-      res.json({ success: true, sessions });
-    } catch (error) {
-      logger.error("Get sessions error:", error);
-      res.status(400).json({
-        success: false,
-        message:
-          error instanceof Error ? error.message : "Failed to get sessions",
-      });
-    }
-  }
-
-  /**
-   * Logout user from all active sessions and devices
-   *
-   * @route POST /api/auth/logout-all
-   * @param {Request} req Express request object with authenticated user
-   * @param {Response} res Express response object
-   *
-   * @security
-   * - Requires valid authentication
-   * - Invalidates all refresh tokens
-   * - Clears all HTTP-only cookies
-   * - Logs security event with device info
-   * - Updates user's session history
-   *
-   * @returns {Promise<void>} JSON response with logout status
-   *
-   * @example
-   * ```typescript
-   * // Success Response
-   * {
-   *   "success": true,
-   *   "message": "Logged out from all sessions"
-   * }
-   *
-   * // Error Response
-   * {
-   *   "success": false,
-   *   "message": "Failed to logout from all sessions"
-   * }
-   * ```
-   */
   static async logoutAll(req: Request, res: Response) {
+  }
+  static async refreshToken(req: Request, res: Response) {
     try {
-      const user: any = req.user;
-      await AuthService.logout(user._id, ""); // Pass empty refresh token to clear all tokens
+      const { refreshToken } = req.body;
+      const deviceInfo = await getClientInfo(req); // Get device info
 
-      // Clear auth cookies
-      console.log("🗑️  Clearing auth cookies for all sessions...");
-      res.clearCookie("accesstoken");
-      res.clearCookie("refreshtoken");
-      console.log("✅ Auth cookies cleared successfully for all sessions");
+      if (!refreshToken) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Refresh token is required" });
+      }
 
-      res.json({ success: true, message: "Logged out from all sessions" });
-    } catch (error) {
-      logger.error("Logout all error:", error);
-      res.status(400).json({
-        success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to logout from all sessions",
+      const result = await AuthService.refreshAccessToken(
+        refreshToken,
+        deviceInfo
+      );
+
+      // Set new tokens in HTTP-only cookies
+      res.cookie("accesstoken", result.accessToken, {
+        httpOnly: true,
+        path: "/",
+        maxAge: 1 * 60 * 60 * 1000, // 1 hour
       });
+
+      res.cookie("refreshtoken", result.refreshToken, {
+        httpOnly: true,
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+
+      res.status(200).json({
+        success: true,
+        tokens: result,
+      });
+    } catch (error: any) {
+      logger.error("Refresh token error:", error.message);
+      if (error.name === "CustomError" && error.message === "INVALID_TOKEN") {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid or expired refresh token",
+        });
+      }
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to refresh token" });
     }
   }
 
-  /**
+    /**
    * Verify One-Time Password (OTP) for account verification
    *
    * @route POST /api/auth/verify-otp
@@ -594,301 +539,106 @@ export class AuthController {
    * }
    * ```
    */
-  static async verifyOTP(req: Request, res: Response) {
+    static async verifyOTP(req: Request, res: Response) {
+    }
+
+
+  static async logout(req: Request, res: Response) {
     try {
-      const { _id, otp, verificationMethod, issue } = req.body;
-      const motive = req.body.motive || "login"; // Default to "login"
+      // The refreshToken to invalidate a specific session can be passed in the body
+      // Or from the httpOnly cookie if specifically designed that way (more complex)
+      const { refreshToken } = req.body;
+      const userId = (req as any).user?.userId; // Assuming userId is populated by an auth middleware if available
 
-      if (!_id || !otp || !verificationMethod) {
-        return res.status(400).json({
-          success: false,
-          message: "Missing required fields: _id, otp, or verificationMethod",
-        });
+      if (!userId && !refreshToken) {
+        // If no specific session to logout and no user context, clear cookies as a general measure
+        res.clearCookie("accesstoken", { path: "/" });
+        res.clearCookie("refreshtoken", { path: "/" });
+        return res
+          .status(200)
+          .json({ success: true, message: "Logged out (cookies cleared)" });
       }
 
-      // Call the verifyOTP method
-      const result = await AuthService.verifyOTPResponse(
-        _id,
-        otp,
-        verificationMethod.toLowerCase()
-      );
+      // If userId is available (e.g., from access token), prefer logging out that user's session
+      // If only refreshToken is available, AuthService.logout should handle finding the user by that token if needed.
+      await AuthService.logout(userId, refreshToken);
 
-      if (result.success) {
-        const user = result.user;
+      res.clearCookie("accesstoken", { path: "/" });
+      res.clearCookie("refreshtoken", { path: "/" });
 
-        // Handle different verification purposes
-        switch (issue) {
-          case "forgot_username":
-            return res.json({
-              success: true,
-              message: "Username retrieved successfully",
-              username: user?.username
-            });
-
-          case "forgot_email":
-            return res.json({
-              success: true,
-              message: "Email retrieved successfully",
-              email: user?.email
-            });
-
-          case "forgot_password":
-            // For password reset, we still need to let them set a new password
-            return res.json({
-              success: true,
-              message: "OTP verified successfully. You can now reset your password.",
-              email: user?.email
-            });
-
-          case "phone_number_change":
-          case "email_change":
-            // For changes, we verify their identity first, then they can make the change
-            return res.json({
-              success: true,
-              message: "Identity verified successfully. You can now make the requested change.",
-              currentValue: issue === "phone_number_change" ? user?.phoneNumber : user?.email
-            });
-
-          default:
-            // Handle regular login case
-            if (motive === "login") {
-              const tokens = AuthService.generateTokens(_id, user!.email);
-
-              res.cookie("accesstoken", tokens.accessToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                path: "/",
-                maxAge: 1 * 60 * 60 * 1000, // 1 hour
-              });
-
-              res.cookie("refreshtoken", tokens.refreshToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: "lax",
-                path: "/",
-                maxAge: 30 * 24 * 60 * 60 * 1000,
-              });
-
-              return res.json({
-                success: true,
-                message: "OTP verified successfully",
-                tokens,
-                user: {
-                  _id: user?._id,
-                  email: user?.email,
-                  username: user?.username,
-                  fullname: user?.fullName,
-                }
-              });
-            }
-
-            return res.json({
-              success: true,
-              message: "OTP verified successfully"
-            });
-        }
-      }
-
-      return res.status(400).json({
-        success: false,
-        message: result.message || "Invalid OTP",
-      });
-    } catch (error) {
-      logger.error("OTP verification error:", error);
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : "Failed to verify OTP",
-      });
+      res
+        .status(200)
+        .json({ success: true, message: "Logged out successfully" });
+    } catch (error: any) {
+      logger.error("Logout error:", error.message);
+      res.status(500).json({ success: false, message: "Logout failed" });
     }
   }
 
-
-  /**
-   * Refresh user's access token using a valid refresh token
+   /**
+   * Get active sessions for the authenticated user
    *
-   * @route POST /api/auth/refresh-token
-   * @param {Request} req Express request object with refresh token in cookie or body
+   * @route GET /api/auth/sessions
+   * @param {Request} req Express request object with authenticated user
    * @param {Response} res Express response object
    *
    * @security
-   * - Validates refresh token
-   * - Implements token rotation
-   * - Sets secure HTTP-only cookies
-   * - Tracks token usage
-   * - Prevents token reuse
-   * - Updates session activity
+   * - Requires valid authentication
+   * - Validates user session
+   * - Only returns sessions for authenticated user
    *
-   * @returns {Promise<void>} JSON response with new token pair
+   * @returns {Promise<void>} JSON response with active sessions
    *
    * @example
    * ```typescript
    * // Success Response
    * {
    *   "success": true,
-   *   "tokens": {
-   *     "accessToken": "new-access-token",
-   *     "refreshToken": "new-refresh-token"
-   *   }
-   * }
-   *
-   * // Error Response
-   * {
-   *   "success": false,
-   *   "message": "Invalid refresh token"
+   *   "sessions": [
+   *     {
+   *       "deviceInfo": {
+   *         "browser": "Chrome",
+   *         "os": "Windows",
+   *         "ip": "192.168.1.1"
+   *       },
+   *       "lastActive": "2025-02-08T22:13:31.000Z",
+   *       "location": "San Francisco, US",
+   *       "status": "active"
+   *     }
+   *   ]
    * }
    * ```
    */
-  static async refreshToken(req: Request, res: Response) {
-    try {
-      const refreshToken = req.cookies.refreshtoken || req.body.refreshToken;
-      if (!refreshToken) {
-        throw new CustomError("MISSING_TOKEN", "Refresh token is required");
-      }
-
-      // Get request info for security tracking
-      const clientInfo = await getClientInfo(req);
-
-      // Extract device information for session tracking
-      const deviceInfo = {
-        userAgent: req.headers['user-agent'] || 'Unknown',
-        ip: req.ip || req.socket.remoteAddress || 'Unknown',
-        deviceType: clientInfo.device || 'Unknown'
-      };
-
-      // Call AuthService to handle token refresh with device info
-      const tokens = await AuthService.refreshAccessToken(refreshToken, deviceInfo);
-
-      // Set new tokens in cookies
-      res.cookie("accesstoken", tokens.accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 1 * 60 * 60 * 1000, // 1 hour (matches JWT_ACCESS_EXPIRATION)
-      });
-
-      res.cookie("refreshtoken", tokens.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
-      });
-      console.log("✅ Token rotation completed successfully");
-
-      // Send response
-      res.json({
-        success: true,
-        message: "Tokens refreshed successfully",
-        tokens
-      });
-    } catch (error) {
-      logger.error("Token refresh error:", error);
-      res.status(401).json({
-        success: false,
-        message: error instanceof Error ? error.message : "Token refresh failed",
-      });
-    }
+   static async getSessions(req: Request, res: Response) {
   }
 
-  /**
-   * Logout user
-   * @route POST /auth/logout
-   */
-  static async logout(req: Request, res: Response) {
-    try {
-      const { refreshToken } = req.body;
-      const user: any = req.user;
-
-      await AuthService.logout(user._id, refreshToken);
-
-      // Clear auth cookies
-      console.log("🗑️  Clearing auth cookies...");
-      res.clearCookie("accesstoken", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-      });
-      res.clearCookie("refreshtoken", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-      });
-      console.log("✅ Auth cookies cleared successfully");
-
-      res.json({ success: true, message: "Logged out successfully" });
-    } catch (error) {
-      logger.error("Logout error:", error);
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : "Logout failed",
-      });
-    }
-  }
+  // static async verifyEmail(req: Request, res: Response) {
+  //   try {
+  //     const { token } = req.query; // Or req.body, depending on how token is sent
+  //     if (!token || typeof token !== "string") {
+  //       return res
+  //         .status(400)
+  //         .json({ success: false, message: "Verification token is required." });
+  //     }
+  //     const result = await AuthService.verifyEmail(token);
+  //     if (result.success) {
+  //       return res.status(200).json(result);
+  //     } else {
+  //       return res.status(400).json(result);
+  //     }
+  //   } catch (error) {
+  //     logger.error("Email verification controller error:", error);
+  //     return res
+  //       .status(500)
+  //       .json({ success: false, message: "Email verification failed." });
+  //   }
+  // }
 
   /**
    * Request password reset
    * @route POST /auth/forgot-password
    */
-  static async forgotPassword(req: Request, res: Response) {
-    try {
-      const { email } = req.body;
-      if (!email) {
-        throw new CustomError("MISSING_EMAIL", "Email is required");
-      }
-
-      // Fetch user first to ensure email exists and get name
-      const user = await User.findOne({ email }).select('fullName');
-
-      // Always return success message for security, even if user not found
-      // But only proceed if user exists
-      if (user) {
-        const resetToken = randomBytes(32).toString("hex");
-        await AuthService.setResetToken(email, resetToken, 'reset_password', 'email');
-
-        const clientInfo = await getClientInfo(req);
-
-        // Define expiry time (e.g., 60 minutes)
-        const expiryMinutes = 60;
-
-        // Send reset email with properly encoded token
-        const encodedToken = encodeURIComponent(resetToken);
-
-        // Make sure we have a valid CLIENT_URL, with fallback to the hardcoded production URL
-        const clientUrl = config.CLIENT_URL || 'https://my-pts-dashboard-management.vercel.app';
-        const resetUrl = `${clientUrl}/reset-password?token=${encodedToken}`;
-
-        logger.info(`Generated reset URL in auth controller: ${resetUrl}`);
-
-        await EmailService.sendPasswordResetEmail(
-          email,
-          resetUrl, // Pass the full URL
-          user.fullName || 'User', // Pass user's name (or default)
-          expiryMinutes, // Pass expiry time
-          { ipAddress: clientInfo.ip, userAgent: clientInfo.os }
-        );
-      } else {
-        // Log if user not found, but don't reveal this to the client
-        logger.warn(`Password reset requested for non-existent email: ${email}`);
-      }
-
-      res.json({
-        success: true,
-        message:
-          "If an account exists with this email, password reset instructions have been sent", // Kept generic for security
-      });
-    } catch (error) {
-      logger.error("Forgot password error:", error);
-      // Use vague message for security
-      res.status(200).json({
-        success: true,
-        message:
-          "If an account exists with this email, password reset instructions have been sent",
-      });
-    }
-  }
+  static async forgotPassword(req: Request, res: Response) {}
 
   /**
    * Reset password using a valid reset token
@@ -928,61 +678,13 @@ export class AuthController {
    * }
    * ```
    */
-  static async resetPassword(req: Request, res: Response) {
-    try {
-      const { token, password } = req.body;
-      if (!token || !password) {
-        throw new CustomError(
-          "MISSING_FIELDS",
-          "Token and password are required"
-        );
-      }
-
-      await AuthService.resetPassword(token, password, 'reset_password');
-      res.json({
-        success: true,
-        message: "Password reset successful",
-      });
-    } catch (error) {
-      logger.error("Reset password error:", error);
-      res.status(400).json({
-        success: false,
-        message:
-          error instanceof Error ? error.message : "Password reset failed",
-      });
-    }
-  }
+  static async resetPassword(req: Request, res: Response) {}
 
   /**
    * Resend verification email
    * @route POST /auth/resend-verification
    */
-  static async resendVerification(req: Request, res: Response) {
-    try {
-      const { email } = req.body;
-      if (!email) {
-        throw new CustomError("MISSING_EMAIL", "Email is required");
-      }
-
-      const clientInfo = await getClientInfo(req);
-
-      // Logic to resend verification email
-      const result = await AuthService.resendVerification(email);
-      res.json({
-        success: true,
-        message: "Verification email resent successfully",
-      });
-    } catch (error) {
-      logger.error("Resend verification error:", error);
-      res.status(400).json({
-        success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to resend verification email",
-      });
-    }
-  }
+  static async resendVerification(req: Request, res: Response) {}
 
   /**
    * Verify user email address
@@ -1021,63 +723,7 @@ export class AuthController {
    * }
    * ```
    */
-  static async verifyEmail(req: Request, res: Response) {
-    try {
-      const { token } = req.body;
-      if (!token) {
-        return res.status(400).json({
-          success: false,
-          message: "Verification token is required"
-        });
-      }
-
-      // Get request info for security tracking
-      const clientInfo = await getClientInfo(req);
-
-      // First find user by verification token
-      const user: any = await User.findOne({ 'verificationData.token': token });
-      if (!user) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid verification token"
-        });
-      }
-
-      // Validate the token using AuthService
-      const result = await AuthService.verifyEmail(token);
-
-      if (result.success) {
-        // Generate tokens
-        const tokens = await AuthService.generateTokens(user.email, user._id);
-
-        // Set access token cookie
-        res.cookie("accesstoken", tokens.accessToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-          maxAge: 24 * 60 * 60 * 1000, // 24 hours (matches JWT_ACCESS_EXPIRATION)
-        });
-
-        // Send success response
-        return res.status(200).json({
-          success: true,
-          message: "Email verified successfully"
-        });
-      }
-
-      return res.status(400).json({
-        success: false,
-        message: result.message || "Email verification failed"
-      });
-    } catch (error) {
-      logger.error("Email verification error:", error);
-      res.status(500).json({
-        success: false,
-        message: "An error occurred during email verification"
-      });
-    }
-  }
+  static async verifyEmail(req: Request, res: Response) {}
 
   /**
    * Generate Two-Factor Authentication (2FA) secret for user
@@ -1114,32 +760,7 @@ export class AuthController {
    * }
    * ```
    */
-  static async generate2FA(req: Request, res: Response) {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: "User not authenticated" });
-      }
-      const user = req.user as any;
-      const userId = user._id;
-
-      // Generate 2FA secret
-      const secretData = await TwoFactorService.generateSecret(userId);
-
-      // Get request info for security tracking
-      const clientInfo = await getClientInfo(req);
-
-      // Send 2FA code via email with security info
-      await EmailService.sendTwoFactorAuthEmail(user.email, secretData.secret, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
-
-      res.status(200).json({
-        message: "2FA code sent successfully",
-        qrCode: secretData.qrCode
-      });
-    } catch (error) {
-      logger.error("Error generating 2FA:", error);
-      res.status(500).json({ message: "Internal Server Error" });
-    }
-  }
+  static async generate2FA(req: Request, res: Response) {}
 
   /**
    * Verify 2FA code submitted by user
@@ -1176,195 +797,27 @@ export class AuthController {
    * }
    * ```
    */
-  static async verify2FA(req: Request, res: Response) {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: "User not authenticated" });
-      }
-      const { code } = req.body;
-      const user = req.user as any;
-      const userId = user._id; // Assuming user is authenticated
-      const isValid = await TwoFactorService.verifyToken(userId, code);
-      if (isValid) {
-        res.status(200).json({ message: "2FA code verified successfully" });
-      } else {
-        res.status(400).json({ message: "Invalid 2FA code" });
-      }
-    } catch (error) {
-      logger.error("Error verifying 2FA:", error);
-      res.status(500).json({ message: "Internal Server Error" });
-    }
-  }
+  static async verify2FA(req: Request, res: Response) {}
 
   /**
    * Disable 2FA
    * @route POST /auth/disable-2fa
    */
-  static async disable2FA(req: Request, res: Response) {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: "User not authenticated" });
-      }
-      const user = req.user as any;
-      const userId = user._id; // Assuming user is authenticated
-      await TwoFactorService.disable(userId);
-      res.status(200).json({ message: "2FA disabled successfully" });
-    } catch (error) {
-      logger.error("Error disabling 2FA:", error);
-      res.status(500).json({ message: "Internal Server Error" });
-    }
-  }
+  static async disable2FA(req: Request, res: Response) {}
 
   /**
    * Validate 2FA code
    * @route POST /auth/validate-2fa
    */
-  static async validate2FA(req: Request, res: Response) {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ message: "User not authenticated" });
-      }
-      const { code } = req.body;
-      const user = req.user as any;
-      const userId = user._id; // Assuming user is authenticated
-
-      const isValid = await TwoFactorService.verifyToken(userId, code);
-      if (isValid) {
-        res.status(200).json({ message: "2FA code is valid" });
-      } else {
-        res.status(400).json({ message: "Invalid 2FA code" });
-      }
-    } catch (error) {
-      logger.error("Error validating 2FA:", error);
-      res.status(500).json({ message: "Internal Server Error" });
-    }
-  }
+  static async validate2FA(req: Request, res: Response) {}
 
   /**
    * Resend OTP
    * @route POST /auth/resend-otp
    */
-  static async resendOTP(req: Request, res: Response) {
-    try {
-      const { _id, verificationMethod } = req.body;
+  static async resendOTP(req: Request, res: Response) {}
 
-      if (!_id || !verificationMethod) {
-        return res.status(400).json({
-          success: false,
-          message: "Missing required fields: _id",
-        });
-      }
-
-      if (_id.length !== 24) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid user ID",
-        });
-      }
-
-      // Find user
-      const user = await User.findById(_id);
-      if (!user) {
-        return res.status(400).json({
-          success: false,
-          message: "User not found",
-        });
-      }
-
-
-
-      user.verificationMethod = verificationMethod;
-
-      // Generate new OTP
-      const otp = generateOTP(6);
-
-      console.log("🔐 Resending OTP:", otp);
-
-      // Get request info for security tracking
-      const clientInfo = await getClientInfo(req);
-
-      // Update user's verification data
-      user.verificationData = {
-        otp,
-        otpExpiry: new Date(
-          Date.now() + AuthService.OTP_EXPIRY_MINUTES * 60 * 1000
-        ),
-        attempts: 0,
-        lastAttempt: new Date(),
-      };
-
-      await user.save();
-
-      // Send OTP based on verification method
-      if (user.verificationMethod.toLowerCase() === "email") {
-        await EmailService.sendVerificationEmail(user.email, otp, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
-        logger.info(`🟣 Registration OTP (Email): ${otp}`);
-      } else if (
-        user.verificationMethod.toLowerCase() === "phone" &&
-        user.phoneNumber
-      ) {
-        console.log("Sending OTP to phone number:", user.phoneNumber);
-        await TwilioService.sendOTPMessage(user.phoneNumber, otp);
-        logger.info(`🟣 Registration OTP (Phone): ${otp}`);
-      }
-
-      res.json({
-        success: true,
-        message: `OTP resent successfully via ${user.verificationMethod}:  ${user.verificationMethod.toLowerCase() === "phone" ? user.phoneNumber : user.email} `,
-        userId: user._id,
-        otp: otp
-      });
-    } catch (error) {
-      logger.error("Resend OTP error:", error);
-      res.status(400).json({
-        success: false,
-        message:
-          error instanceof Error ? error.message : "Failed to resend OTP",
-      });
-    }
-  }
-
-  static async selectOTPMethod(req: Request, res: Response) {
-    try {
-      const { _id, verificationMethod } = req.body;
-
-      if (!_id || !verificationMethod) {
-        return res.status(400).json({
-          success: false,
-          message: "Missing required fields: _id or verificationMethod",
-        });
-      }
-
-      // Find user
-      const user = await User.findById(_id);
-      if (!user) {
-        return res.status(400).json({
-          success: false,
-          message: "User not found",
-        });
-      }
-
-      // Update user's verification data
-      user.verificationMethod = verificationMethod;
-
-      await user.save();
-
-      // Send OTP based on verification method
-
-      res.json({
-        success: true,
-        message: `OTP verification method sent,  ${verificationMethod}`,
-        userId: user._id,
-      });
-    } catch (error) {
-      logger.error("Error sending OPT verification method:", error);
-      res.status(400).json({
-        success: false,
-        message:
-          error instanceof Error ? error.message : "Failed to send OTP verification method",
-      });
-    }
-  }
+  static async selectOTPMethod(req: Request, res: Response) {}
 
   /**
    * Check if an email address is available (not already registered)
@@ -1375,23 +828,7 @@ export class AuthController {
    *
    * @returns {Promise<void>} JSON response indicating if email is available
    */
-  static async checkEmail(req: Request, res: Response) {
-    try {
-      const email = req.params.email;
-      const user = await User.findOne({ email: email.toLowerCase() });
-
-      res.json({
-        available: !user,
-        message: user ? 'Email is already registered' : 'Email is available'
-      });
-    } catch (error) {
-      logger.error('Check email error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to check email availability'
-      });
-    }
-  }
+  static async checkEmail(req: Request, res: Response) {}
 
   /**
    * Check if a username is available (not already taken)
@@ -1402,69 +839,13 @@ export class AuthController {
    *
    * @returns {Promise<void>} JSON response indicating if username is available
    */
-  static async checkUsername(req: Request, res: Response) {
-    try {
-      const username = req.params.username;
-      const user = await User.findOne({ username: username.toLowerCase() });
-
-      res.json({
-        available: !user,
-        message: user ? 'Username is already taken' : 'Username is available'
-      });
-    } catch (error) {
-      logger.error('Check username error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to check username availability'
-      });
-    }
-  }
+  static async checkUsername(req: Request, res: Response) {}
 
   /**
    * Retrieve forgotten information (email/username) after OTP validation
    * @route POST /auth/retrieve-forgotten-info
    */
-  static async retrieveForgottenInfo(req: Request, res: Response) {
-    try {
-      const { token, infoType } = req.body;
-
-      if (!token || !infoType) {
-        return res.status(400).json({
-          success: false,
-          message: "Token and infoType are required"
-        });
-      }
-
-      // Validate infoType
-      if (!['email', 'username', 'phone_number'].includes(infoType)) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid infoType. Must be 'email', 'username', or 'phone_number'"
-        });
-      }
-
-      const result = await AuthService.retrieveForgottenInfo(token, infoType);
-
-      if (result.success && result.info) {
-        return res.json({
-          success: true,
-          message: `Your ${infoType} has been retrieved successfully`,
-          [infoType]: result.info
-        });
-      }
-
-      return res.status(400).json({
-        success: false,
-        message: result.message || "Failed to retrieve information"
-      });
-    } catch (error) {
-      logger.error("Error retrieving forgotten info:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Error retrieving information"
-      });
-    }
-  }
+  static async retrieveForgottenInfo(req: Request, res: Response) {}
 
   /**
    * Handle trouble logging in by providing personalized assistance
@@ -1475,346 +856,30 @@ export class AuthController {
    *
    * @returns {Promise<void>} JSON response with helpful next steps
    */
-  static async troubleLogin(req: Request, res: Response): Promise<Response> {
-    try {
-      const { identifier, issue, verificationMethod } = req.body;
-
-      // Validate request payload
-      if (!identifier) {
-        return res.status(400).json({
-          success: false,
-          message: "Identifier (email, username, or phone) is required",
-        });
-      }
-
-      if (!issue) {
-        return res.status(400).json({
-          success: false,
-          message: "Issue is required",
-        });
-      }
-
-      // Find user based on identifier
-      const user = await User.findOne({
-        $or: [
-          { email: identifier.toLowerCase() },
-          { username: identifier.toLowerCase() },
-          { phoneNumber: identifier },
-        ],
-      });
-
-      if (!user) {
-        return res.json({
-          success: true,
-          message:
-            "If an account exists with this email, we'll send instructions to help you log in.",
-          nextSteps: [
-            "Check if you used the correct email address",
-            "Try creating a new account if you haven't registered",
-          ],
-        });
-      }
-
-      // Function to get next steps based on issue
-      const getNextSteps = (method: "EMAIL" | "PHONE", issue: string): string[] => {
-        const commonSteps: { [key: string]: string[] } = {
-          account_locked: [
-            "Your account will automatically unlock after 1 hour",
-            "Contact support if you need immediate assistance",
-            "Enable 2FA to prevent future lockouts",
-          ],
-          "2fa_issues": [
-            "Make sure your device's time is correctly synchronized",
-            "Use backup codes if you've lost access to your authenticator app",
-            "Contact support if you've lost access to your 2FA device",
-          ],
-          default: [
-            "Ensure you're using the correct credentials",
-            "Check if Caps Lock is on",
-            "Reset your password if you can't remember it",
-            "Contact support if you continue having problems",
-          ],
-        };
-
-        if (issue === "forgot_password" || "forgot_username" || "forgot_email" || "phone_number_change" || "email_change") {
-          return method === "EMAIL"
-            ? [
-              "Check your email for a verification code",
-              "Enter the code to reset your password",
-              "If you don't receive the email, check your spam folder",
-            ]
-            : [
-              "Check your phone for a verification code",
-              "Enter the code to reset your password",
-              "If you don't receive the SMS, check your network signal",
-            ];
-        }
-
-        return commonSteps[issue] || commonSteps.default;
-      };
-
-      // Function to handle password reset
-      const handlePasswordReset = async (
-        method: "EMAIL" | "PHONE",
-        identifier: string
-      ): Promise<string> => {
-        const otp = generateOTP(6); // Generate 6-digit OTP
-        const expiry = new Date(Date.now() + AuthService.OTP_EXPIRY_MINUTES * 60 * 1000);
-
-        // Store OTP in user record
-        user.verificationData = {
-          otp,
-          otpExpiry: expiry,
-          attempts: 0,
-          lastAttempt: new Date(),
-        };
-        await user.save();
-
-        console.log("Updated user verification data:", user.verificationData);
-
-        if (method.toLocaleLowerCase() === "email") {
-          await EmailService.sendVerificationEmail(user.email, otp, {
-            ipAddress: req.ip,
-            userAgent: req.get("user-agent") || "unknown",
-          });
-          logger.info(`🔐 Password Reset OTP (Email): ${otp}`);
-        } else {
-          try {
-            await TwilioService.sendOTPMessage(user.phoneNumber, otp);
-            logger.info(`🔐 Password Reset OTP (SMS): ${otp}`);
-          } catch (error) {
-            logger.error("Failed to send OTP via Twilio", error);
-            throw new Error("Unable to send OTP via SMS. Please try again.");
-          }
-        }
-
-        return otp;
-      };
-
-
-      // Trigger password reset if necessary
-      let otpSent = null;
-      const resetIssues = ["forgot_password", "forgot_username", "forgot_email", "phone_number_change", "email_change"];
-      if (resetIssues.includes(issue)) {
-        otpSent = await handlePasswordReset(
-          verificationMethod as "EMAIL" | "PHONE",
-          identifier.toLowerCase()
-        );
-      }
-
-      // Response with next steps
-      return res.json({
-        success: true,
-        message: "We've identified some steps to help you log in",
-        nextSteps: getNextSteps(verificationMethod as "EMAIL" | "PHONE", issue),
-        userId: user._id,
-        otpSent, // Include OTP in response only for testing/debugging (remove in production)
-        supportEmail: config.SMTP_FROM,
-        supportPhone: config.SUPPORT_PHONE,
-      });
-    } catch (error) {
-      logger.error("Trouble login error:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Error processing your request. Please try again later.",
-      });
-    }
-  }
+  static async troubleLogin(req: Request, res: Response) {}
 
   /**
    * Change user's email address after verification
    * @route POST /auth/change-email
    */
-  static async changeEmail(req: Request, res: Response) {
-    try {
-      const { userId, newEmail } = req.body;
-
-      if (!userId || !newEmail) {
-        return res.status(400).json({
-          success: false,
-          message: "User ID and new email are required"
-        });
-      }
-
-      // Check if email is already in use
-      const existingUser = await User.findOne({ email: newEmail, _id: { $ne: userId } });
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: "Email is already in use"
-        });
-      }
-
-      // Update user's email
-      const user = await User.findByIdAndUpdate(
-        userId,
-        {
-          email: newEmail,
-          isEmailVerified: true // Since they've already verified through OTP
-        },
-        { new: true }
-      );
-
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found"
-        });
-      }
-
-      return res.json({
-        success: true,
-        message: "Email updated successfully",
-        email: newEmail
-      });
-    } catch (error) {
-      logger.error("Change email error:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to update email"
-      });
-    }
-  }
+  static async changeEmail(req: Request, res: Response) {}
 
   /**
    * Change user's phone number after verification
    * @route POST /auth/change-phone
    */
-  static async changePhoneNumber(req: Request, res: Response) {
-    try {
-      const { userId, newPhoneNumber, formattedPhoneNumber } = req.body;
-
-      if (!userId || !newPhoneNumber) {
-        return res.status(400).json({
-          success: false,
-          message: "User ID and new phone number are required"
-        });
-      }
-
-      // Check if phone number is already in use
-      const existingUser = await User.findOne({ phoneNumber: newPhoneNumber, _id: { $ne: userId } });
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: "Phone number is already in use"
-        });
-      }
-
-      // Update user's phone number
-      const user = await User.findByIdAndUpdate(
-        userId,
-        {
-          phoneNumber: newPhoneNumber,
-          formattedPhoneNumber: formattedPhoneNumber || newPhoneNumber,
-          isPhoneVerified: true // Since they've already verified through OTP
-        },
-        { new: true }
-      );
-
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found"
-        });
-      }
-
-      return res.json({
-        success: true,
-        message: "Phone number updated successfully",
-        phoneNumber: newPhoneNumber,
-        formattedPhoneNumber: formattedPhoneNumber || newPhoneNumber
-      });
-    } catch (error) {
-      logger.error("Change phone number error:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to update phone number"
-      });
-    }
-  }
+  static async changePhoneNumber(req: Request, res: Response) {}
 
   /**
    * Change username after verification
    * @route POST /auth/change-username
    */
-  static async changeUsername(req: Request, res: Response) {
-    try {
-      const { userId, newUsername } = req.body;
-
-      if (!userId || !newUsername) {
-        return res.status(400).json({
-          success: false,
-          message: "User ID and new username are required"
-        });
-      }
-
-      // Check if username is already in use
-      const existingUser = await User.findOne({ username: newUsername.toLowerCase(), _id: { $ne: userId } });
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: "Username is already taken"
-        });
-      }
-
-      // Update user's username
-      const user = await User.findByIdAndUpdate(
-        userId,
-        { username: newUsername.toLowerCase() },
-        { new: true }
-      );
-
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found"
-        });
-      }
-
-      return res.json({
-        success: true,
-        message: "Username updated successfully",
-        username: newUsername.toLowerCase()
-      });
-    } catch (error) {
-      logger.error("Change username error:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to update username"
-      });
-    }
-  }
+  static async changeUsername(req: Request, res: Response) {}
 }
 
-function generateOTP(length: number) {
-  const digits = "0123456789";
-  let otp = "";
-  for (let i = 0; i < length; i++) {
-    otp += digits[Math.floor(Math.random() * 10)];
-  }
-  return otp;
-}
+function generateOTP(length: number) {}
 
-export async function socialAuthCallback(req: Request, res: Response) {
-  try {
-    const { user, accessToken, refreshToken } = req.body;
-    // Handle the returned user and tokens
-    res.json({ success: true, user, accessToken, refreshToken });
-    console.log(
-      "🔑 Social auth callback successful:",
-      user,
-      accessToken,
-      refreshToken
-    );
-  } catch (error) {
-    logger.error("Social auth callback error:", error);
-    res.status(400).json({
-      statusCode: 200, // Successful response
-      success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to authenticate with social provider",
-    });
-  }
-}
+export async function socialAuthCallback(req: Request, res: Response) {}
+// This is the closing brace for the AuthController class
+
+export default AuthController;

@@ -153,134 +153,6 @@ class AuthService {
             throw error;
         }
     }
-    //   static async login(
-    //     input: LoginInput,
-    //     req: unknown
-    //   ): Promise<OTPVerificationResponse> {
-    //     try {
-    //       const user = (await User.findOne({ email: input.email })) as any;
-    //       if (!user) {
-    //         // Use vague message for security
-    //         throw new CustomError(
-    //           "INVALID_CREDENTIALS",
-    //           "Invalid email or password"
-    //         );
-    //       }
-    //       // Check account lock
-    //       // if (user.lockUntil && user.lockUntil > new Date()) {
-    //       //   const remainingTime = Math.ceil((user.lockUntil.getTime() - Date.now()) / 60000);
-    //       //   throw new CustomError(
-    //       //     'ACCOUNT_LOCKED',
-    //       //     `Account is locked. Please try again in ${remainingTime} minutes`
-    //       //   );
-    //       // }
-    //       // Verify password
-    //       const isPasswordValid = await user.comparePassword(input.password);
-    //       if (!isPasswordValid) {
-    //         user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
-    //         if (user.failedLoginAttempts >= this.MAX_LOGIN_ATTEMPTS) {
-    //           user.lockUntil = new Date(
-    //             Date.now() + this.LOCK_TIME_MINUTES * 60 * 1000
-    //           );
-    //           await user.save();
-    //           throw new CustomError(
-    //             "MAX_ATTEMPTS_EXCEEDED",
-    //             `Too many failed attempts. Account locked for ${this.LOCK_TIME_MINUTES} minutes`
-    //           );
-    //         }
-    //         await user.save();
-    //         throw new CustomError(
-    //           "INVALID_CREDENTIALS",
-    //           "Invalid email or password"
-    //         );
-    //       }
-    //       // Reset failed attempts on successful login
-    //       user.failedLoginAttempts = 0;
-    //       user.lockUntil = undefined;
-    //       // If 2FA is enabled, generate and send OTP
-    //       if (user.twoFactorEnabled) {
-    //         const otp = generateOTP(6);
-    //         console.log("\x1b[33m%s\x1b[0m", "🔑 Login 2FA Code:", otp); // Yellow colored output
-    //         const otpExpiry = new Date(
-    //           Date.now() + this.OTP_EXPIRY_MINUTES * 60 * 1000
-    //         );
-    //         user.otpData = {
-    //           hash: otp,
-    //           expiry: otpExpiry,
-    //           attempts: 0,
-    //           channel: "email", // Already lowercase here
-    //           purpose: "login",
-    //         };
-    //         await user.save();
-    //         // Send OTP via WhatsApp
-    //         if (user.phoneNumber) {
-    //           try {
-    //             await WhatsAppService.sendOTPMessage(user.phoneNumber, otp);
-    //             logger.info(`OTP sent to ${user.phoneNumber} via WhatsApp`);
-    //           } catch (whatsappError) {
-    //             logger.error("Failed to send OTP via WhatsApp:", whatsappError);
-    //             // Optionally, you can choose to throw an error or continue
-    //           }
-    //         }
-    //         // Replace the direct user object with a sanitized version
-    //         const sanitizedUser = {
-    //           id: user._id,
-    //           email: user.email,
-    //           verificationData: user.verificationData,
-    //           username: user.username,
-    //           fullName: user.fullName,
-    //           role: user.role,
-    //           isEmailVerified: user.isEmailVerified,
-    //           isPhoneVerified: user.isPhoneVerified,
-    //           profilePicture: user.profilePicture,
-    //           registrationStep: user.registrationStep,
-    //           verificationMethod: user.verificationMethod,
-    //           lastLogin: user.lastLogin
-    //         };
-    //         return {
-    //           success: true,
-    //           message: "OTP sent for verification",
-    //           otpRequired: !user.isEmailVerified,
-    //           verificationMethod: user.verificationMethod,
-    //           user: sanitizedUser,
-    //           otpChannel: user.otpChannel
-    //         };
-    //       }
-    //       // If no 2FA, generate tokens and complete login
-    //       const tokens = this.generateTokens(user._id.toString(), user.email);
-    // console.log(user);
-    //       // Clear old refresh tokens and set the new one
-    //       user.refreshTokens = [tokens.refreshToken];
-    //       user.lastLogin = new Date();
-    //       await user.save();
-    //       const sanitizedUser = {
-    //         id: user._id,
-    //         email: user.email,
-    //         verificationData: user.verificationData,
-    //         username: user.username,
-    //         fullName: user.fullName,
-    //         role: user.role,
-    //         isEmailVerified: user.isEmailVerified,
-    //         isPhoneVerified: user.isPhoneVerified,
-    //         profilePicture: user.profilePicture,
-    //         registrationStep: user.registrationStep,
-    //         verificationMethod: user.verificationMethod,
-    //         lastLogin: user.lastLogin
-    //       };
-    //       return {
-    //         success: true,
-    //         message: "Login successful",
-    //         tokens,
-    //         user: sanitizedUser,
-    //         otpRequired: !user.isEmailVerified,
-    //         verificationMethod: user.verificationMethod,
-    //         // otpRequired: false,
-    //       };
-    //     } catch (error) {
-    //       logger.error("Login error:", error);
-    //       throw error;
-    //     }
-    //   }
     static async login(input, req) {
         try {
             // Find user by email or username
@@ -328,12 +200,11 @@ class AuthService {
                 // return { success: true }; // OTP required
             }
             // If no 2FA, login success
-            // const tokens = this.generateTokens(user._id.toString(), user.email);
-            // user.refreshTokens = [tokens.refreshToken];
+            const tokens = this.generateTokens(user._id.toString(), user.email);
+            user.refreshTokens = [tokens.refreshToken];
             user.lastLogin = new Date();
             await user.save();
-            return { success: true, userId: user._id.toString(), };
-            // return { success: true, userId: user._id.toString(),  };
+            return { success: true, userId: user._id.toString(), tokens };
         }
         catch (error) {
             logger_1.logger.error("Login error:", error);
@@ -898,6 +769,8 @@ class AuthService {
                     message: "Invalid or expired token"
                 };
             }
+            console.log("Found user:", user.email);
+            console.log("Verification data:", user.verificationData);
             // Return the requested information
             let info;
             switch (infoType) {
