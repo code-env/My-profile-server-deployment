@@ -27,6 +27,7 @@ class SharingService {
         }
     }
     async generateProfileQR(profileId, options = {}) {
+        var _a;
         try {
             const profile = await profile_model_1.ProfileModel.findById(profileId);
             if (!profile) {
@@ -34,7 +35,7 @@ class SharingService {
             }
             const { size = 300, color = '#000000', style = 'standard' } = options;
             // Generate profile URL
-            const profileUrl = `${process.env.FRONTEND_URL}/p/${profile.connectLink}`;
+            const profileUrl = `${process.env.FRONTEND_URL}/p/${((_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.profileLink) || profile._id}`;
             // QR Code options
             const qrOptions = {
                 errorCorrectionLevel: 'H',
@@ -91,9 +92,6 @@ class SharingService {
             throw error;
         }
     }
-    async loadImage(source) {
-        return await (0, canvas_1.loadImage)(source);
-    }
     async applyQRStyle(qrBuffer, style) {
         try {
             const image = (0, sharp_1.default)(qrBuffer);
@@ -130,7 +128,7 @@ class SharingService {
     }
     async generateSharingImage(profileId, template = 'standard') {
         try {
-            const profile = await profile_model_1.ProfileModel.findById(profileId).populate('owner', 'firstName lastName profileImage');
+            const profile = await profile_model_1.ProfileModel.findById(profileId).populate('profileInformation.creator', 'firstName lastName');
             if (!profile) {
                 throw new Error('Profile not found');
             }
@@ -168,23 +166,26 @@ class SharingService {
         }
     }
     async applyStandardTemplate(ctx, profile) {
+        var _a, _b, _c;
         // Background
         ctx.fillStyle = '#f8f9fa';
         ctx.fillRect(0, 0, 1200, 630);
         // Profile info
+        const creator = (_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator;
         ctx.font = 'bold 48px Arial';
         ctx.fillStyle = '#000000';
-        ctx.fillText(`${profile.owner.firstName} ${profile.owner.lastName}`, 60, 100);
+        ctx.fillText(`${(creator === null || creator === void 0 ? void 0 : creator.firstName) || 'User'} ${(creator === null || creator === void 0 ? void 0 : creator.lastName) || ''}`, 60, 100);
         ctx.font = '32px Arial';
         ctx.fillStyle = '#666666';
-        ctx.fillText(profile.name, 60, 160);
+        ctx.fillText(((_b = profile.profileInformation) === null || _b === void 0 ? void 0 : _b.title) || 'Profile', 60, 160);
         // Add profile image if available
-        if (profile.owner.profileImage) {
-            const img = await (0, canvas_1.loadImage)(profile.owner.profileImage);
+        if ((_c = profile.ProfileFormat) === null || _c === void 0 ? void 0 : _c.profileImage) {
+            const img = await (0, canvas_1.loadImage)(profile.ProfileFormat.profileImage);
             ctx.drawImage(img, 800, 100, 300, 300);
         }
     }
     async applyProfessionalTemplate(ctx, profile) {
+        var _a, _b;
         // Gradient background
         const gradient = ctx.createLinearGradient(0, 0, 1200, 630);
         gradient.addColorStop(0, '#2c3e50');
@@ -192,13 +193,15 @@ class SharingService {
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 1200, 630);
         // White text
+        const creator = (_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator;
         ctx.font = 'bold 56px Arial';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(`${profile.owner.firstName} ${profile.owner.lastName}`, 60, 120);
+        ctx.fillText(`${(creator === null || creator === void 0 ? void 0 : creator.firstName) || 'User'} ${(creator === null || creator === void 0 ? void 0 : creator.lastName) || ''}`, 60, 120);
         ctx.font = '36px Arial';
-        ctx.fillText(profile.name, 60, 180);
+        ctx.fillText(((_b = profile.profileInformation) === null || _b === void 0 ? void 0 : _b.title) || 'Profile', 60, 180);
     }
     async applyCreativeTemplate(ctx, profile) {
+        var _a;
         // Playful background
         ctx.fillStyle = '#ff6b6b';
         ctx.fillRect(0, 0, 1200, 630);
@@ -212,27 +215,31 @@ class SharingService {
         ctx.shadowBlur = 10;
         ctx.shadowOffsetX = 5;
         ctx.shadowOffsetY = 5;
+        const creator = (_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator;
         ctx.font = 'bold 64px Arial';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(`${profile.owner.firstName}`, 60, 120);
-        ctx.fillText(`${profile.owner.lastName}`, 60, 200);
+        ctx.fillText(`${(creator === null || creator === void 0 ? void 0 : creator.firstName) || 'User'}`, 60, 120);
+        ctx.fillText(`${(creator === null || creator === void 0 ? void 0 : creator.lastName) || ''}`, 60, 200);
     }
     generateSocialMeta(profile) {
+        var _a, _b, _c, _d, _e;
+        const creator = (_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator;
         return {
-            title: `${profile.owner.firstName} ${profile.owner.lastName} - ${profile.name}`,
-            description: profile.description || `Check out ${profile.owner.firstName}'s professional profile`,
-            image: profile.owner.profileImage,
-            url: `${process.env.FRONTEND_URL}/p/${profile.connectLink}`,
+            title: `${(creator === null || creator === void 0 ? void 0 : creator.firstName) || 'User'} ${(creator === null || creator === void 0 ? void 0 : creator.lastName) || ''} - ${((_b = profile.profileInformation) === null || _b === void 0 ? void 0 : _b.title) || 'Profile'}`,
+            description: ((_c = profile.profileInformation) === null || _c === void 0 ? void 0 : _c.title) || `Check out this professional profile`,
+            image: ((_d = profile.ProfileFormat) === null || _d === void 0 ? void 0 : _d.profileImage) || '',
+            url: `${process.env.FRONTEND_URL}/p/${((_e = profile.profileInformation) === null || _e === void 0 ? void 0 : _e.profileLink) || profile._id}`,
         };
     }
     async trackShare(profileId, platform, userId) {
+        var _a, _b;
         try {
             const profile = await profile_model_1.ProfileModel.findById(profileId);
             if (!profile) {
                 throw new Error('Profile not found');
             }
             // Track share as an engagement
-            await this.analyticsService.trackEngagement(profileId, profile.owner, userId || profile.owner, 'share', { platform });
+            await this.analyticsService.trackEngagement(profileId, (_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator, userId || ((_b = profile.profileInformation) === null || _b === void 0 ? void 0 : _b.creator), 'share', { platform });
             return true;
         }
         catch (error) {

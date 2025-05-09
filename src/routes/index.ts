@@ -118,8 +118,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/auth/social', socialAuthRoutes);
 
   // Protected routes
-  app.use('/api/profiles', profileRoutes);
-  // app.use('/api/profiles', protect, profileRoutes);
+  app.use('/api/profiles', protect, profileRoutes);
   // app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/profile-connections', protect, profileConnectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);

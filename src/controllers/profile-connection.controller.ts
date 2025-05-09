@@ -41,9 +41,9 @@ export const sendConnectionRequest = async (req: Request, res: Response): Promis
 
     // Security check: Verify that the authenticated user owns the requesting profile
     // This prevents users from sending requests using profiles they don't own
-    console.log("🚀 ~ sendConnectionRequest ~ requesterProfile.owner:", requesterProfile.owner.toString());
+    console.log("🚀 ~ sendConnectionRequest ~ requesterProfile.profileInformation.creator:", requesterProfile.profileInformation?.creator?.toString());
     console.log("🚀 ~ sendConnectionRequest ~ req.user._id:", (req.user as any)?._id);
-    if (requesterProfile.owner.toString() !== (req.user as any)?._id.toString()) {
+    if (requesterProfile.profileInformation?.creator?.toString() !== (req.user as any)?._id.toString()) {
       console.log("🚀 ~ sendConnectionRequest ~ AUTHORIZATION ERROR: User does not own this profile");
       console.log("error...")
       res.status(403).json({ success: false, message: 'You are not authorized to use this profile...' });
@@ -153,7 +153,7 @@ export const acceptConnectionRequest = async (req: Request, res: Response): Prom
 
     // Security check: Verify the authenticated user owns the accepting profile
     // This prevents users from accepting requests for profiles they don't own
-    if (profile.owner.toString() !== (req.user as any)?._id.toString()) {
+    if (profile.profileInformation?.creator?.toString() !== (req.user as any)?._id.toString()) {
       res.status(403).json({ success: false, message: 'You are not authorized to use this profile' });
       return;
     }
@@ -278,7 +278,7 @@ export const rejectConnectionRequest = async (req: Request, res: Response): Prom
     }
 
     // Security check: Verify the authenticated user owns the rejecting profile
-    if (profile.owner.toString() !== (req.user as any)?._id.toString()) {
+    if (profile.profileInformation?.creator?.toString() !== (req.user as any)?._id.toString()) {
       res.status(403).json({ success: false, message: 'You are not authorized to use this profile' });
       return;
     }
@@ -341,7 +341,7 @@ export const blockConnection = async (req: Request, res: Response): Promise<void
     }
 
     // Security check: Verify the authenticated user owns the blocking profile
-    if (profile.owner.toString() !== (req.user as any)?._id.toString()) {
+    if (profile.profileInformation?.creator?.toString() !== (req.user as any)?._id.toString()) {
       res.status(403).json({ success: false, message: 'You are not authorized to use this profile' });
       return;
     }
@@ -440,7 +440,7 @@ export const unblockConnection = async (req: Request, res: Response): Promise<vo
     }
 
     // Security check: Verify the authenticated user owns the unblocking profile
-    if (profile.owner.toString() !== (req.user as any)?._id.toString()) {
+    if (profile.profileInformation?.creator?.toString() !== (req.user as any)?._id.toString()) {
       res.status(403).json({ success: false, message: 'You are not authorized to use this profile' });
       return;
     }
@@ -491,7 +491,7 @@ export const getProfileConnections = async (req: Request, res: Response): Promis
     }
 
     // Security check: Verify the authenticated user owns the profile
-    if (profile.owner.toString() !== (req.user as any)?._id.toString()) {
+    if (profile.profileInformation?.creator?.toString() !== (req.user as any)?._id.toString()) {
       res.status(403).json({ success: false, message: 'You are not authorized to view connections for this profile' });
       return;
     }
@@ -523,7 +523,7 @@ export const getProfileConnections = async (req: Request, res: Response): Promis
     // Fetch all relevant profiles in a single query for efficiency
     const profiles = await ProfileModel.find({
       _id: { $in: Array.from(profileIds) }
-    }).select('_id name profileType profileImage');
+    }).select('_id profileInformation profileType ProfileFormat');
 
     // Create a lookup map for quick profile access by ID
     const profileMap = new Map();
@@ -531,9 +531,9 @@ export const getProfileConnections = async (req: Request, res: Response): Promis
       if (p._id) {
         profileMap.set(p._id.toString(), {
           id: p._id,
-          name: p.name,
+          name: p.profileInformation?.title || 'Untitled Profile',
           profileType: p.profileType,
-          profileImage: p.profileImage
+          profileImage: p.ProfileFormat?.profileImage || ''
         });
       }
     });
@@ -636,7 +636,7 @@ export const getConnectionRequests = async (req: Request, res: Response): Promis
     }
 
     // Security check: Verify the authenticated user owns the profile
-    if (profile.owner.toString() !== (req.user as any)?._id.toString()) {
+    if (profile.profileInformation?.creator?.toString() !== (req.user as any)?._id.toString()) {
       res.status(403).json({ success: false, message: 'You are not authorized to view connection requests for this profile' });
       return;
     }
@@ -652,7 +652,7 @@ export const getConnectionRequests = async (req: Request, res: Response): Promis
     const requesterIds = connectionRequests.map(req => (req as unknown as IProfileConnection).requesterId);
     const requesterProfiles = await ProfileModel.find({
       _id: { $in: requesterIds }
-    }).select('_id name profileType profileImage');
+    }).select('_id profileInformation profileType ProfileFormat');
 
     // Create a lookup map for quick profile access by ID
     const profileMap = new Map();
@@ -660,9 +660,9 @@ export const getConnectionRequests = async (req: Request, res: Response): Promis
       if (p._id) {
         profileMap.set(p._id.toString(), {
           id: p._id,
-          name: p.name,
+          name: p.profileInformation?.title || 'Untitled Profile',
           profileType: p.profileType,
-          profileImage: p.profileImage
+          profileImage: p.ProfileFormat?.profileImage || ''
         });
       }
     });
@@ -729,18 +729,18 @@ export const getConnectedProfiles = async (req: Request, res: Response): Promise
     // Include relevant profile data for UI display purposes
     const connectedProfiles = await ProfileModel.find({
       _id: { $in: connectedProfileIds }
-    }).select('_id name profileType profileCategory profileImage description');
+    }).select('_id profileInformation profileType profileCategory ProfileFormat');
 
     // Return success response with formatted profiles
     res.status(200).json({
       success: true,
       connectedProfiles: connectedProfiles.map(p => ({
         id: p._id,
-        name: p.name,
+        name: p.profileInformation?.title || 'Untitled Profile',
         profileType: p.profileType,
         profileCategory: p.profileCategory,
-        profileImage: p.profileImage,
-        description: p.description
+        profileImage: p.ProfileFormat?.profileImage || '',
+        description: ''
       }))
     });
   } catch (error) {

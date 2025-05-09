@@ -1,45 +1,299 @@
-import mongoose, { Document, Schema, Model } from 'mongoose';
-import QRCode from 'qrcode';
-import { IProfile, IProfileMethods } from "../interfaces/profile.interface"
+import mongoose, { Schema, Document, Model } from 'mongoose';
 import { MyPtsModel } from './my-pts.model';
 import { MyPtsValueModel } from './my-pts-value.model';
+import { IMyPts } from '../interfaces/my-pts.interface';
+import { IProfileMethods } from '../interfaces/profile.interface';
 
-
-// Define ProfileDocument type
 export type ProfileDocument = IProfile & Document;
 
-// Base interfaces without Document extension
 
-// Create the Mongoose schema with discriminator key
-const profileSchema = new Schema<IProfile>(
+export type ProfileCategory = 'individual' | 'accessory' | 'group';
+export type ProfileType =
+  | 'personal' | 'academic' | 'work' | 'professional' | 'proprietor' | 'freelancer' | 'artist' | 'influencer' | 'athlete' | 'provider' | 'merchant' | 'vendor'
+  | 'emergency' | 'medical' | 'pet' | 'ecommerce' | 'home' | 'transportation' | 'driver' | 'event' | 'dependent' | 'rider' | 'dummy'
+  | 'group' | 'team' | 'family' | 'neighborhood' | 'company' | 'business' | 'association' | 'organization' | 'institution' | 'community';
+
+interface IProfile {
+  profileCategory: ProfileCategory;
+  profileType: ProfileType;
+  ProfileFormat: {
+    profileImage?: string;
+    coverImage?: string;
+    profileLogo?: string;
+    customization?: {
+      theme?: {
+        primaryColor?: string;
+        secondaryColor?: string;
+        accent?: string;
+        background?: string;
+        text?: string;
+        font?: string;
+      };
+      layout?: {
+        sections?: Array<{ id: string; type: string; order: number; visible: boolean }>;
+        gridStyle?: 'right-sided' | 'centered' | 'left-sided';
+        animation?: 'fade' | 'slide' | 'zoom';
+      };
+    };
+    customCSS?: string;
+    updatedAt: Date;
+  };
+
+  profileInformation: {
+    username: string;
+    profileLink: string;
+    title?: string;
+    accountHolder?: string;
+    pid?: string;
+    relationshipToAccountHolder?: string;
+    creator: mongoose.Types.ObjectId;
+    connectLink: string;
+    followLink: string;
+    followers: mongoose.Types.ObjectId[];
+    following: mongoose.Types.ObjectId[];
+    connectedProfiles: mongoose.Types.ObjectId[];
+    affiliatedProfiles: mongoose.Types.ObjectId[];
+    accessToken?: string; // Added for profile token authentication
+    createdAt: Date;
+    updatedAt: Date;
+  };
+
+  ProfileQrCode: {
+    qrCode?: string;
+    emailSignature?: string;
+    wallPaper?: string;
+    VirtualBackground?: string;
+  };
+
+  profileLocation?: {
+    city?: string;
+    stateOrProvince?: string;
+    country?: string;
+    coordinates?: {
+      latitude: number;
+      longitude: number;
+    };
+  };
+
+  ProfileProducts?: {
+    type: 'Accessory' | 'Device' | 'None';
+    name?: string;
+    description?: string;
+  };
+
+  verificationStatus?: {
+    isVerified: boolean;
+    badge: 'blue_tick' | 'gold_tick' | 'none';
+    verifiedAt?: Date;
+  };
+
+  ProfileMypts?: {
+    currentBalance: number;
+    lifetimeMypts: number;
+  };
+
+  ProfileReferal?: {
+    referalLink?: string;
+    referals: number;
+  };
+
+  ProfileBadges?: {
+    badges?: Array<{
+      id: string;
+      name: string;
+      category: string;
+      description: string;
+      icon: string;
+      earnedAt: Date;
+    }>;
+  };
+
+  analytics?: {
+    Mypts?: {
+      balance: number;
+      usage: number;
+      redeemed: number;
+      invested: number;
+    };
+    Usage?: {
+      stamps: number;
+      reward: number;
+      badges: number;
+      milestones: number;
+    };
+    Profiling?: {
+      completion: number;
+      category: number;
+      links: number;
+      content: number;
+    };
+    Products?: {
+      accessories: number;
+      devices: number;
+      taps: number;
+      scans: number;
+    };
+    Networking?: {
+      shared: number;
+      views: number;
+      contacts: number;
+      relationships: number;
+    };
+    Circles?: {
+      contacts: number;
+      connections: number;
+      following: number;
+      followers: number;
+      affiliations: number;
+    };
+    engagement?: {
+      chats: number;
+      calls: number;
+      posts: number;
+      comments: number;
+    };
+    plans?: {
+      interactions: number;
+      task: number;
+      events: number;
+      schedules: number;
+    };
+    data?: {
+      entries: number;
+      dataPts: number;
+      tracking: number;
+    };
+    discover?: {
+      searches: number;
+      Reviews: number;
+      survey: number;
+      videos: number;
+    };
+  };
+
+  templatedId: mongoose.Types.ObjectId;
+  sections: ITemplateSection[];
+}
+
+interface ITemplateSection {
+  key: string;
+  label: string;
+  order: number;
+  icon?: string;
+  collapsible?: boolean;
+  fields: ITemplateField[];
+}
+
+interface ITemplateField {
+  key: string;
+  label: string;
+  widget: FieldWidget;
+  required?: boolean;
+  default?: any;
+  enabled: boolean;
+  placeholder?: string;
+  options?: IFieldOption[];
+  validation?: IFieldValidation;
+}
+
+interface IFieldOption {
+  label: string;
+  value: string | number;
+}
+
+interface IFieldValidation {
+  min?: number;
+  max?: number;
+  regex?: string;
+}
+
+type FieldWidget =
+  | 'text' | 'textarea' | 'number' | 'select' | 'multiselect'
+  | 'email' | 'url' | 'phone' | 'date' | 'datetime'
+  | 'boolean' | 'file' | 'image' | 'object' | 'list:text';
+
+// Define the Profile Schema
+const ProfileSchema = new Schema<IProfile>(
   {
-    name: { type: String, required: true, trim: true, index: true },
-    description: { type: String, trim: true },
-    profileType: {
-      type: String,
-      required: true,
-      enum: ['personal', 'business', 'medical', 'academic'],
-      index: true,
-    },
     profileCategory: {
       type: String,
       required: true,
-      enum: ['functional', 'group', 'individual', 'academic',],
+      enum: ['accessory', 'group', 'individual'],
       index: true,
     },
-    owner: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    managers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-    claimPhrase: { type: String, sparse: true, unique: true },
-    claimed: { type: Boolean, default: false, index: true },
-    claimedBy: { type: Schema.Types.ObjectId, ref: 'User' },
-    claimedAt: { type: Date },
-    claimExpiresAt: { type: Date },
-    profileImage: String,
-    coverImage: String,
-    qrCode: String,
-    connectLink: { type: String, required: true, unique: true, index: true },
-    accessToken: { type: String, unique: true, sparse: true },
-    myPtsBalance: { type: Number, default: 0 },
+    profileType: {
+      type: String,
+      required: true,
+      enum: [
+        'personal', 'academic', 'work', 'professional', 'proprietor', 'freelancer', 'artist', 'influencer', 'athlete', 'provider', 'merchant', 'vendor',
+        'emergency', 'medical', 'pet', 'ecommerce', 'home', 'transportation', 'driver', 'event', 'dependent', 'rider',
+        'group', 'team', 'family', 'neighborhood', 'company', 'business', 'association', 'organization', 'institution', 'community'
+      ],
+      index: true
+    },
+    profileInformation: {
+      username: { type: String, required: true, trim: true, index: true },
+      profileLink: { type: String, required: true, unique: true, index: true },
+      title: { type: String, trim: true },
+      accountHolder: { type: String, trim: true },
+      pid: { type: String, trim: true },
+      relationshipToAccountHolder: { type: String, trim: true },
+      creator: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+      connectLink: { type: String, required: true, unique: true, index: true },
+      followLink: { type: String, required: true, unique: true, index: true },
+      followers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+      following: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+      connectedProfiles: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
+      affiliatedProfiles: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
+      accessToken: { type: String, trim: true, index: true }, // Added for profile token authentication
+      createdAt: { type: Date, default: Date.now },
+      updatedAt: { type: Date, default: Date.now }
+    },
+    templatedId: { type: Schema.Types.ObjectId, ref: 'ProfileTemplate', required: true },
+    sections: [{ type: Schema.Types.Mixed }],
+
+    ProfileFormat: {
+      profileImage: { type: String, trim: true },
+      coverImage: { type: String, trim: true },
+      profileLogo: { type: String, trim: true },
+      customization: {
+        theme: {
+          primaryColor: { type: String, default: '#000000' },
+          secondaryColor: { type: String, default: '#ffffff' },
+          accent: { type: String, default: '#ff4081' },
+          background: { type: String, default: '#f5f5f5' },
+          text: { type: String, default: '#212121' },
+          font: { type: String, default: 'Roboto' }
+        },
+        layout: {
+          sections: [{ id: String, type: String, order: Number, visible: { type: Boolean, default: true } }],
+          gridStyle: { type: String, enum: ['right-sided', 'centered', 'left-sided'], default: 'centered' },
+          animation: { type: String, enum: ['fade', 'slide', 'zoom'], default: 'fade' }
+        }
+      },
+      customCSS: { type: String, trim: true },
+      updatedAt: { type: Date, default: Date.now }
+    },
+    ProfileQrCode: {
+      qrCode: String,
+      emailSignature: String,
+      wallPaper: String,
+      VirtualBackground: String
+    },
+    profileLocation: {
+      city: String,
+      stateOrProvince: String,
+      country: String,
+      coordinates: {
+        latitude: { type: Number, default: 0 },
+        longitude: { type: Number, default: 0 }
+      }
+    },
+    ProfileProducts: {
+      type: { type: String, enum: ['Accessory', 'Device', 'None'], default: 'None' },
+      name: String,
+      description: String
+    },
     verificationStatus: {
       isVerified: { type: Boolean, default: false },
       badge: {
@@ -49,353 +303,155 @@ const profileSchema = new Schema<IProfile>(
       },
       verifiedAt: Date,
     },
-    kycVerification: {
-      status: {
-        type: String,
-        enum: ['pending', 'verified', 'rejected'],
-        default: 'pending',
-      },
-      submittedAt: Date,
-      verifiedAt: Date,
-      expiresAt: Date,
-      documents: [{
-        type: {
-          type: String,
-          enum: ['government_id', 'proof_of_address', 'business_registration'],
-        },
-        subType: String,
-        documentNumber: String,
-        issuingCountry: String,
-        documentUrl: String,
-        status: {
-          type: String,
-          enum: ['pending', 'verified', 'rejected'],
-          default: 'pending',
-        },
-        submittedAt: Date,
-        verifiedAt: Date,
-      }],
-      verificationLevel: {
-        type: String,
-        enum: ['basic', 'full', 'enhanced'],
-        default: 'basic',
-      },
-      rejectionReason: String,
+    ProfileMypts: {
+      currentBalance: { type: Number, default: 0 },
+      lifetimeMypts: { type: Number, default: 0 },
     },
-    linkedDevices: [{
-      deviceId: String,
-      permissions: [{
-        type: String,
-        enum: ['view', 'edit', 'share'],
-      }],
-      addedAt: Date,
-      healthMetrics: {
-        enabled: { type: Boolean, default: false },
-        syncFrequency: {
-          type: String,
-          enum: ['realtime', 'hourly', 'daily'],
-          default: 'daily',
-        },
-        lastSync: Date,
-        metrics: [String],
-      },
-    }],
-    galleries: [{
-      name: { type: String, required: true },
-      description: String,
-      coverImage: String,
-      isPublic: { type: Boolean, default: false },
-      items: [{
-        type: {
-          type: String,
-          enum: ['image', 'video', 'document'],
-          required: true,
-        },
-        url: { type: String, required: true },
-        thumbnail: String,
-        title: String,
+    ProfileReferal: {
+      referalLink: String,
+      referals: { type: Number, default: 0 },
+    },
+    ProfileBadges: {
+      badges: [{
+        id: String,
+        name: String,
+        category: String,
         description: String,
-        metadata: Schema.Types.Mixed,
-        uploadedAt: { type: Date, default: Date.now },
+        icon: String,
+        earnedAt: Date,
       }],
-    }],
+    },
     analytics: {
-      views: { type: Number, default: 0 },
-      connections: { type: Number, default: 0 },
-      engagement: { type: Number, default: 0 },
-    },
-    security: {
-      twoFactorRequired: { type: Boolean, default: false },
-      ipWhitelist: [String],
-      lastSecurityAudit: Date,
-    },
-    stats: {
-      type: {
-        followers: { type: Number, default: 0 },
+      Mypts: {
+        balance: { type: Number, default: 0 },
+        usage: { type: Number, default: 0 },
+        redeemed: { type: Number, default: 0 },
+        invested: { type: Number, default: 0 }
+      },
+      Usage: {
+        stamps: { type: Number, default: 0 },
+        reward: { type: Number, default: 0 },
+        badges: { type: Number, default: 0 },
+        milestones: { type: Number, default: 0 }
+      },
+      Profiling: {
+        completion: { type: Number, default: 0 },
+        category: { type: Number, default: 0 },
+        links: { type: Number, default: 0 },
+        content: { type: Number, default: 0 }
+      },
+      Products: {
+        accessories: { type: Number, default: 0 },
+        devices: { type: Number, default: 0 },
+        taps: { type: Number, default: 0 },
+        scans: { type: Number, default: 0 }
+      },
+      Networking: {
+        shared: { type: Number, default: 0 },
+        views: { type: Number, default: 0 },
+        contacts: { type: Number, default: 0 },
+        relationships: { type: Number, default: 0 }
+      },
+      Circles: {
+        contacts: { type: Number, default: 0 },
+        connections: { type: Number, default: 0 },
         following: { type: Number, default: 0 },
-        donations: { type: Number, default: 0 },
-        employmentRequests: { type: Number, default: 0 },
-        collaborationRequests: { type: Number, default: 0 },
-        totalViews: { type: Number, default: 0 },
-        monthlyViews: { type: Number, default: 0 },
-        engagement: { type: Number, default: 0 },
+        followers: { type: Number, default: 0 },
+        affiliations: { type: Number, default: 0 }
       },
-      default: {
-        followers: 0,
-        following: 0,
-        donations: 0,
-        employmentRequests: 0,
-        collaborationRequests: 0,
-        totalViews: 0,
-        monthlyViews: 0,
-        engagement: 0,
+      engagement: {
+        chats: { type: Number, default: 0 },
+        calls: { type: Number, default: 0 },
+        posts: { type: Number, default: 0 },
+        comments: { type: Number, default: 0 }
+      },
+      plans: {
+        interactions: { type: Number, default: 0 },
+        task: { type: Number, default: 0 },
+        events: { type: Number, default: 0 },
+        schedules: { type: Number, default: 0 },
+      },
+      data: {
+        entries: { type: Number, default: 0 },
+        dataPts: { type: Number, default: 0 },
+        tracking: { type: Number, default: 0 }
+      },
+      discover: {
+        searches: { type: Number, default: 0 },
+        Reviews: { type: Number, default: 0 },
+        survey: { type: Number, default: 0 },
+        videos: { type: Number, default: 0 },
       }
     },
-    badges: [{
-      id: String,
-      name: String,
-      description: String,
-      icon: String,
-      earnedAt: Date,
-      category: String,
-    }],
-    verifications: {
-      email: { type: Boolean, default: false },
-      phone: { type: Boolean, default: false },
-      identity: { type: Boolean, default: false },
-      professional: { type: Boolean, default: false },
-      social: [{
-        platform: String,
-        verified: { type: Boolean, default: false },
-        verifiedAt: Date,
-      }],
-    },
-    customization: {
-      theme: {
-        primary: String,
-        secondary: String,
-        accent: String,
-        background: String,
-        text: String,
-      },
-      layout: {
-        sections: [{
-          id: String,
-          type: String,
-          order: Number,
-          visible: { type: Boolean, default: true },
-        }],
-        widgets: [{
-          id: String,
-          type: String,
-          position: {
-            type: String,
-            enum: ['sidebar', 'main', 'header', 'footer'],
-          },
-          config: Schema.Types.Mixed,
-          visible: { type: Boolean, default: true },
-        }],
-      },
-    },
-    connections: {
-      connected: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Profile' }],
-      followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Profile' }],
-      following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Profile' }],
-      lastConnections: [{
-        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        connectionType: String,
-        connectedAt: { type: Date, default: Date.now }
-      }],
-    },
-    privacySettings: {
-      visibility: {
-        type: String,
-        enum: ['public', 'private', 'connections'],
-        default: 'public'
-      },
-      searchable: {
-        type: Boolean,
-        default: true
-      },
-      showContactInfo: {
-        type: Boolean,
-        default: false
-      },
-      showSocialLinks: {
-        type: Boolean,
-        default: true
-      }
-    },
-
   },
-  {
-    timestamps: true,
-    discriminatorKey: 'profileType'
-  }
+  { timestamps: true }
 );
 
-// Indexes for better query performance
-profileSchema.index({ name: 'text', description: 'text' });
-profileSchema.index({ 'stats.followers': -1 });
-profileSchema.index({ 'stats.engagement': -1 });
-profileSchema.index({ createdAt: -1 });
-profileSchema.index({ 'verifications.email': 1, 'verifications.phone': 1 });
+// Add profile methods for MyPts
+ProfileSchema.methods.getMyPts = async function(): Promise<IMyPts> {
+  // Find or create MyPts for this profile
+  const myPts = await MyPtsModel.findOrCreate(this._id);
+  return myPts;
+};
 
-// Instance methods
-profileSchema.methods.generateQRCode = async function(): Promise<string> {
-  if (!this.connectLink) {
-    throw new Error('Connect link is required to generate QR code');
-  }
+ProfileSchema.methods.getMyPtsValue = async function(currency: string = 'USD'): Promise<{
+  balance: number;
+  valuePerPts: number;
+  currency: string;
+  symbol: string;
+  totalValue: number;
+  formattedValue: string;
+}> {
   try {
-    this.qrCode = await QRCode.toDataURL(this.connectLink);
-    return this.qrCode;
-  } catch (error:any) {
-    throw new Error(`Failed to generate QR code: ${error.message}`);
-  }
-};
+    // Get MyPts balance
+    const myPts = await this.getMyPts();
 
-profileSchema.methods.isVerified = function(): boolean {
-  return this.verificationStatus.isVerified;
-};
+    // Get current MyPts value
+    const currentValue = await MyPtsValueModel.getCurrentValue();
 
-profileSchema.methods.calculateEngagement = function(): number {
-  const views = this.stats.totalViews || 0;
-  const connections = this.stats.followers || 0;
-  const interactions = (this.stats.employmentRequests || 0) + (this.stats.collaborationRequests || 0);
+    // Get value in specified currency
+    const valuePerPts = currentValue.getValueInCurrency(currency);
 
-  // Simple engagement calculation formula
-  return Math.round((views + connections * 2 + interactions * 3) / 100);
-};
+    // Calculate total value
+    const totalValue = myPts.balance * valuePerPts;
 
-profileSchema.methods.getPublicProfile = function(): Partial<IProfile> {
-  const publicProfile = this.toObject();
-
-  // Remove sensitive information
-  delete publicProfile.security;
-  delete publicProfile.kycVerification;
-  delete publicProfile.claimPhrase;
-  delete publicProfile.settings.emailNotifications;
-
-  return publicProfile;
-};
-
-profileSchema.methods.getAvailableSlots = async function(startDate: Date, endDate: Date): Promise<Array<{ start: Date; end: Date }>> {
-  // TO DO: implement logic to get available slots
-  return [];
-};
-
-profileSchema.methods.checkAvailability = async function(startTime: Date, endTime: Date): Promise<boolean> {
-  // TO DO: implement logic to check availability
-  return true;
-};
-
-profileSchema.methods.getFeaturedProjects = async function(limit?: number): Promise<any[]> {
-  // TO DO: implement logic to get featured projects
-  return [];
-};
-
-profileSchema.methods.getSkillsByCategory = async function(): Promise<Record<string, any[]>> {
-  // TO DO: implement logic to get skills by category
-  return {};
-};
-
-profileSchema.methods.calculateEarnings = async function(startDate: Date, endDate: Date): Promise<{
-  total: number;
-  breakdown: {
-    services: number;
-    products: number;
-    subscriptions: number;
-    donations: number;
-  };
-}> {
-  // TO DO: implement logic to calculate earnings
-  return { total: 0, breakdown: { services: 0, products: 0, subscriptions: 0, donations: 0 } };
-};
-
-profileSchema.methods.checkServiceAvailability = async function(serviceId: string, date: Date): Promise<{
-  available: boolean;
-  nextAvailable?: Date;
-  slots?: Array<{ start: Date; end: Date }>;
-}> {
-  // TO DO: implement logic to check service availability
-  return { available: true };
-};
-
-profileSchema.methods.generateThemeCSS = function(): string {
-  // TO DO: implement logic to generate theme CSS
-  return '';
-};
-
-profileSchema.methods.trackPageView = async function(country: string, device: string): Promise<void> {
-  // TO DO: implement logic to track page view
-};
-
-profileSchema.methods.validateServiceBooking = function(serviceId: string, date: Date, options: Record<string, any>): boolean {
-  // TO DO: implement logic to validate service booking
-  return true;
-};
-
-profileSchema.methods.addEndorsement = async function(skillId: string, userId: mongoose.Types.ObjectId, comment?: string): Promise<boolean> {
-  // TO DO: implement logic to add endorsement
-  return true;
-};
-
-profileSchema.methods.addRecurringEvent = async function(eventData: any): Promise<boolean> {
-  // TO DO: implement logic to add recurring event
-  return true;
-};
-
-// MyPts related methods
-profileSchema.methods.getMyPts = async function() {
-  return await MyPtsModel.findOrCreate(this._id);
-};
-
-// Get MyPts value information
-profileSchema.methods.getMyPtsValue = async function(currency = 'USD') {
-  const myPts = await this.getMyPts();
-  const currentValue = await MyPtsValueModel.getCurrentValue();
-
-  const valuePerPts = currentValue.getValueInCurrency(currency);
-  const totalValue = myPts.balance * valuePerPts;
-
-  // Find the exchange rate to get the symbol
-  let currencySymbol = currentValue.baseSymbol;
-  if (currency !== currentValue.baseCurrency) {
-    const exchangeRate = currentValue.exchangeRates.find(er => er.currency === currency);
-    if (exchangeRate) {
-      currencySymbol = exchangeRate.symbol;
-    }
-  }
-
-  return {
-    balance: myPts.balance,
-    valuePerPts,
-    currency,
-    symbol: currencySymbol,
-    totalValue,
-    formattedValue: `${currencySymbol}${totalValue.toFixed(2)}`
-  };
-};
-
-// Middleware
-profileSchema.pre('save', async function(next) {
-  if (this.isModified('connectLink')) {
-    try {
-      await this.generateQRCode();
-    } catch (error: unknown) {
-      // Explicitly handle the error and pass a valid error type
-      if (error instanceof Error) {
-        next(error);
-      } else {
-        next(new Error('Unknown error occurred while generating QR code'));
+    // Get currency symbol
+    let symbol = currentValue.baseSymbol;
+    if (currency !== currentValue.baseCurrency) {
+      const exchangeRate = currentValue.exchangeRates.find(er => er.currency === currency);
+      if (exchangeRate) {
+        symbol = exchangeRate.symbol;
       }
     }
-  }
-  next();
-});
 
-// Post-save middleware to create a referral code
-profileSchema.post('save', async function(doc) {
+    // Format the value
+    const formattedValue = `${symbol}${totalValue.toFixed(2)}`;
+
+    return {
+      balance: myPts.balance,
+      valuePerPts,
+      currency,
+      symbol,
+      totalValue,
+      formattedValue
+    };
+  } catch (error) {
+    console.error('Error getting MyPts value:', error);
+
+    // Fallback to default values if there's an error
+    return {
+      balance: this.ProfileMypts?.currentBalance || 0,
+      valuePerPts: 0.024, // Default base value
+      currency: currency,
+      symbol: currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency,
+      totalValue: (this.ProfileMypts?.currentBalance || 0) * 0.024,
+      formattedValue: `${currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency}${((this.ProfileMypts?.currentBalance || 0) * 0.024).toFixed(2)}`
+    };
+  }
+};
+
+// Add post-save middleware to create a referral code
+ProfileSchema.post('save', async function(doc) {
   try {
     // Import here to avoid circular dependency
     const { ProfileReferralService } = require('../services/profile-referral.service');
@@ -407,28 +463,9 @@ profileSchema.post('save', async function(doc) {
   }
 });
 
-// Define interface for model type
-export interface IProfileModel extends Model<IProfile, {}, IProfileMethods> {}
+// Define interface for model type with methods
+interface IProfileModel extends Model<IProfile> {
+  // Add any static methods here if needed
+}
 
-
-// Create the base model
-export const ProfileModel = mongoose.model<IProfile, IProfileModel>('Profile', profileSchema);
-
-// Create discriminator model types
-export type PersonalProfileModel = Model<IProfile & {subtype: 'Personal'}>;
-export type BusinessProfileModel = Model<IProfile & {subtype: 'Business'}>;
-export type MedicalProfileModel = Model<IProfile & {subtype: 'Medical'}>;
-export type AcademicProfileModel = Model<IProfile & {subtype: 'Academic'}>;
-
-
-// Register discriminators for different profile types
-import PersonalProfileSchema from './profile-types/personal-profile';
-import BusinessProfileSchema from './profile-types/business-profile';
-import MedicalProfileSchema from './profile-types/medical-profile';
-import AcademicProfileSchema from './profile-types/academic-profile';
-
-// Create and export discriminator models
-export const PersonalProfile = ProfileModel.discriminator<IProfile & {subtype: 'Personal'}>('personal', PersonalProfileSchema) as PersonalProfileModel;
-export const BusinessProfile = ProfileModel.discriminator<IProfile & {subtype: 'Business'}>('business', BusinessProfileSchema) as BusinessProfileModel;
-export const MedicalProfile = ProfileModel.discriminator<IProfile & {subtype: 'Medical'}>('medical', MedicalProfileSchema) as MedicalProfileModel;
-export const AcademicProfile = ProfileModel.discriminator<IProfile & {subtype: 'Academic'}>('academic', AcademicProfileSchema) as AcademicProfileModel;
+export const ProfileModel: Model<IProfile> = mongoose.model<IProfile, IProfileModel>('Profile', ProfileSchema);

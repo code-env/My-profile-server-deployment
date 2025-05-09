@@ -28,7 +28,74 @@ export class SocialAuthController {
       throw new Error('Missing Google OAuth credentials in environment variables');
     }
 
-    return new OAuth2(clientId, clientSecret, redirectUri);
+    // Check for proxy configuration
+    const proxyUrl = process.env.HTTP_PROXY || process.env.HTTPS_PROXY || null;
+
+    // Define the type for our HTTP options
+    interface HttpOptions {
+      timeout: number;
+      retry: boolean;
+      maxRetries: number;
+      retryDelay: number;
+      keepAlive: boolean;
+      dns: {
+        family: number;
+        hints: number;
+      };
+      proxy?: {
+        host: string;
+        port: number;
+        protocol: string;
+      };
+    }
+
+    // Configure network settings with proper typing
+    const httpOptions: HttpOptions = {
+      timeout: 30000, // 30 seconds timeout (increased from 10s)
+      retry: true,    // Enable retries
+      maxRetries: 5,  // Maximum number of retries
+      retryDelay: 1000, // Delay between retries in ms
+      keepAlive: true, // Keep connection alive
+      dns: {
+        family: 4,    // Use IPv4 (more compatible in some environments)
+        hints: 0      // No special DNS hints
+      }
+    };
+
+    // Add proxy configuration if available
+    if (proxyUrl) {
+      try {
+        const proxyUrlObj = new URL(proxyUrl);
+        httpOptions.proxy = {
+          host: proxyUrlObj.hostname,
+          port: parseInt(proxyUrlObj.port, 10) || (proxyUrlObj.protocol === 'https:' ? 443 : 80),
+          protocol: proxyUrlObj.protocol.replace(':', '')
+        };
+        logger.info(`Using proxy for OAuth requests: ${proxyUrlObj.hostname}:${proxyUrlObj.port}`);
+      } catch (error) {
+        logger.error(`Invalid proxy URL format: ${proxyUrl}`, error);
+      }
+    }
+
+    // Create OAuth2 client with standard parameters (no extra options)
+    // The OAuth2 constructor only accepts 3 parameters in this version
+    const oauth2Client = new OAuth2(
+      clientId,
+      clientSecret,
+      redirectUri
+    );
+
+    // Log the OAuth2 client configuration for debugging
+    logger.info('Created OAuth2 client with enhanced network config:', {
+      clientId: clientId.substring(0, 5) + '...',
+      redirectUri,
+      timeout: httpOptions.timeout,
+      retry: httpOptions.retry,
+      maxRetries: httpOptions.maxRetries,
+      useProxy: !!proxyUrl
+    });
+
+    return oauth2Client;
   }
 
   /**
@@ -113,11 +180,91 @@ export class SocialAuthController {
       // Get OAuth2 client
       const oauth2Client = SocialAuthController.getOAuth2Client();
 
-      // Exchange the authorization code for tokens
-      const { tokens } = await oauth2Client.getToken(code);
+      // Exchange the authorization code for tokens with fallback mechanism
+      let tokens;
+      try {
+        logger.info('Attempting to exchange authorization code for tokens...');
+        const tokenResponse = await oauth2Client.getToken(code);
+        tokens = tokenResponse.tokens;
 
-      if (!tokens.access_token) {
-        throw new Error('Failed to obtain access token from Google');
+        if (!tokens || !tokens.access_token) {
+          throw new Error('No access token in response');
+        }
+
+        logger.info('Successfully obtained tokens from Google');
+      } catch (error) {
+        // Type assertion for the error
+        const tokenError = error as Error;
+        logger.error('Error exchanging code for tokens:', tokenError);
+
+        // Try alternative approach with direct fetch
+        logger.info('Attempting fallback token exchange method...');
+        try {
+          const tokenUrl = 'https://oauth2.googleapis.com/token';
+          const params = new URLSearchParams({
+            code,
+            client_id: process.env.GOOGLE_CLIENT_ID || '',
+            client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
+            redirect_uri: process.env.GOOGLE_REDIRECT_URI || '',
+            grant_type: 'authorization_code'
+          });
+
+          // Add timeout to the fetch request
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+          const response = await fetch(tokenUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': 'MyPTS-OAuth-Client/1.0'
+            },
+            body: params.toString(),
+            signal: controller.signal
+          });
+
+          // Clear the timeout
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Token exchange failed: ${response.status} ${errorText}`);
+          }
+
+          // Parse the response and add type assertion for TypeScript
+          const tokenData = await response.json() as {
+            access_token: string;
+            refresh_token?: string;
+            expires_in: number;
+            token_type: string;
+            id_token?: string;
+          };
+
+          // Create tokens object with proper type checking
+          tokens = {
+            access_token: tokenData.access_token,
+            refresh_token: tokenData.refresh_token || undefined,
+            expiry_date: new Date().getTime() + (tokenData.expires_in * 1000),
+            token_type: tokenData.token_type,
+            id_token: tokenData.id_token || undefined
+          };
+
+          logger.info('Successfully obtained tokens using fallback method');
+        } catch (error) {
+          // Type assertion for the fallback error
+          const fallbackError = error as Error;
+          logger.error('Fallback token exchange also failed:', fallbackError);
+
+          // Create error message with proper error handling
+          const tokenErrorMsg = tokenError?.message || 'Unknown token error';
+          const fallbackErrorMsg = fallbackError?.message || 'Unknown fallback error';
+
+          throw new Error(`Failed to obtain access token: ${tokenErrorMsg}. Fallback also failed: ${fallbackErrorMsg}`);
+        }
+      }
+
+      if (!tokens || !tokens.access_token) {
+        throw new Error('Failed to obtain access token from Google after all attempts');
       }
 
       // Fetch user profile using the access token

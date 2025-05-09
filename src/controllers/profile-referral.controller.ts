@@ -166,14 +166,14 @@ export class ProfileReferralController {
       
       // First, get the top referrers
       let leaderboard = await ProfileReferralModel.find()
-        .sort({ successfulReferrals: -1, totalReferrals: -1, earnedPoints: -1 })
+        .sort({ successfulReferrals: -1, totalReferrals: -1, earnedPoints: -1, createdAt: 1 })
         .limit(limit)
-        .populate('profileId', 'name profileImage')
+        .populate('profileId', 'name profileImage profileInformation')
         .select('profileId referralCode totalReferrals successfulReferrals currentMilestoneLevel earnedPoints');
       
       // If we have fewer results than the limit, get more profiles to fill the leaderboard
       if (leaderboard.length < limit) {
-        const existingIds = leaderboard.map(entry => entry.profileId?._id?.toString()).filter(Boolean);
+        const existingIds = leaderboard.map(entry => entry.profileId?._id).filter(id => id);
         
         // Get additional profiles that aren't already in the leaderboard
         const additionalProfiles = await ProfileReferralModel.find({
@@ -181,7 +181,7 @@ export class ProfileReferralController {
         })
           .sort({ createdAt: -1 }) // Sort by newest first
           .limit(limit - leaderboard.length)
-          .populate('profileId', 'name profileImage')
+          .populate('profileId', 'name profileImage profileInformation')
           .select('profileId referralCode totalReferrals successfulReferrals currentMilestoneLevel earnedPoints');
         
         leaderboard = [...leaderboard, ...additionalProfiles];
@@ -191,7 +191,7 @@ export class ProfileReferralController {
       // fetch their position and add it to the response
       let userPosition = null;
       if (profileId) {
-        const userReferral = await ProfileReferralModel.findOne({ profileId });
+        const userReferral = await ProfileReferralModel.findOne({ profileId }).populate('profileId', 'name profileImage profileInformation');
         
         if (userReferral) {
           // Check if user is already in the leaderboard

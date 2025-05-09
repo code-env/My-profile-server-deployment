@@ -138,7 +138,7 @@ export class AdminProfileService {
     // Update only allowed fields
     if (updates.name) template.name = updates.name;
     if (updates.categories) template.categories = updates.categories;
-    
+
     template.updatedBy = new mongoose.Types.ObjectId(adminId);
     await template.save();
     console.log('✅ Template updated:', templateId);

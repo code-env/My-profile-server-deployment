@@ -799,8 +799,18 @@ export class AuthController {
 
       // Clear auth cookies
       console.log("🗑️  Clearing auth cookies...");
-      res.clearCookie("accesstoken");
-      res.clearCookie("refreshtoken");
+      res.clearCookie("accesstoken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+      });
+      res.clearCookie("refreshtoken", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+      });
       console.log("✅ Auth cookies cleared successfully");
 
       res.json({ success: true, message: "Logged out successfully" });

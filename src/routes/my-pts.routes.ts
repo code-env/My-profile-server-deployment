@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   getMyPtsBalance,
+  refreshMyPtsBalance,
   getTransactionHistory,
   getTransactionsByType,
   getTransactionByReference,
@@ -138,6 +139,7 @@ const earnMyPtsSchema = z.object({
 
 // Routes
 router.get('/balance', protect, attachProfile, getMyPtsBalance);
+router.get('/refresh-balance', protect, attachProfile, refreshMyPtsBalance);
 router.get('/transactions', protect, attachProfile, getTransactionHistory);
 router.get('/transactions/type/:type', protect, attachProfile, getTransactionsByType);
 router.get('/transactions/reference/:referenceId', protect, attachProfile, getTransactionByReference);

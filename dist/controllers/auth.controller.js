@@ -502,8 +502,7 @@ class AuthController {
                                 httpOnly: true,
                                 secure: process.env.NODE_ENV === "production",
                                 path: "/",
-                                maxAge: 24 * 60 * 60 * 1000,
-
+                                maxAge: 1 * 60 * 60 * 1000, // 1 hour
                             });
                             res.cookie("refreshtoken", tokens.refreshToken, {
                                 httpOnly: true,
@@ -636,8 +635,18 @@ class AuthController {
             await auth_service_1.AuthService.logout(user._id, refreshToken);
             // Clear auth cookies
             console.log("🗑️  Clearing auth cookies...");
-            res.clearCookie("accesstoken");
-            res.clearCookie("refreshtoken");
+            res.clearCookie("accesstoken", {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                path: "/",
+            });
+            res.clearCookie("refreshtoken", {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                path: "/",
+            });
             console.log("✅ Auth cookies cleared successfully");
             res.json({ success: true, message: "Logged out successfully" });
         }

@@ -74,6 +74,7 @@ import { validateEnv } from "./utils/env-validator";
 import { validateLicenseMiddleware } from "./middleware/license.middleware";
 import WhatsAppService from "./services/whatsapp.service";
 import { initializeMyPtsHub } from "./startup/initialize-my-pts-hub";
+import { initializeProfileTemplates } from "./startup/initialize-profile-templates";
 import { advancedTrackingMiddleware } from "./middleware/advanced-tracking.middleware";
 import { scheduleTokenCleanup } from "./jobs/cleanupTokens";
 import { scheduleScalableTokenCleanup } from "./jobs/scalableTokenCleanup";
@@ -234,7 +235,15 @@ export class AppServer {
         origin: whitelistOrigins,
         credentials: true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization", "Cookie", "x-profile-token"],
+        allowedHeaders: [
+          "Content-Type",
+          "Authorization",
+          "Cookie",
+          "x-profile-token",
+          "x-user-role",
+          "x-token-verified",
+          "x-user-is-admin"
+        ],
         exposedHeaders: ["Content-Range", "X-Content-Range"],
         maxAge: 600,
       })
@@ -491,7 +500,14 @@ export class AppServer {
       await WhatsAppService.initialize().catch((error: Error) => {
         log.warn("WhatsApp service initialization failed: " + error.message);
       });
-      await this.initializeDatabase();
+
+      // Initialize profile templates
+      try {
+        await initializeProfileTemplates();
+        log.success("Profile templates initialized successfully");
+      } catch (error) {
+        log.warn("Profile templates initialization failed: " + (error as Error).message);
+      }
 
       // Start WhatsApp service with retries
       let attempts = 0;

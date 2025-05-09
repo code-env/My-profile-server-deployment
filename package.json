@@ -4,8 +4,8 @@
   "description": "MyProfile Backend - A secure and scalable authentication system",
   "main": "dist/server.js",
   "scripts": {
-    "start": "nodemon dist/server.js",
-    "dev": "nodemon src/server.ts",
+    "start": "NODE_NO_WARNINGS=1 node dist/server.js",
+    "dev": "NODE_NO_WARNINGS=1 nodemon src/server.ts",
     "build": "tsc && cp -r src/templates dist/templates && cp -r public dist/public",
     "build:bun": "bun build ./src/server.ts --outdir ./dist --target node && cp -r src/templates dist/templates && cp -r public dist/public",
     "postinstall": "npm run build",

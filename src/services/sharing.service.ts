@@ -48,7 +48,7 @@ export class SharingService {
       } = options;
 
       // Generate profile URL
-      const profileUrl = `${process.env.FRONTEND_URL}/p/${profile.connectLink}`;
+      const profileUrl = `${process.env.FRONTEND_URL}/p/${profile.profileInformation?.profileLink || profile._id}`;
 
       // QR Code options
       const qrOptions: QRCode.QRCodeToBufferOptions = {
@@ -114,9 +114,7 @@ export class SharingService {
     }
   }
 
-  private async loadImage(source: string | Buffer) {
-    return await loadImage(source);
-  }
+
 
   private async applyQRStyle(qrBuffer: Buffer, style: 'dot' | 'square') {
     try {
@@ -160,7 +158,7 @@ export class SharingService {
     template: 'standard' | 'professional' | 'creative' = 'standard'
   ) {
     try {
-      const profile = await ProfileModel.findById(profileId).populate('owner', 'firstName lastName profileImage');
+      const profile = await ProfileModel.findById(profileId).populate('profileInformation.creator', 'firstName lastName');
       if (!profile) {
         throw new Error('Profile not found');
       }
@@ -173,7 +171,7 @@ export class SharingService {
 
       const fileName = `share-${profileId}-${Date.now()}.png`;
       const filePath = path.join(this.qrStoragePath, fileName);
-      
+
       const buffer = canvas.toBuffer('image/png');
       await fs.writeFile(filePath, buffer);
 
@@ -214,17 +212,18 @@ export class SharingService {
     ctx.fillRect(0, 0, 1200, 630);
 
     // Profile info
+    const creator = profile.profileInformation?.creator as any;
     ctx.font = 'bold 48px Arial';
     ctx.fillStyle = '#000000';
-    ctx.fillText(`${profile.owner.firstName} ${profile.owner.lastName}`, 60, 100);
+    ctx.fillText(`${creator?.firstName || 'User'} ${creator?.lastName || ''}`, 60, 100);
 
     ctx.font = '32px Arial';
     ctx.fillStyle = '#666666';
-    ctx.fillText(profile.name, 60, 160);
+    ctx.fillText(profile.profileInformation?.title || 'Profile', 60, 160);
 
     // Add profile image if available
-    if (profile.owner.profileImage) {
-      const img = await loadImage(profile.owner.profileImage);
+    if (profile.ProfileFormat?.profileImage) {
+      const img = await loadImage(profile.ProfileFormat.profileImage);
       ctx.drawImage(img, 800, 100, 300, 300);
     }
   }
@@ -238,12 +237,13 @@ export class SharingService {
     ctx.fillRect(0, 0, 1200, 630);
 
     // White text
+    const creator = profile.profileInformation?.creator as any;
     ctx.font = 'bold 56px Arial';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`${profile.owner.firstName} ${profile.owner.lastName}`, 60, 120);
+    ctx.fillText(`${creator?.firstName || 'User'} ${creator?.lastName || ''}`, 60, 120);
 
     ctx.font = '36px Arial';
-    ctx.fillText(profile.name, 60, 180);
+    ctx.fillText(profile.profileInformation?.title || 'Profile', 60, 180);
   }
 
   private async applyCreativeTemplate(ctx: any, profile: any) {
@@ -263,18 +263,20 @@ export class SharingService {
     ctx.shadowOffsetX = 5;
     ctx.shadowOffsetY = 5;
 
+    const creator = profile.profileInformation?.creator as any;
     ctx.font = 'bold 64px Arial';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText(`${profile.owner.firstName}`, 60, 120);
-    ctx.fillText(`${profile.owner.lastName}`, 60, 200);
+    ctx.fillText(`${creator?.firstName || 'User'}`, 60, 120);
+    ctx.fillText(`${creator?.lastName || ''}`, 60, 200);
   }
 
   private generateSocialMeta(profile: any) {
+    const creator = profile.profileInformation?.creator as any;
     return {
-      title: `${profile.owner.firstName} ${profile.owner.lastName} - ${profile.name}`,
-      description: profile.description || `Check out ${profile.owner.firstName}'s professional profile`,
-      image: profile.owner.profileImage,
-      url: `${process.env.FRONTEND_URL}/p/${profile.connectLink}`,
+      title: `${creator?.firstName || 'User'} ${creator?.lastName || ''} - ${profile.profileInformation?.title || 'Profile'}`,
+      description: profile.profileInformation?.title || `Check out this professional profile`,
+      image: profile.ProfileFormat?.profileImage || '',
+      url: `${process.env.FRONTEND_URL}/p/${profile.profileInformation?.profileLink || profile._id}`,
     };
   }
 
@@ -292,8 +294,8 @@ export class SharingService {
       // Track share as an engagement
       await this.analyticsService.trackEngagement(
         profileId,
-        profile.owner,
-        userId || profile.owner,
+        profile.profileInformation?.creator,
+        userId || profile.profileInformation?.creator,
         'share',
         { platform }
       );

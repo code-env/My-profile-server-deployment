@@ -9,7 +9,6 @@ import {
 import mongoose from "mongoose";
 import { ProfileModel } from "../models/profile.model";
 import { NotificationService } from "./notification.service";
-import telegramService from "./telegram.service";
 import { User } from "../models/User";
 import { Notification } from "../models/Notification";
 
@@ -451,11 +450,11 @@ export const notifyUserOfCompletedTransaction = async (
 
     logger.info(`Found profile for transaction: ${transaction._id}`, {
       profileId: profile._id,
-      profileOwner: profile.owner,
+      profileOwner: profile.profileInformation?.creator,
     });
 
     // Get the user associated with the profile with all notification preferences
-    const user = await User.findById(profile.owner).select("+telegramNotifications");
+    const user = await User.findById(profile.profileInformation?.creator).select("+telegramNotifications");
     console.log('[DEBUG] notifyUserOfCompletedTransaction - retrieved user:', user);
     if (!user) {
       logger.error(`User not found for profile: ${profile._id}`);

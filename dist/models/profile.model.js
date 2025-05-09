@@ -32,45 +32,91 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AcademicProfile = exports.MedicalProfile = exports.BusinessProfile = exports.PersonalProfile = exports.ProfileModel = void 0;
+exports.ProfileModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
-const qrcode_1 = __importDefault(require("qrcode"));
 const my_pts_model_1 = require("./my-pts.model");
 const my_pts_value_model_1 = require("./my-pts-value.model");
-// Base interfaces without Document extension
-// Create the Mongoose schema with discriminator key
-const profileSchema = new mongoose_1.Schema({
-    name: { type: String, required: true, trim: true, index: true },
-    description: { type: String, trim: true },
-    profileType: {
-        type: String,
-        required: true,
-        enum: ['personal', 'business', 'medical', 'academic'],
-        index: true,
-    },
+// Define the Profile Schema
+const ProfileSchema = new mongoose_1.Schema({
     profileCategory: {
         type: String,
         required: true,
-        enum: ['functional', 'group', 'individual', 'academic',],
+        enum: ['accessory', 'group', 'individual'],
         index: true,
     },
-    owner: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    managers: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
-    claimPhrase: { type: String, sparse: true, unique: true },
-    claimed: { type: Boolean, default: false, index: true },
-    claimedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User' },
-    claimedAt: { type: Date },
-    claimExpiresAt: { type: Date },
-    profileImage: String,
-    coverImage: String,
-    qrCode: String,
-    connectLink: { type: String, required: true, unique: true, index: true },
-    accessToken: { type: String, unique: true, sparse: true },
-    myPtsBalance: { type: Number, default: 0 },
+    profileType: {
+        type: String,
+        required: true,
+        enum: [
+            'personal', 'academic', 'work', 'professional', 'proprietor', 'freelancer', 'artist', 'influencer', 'athlete', 'provider', 'merchant', 'vendor',
+            'emergency', 'medical', 'pet', 'ecommerce', 'home', 'transportation', 'driver', 'event', 'dependent', 'rider',
+            'group', 'team', 'family', 'neighborhood', 'company', 'business', 'association', 'organization', 'institution', 'community'
+        ],
+        index: true
+    },
+    profileInformation: {
+        username: { type: String, required: true, trim: true, index: true },
+        profileLink: { type: String, required: true, unique: true, index: true },
+        title: { type: String, trim: true },
+        accountHolder: { type: String, trim: true },
+        pid: { type: String, trim: true },
+        relationshipToAccountHolder: { type: String, trim: true },
+        creator: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+        connectLink: { type: String, required: true, unique: true, index: true },
+        followLink: { type: String, required: true, unique: true, index: true },
+        followers: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
+        following: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
+        connectedProfiles: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Profile' }],
+        affiliatedProfiles: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Profile' }],
+        accessToken: { type: String, trim: true, index: true }, // Added for profile token authentication
+        createdAt: { type: Date, default: Date.now },
+        updatedAt: { type: Date, default: Date.now }
+    },
+    templatedId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'ProfileTemplate', required: true },
+    sections: [{ type: mongoose_1.Schema.Types.Mixed }],
+    ProfileFormat: {
+        profileImage: { type: String, trim: true },
+        coverImage: { type: String, trim: true },
+        profileLogo: { type: String, trim: true },
+        customization: {
+            theme: {
+                primaryColor: { type: String, default: '#000000' },
+                secondaryColor: { type: String, default: '#ffffff' },
+                accent: { type: String, default: '#ff4081' },
+                background: { type: String, default: '#f5f5f5' },
+                text: { type: String, default: '#212121' },
+                font: { type: String, default: 'Roboto' }
+            },
+            layout: {
+                sections: [{ id: String, type: String, order: Number, visible: { type: Boolean, default: true } }],
+                gridStyle: { type: String, enum: ['right-sided', 'centered', 'left-sided'], default: 'centered' },
+                animation: { type: String, enum: ['fade', 'slide', 'zoom'], default: 'fade' }
+            }
+        },
+        customCSS: { type: String, trim: true },
+        updatedAt: { type: Date, default: Date.now }
+    },
+    ProfileQrCode: {
+        qrCode: String,
+        emailSignature: String,
+        wallPaper: String,
+        VirtualBackground: String
+    },
+    profileLocation: {
+        city: String,
+        stateOrProvince: String,
+        country: String,
+        coordinates: {
+            latitude: { type: Number, default: 0 },
+            longitude: { type: Number, default: 0 }
+        }
+    },
+    ProfileProducts: {
+        type: { type: String, enum: ['Accessory', 'Device', 'None'], default: 'None' },
+        name: String,
+        description: String
+    },
     verificationStatus: {
         isVerified: { type: Boolean, default: false },
         badge: {
@@ -80,315 +126,138 @@ const profileSchema = new mongoose_1.Schema({
         },
         verifiedAt: Date,
     },
-    kycVerification: {
-        status: {
-            type: String,
-            enum: ['pending', 'verified', 'rejected'],
-            default: 'pending',
-        },
-        submittedAt: Date,
-        verifiedAt: Date,
-        expiresAt: Date,
-        documents: [{
-                type: {
-                    type: String,
-                    enum: ['government_id', 'proof_of_address', 'business_registration'],
-                },
-                subType: String,
-                documentNumber: String,
-                issuingCountry: String,
-                documentUrl: String,
-                status: {
-                    type: String,
-                    enum: ['pending', 'verified', 'rejected'],
-                    default: 'pending',
-                },
-                submittedAt: Date,
-                verifiedAt: Date,
-            }],
-        verificationLevel: {
-            type: String,
-            enum: ['basic', 'full', 'enhanced'],
-            default: 'basic',
-        },
-        rejectionReason: String,
+    ProfileMypts: {
+        currentBalance: { type: Number, default: 0 },
+        lifetimeMypts: { type: Number, default: 0 },
     },
-    linkedDevices: [{
-            deviceId: String,
-            permissions: [{
-                    type: String,
-                    enum: ['view', 'edit', 'share'],
-                }],
-            addedAt: Date,
-            healthMetrics: {
-                enabled: { type: Boolean, default: false },
-                syncFrequency: {
-                    type: String,
-                    enum: ['realtime', 'hourly', 'daily'],
-                    default: 'daily',
-                },
-                lastSync: Date,
-                metrics: [String],
-            },
-        }],
-    galleries: [{
-            name: { type: String, required: true },
-            description: String,
-            coverImage: String,
-            isPublic: { type: Boolean, default: false },
-            items: [{
-                    type: {
-                        type: String,
-                        enum: ['image', 'video', 'document'],
-                        required: true,
-                    },
-                    url: { type: String, required: true },
-                    thumbnail: String,
-                    title: String,
-                    description: String,
-                    metadata: mongoose_1.Schema.Types.Mixed,
-                    uploadedAt: { type: Date, default: Date.now },
-                }],
-        }],
+    ProfileReferal: {
+        referalLink: String,
+        referals: { type: Number, default: 0 },
+    },
+    ProfileBadges: {
+        badges: [{
+                id: String,
+                name: String,
+                category: String,
+                description: String,
+                icon: String,
+                earnedAt: Date,
+            }],
+    },
     analytics: {
-        views: { type: Number, default: 0 },
-        connections: { type: Number, default: 0 },
-        engagement: { type: Number, default: 0 },
-    },
-    security: {
-        twoFactorRequired: { type: Boolean, default: false },
-        ipWhitelist: [String],
-        lastSecurityAudit: Date,
-    },
-    stats: {
-        type: {
-            followers: { type: Number, default: 0 },
+        Mypts: {
+            balance: { type: Number, default: 0 },
+            usage: { type: Number, default: 0 },
+            redeemed: { type: Number, default: 0 },
+            invested: { type: Number, default: 0 }
+        },
+        Usage: {
+            stamps: { type: Number, default: 0 },
+            reward: { type: Number, default: 0 },
+            badges: { type: Number, default: 0 },
+            milestones: { type: Number, default: 0 }
+        },
+        Profiling: {
+            completion: { type: Number, default: 0 },
+            category: { type: Number, default: 0 },
+            links: { type: Number, default: 0 },
+            content: { type: Number, default: 0 }
+        },
+        Products: {
+            accessories: { type: Number, default: 0 },
+            devices: { type: Number, default: 0 },
+            taps: { type: Number, default: 0 },
+            scans: { type: Number, default: 0 }
+        },
+        Networking: {
+            shared: { type: Number, default: 0 },
+            views: { type: Number, default: 0 },
+            contacts: { type: Number, default: 0 },
+            relationships: { type: Number, default: 0 }
+        },
+        Circles: {
+            contacts: { type: Number, default: 0 },
+            connections: { type: Number, default: 0 },
             following: { type: Number, default: 0 },
-            donations: { type: Number, default: 0 },
-            employmentRequests: { type: Number, default: 0 },
-            collaborationRequests: { type: Number, default: 0 },
-            totalViews: { type: Number, default: 0 },
-            monthlyViews: { type: Number, default: 0 },
-            engagement: { type: Number, default: 0 },
+            followers: { type: Number, default: 0 },
+            affiliations: { type: Number, default: 0 }
         },
-        default: {
-            followers: 0,
-            following: 0,
-            donations: 0,
-            employmentRequests: 0,
-            collaborationRequests: 0,
-            totalViews: 0,
-            monthlyViews: 0,
-            engagement: 0,
+        engagement: {
+            chats: { type: Number, default: 0 },
+            calls: { type: Number, default: 0 },
+            posts: { type: Number, default: 0 },
+            comments: { type: Number, default: 0 }
+        },
+        plans: {
+            interactions: { type: Number, default: 0 },
+            task: { type: Number, default: 0 },
+            events: { type: Number, default: 0 },
+            schedules: { type: Number, default: 0 },
+        },
+        data: {
+            entries: { type: Number, default: 0 },
+            dataPts: { type: Number, default: 0 },
+            tracking: { type: Number, default: 0 }
+        },
+        discover: {
+            searches: { type: Number, default: 0 },
+            Reviews: { type: Number, default: 0 },
+            survey: { type: Number, default: 0 },
+            videos: { type: Number, default: 0 },
         }
     },
-    badges: [{
-            id: String,
-            name: String,
-            description: String,
-            icon: String,
-            earnedAt: Date,
-            category: String,
-        }],
-    verifications: {
-        email: { type: Boolean, default: false },
-        phone: { type: Boolean, default: false },
-        identity: { type: Boolean, default: false },
-        professional: { type: Boolean, default: false },
-        social: [{
-                platform: String,
-                verified: { type: Boolean, default: false },
-                verifiedAt: Date,
-            }],
-    },
-    customization: {
-        theme: {
-            primary: String,
-            secondary: String,
-            accent: String,
-            background: String,
-            text: String,
-        },
-        layout: {
-            sections: [{
-                    id: String,
-                    type: String,
-                    order: Number,
-                    visible: { type: Boolean, default: true },
-                }],
-            widgets: [{
-                    id: String,
-                    type: String,
-                    position: {
-                        type: String,
-                        enum: ['sidebar', 'main', 'header', 'footer'],
-                    },
-                    config: mongoose_1.Schema.Types.Mixed,
-                    visible: { type: Boolean, default: true },
-                }],
-        },
-    },
-    connections: {
-        connected: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: 'Profile' }],
-        followers: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: 'Profile' }],
-        following: [{ type: mongoose_1.default.Schema.Types.ObjectId, ref: 'Profile' }],
-        lastConnections: [{
-                user: { type: mongoose_1.default.Schema.Types.ObjectId, ref: 'User' },
-                connectionType: String,
-                connectedAt: { type: Date, default: Date.now }
-            }],
-    },
-    privacySettings: {
-        visibility: {
-            type: String,
-            enum: ['public', 'private', 'connections'],
-            default: 'public'
-        },
-        searchable: {
-            type: Boolean,
-            default: true
-        },
-        showContactInfo: {
-            type: Boolean,
-            default: false
-        },
-        showSocialLinks: {
-            type: Boolean,
-            default: true
-        }
-    },
-}, {
-    timestamps: true,
-    discriminatorKey: 'profileType'
-});
-// Indexes for better query performance
-profileSchema.index({ name: 'text', description: 'text' });
-profileSchema.index({ 'stats.followers': -1 });
-profileSchema.index({ 'stats.engagement': -1 });
-profileSchema.index({ createdAt: -1 });
-profileSchema.index({ 'verifications.email': 1, 'verifications.phone': 1 });
-// Instance methods
-profileSchema.methods.generateQRCode = async function () {
-    if (!this.connectLink) {
-        throw new Error('Connect link is required to generate QR code');
-    }
+}, { timestamps: true });
+// Add profile methods for MyPts
+ProfileSchema.methods.getMyPts = async function () {
+    // Find or create MyPts for this profile
+    const myPts = await my_pts_model_1.MyPtsModel.findOrCreate(this._id);
+    return myPts;
+};
+ProfileSchema.methods.getMyPtsValue = async function (currency = 'USD') {
+    var _a, _b, _c;
     try {
-        this.qrCode = await qrcode_1.default.toDataURL(this.connectLink);
-        return this.qrCode;
+        // Get MyPts balance
+        const myPts = await this.getMyPts();
+        // Get current MyPts value
+        const currentValue = await my_pts_value_model_1.MyPtsValueModel.getCurrentValue();
+        // Get value in specified currency
+        const valuePerPts = currentValue.getValueInCurrency(currency);
+        // Calculate total value
+        const totalValue = myPts.balance * valuePerPts;
+        // Get currency symbol
+        let symbol = currentValue.baseSymbol;
+        if (currency !== currentValue.baseCurrency) {
+            const exchangeRate = currentValue.exchangeRates.find(er => er.currency === currency);
+            if (exchangeRate) {
+                symbol = exchangeRate.symbol;
+            }
+        }
+        // Format the value
+        const formattedValue = `${symbol}${totalValue.toFixed(2)}`;
+        return {
+            balance: myPts.balance,
+            valuePerPts,
+            currency,
+            symbol,
+            totalValue,
+            formattedValue
+        };
     }
     catch (error) {
-        throw new Error(`Failed to generate QR code: ${error.message}`);
+        console.error('Error getting MyPts value:', error);
+        // Fallback to default values if there's an error
+        return {
+            balance: ((_a = this.ProfileMypts) === null || _a === void 0 ? void 0 : _a.currentBalance) || 0,
+            valuePerPts: 0.024, // Default base value
+            currency: currency,
+            symbol: currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency,
+            totalValue: (((_b = this.ProfileMypts) === null || _b === void 0 ? void 0 : _b.currentBalance) || 0) * 0.024,
+            formattedValue: `${currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency}${((((_c = this.ProfileMypts) === null || _c === void 0 ? void 0 : _c.currentBalance) || 0) * 0.024).toFixed(2)}`
+        };
     }
 };
-profileSchema.methods.isVerified = function () {
-    return this.verificationStatus.isVerified;
-};
-profileSchema.methods.calculateEngagement = function () {
-    const views = this.stats.totalViews || 0;
-    const connections = this.stats.followers || 0;
-    const interactions = (this.stats.employmentRequests || 0) + (this.stats.collaborationRequests || 0);
-    // Simple engagement calculation formula
-    return Math.round((views + connections * 2 + interactions * 3) / 100);
-};
-profileSchema.methods.getPublicProfile = function () {
-    const publicProfile = this.toObject();
-    // Remove sensitive information
-    delete publicProfile.security;
-    delete publicProfile.kycVerification;
-    delete publicProfile.claimPhrase;
-    delete publicProfile.settings.emailNotifications;
-    return publicProfile;
-};
-profileSchema.methods.getAvailableSlots = async function (startDate, endDate) {
-    // TO DO: implement logic to get available slots
-    return [];
-};
-profileSchema.methods.checkAvailability = async function (startTime, endTime) {
-    // TO DO: implement logic to check availability
-    return true;
-};
-profileSchema.methods.getFeaturedProjects = async function (limit) {
-    // TO DO: implement logic to get featured projects
-    return [];
-};
-profileSchema.methods.getSkillsByCategory = async function () {
-    // TO DO: implement logic to get skills by category
-    return {};
-};
-profileSchema.methods.calculateEarnings = async function (startDate, endDate) {
-    // TO DO: implement logic to calculate earnings
-    return { total: 0, breakdown: { services: 0, products: 0, subscriptions: 0, donations: 0 } };
-};
-profileSchema.methods.checkServiceAvailability = async function (serviceId, date) {
-    // TO DO: implement logic to check service availability
-    return { available: true };
-};
-profileSchema.methods.generateThemeCSS = function () {
-    // TO DO: implement logic to generate theme CSS
-    return '';
-};
-profileSchema.methods.trackPageView = async function (country, device) {
-    // TO DO: implement logic to track page view
-};
-profileSchema.methods.validateServiceBooking = function (serviceId, date, options) {
-    // TO DO: implement logic to validate service booking
-    return true;
-};
-profileSchema.methods.addEndorsement = async function (skillId, userId, comment) {
-    // TO DO: implement logic to add endorsement
-    return true;
-};
-profileSchema.methods.addRecurringEvent = async function (eventData) {
-    // TO DO: implement logic to add recurring event
-    return true;
-};
-// MyPts related methods
-profileSchema.methods.getMyPts = async function () {
-    return await my_pts_model_1.MyPtsModel.findOrCreate(this._id);
-};
-// Get MyPts value information
-profileSchema.methods.getMyPtsValue = async function (currency = 'USD') {
-    const myPts = await this.getMyPts();
-    const currentValue = await my_pts_value_model_1.MyPtsValueModel.getCurrentValue();
-    const valuePerPts = currentValue.getValueInCurrency(currency);
-    const totalValue = myPts.balance * valuePerPts;
-    // Find the exchange rate to get the symbol
-    let currencySymbol = currentValue.baseSymbol;
-    if (currency !== currentValue.baseCurrency) {
-        const exchangeRate = currentValue.exchangeRates.find(er => er.currency === currency);
-        if (exchangeRate) {
-            currencySymbol = exchangeRate.symbol;
-        }
-    }
-    return {
-        balance: myPts.balance,
-        valuePerPts,
-        currency,
-        symbol: currencySymbol,
-        totalValue,
-        formattedValue: `${currencySymbol}${totalValue.toFixed(2)}`
-    };
-};
-// Middleware
-profileSchema.pre('save', async function (next) {
-    if (this.isModified('connectLink')) {
-        try {
-            await this.generateQRCode();
-        }
-        catch (error) {
-            // Explicitly handle the error and pass a valid error type
-            if (error instanceof Error) {
-                next(error);
-            }
-            else {
-                next(new Error('Unknown error occurred while generating QR code'));
-            }
-        }
-    }
-    next();
-});
-// Post-save middleware to create a referral code
-profileSchema.post('save', async function (doc) {
+// Add post-save middleware to create a referral code
+ProfileSchema.post('save', async function (doc) {
     try {
         // Import here to avoid circular dependency
         const { ProfileReferralService } = require('../services/profile-referral.service');
@@ -400,15 +269,4 @@ profileSchema.post('save', async function (doc) {
         // Don't throw the error to avoid disrupting the save operation
     }
 });
-// Create the base model
-exports.ProfileModel = mongoose_1.default.model('Profile', profileSchema);
-// Register discriminators for different profile types
-const personal_profile_1 = __importDefault(require("./profile-types/personal-profile"));
-const business_profile_1 = __importDefault(require("./profile-types/business-profile"));
-const medical_profile_1 = __importDefault(require("./profile-types/medical-profile"));
-const academic_profile_1 = __importDefault(require("./profile-types/academic-profile"));
-// Create and export discriminator models
-exports.PersonalProfile = exports.ProfileModel.discriminator('personal', personal_profile_1.default);
-exports.BusinessProfile = exports.ProfileModel.discriminator('business', business_profile_1.default);
-exports.MedicalProfile = exports.ProfileModel.discriminator('medical', medical_profile_1.default);
-exports.AcademicProfile = exports.ProfileModel.discriminator('academic', academic_profile_1.default);
+exports.ProfileModel = mongoose_1.default.model('Profile', ProfileSchema);

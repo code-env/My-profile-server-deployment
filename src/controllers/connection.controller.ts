@@ -3,6 +3,7 @@ import ConnectionService from '../services/connection.service';
 import { logger } from '../utils/logger';
 import { CustomError } from '../utils/errors';
 import { ProfileModel } from '../models/profile.model';
+import { Connection } from '../models/Connection';
 
 export class ConnectionController {
   /**
@@ -223,62 +224,111 @@ export class ConnectionController {
       const { profileId } = req.params;
       const { type = 'all', page = 1, limit = 10 } = req.query;
 
-      const profile = await ProfileModel.findById(profileId)
-        .populate({
-          path: 'connections.connected',
-          select: 'username fullName email profilePicture',
-          options: {
-            skip: (Number(page) - 1) * Number(limit),
-            limit: Number(limit)
-          }
-        })
-        .populate({
-          path: 'connections.lastConnections.user',
-          select: 'username fullName email profilePicture'
-        });
-
+      // First check if profile exists
+      const profile = await ProfileModel.findById(profileId);
       if (!profile) {
         throw new CustomError('NOT_FOUND', 'Profile not found');
       }
 
       let connections;
-      let total;
+      let total = 0;
 
+      // Get connections based on type
       switch(type) {
         case 'recent':
-          connections = profile.connections.lastConnections;
-          total = connections.length;
+          // Get recent connections from Connection model
+          connections = await Connection.find({ toProfile: profileId, status: 'accepted' })
+            .sort({ createdAt: -1 })
+            .limit(Number(limit))
+            .skip((Number(page) - 1) * Number(limit))
+            .populate('fromUser', 'username fullName email profileImage');
+
+          total = await Connection.countDocuments({ toProfile: profileId, status: 'accepted' });
           break;
+
         case 'followers':
-          connections = await ProfileModel.findById(profileId)
-            .populate({
-              path: 'connections.followers',
-              select: 'username fullName email profilePicture',
-              options: {
-                skip: (Number(page) - 1) * Number(limit),
-                limit: Number(limit)
-              }
-            });
-          total = profile.stats.followers;
-          connections = connections?.connections.followers || [];
+          // Get followers from Connection model (users who follow this profile)
+          connections = await Connection.find({
+            toProfile: profileId,
+            status: 'accepted',
+            connectionType: 'follow'
+          })
+            .sort({ createdAt: -1 })
+            .limit(Number(limit))
+            .skip((Number(page) - 1) * Number(limit))
+            .populate('fromUser', 'username fullName email profileImage');
+
+          total = await Connection.countDocuments({
+            toProfile: profileId,
+            status: 'accepted',
+            connectionType: 'follow'
+          });
           break;
+
         case 'following':
-          connections = await ProfileModel.findById(profileId)
-            .populate({
-              path: 'connections.following',
-              select: 'username fullName email profilePicture',
-              options: {
-                skip: (Number(page) - 1) * Number(limit),
-                limit: Number(limit)
-              }
-            });
-          total = profile.stats.following;
-          connections = connections?.connections.following || [];
+          // Get following from Connection model (profiles this user follows)
+          connections = await Connection.find({
+            fromUser: profile.profileInformation.creator,
+            status: 'accepted',
+            connectionType: 'follow'
+          })
+            .sort({ createdAt: -1 })
+            .limit(Number(limit))
+            .skip((Number(page) - 1) * Number(limit))
+            .populate('toProfile', 'profileInformation.username profileInformation.title ProfileFormat.profileImage');
+
+          total = await Connection.countDocuments({
+            fromUser: profile.profileInformation.creator,
+            status: 'accepted',
+            connectionType: 'follow'
+          });
           break;
+
         default:
-          connections = profile.connections.connected;
-          total = connections.length;
+          // Get all connections
+          connections = await Connection.find({
+            $or: [
+              { toProfile: profileId, status: 'accepted' },
+              { fromUser: profile.profileInformation.creator, status: 'accepted' }
+            ]
+          })
+            .sort({ createdAt: -1 })
+            .limit(Number(limit))
+            .skip((Number(page) - 1) * Number(limit))
+            .populate('fromUser', 'username fullName email profileImage')
+            .populate('toProfile', 'profileInformation.username profileInformation.title ProfileFormat.profileImage');
+
+          total = await Connection.countDocuments({
+            $or: [
+              { toProfile: profileId, status: 'accepted' },
+              { fromUser: profile.profileInformation.creator, status: 'accepted' }
+            ]
+          });
       }
+
+      // Get connection stats
+      const stats = {
+        followers: await Connection.countDocuments({
+          toProfile: profileId,
+          status: 'accepted',
+          connectionType: 'follow'
+        }),
+        following: await Connection.countDocuments({
+          fromUser: profile.profileInformation.creator,
+          status: 'accepted',
+          connectionType: 'follow'
+        }),
+        connected: await Connection.countDocuments({
+          $or: [
+            { toProfile: profileId, status: 'accepted', connectionType: 'connect' },
+            { fromUser: profile.profileInformation.creator, status: 'accepted', connectionType: 'connect' }
+          ]
+        }),
+        pending: await Connection.countDocuments({
+          toProfile: profileId,
+          status: 'pending'
+        })
+      };
 
       res.json({
         success: true,
@@ -290,7 +340,7 @@ export class ConnectionController {
             limit: Number(limit),
             pages: Math.ceil(total / Number(limit))
           },
-          stats: profile.stats
+          stats
         }
       });
     } catch (error) {

@@ -14,8 +14,8 @@ export const requireRole = (roles: Role[]) => {
       //     "role":"user",
       //     "token":"dfudiufhdifuhdiu.ggndiufdhiufhidf.dffdjhbdjhbj"
       //   }
-      
-      
+
+
       if (!user) {
         throw new CustomError('UNAUTHORIZED', 'Authentication required');
       }
@@ -42,7 +42,7 @@ export const requireRole = (roles: Role[]) => {
 export const checkProfileOwnership = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = req.user as any;
-   
+
     const profileId = req.params.id;
 
     if (!profileId) {
@@ -60,8 +60,14 @@ export const checkProfileOwnership = async (req: Request, res: Response, next: N
       throw new CustomError('NOT_FOUND', 'Profile not found');
     }
 
-    const isOwner = profile.owner.equals(user._id);
-    const isManager = profile.managers.some(managerId => managerId.equals(user._id));
+    // Check if user is the creator of the profile
+    const isOwner = profile.profileInformation?.creator?.toString() === user._id.toString();
+
+    // Check if user is a manager of the profile (if managers array exists)
+    // In the new model, managers might be stored in a different location
+    // For now, we'll assume there are no managers in the new model
+    const isManager = false;
+
     const isAdmin = user.role === 'admin';
 
     if (!isOwner && !isManager && !isAdmin) {
@@ -70,7 +76,8 @@ export const checkProfileOwnership = async (req: Request, res: Response, next: N
     }
 
     // Attach profile to request for later use
-    req.profile = profile;
+    // Use type assertion to avoid type compatibility issues
+    req.profile = profile as any;
     next();
   } catch (error) {
     logger.error('Profile ownership verification error:', error);

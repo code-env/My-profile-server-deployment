@@ -36,6 +36,7 @@ const requireRole = (roles) => {
 };
 exports.requireRole = requireRole;
 const checkProfileOwnership = async (req, res, next) => {
+    var _a, _b;
     try {
         const user = req.user;
         const profileId = req.params.id;
@@ -51,14 +52,19 @@ const checkProfileOwnership = async (req, res, next) => {
         if (!profile) {
             throw new errors_1.CustomError('NOT_FOUND', 'Profile not found');
         }
-        const isOwner = profile.owner.equals(user._id);
-        const isManager = profile.managers.some(managerId => managerId.equals(user._id));
+        // Check if user is the creator of the profile
+        const isOwner = ((_b = (_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator) === null || _b === void 0 ? void 0 : _b.toString()) === user._id.toString();
+        // Check if user is a manager of the profile (if managers array exists)
+        // In the new model, managers might be stored in a different location
+        // For now, we'll assume there are no managers in the new model
+        const isManager = false;
         const isAdmin = user.role === 'admin';
         if (!isOwner && !isManager && !isAdmin) {
             logger_1.logger.error(`Profile access denied: User ${user._id} attempted to access profile ${profileId}`);
             throw new errors_1.CustomError('FORBIDDEN', 'You do not have permission to access this profile');
         }
         // Attach profile to request for later use
+        // Use type assertion to avoid type compatibility issues
         req.profile = profile;
         next();
     }

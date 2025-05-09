@@ -65,6 +65,22 @@ const protect = async (req, res, next) => {
                 message: 'User no longer exists'
             });
         }
+        // Check for admin role in headers or cookies
+        const adminRoleHeader = req.header('X-User-Role');
+        const adminCookie = req.cookies['X-User-Role'];
+        const isAdminHeader = req.header('X-User-Is-Admin');
+        const isAdminCookie = req.cookies['X-User-Is-Admin'];
+        // If admin role is indicated in headers or cookies, ensure it's set in the user object
+        if ((adminRoleHeader === 'admin' || adminCookie === 'admin') ||
+            (isAdminHeader === 'true' || isAdminCookie === 'true')) {
+            // Only set admin role if the user actually has it in the database
+            if (user.role === 'admin') {
+                logger_1.logger.info(`Admin role confirmed for user ${user._id}`);
+            }
+            else {
+                logger_1.logger.warn(`Admin role requested but not found in database for user ${user._id}`);
+            }
+        }
         req.user = user;
         req.token = token;
         // console.log("protected")

@@ -3,7 +3,6 @@ import asyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
 import { SharingService } from '../services/sharing.service';
 import { ProfileModel } from '../models/profile.model';
-import { logger } from '../utils/logger';
 import { ObjectId } from 'mongodb';
 
 const sharingService = new SharingService();
@@ -22,7 +21,8 @@ export const generateQRCode = asyncHandler(async (req: Request, res: Response) =
     throw createHttpError(404, 'Profile not found');
   }
 
-  if (!profile.owner.equals(user._id) && !profile.managers.includes(user._id)) {
+  // Check if user is the creator of the profile
+  if (!profile.profileInformation?.creator?.equals(user._id)) {
     throw createHttpError(403, 'Not authorized to generate QR code for this profile');
   }
 
@@ -50,7 +50,8 @@ export const generateSharingImage = asyncHandler(async (req: Request, res: Respo
     throw createHttpError(404, 'Profile not found');
   }
 
-  if (!profile.owner.equals(user._id) && !profile.managers.includes(user._id)) {
+  // Check if user is the creator of the profile
+  if (!profile.profileInformation?.creator?.equals(user._id)) {
     throw createHttpError(403, 'Not authorized to generate sharing image for this profile');
   }
 
@@ -83,19 +84,19 @@ export const getSharingMetadata = asyncHandler(async (req: Request, res: Respons
   const { profileId } = req.params;
 
   const profile = await ProfileModel.findById(new ObjectId(profileId))
-    .populate('owner', 'firstName lastName profileImage');
+    .populate('profileInformation.creator', 'firstName lastName');
 
   if (!profile) {
     throw createHttpError(404, 'Profile not found');
   }
 
-  const owner = profile.owner as any; // Temporarily using 'any' to bypass TypeScript error
+  const creator = profile.profileInformation?.creator as any; // Temporarily using 'any' to bypass TypeScript error
 
   const metadata = {
-    title: `${owner.firstName} ${owner.lastName} - ${profile.name}`,
-    description: profile.description || `Check out ${owner.firstName}'s professional profile`,
-    image: owner.profileImage,
-    url: `${process.env.FRONTEND_URL}/p/${profile.connectLink}`,
+    title: `${creator?.firstName || 'User'} ${creator?.lastName || ''} - ${profile.profileInformation?.title || 'Profile'}`,
+    description: profile.profileInformation?.title || `Check out this professional profile`,
+    image: profile.ProfileFormat?.profileImage || '',
+    url: `${process.env.FRONTEND_URL}/p/${profile.profileInformation?.profileLink || profileId}`,
     type: 'profile',
   };
 

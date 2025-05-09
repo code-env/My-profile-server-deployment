@@ -1,9 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ProfileModel } from '../models/profile.model';
 import { logger } from '../utils/logger';
-import { User } from '../models/User';
-import { Document } from 'mongoose';
-import { IProfile } from '../interfaces/profile.interface';
 
 export const attachProfile = async (
   req: Request,
@@ -26,7 +23,7 @@ export const attachProfile = async (
       // First try to find the profile directly
       let requestedProfile = await ProfileModel.findOne({
         _id: requestedProfileId,
-        owner: (req.user as any)._id
+        'profileInformation.creator': (req.user as any)._id
       });
 
       // If not found, check if the requestedProfileId is actually a user ID
@@ -39,7 +36,7 @@ export const attachProfile = async (
 
           // Find the user's profiles
           const userProfiles = await ProfileModel.find({
-            owner: (req.user as any)._id
+            'profileInformation.creator': (req.user as any)._id
           }).sort({ createdAt: 1 }); // Get oldest profile first
 
           if (userProfiles && userProfiles.length > 0) {
@@ -57,13 +54,13 @@ export const attachProfile = async (
         });
       }
 
-      req.profile = requestedProfile;
+      req.profile = requestedProfile as any;
       return next();
     }
 
     // If no specific profile requested, find user's profiles
     const profiles = await ProfileModel.find({
-      owner: (req.user as any)._id,
+      'profileInformation.creator': (req.user as any)._id,
     }).sort({ createdAt: 1 }); // Get oldest profile first
 
     if (!profiles || profiles.length === 0) {
@@ -79,7 +76,7 @@ export const attachProfile = async (
 
 
     // Attach profile to request
-    req.profile = profile;
+    req.profile = profile as any;
     next();
   } catch (error) {
     logger.error('Profile authentication error:', error);

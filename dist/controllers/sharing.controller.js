@@ -14,6 +14,7 @@ const sharingService = new sharing_service_1.SharingService();
 // @route   POST /api/sharing/:profileId/qr
 // @access  Private
 exports.generateQRCode = (0, express_async_handler_1.default)(async (req, res) => {
+    var _a, _b;
     const user = req.user;
     const { profileId } = req.params;
     const { size, color, logo, style } = req.body;
@@ -22,7 +23,8 @@ exports.generateQRCode = (0, express_async_handler_1.default)(async (req, res) =
     if (!profile) {
         throw (0, http_errors_1.default)(404, 'Profile not found');
     }
-    if (!profile.owner.equals(user._id) && !profile.managers.includes(user._id)) {
+    // Check if user is the creator of the profile
+    if (!((_b = (_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator) === null || _b === void 0 ? void 0 : _b.equals(user._id))) {
         throw (0, http_errors_1.default)(403, 'Not authorized to generate QR code for this profile');
     }
     const qrCode = await sharingService.generateProfileQR(new mongodb_1.ObjectId(profileId), {
@@ -37,6 +39,7 @@ exports.generateQRCode = (0, express_async_handler_1.default)(async (req, res) =
 // @route   POST /api/sharing/:profileId/image
 // @access  Private
 exports.generateSharingImage = (0, express_async_handler_1.default)(async (req, res) => {
+    var _a, _b;
     const user = req.user;
     const { profileId } = req.params;
     const { template } = req.body;
@@ -45,7 +48,8 @@ exports.generateSharingImage = (0, express_async_handler_1.default)(async (req, 
     if (!profile) {
         throw (0, http_errors_1.default)(404, 'Profile not found');
     }
-    if (!profile.owner.equals(user._id) && !profile.managers.includes(user._id)) {
+    // Check if user is the creator of the profile
+    if (!((_b = (_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator) === null || _b === void 0 ? void 0 : _b.equals(user._id))) {
         throw (0, http_errors_1.default)(403, 'Not authorized to generate sharing image for this profile');
     }
     const sharingImage = await sharingService.generateSharingImage(new mongodb_1.ObjectId(profileId), template);
@@ -68,18 +72,19 @@ exports.trackShare = (0, express_async_handler_1.default)(async (req, res) => {
 // @route   GET /api/sharing/:profileId/meta
 // @access  Public
 exports.getSharingMetadata = (0, express_async_handler_1.default)(async (req, res) => {
+    var _a, _b, _c, _d, _e;
     const { profileId } = req.params;
     const profile = await profile_model_1.ProfileModel.findById(new mongodb_1.ObjectId(profileId))
-        .populate('owner', 'firstName lastName profileImage');
+        .populate('profileInformation.creator', 'firstName lastName');
     if (!profile) {
         throw (0, http_errors_1.default)(404, 'Profile not found');
     }
-    const owner = profile.owner; // Temporarily using 'any' to bypass TypeScript error
+    const creator = (_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator; // Temporarily using 'any' to bypass TypeScript error
     const metadata = {
-        title: `${owner.firstName} ${owner.lastName} - ${profile.name}`,
-        description: profile.description || `Check out ${owner.firstName}'s professional profile`,
-        image: owner.profileImage,
-        url: `${process.env.FRONTEND_URL}/p/${profile.connectLink}`,
+        title: `${(creator === null || creator === void 0 ? void 0 : creator.firstName) || 'User'} ${(creator === null || creator === void 0 ? void 0 : creator.lastName) || ''} - ${((_b = profile.profileInformation) === null || _b === void 0 ? void 0 : _b.title) || 'Profile'}`,
+        description: ((_c = profile.profileInformation) === null || _c === void 0 ? void 0 : _c.title) || `Check out this professional profile`,
+        image: ((_d = profile.ProfileFormat) === null || _d === void 0 ? void 0 : _d.profileImage) || '',
+        url: `${process.env.FRONTEND_URL}/p/${((_e = profile.profileInformation) === null || _e === void 0 ? void 0 : _e.profileLink) || profileId}`,
         type: 'profile',
     };
     res.json(metadata);

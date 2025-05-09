@@ -1,522 +1,493 @@
-import { ProfileModel, ProfileDocument } from '../models/profile.model';
-import { Profile, PersonalInfo, ContactInfo, SocialInfo } from '../types/profile.types';
+import { ProfileModel as Profile, ProfileDocument } from '../models/profile.model';
 import { isValidObjectId } from 'mongoose';
 import createHttpError from 'http-errors';
 import { logger } from '../utils/logger';
 import { User } from '../models/User';
-import { generateUniqueConnectLink } from '../utils/crypto';
+import { ProfileTemplate } from '../models/profiles/profile-template';
+import { generateUniqueConnectLink, generateReferralCode } from '../utils/crypto';
+import mongoose from 'mongoose';
+
+// Extended interface for profile sections that includes value and enabled status
+interface ProfileSection {
+  key: string;
+  label: string;
+  fields: Array<{
+    key: string;
+    value: any;
+    enabled: boolean;
+  }>;
+}
 
 export class ProfileService {
-  async createProfile(userId: string): Promise<ProfileDocument> {
-    console.log('👤 Creating new profile for user:', userId);
-    // Check if user already has a profile
-    const existingProfiles = await ProfileModel.find({ $or: [{ owner: userId }, { managers: userId }] });
-
-    const profile = new ProfileModel({
-      userId,
-      personalInfo: {},
-      contactInfo: {},
-      socialInfo: {},
-      // If user has no profiles, they become owner. Otherwise, they become manager
-      owner: existingProfiles.length === 0 ? userId : undefined,
-      managers: existingProfiles.length > 0 ? [userId] : []
-    });
-
-    console.log('✅ Profile created successfully:', profile._id);
-    return await profile.save();
-  }
-
-  async updatePersonalInfo(userId: string, personalInfo: Partial<PersonalInfo>): Promise<ProfileDocument | null> {
-    console.log('📝 Updating personal info for user:', userId);
-    console.log('ℹ️ New personal info:', JSON.stringify(personalInfo, null, 2));
-    const profile = await ProfileModel.findOneAndUpdate(
-      { userId },
-      { $set: { personalInfo } },
-      { new: true, upsert: true }
-    );
-    console.log(profile ? '✅ Personal info updated' : '❌ Profile not found');
-    return profile;
-  }
-
-  async updateContactInfo(userId: string, contactInfo: Partial<ContactInfo>): Promise<ProfileDocument | null> {
-    console.log('📞 Updating contact info for user:', userId);
-    console.log('ℹ️ New contact info:', JSON.stringify(contactInfo, null, 2));
-    const profile = await ProfileModel.findOneAndUpdate(
-      { userId },
-      { $set: { contactInfo } },
-      { new: true, upsert: true }
-    );
-    console.log(profile ? '✅ Contact info updated' : '❌ Profile not found');
-    return profile;
-  }
-
-  async updateSocialInfo(userId: string, socialInfo: Partial<SocialInfo>): Promise<ProfileDocument | null> {
-    console.log('🌐 Updating social info for user:', userId);
-    console.log('ℹ️ New social info:', JSON.stringify(socialInfo, null, 2));
-    const profile = await ProfileModel.findOneAndUpdate(
-      { userId },
-      { $set: { socialInfo } },
-      { new: true, upsert: true }
-    );
-    console.log(profile ? '✅ Social info updated' : '❌ Profile not found');
-    return profile;
-  }
-
-  async getProfile(userId: string): Promise<ProfileDocument | null> {
-    console.log('🔍 Fetching profile for user:', userId);
-    const profile = await ProfileModel.findOne({ userId });
-    console.log(profile ? '✅ Profile found' : '❌ Profile not found');
-    return profile;
-  }
-
-  async deleteProfile(userId: string): Promise<boolean> {
-    console.log('🗑️ Deleting profile for user:', userId);
-    const result = await ProfileModel.deleteOne({ userId });
-    const success = result.deletedCount > 0;
-    console.log(success ? '✅ Profile deleted' : '❌ Profile not found');
-    return success;
-  }
-  async updateProfile(
-    profileId: string,
+  /**
+   * Creates a profile with content in one step
+   * @param userId The user ID creating the profile
+   * @param templateId The template ID to base the profile on
+   * @param profileInformation Basic profile information
+   * @param sections Optional sections with field values and enabled status
+   * @returns The created profile document
+   */
+  async createProfileWithContent(
     userId: string,
-    updates: Partial<Profile>
-  ): Promise<ProfileDocument | null> {
-    console.log('📝 Updating profile:', profileId);
-    console.log('ℹ️ Updates:', JSON.stringify(updates, null, 2));
-    // Validate profile ID
-    if (!isValidObjectId(profileId)) {
-      throw createHttpError(400, 'Invalid profile ID');
-    }
-
-    // Find profile and check permissions
-    const profile = await ProfileModel.findById(profileId);
-    if (!profile) {
-      console.log('❌ Profile not found:', profileId);
-      return null;
-    }
-
-    // Check if user has permission to update
-    const isOwner = profile.owner?.toString() === userId;
-    const isManager = profile.managers.some(manager => manager.toString() === userId);
-
-    if (!isOwner && !isManager) {
-      throw createHttpError(403, 'You do not have permission to update this profile');
-    }
-
-    // Remove protected fields from updates
-    const safeUpdates = { ...updates };
-    // Only owners can modify the managers list
-    const protectedFields = ['owner', 'claimed', 'claimedBy', 'qrCode'];
-    if (!isOwner) {
-      protectedFields.push('managers');
-    }
-    protectedFields.forEach(field => delete safeUpdates[field]);
-
-    // Update profile
-    const updatedProfile = await ProfileModel.findByIdAndUpdate(
-      profileId,
-      { $set: safeUpdates },
-      { new: true, runValidators: true }
-    );
-    console.log(updatedProfile ? '✅ Profile updated' : '❌ Profile not found');
-    return updatedProfile;
-  }
-
-  async verifyProfile(profileId: string, documents: any[]): Promise<ProfileDocument> {
-    console.log('✔️ Verifying profile:', profileId);
-    console.log('📄 Documents submitted:', documents.length);
-    if (!isValidObjectId(profileId)) {
-      throw createHttpError(400, 'Invalid profile ID');
-    }
-
-    const profile = await ProfileModel.findById(profileId);
-    if (!profile) {
-      console.error('❌ Profile not found:', profileId);
-      throw createHttpError(404, 'Profile not found');
-    }
-
-    // Update KYC verification status
-    profile.kycVerification = {
-      status: 'pending',
-      submittedAt: new Date(),
-      documents,
-      verificationLevel: 'basic'
-    };
-
-    // Add security measures
-    profile.security = {
-      twoFactorRequired: true,
-      ipWhitelist: [],
-      lastSecurityAudit: new Date()
-    };
-
-    console.log('✅ Profile verified successfully');
-    return await profile.save();
-  }
-
-  async updateSecuritySettings(
-    profileId: string,
-    settings: {
-      twoFactorRequired?: boolean;
-      ipWhitelist?: string[];
-    }
-  ): Promise<ProfileDocument> {
-    console.log('🔒 Updating security settings for profile:', profileId);
-    console.log('ℹ️ New settings:', JSON.stringify(settings, null, 2));
-    const profile = await ProfileModel.findById(profileId);
-    if (!profile) {
-      console.error('❌ Profile not found:', profileId);
-      throw createHttpError(404, 'Profile not found');
-    }
-
-    if (settings.twoFactorRequired !== undefined) {
-      profile.security.twoFactorRequired = settings.twoFactorRequired;
-    }
-
-    if (settings.ipWhitelist) {
-      profile.security.ipWhitelist = settings.ipWhitelist;
-    }
-
-    profile.security.lastSecurityAudit = new Date();
-    console.log('✅ Security settings updated');
-    return await profile.save();
-  }
-
-  async updateConnectionPreferences(
-    profileId: string,
-    preferences: {
-      allowFollowers?: boolean;
-      allowEmployment?: boolean;
-      allowDonations?: boolean;
-      allowCollaboration?: boolean;
-      connectionPrivacy?: 'public' | 'private' | 'mutual';
-      connectionApproval?: 'automatic' | 'manual' | 'verified-only';
-    }
-  ): Promise<ProfileDocument> {
-    console.log('🤝 Updating connection preferences for profile:', profileId);
-    console.log('ℹ️ New preferences:', JSON.stringify(preferences, null, 2));
-    const profile = await ProfileModel.findById(profileId);
-    if (!profile) {
-      console.error('❌ Profile not found:', profileId);
-      throw createHttpError(404, 'Profile not found');
-    }
-
-    // profile.connectionPreferences = {
-    //   ...profile.connectionPreferences,
-    //   ...preferences
-    // };
-
-    console.log('✅ Connection preferences updated');
-    return await profile.save();
-  }
-
-  async updateSocialLinks(
-    profileId: string,
-    links: {
-      website?: string;
-      facebook?: string;
-      twitter?: string;
-      instagram?: string;
-      linkedin?: string;
-      github?: string;
-      youtube?: string;
-      tiktok?: string;
-    }
-  ): Promise<ProfileDocument> {
-    console.log('🔗 Updating social links for profile:', profileId);
-    console.log('ℹ️ New links:', JSON.stringify(links, null, 2));
-    const profile = await ProfileModel.findById(profileId);
-    if (!profile) {
-      console.error('❌ Profile not found:', profileId);
-      throw createHttpError(404, 'Profile not found');
-    }
-
-    // profile.socialLinks = {
-    //   ...profile.socialLinks,
-    //   ...links
-    // };
-
-    console.log('✅ Social links updated');
-    return await profile.save();
-  }
-
-  async manageConnection(
-    profileId: string,
-    targetProfileId: string,
-    action: 'connect' | 'disconnect' | 'block'
-  ): Promise<{ success: boolean; message: string }> {
-    console.log('🤝 Managing connection:', { profileId, targetProfileId, action });
-    const profile = await ProfileModel.findById(profileId);
-    const targetProfile = await ProfileModel.findById(targetProfileId);
-
-    if (!profile || !targetProfile) {
-      console.error('❌ Profile not found:', profileId);
-      throw createHttpError(404, 'Profile not found');
-    }
-
-    switch (action) {
-      case 'connect':
-        if (!profile.stats) profile.stats = { followers: 0, following: 0 } as any;
-        if (!targetProfile.stats) targetProfile.stats = { followers: 0, following: 0 } as any;
-
-        profile.stats.following++;
-        targetProfile.stats.followers++;
-        break;
-
-      case 'disconnect':
-        if (profile.stats?.following > 0) profile.stats.following--;
-        if (targetProfile.stats?.followers > 0) targetProfile.stats.followers--;
-        break;
-
-      case 'block':
-        // Implementation depends on your blocking mechanism
-        break;
-    }
-
-    await Promise.all([profile.save(), targetProfile.save()]);
-    console.log('✅ Connection action completed:', action);
-    return { success: true, message: `Successfully ${action}ed connection` };
-  }
-
-  async addPortfolioProject(
-    profileId: string,
-    project: {
-      title: string;
-      description: string;
-      shortDescription: string;
-      thumbnail: string;
-      images: string[];
-      videos?: string[];
-      category: string;
-      tags: string[];
-      technologies: string[];
-      url?: string;
-      githubUrl?: string;
-      startDate: Date;
-      endDate?: Date;
-      status: 'in-progress' | 'completed' | 'on-hold';
-    }
-  ): Promise<ProfileDocument> {
-    console.log('📁 Adding portfolio project for profile:', profileId);
-    console.log('ℹ️ Project details:', JSON.stringify(project, null, 2));
-    const profile = await ProfileModel.findById(profileId);
-    if (!profile) {
-      console.error('❌ Profile not found:', profileId);
-      throw createHttpError(404, 'Profile not found');
-    }
-
-    // if (!profile.portfolio) {
-    //   profile.portfolio = {
-    //     projects: [],
-    //     skills: [],
-    //     resume: {
-    //       education: [],
-    //       experience: [],
-    //       publications: []
-    //     }
-    //   };
-    // }
-
-    // Uncomment and use this when portfolio functionality is implemented
-    // const projectId = new mongoose.Types.ObjectId();
-    // profile.portfolio.projects.push({
-    //   id: projectId.toString(),
-    //   ...project,
-    //   visibility: 'connections',
-    //   featured: false
-    // });
-
-    console.log('✅ Portfolio project added successfully');
-    return await profile.save();
-  }
-
-  async updateSkills(
-    profileId: string,
-    skills: Array<{
-      name: string;
-      level: 'beginner' | 'intermediate' | 'expert';
-      endorsements?: number;
+    templateId: string,
+    profileInformation: {
+      username: string;
+      title?: string;
+      accountHolder?: string;
+      pid?: string;
+      relationshipToAccountHolder?: string;
+    },
+    sections?: Array<{
+      key: string;
+      label: string;
+      fields: Array<{
+        key: string;
+        value: any;
+        enabled: boolean;
+      }>;
     }>
   ): Promise<ProfileDocument> {
-    console.log('🎯 Updating skills for profile:', profileId);
-    console.log('ℹ️ New skills:', JSON.stringify(skills, null, 2));
-    const profile = await ProfileModel.findById(profileId);
-    if (!profile) {
-      console.error('❌ Profile not found:', profileId);
-      throw createHttpError(404, 'Profile not found');
+    logger.info(`Creating profile with content for user ${userId} using template ${templateId}`);
+
+    // Create the base profile
+    const profile = await this.createProfile(userId, templateId);
+
+    // Update profile information
+    if (profileInformation) {
+      profile.profileInformation.username = profileInformation.username;
+      if (profileInformation.title) profile.profileInformation.title = profileInformation.title;
+      if (profileInformation.accountHolder) profile.profileInformation.accountHolder = profileInformation.accountHolder;
+      if (profileInformation.pid) profile.profileInformation.pid = profileInformation.pid;
+      if (profileInformation.relationshipToAccountHolder)
+        profile.profileInformation.relationshipToAccountHolder = profileInformation.relationshipToAccountHolder;
     }
 
-    // profile.skills = skills.map(skill => ({
-    //   ...skill,
-    //   endorsements: skill.endorsements || 0
-    // }));
-
-    console.log('✅ Skills updated successfully');
-    return await profile.save();
-  }
-
-  async updateAvailability(
-    profileId: string,
-    availability: {
-      status: 'available' | 'busy' | 'away';
-      workingHours: Array<{
-        day: number;
-        start: string;
-        end: string;
-        available: boolean;
-      }>;
-      timeZone: string;
-      bufferTime: number;
-      defaultMeetingDuration: number;
-    }
-  ): Promise<ProfileDocument> {
-    console.log('🔄 Updating availability for profile:', profileId);
-    console.log('📅 New availability settings:', JSON.stringify(availability, null, 2));
-
-    // Validate profileId format
-    if (!isValidObjectId(profileId)) {
-      console.error('❌ Invalid profile ID format attempted:', profileId);
-      throw createHttpError(400, 'Invalid profile ID format');
+    // Update sections and fields if provided
+    if (sections && sections.length > 0) {
+      // For each provided section
+      for (const providedSection of sections) {
+        // Find matching section in profile
+        const profileSection = profile.sections.find(s => s.key === providedSection.key);
+        if (profileSection) {
+          // Update fields in the section
+          for (const providedField of providedSection.fields) {
+            const profileField = profileSection.fields.find(f => f.key === providedField.key);
+            if (profileField) {
+              // Use type assertion to allow property assignment
+              (profileField as any).value = providedField.value;
+              profileField.enabled = providedField.enabled;
+            }
+          }
+        }
+      }
     }
 
-    const profile = await ProfileModel.findById(profileId);
-    if (!profile) {
-      console.error('❌ Profile not found:', profileId);
-      throw createHttpError(404, 'Profile not found');
-    }
-
-    console.log('✅ Profile found:', profileId);
-
-    // Validate working hours format
-    const invalidHours = availability.workingHours.find(
-      hour => hour.day < 0 || hour.day > 6 || !hour.start || !hour.end
-    );
-    if (invalidHours) {
-      console.error('❌ Invalid working hours format:', invalidHours);
-      throw createHttpError(400, 'Invalid working hours format');
-    }
-    console.log('✅ Working hours validation passed');
-
-    // console.log('📊 Current availability settings:', JSON.stringify(profile.calendar.availability, null, 2));
-    console.log('📊 New availability settings:', JSON.stringify(availability, null, 2));
-
-    // profile.calendar.availability = availability;
-
-    try {
-      const updatedProfile = await profile.save();
-      console.log('✅ Successfully updated availability');
-      // console.log('📅 Updated working hours:', JSON.stringify(updatedProfile.calendar.availability.workingHours, null, 2));
-      return updatedProfile;
-    } catch (error) {
-      console.error('❌ Error updating availability:', error);
-      throw error;
-    }
-  }
-
-  async addEndorsement(
-    profileId: string,
-    skillName: string,
-    endorserId: string
-  ): Promise<{ success: boolean; message: string }> {
-    console.log('👍 Adding endorsement:', { profileId, skillName, endorserId });
-    const profile = await ProfileModel.findById(profileId);
-    if (!profile) {
-      console.error('❌ Profile not found:', profileId);
-      throw createHttpError(404, 'Profile not found');
-    }
-
-    // const skill = profile.skills.find(s => s.name === skillName);
-    // if (!skill) {
-    //   console.error('❌ Skill not found:', skillName);
-    //   throw createHttpError(404, 'Skill not found');
-    // }
-
-    // skill.endorsements = (skill.endorsements || 0) + 1;
-    // await profile.save();
-
-    console.log('✅ Endorsement added successfully');
-    return { success: true, message: 'Skill endorsed successfully' };
+    // Save the updated profile
+    await profile.save();
+    logger.info(`Profile with content created successfully: ${profile._id}`);
+    return profile;
   }
 
   /**
-   * Create a default personal profile for a newly registered user
+   * Creates a new profile based on a template
+   * @param userId The user ID creating the profile
+   * @param templateId The template ID to base the profile on
+   * @returns The created profile document
+   */
+  async createProfile(
+    userId: string,
+    templateId: string
+  ): Promise<ProfileDocument> {
+    logger.info(`Creating new profile for user ${userId} using template ${templateId}`);
+
+    // Validate inputs
+    if (!isValidObjectId(userId) || !isValidObjectId(templateId)) {
+      throw createHttpError(400, 'Invalid user ID or template ID');
+    }
+
+    // Get the template
+    const template = await ProfileTemplate.findById(templateId);
+    if (!template) {
+      throw createHttpError(404, 'Template not found');
+    }
+
+    // Check if user already has a profile of this type
+    const existingProfile = await Profile.findOne({
+      'profileInformation.creator': userId,
+      templatedId: templateId
+    });
+    if (existingProfile) {
+      throw createHttpError(409, 'User already has a profile using this template');
+    }
+
+    // Generate unique links
+    const [connectLink, profileLink] = await Promise.all([
+      generateUniqueConnectLink(),
+      generateUniqueConnectLink()
+    ]);
+
+    // Generate a unique referral link
+    const referralCode = generateReferralCode();
+    const referralLink = `mypts-ref-${referralCode}`;
+
+    // Create initial profile sections with all fields disabled by default
+    const initialSections = template.categories.map(category => ({
+      key: category.name,
+      label: category.label,
+      fields: category.fields.map(field => ({
+        key: field.name,
+        value: field.default || null,
+        enabled: false // Fields are disabled by default
+      }))
+    }));
+
+    // Get user data for username
+    const user = await User.findById(userId);
+    const username = user?.username || '';
+
+    const profile = new Profile({
+      profileCategory: template.profileCategory,
+      profileType: template.profileType,
+      templatedId: template._id,
+      profileInformation: {
+        username: username,
+        profileLink: profileLink,
+        creator: new mongoose.Types.ObjectId(userId),
+        connectLink,
+        followLink: profileLink,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      ProfileReferal: {
+        referalLink: referralLink,
+        referals: 0
+      },
+      sections: initialSections
+    });
+
+    await profile.save();
+    logger.info(`Profile created successfully: ${profile._id}`);
+    return profile;
+  }
+
+  /**
+   * Enables/disables fields in a profile
+   * @param profileId The profile ID
    * @param userId The user ID
-   * @returns The created profile
+   * @param enabledFields Array of field keys to enable/disable
+   * @returns The updated profile document
+   */
+  async setEnabledFields(
+    profileId: string,
+    userId: string,
+    enabledFields: Array<{
+      sectionKey: string;
+      fieldKey: string;
+      enabled: boolean;
+    }>
+  ): Promise<ProfileDocument> {
+    logger.info(`Updating enabled fields for profile ${profileId}`);
+
+    if (!isValidObjectId(profileId) || !isValidObjectId(userId)) {
+      throw createHttpError(400, 'Invalid profile ID or user ID');
+    }
+
+    const profile = await Profile.findById(profileId);
+    if (!profile) {
+      throw createHttpError(404, 'Profile not found');
+    }
+
+    // Verify user has permission to update
+    if (profile.profileInformation.creator.toString() !== userId) {
+      throw createHttpError(403, 'You do not have permission to update this profile');
+    }
+
+    // Update field enabled status
+    enabledFields.forEach(({ sectionKey, fieldKey, enabled }) => {
+      const section = profile.sections.find(s => s.key === sectionKey);
+      if (section) {
+        const field = section.fields.find(f => f.key === fieldKey);
+        if (field) {
+          field.enabled = enabled;
+        }
+      }
+    });
+
+    profile.profileInformation.updatedAt = new Date();
+    await profile.save();
+    logger.info(`Enabled fields updated for profile ${profileId}`);
+    return profile;
+  }
+
+  /**
+   * Updates profile content for enabled fields
+   * @param profileId The profile ID to update
+   * @param userId The user ID making the update
+   * @param updates Object containing field updates
+   * @returns The updated profile document
+   */
+  async updateProfileContent(
+    profileId: string,
+    userId: string,
+    updates: Array<{
+      sectionKey: string;
+      fieldKey: string;
+      value: any;
+    }>
+  ): Promise<ProfileDocument> {
+    logger.info(`Updating content for profile ${profileId}`);
+
+    if (!isValidObjectId(profileId) || !isValidObjectId(userId)) {
+      throw createHttpError(400, 'Invalid profile ID or user ID');
+    }
+
+    const profile = await Profile.findById(profileId);
+    if (!profile) {
+      throw createHttpError(404, 'Profile not found');
+    }
+
+    // Verify user has permission to update
+    if (profile.profileInformation.creator.toString() !== userId) {
+      throw createHttpError(403, 'You do not have permission to update this profile');
+    }
+
+    // Get template for validation
+    const template = await ProfileTemplate.findById(profile.templatedId);
+    if (!template) {
+      throw createHttpError(404, 'Template not found');
+    }
+
+    // Validate and apply updates
+    updates.forEach(({ sectionKey, fieldKey, value }) => {
+      const section = profile.sections.find(s => s.key === sectionKey);
+      if (!section) {
+        throw createHttpError(400, `Invalid section: ${sectionKey}`);
+      }
+
+      const field = section.fields.find(f => f.key === fieldKey);
+      if (!field) {
+        throw createHttpError(400, `Invalid field: ${fieldKey} in section ${sectionKey}`);
+      }
+
+      if (!field.enabled) {
+        throw createHttpError(400, `Field ${fieldKey} is not enabled`);
+      }
+
+      // Validate against template field type if needed
+      const templateSection = template.categories.find(c => c.name === sectionKey);
+      const templateField = templateSection?.fields.find(f => f.name === fieldKey);
+      if (templateField) {
+        // Add type-specific validation based on widget type
+        switch (templateField.widget) {
+          case 'number':
+            if (typeof value !== 'number') {
+              throw createHttpError(400, `Field ${fieldKey} must be a number`);
+            }
+            if (templateField.validation?.min !== undefined && value < templateField.validation.min) {
+              throw createHttpError(400, `Field ${fieldKey} must be at least ${templateField.validation.min}`);
+            }
+            if (templateField.validation?.max !== undefined && value > templateField.validation.max) {
+              throw createHttpError(400, `Field ${fieldKey} must be at most ${templateField.validation.max}`);
+            }
+            break;
+          case 'email':
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+              throw createHttpError(400, `Field ${fieldKey} must be a valid email`);
+            }
+            break;
+          // Add other validation cases as needed
+        }
+      }
+
+      // Type assertion to allow value assignment
+      (field as any).value = value;
+    });
+
+    profile.profileInformation.updatedAt = new Date();
+    await profile.save();
+    logger.info(`Profile content updated for ${profileId}`);
+    return profile;
+  }
+
+  /**
+   * Gets a profile by ID
+   * @param profileId The profile ID
+   * @returns The profile document
+   */
+  async getProfile(profileId: string): Promise<ProfileDocument> {
+    logger.info(`Fetching profile ${profileId}`);
+
+    if (!isValidObjectId(profileId)) {
+      throw createHttpError(400, 'Invalid profile ID');
+    }
+
+    const profile = await Profile.findById(profileId);
+    if (!profile) {
+      throw createHttpError(404, 'Profile not found');
+    }
+
+    return profile;
+  }
+
+  /**
+   * Gets all profiles for a user
+   * @param userId The user ID
+   * @returns Array of profile documents
+   */
+  async getUserProfiles(userId: string): Promise<ProfileDocument[]> {
+    logger.info(`Fetching all profiles for user ${userId}`);
+
+    if (!isValidObjectId(userId)) {
+      throw createHttpError(400, 'Invalid user ID');
+    }
+
+    return await Profile.find({ 'profileInformation.creator': userId });
+  }
+
+  /**
+   * Deletes a profile
+   * @param profileId The profile ID
+   * @param userId The user ID requesting deletion
+   * @returns Boolean indicating success
+   */
+  async deleteProfile(profileId: string, userId: string): Promise<boolean> {
+    logger.info(`Deleting profile ${profileId} by user ${userId}`);
+
+    if (!isValidObjectId(profileId) || !isValidObjectId(userId)) {
+      throw createHttpError(400, 'Invalid profile ID or user ID');
+    }
+
+    const profile = await Profile.findById(profileId);
+    if (!profile) {
+      throw createHttpError(404, 'Profile not found');
+    }
+
+    if (profile.profileInformation.creator.toString() !== userId) {
+      throw createHttpError(403, 'You do not have permission to delete this profile');
+    }
+
+    const result = await Profile.deleteOne({ _id: profileId });
+    return result.deletedCount > 0;
+  }
+
+  /**
+   * Creates a default personal profile for a new user
+   * @param userId The user ID
+   * @returns The created profile document
    */
   async createDefaultProfile(userId: string): Promise<ProfileDocument> {
-    try {
-      logger.info(`Creating default profile for user: ${userId}`);
+    logger.info(`Creating default personal profile for user ${userId}`);
 
-      // Check if user already has a profile
-      const existingProfiles = await ProfileModel.find({ owner: userId });
+    // Get user data
+    const user = await User.findById(userId);
+    if (!user) {
+      throw createHttpError(404, 'User not found');
+    }
 
-      if (existingProfiles.length > 0) {
-        logger.info(`User ${userId} already has ${existingProfiles.length} profiles. Skipping default profile creation.`);
+    // Get the default personal profile template
+    let template = await ProfileTemplate.findOne({
+      profileType: 'personal',
+      profileCategory: 'individual'
+    });
 
-        // Ensure the profile has a referral record
-        const { ProfileReferralService } = require('./profile-referral.service');
-        await ProfileReferralService.initializeReferralCode(existingProfiles[0]._id);
+    // If template doesn't exist, create it
+    if (!template) {
+      logger.info('Default personal profile template not found, creating one...');
 
-        return existingProfiles[0];
-      }
+      // Create a default admin ID (this is required by the schema)
+      const adminId = new mongoose.Types.ObjectId();
 
-      // Get user data
-      const user = await User.findById(userId);
-      if (!user) {
-        throw createHttpError(404, 'User not found');
-      }
-
-      // Generate a unique connect link
-      const connectLink = await generateUniqueConnectLink();
-
-      // Create a default personal profile
-      const profile = new ProfileModel({
-        name: `${user.fullName}'s Profile`,
-        description: `Personal profile for ${user.fullName}`,
-        profileType: 'personal',
+      // Create the default personal profile template
+      template = await ProfileTemplate.create({
         profileCategory: 'individual',
-        owner: userId,
-        managers: [userId],
-        connectLink,
-        claimed: true,
-        claimedBy: userId,
-        claimedAt: new Date(),
-        settings: {
-          visibility: 'public',
-          allowComments: true,
-          allowMessages: true,
-          autoAcceptConnections: false,
-          emailNotifications: {
-            connections: true,
-            messages: true,
-            comments: true,
-            mentions: true,
-            updates: true
+        profileType: 'personal',
+        name: 'Personal Profile',
+        slug: 'personal-profile',
+        createdBy: adminId,
+        categories: [
+          {
+            name: 'basic',
+            label: 'Basic Information',
+            icon: 'user',
+            collapsible: true,
+            fields: [
+              {
+                name: 'fullName',
+                label: 'Full Name',
+                widget: 'text',
+                order: 1,
+                enabled: true,
+                required: true,
+                placeholder: 'Enter your full name'
+              },
+              {
+                name: 'bio',
+                label: 'Bio',
+                widget: 'textarea',
+                order: 2,
+                enabled: true,
+                required: false,
+                placeholder: 'Tell us about yourself'
+              }
+            ]
+          },
+          {
+            name: 'contact',
+            label: 'Contact Information',
+            icon: 'phone',
+            collapsible: true,
+            fields: [
+              {
+                name: 'email',
+                label: 'Email',
+                widget: 'email',
+                order: 1,
+                enabled: true,
+                required: false,
+                placeholder: 'Enter your email'
+              },
+              {
+                name: 'phone',
+                label: 'Phone',
+                widget: 'phone',
+                order: 2,
+                enabled: true,
+                required: false,
+                placeholder: 'Enter your phone number'
+              }
+            ]
           }
-        }
+        ]
       });
 
-      // Save the profile
-      const savedProfile = await profile.save();
+      logger.info(`Created default personal profile template: ${template._id}`);
+    }
 
-      // Initialize referral code for the new profile
-      try {
-        const { ProfileReferralService } = require('./profile-referral.service');
-        await ProfileReferralService.initializeReferralCode(savedProfile._id);
-        logger.info(`Initialized referral code for profile: ${savedProfile._id}`);
-      } catch (error) {
-        logger.error(`Error initializing referral code for profile ${savedProfile._id}:`, error);
-        // Don't throw the error to avoid disrupting the profile creation process
-      }
+    const templateId = template.toJSON()._id.toString();
 
-      // Add profile to user's profiles array
-      await User.findByIdAndUpdate(userId, {
-        $addToSet: { profiles: savedProfile._id }
-      });
+    // Create the profile
+    const profile = await this.createProfile(userId, templateId);
 
-      // Create a referral record for the profile
-      const ProfileReferralService = require('./profile-referral.service').ProfileReferralService;
-      await ProfileReferralService.getProfileReferral(savedProfile._id);
+    // Initialize referral code for the new profile
+    try {
+      const { ProfileReferralService } = require('./profile-referral.service');
+      await ProfileReferralService.initializeReferralCode(profile._id);
+      logger.info(`Initialized referral code for profile: ${profile._id}`);
+    } catch (error) {
+      logger.error(`Error initializing referral code for profile ${profile._id}:`, error);
+      // Don't throw the error to avoid disrupting the profile creation process
+    }
+
+    // Add profile to user's profiles array
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { profiles: profile._id }
+    });
+
+    // Create a referral record for the profile
+    try {
+      const { ProfileReferralService } = require('./profile-referral.service');
+      await ProfileReferralService.getProfileReferral(profile._id);
+      logger.info(`Created referral record for profile: ${profile._id}`);
 
       // Check if the user was referred (has a valid referral code)
       if (user.referralCode && typeof user.referralCode === 'string' && user.referralCode.trim() !== '') {
@@ -526,29 +497,28 @@ export class ProfileService {
 
           if (referringProfileId) {
             // Process the referral
-            const referralProcessed = await ProfileReferralService.processReferral(savedProfile._id, referringProfileId);
+            const referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
 
             if (referralProcessed) {
-              logger.info(`Successfully processed referral for profile ${savedProfile._id} with referral code ${user.referralCode}`);
+              logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${user.referralCode}`);
             } else {
-              logger.warn(`Failed to process referral for profile ${savedProfile._id} with referral code ${user.referralCode}`);
+              logger.warn(`Failed to process referral for profile ${profile._id} with referral code ${user.referralCode}`);
             }
           } else {
             logger.info(`Referral code ${user.referralCode} is invalid or not found, skipping referral processing`);
           }
         } catch (referralError) {
-          logger.error(`Error processing referral for profile ${savedProfile._id}:`, referralError);
+          logger.error(`Error processing referral for profile ${profile._id}:`, referralError);
           // Don't throw the error to avoid disrupting the profile creation process
         }
       } else {
         logger.info(`No valid referral code found for user ${userId}, skipping referral processing`);
       }
-
-      logger.info(`Default profile created successfully for user ${userId}: ${savedProfile._id}`);
-      return savedProfile;
     } catch (error) {
-      logger.error(`Error creating default profile for user ${userId}:`, error);
-      throw error;
+      logger.error(`Error creating referral record for profile ${profile._id}:`, error);
+      // Don't throw the error to avoid disrupting the profile creation process
     }
+
+    return profile;
   }
 }

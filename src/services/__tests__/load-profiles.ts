@@ -34,7 +34,7 @@ async function main() {
         Object.entries(profiles).forEach(([key, profile]) => {
             console.log(`\n${key}:`);
             console.log('ID:', profile._id);
-            console.log('Name:', profile.name);
+            console.log('Name:', profile.profileInformation.username);
         });
 
     } catch (error) {
@@ -45,4 +45,4 @@ async function main() {
     }
 }
 
-main(); 
+main();

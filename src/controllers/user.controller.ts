@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { User } from "../models/User";
 import mongoose from "mongoose";
-import { ProfileModel } from "../models/profile.model";
+import { ProfileModel as Profile } from "../models/profile.model";
 
 export class UserControllers {
   /**
@@ -132,7 +132,7 @@ export class UserControllers {
       }
 
       // Get the user's profiles
-      const profiles = await ProfileModel.find({ owner: user._id });
+      const profiles = await Profile.find({ 'profileInformation.creator': user._id });
       const userFromDb = await User.findById(user._id).lean();
       if (!userFromDb) {
         return res
@@ -140,46 +140,53 @@ export class UserControllers {
           .json({ success: false, message: "User not found" });
       }
 
-      // Get MyPts balance for each profile
+      // Get profiles with basic information
       const profilesWithBalance = await Promise.all(
-        profiles.map(async (profile) => {
+        profiles.map(async (profile: any) => {
           try {
-            // Get MyPts balance
-            const myPts = await profile.getMyPts();
+            // Get profile information
+            const profileInfo = profile.profileInformation || {};
+            const profileMyPts = profile.ProfileMypts || { currentBalance: 0, lifetimeMypts: 0 };
 
-            // Get MyPts value information (optional)
-            const valueInfo = await profile.getMyPtsValue('USD');
+            // Default value information
+            const valueInfo = {
+              valuePerPts: 0.024, // Default base value
+              currency: 'USD',
+              symbol: '$',
+              totalValue: profileMyPts.currentBalance * 0.024,
+              formattedValue: `$${(profileMyPts.currentBalance * 0.024).toFixed(2)}`
+            };
 
             return {
               _id: profile._id,
-              name: profile.name,
-              type: (profile as any).type || {
-                category: "unknown",
+              name: profileInfo.title || 'Untitled Profile',
+              type: {
+                category: profile.profileCategory || "unknown",
                 subtype: profile.profileType || "unknown",
               },
-              description: profile.description || "",
-              accessToken: profile.accessToken || "",
+              description: "", // No direct equivalent in new model
+              accessToken: "", // No direct equivalent in new model
               // Include balance information
               balance: {
-                balance: myPts.balance,
-                lifetimeEarned: myPts.lifetimeEarned,
-                lifetimeSpent: myPts.lifetimeSpent,
-                lastTransaction: myPts.lastTransaction,
+                balance: profileMyPts.currentBalance || 0,
+                lifetimeEarned: profileMyPts.lifetimeMypts || 0,
+                lifetimeSpent: 0, // Not available in new model
+                lastTransaction: null, // Not available in new model
                 value: valueInfo
               }
             };
           } catch (error) {
-            console.error(`Error getting MyPts balance for profile ${profile._id}:`, error);
-            // Return profile without balance if there's an error
+            console.error(`Error getting profile info for profile ${profile._id}:`, error);
+            // Return profile with minimal information if there's an error
             return {
               _id: profile._id,
-              name: profile.name,
-              type: (profile as any).type || {
-                category: "unknown",
+              name: profile.profileInformation?.title || 'Untitled Profile',
+              type: {
+                category: profile.profileCategory || "unknown",
                 subtype: profile.profileType || "unknown",
               },
-              description: profile.description || "",
-              accessToken: profile.accessToken || ""
+              description: "",
+              accessToken: ""
             };
           }
         })

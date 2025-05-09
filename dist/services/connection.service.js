@@ -58,19 +58,19 @@ class ConnectionService {
             if (shouldAutoAccept) {
                 await this.updateProfileConnections(toProfileId, fromUserId, connectionType, 'add');
                 // Track the engagement
-                await this.analyticsService.trackEngagement(toProfileId, profile.owner.toString(), fromUserId, 'connect', { connectionType, source: details.source });
+                await this.analyticsService.trackEngagement(toProfileId, profile.profileInformation.creator.toString(), fromUserId, 'connect', { connectionType, source: details.source });
                 // Send notification for auto-accepted connection
                 await this.notificationService.createNotification({
                     type: 'CONNECTION_ACCEPTED',
                     recipient: fromUserId,
-                    sender: profile.owner instanceof mongoose_1.default.Types.ObjectId ? profile.owner : new mongoose_1.default.Types.ObjectId(profile.owner),
+                    sender: profile.profileInformation.creator instanceof mongoose_1.default.Types.ObjectId ? profile.profileInformation.creator : new mongoose_1.default.Types.ObjectId(profile.profileInformation.creator),
                     reference: {
                         type: 'connection',
                         id: connection._id
                     },
                     metadata: {
                         connectionType,
-                        profileName: profile.name,
+                        profileName: profile.profileInformation.username,
                         source: details.source
                     }
                 });
@@ -79,7 +79,7 @@ class ConnectionService {
                 // Send connection request notification
                 await this.notificationService.createNotification({
                     type: 'CONNECTION_REQUEST',
-                    recipient: profile.owner,
+                    recipient: profile.profileInformation.creator,
                     sender: new mongoose_1.default.Types.ObjectId(fromUserId),
                     reference: {
                         type: 'connection',

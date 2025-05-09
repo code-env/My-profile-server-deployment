@@ -156,11 +156,13 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
       await myPts.save();
       console.log('[WEBHOOK DEBUG] Updated MyPts balance to:', myPts.balance);
 
-      // Update the profile's myPtsBalance field to match the MyPts balance
+      // Update the profile's myPtsBalance field and ProfileMypts fields to match the MyPts balance
       await ProfileModel.findByIdAndUpdate(profile._id, {
-        myPtsBalance: myPts.balance
+        myPtsBalance: myPts.balance,
+        'ProfileMypts.currentBalance': myPts.balance,
+        'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
       });
-      console.log('[WEBHOOK DEBUG] Updated profile myPtsBalance to:', myPts.balance);
+      console.log('[WEBHOOK DEBUG] Updated profile myPtsBalance and ProfileMypts to:', myPts.balance);
 
       // Move MyPts from holding to circulation
       const hub = await myPtsHubService.getHubState();
@@ -295,13 +297,16 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   myPts.lastTransaction = new Date();
   await myPts.save();
 
-  // Update the profile's myPtsBalance field to match the MyPts balance
+  // Update the profile's myPtsBalance field and ProfileMypts fields to match the MyPts balance
   await ProfileModel.findByIdAndUpdate(profile._id, {
-    myPtsBalance: myPts.balance
+    myPtsBalance: myPts.balance,
+    'ProfileMypts.currentBalance': myPts.balance,
+    'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
   });
-  logger.info('Updated profile myPtsBalance', {
+  logger.info('Updated profile myPtsBalance and ProfileMypts', {
     profileId: profile._id.toString(),
-    myPtsBalance: myPts.balance
+    myPtsBalance: myPts.balance,
+    lifetimeMypts: myPts.lifetimeEarned
   });
 
   // Create transaction record

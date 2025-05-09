@@ -19,14 +19,30 @@ export const getMyPtsBalance = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Profile not authenticated' });
     }
 
-    const profile = req.profile as unknown as IProfile;
-    const myPts = await profile.getMyPts();
+    const profile = req.profile as any;
+
+    // Get MyPts directly from the model instead of using the profile method
+    const myPts = await MyPtsModel.findOne({ profileId: profile._id }) ||
+      await MyPtsModel.create({
+        profileId: profile._id,
+        balance: profile.ProfileMypts?.currentBalance || 0,
+        lifetimeEarned: profile.ProfileMypts?.lifetimeMypts || 0,
+        lifetimeSpent: 0,
+        lastTransaction: new Date()
+      });
 
     // Get currency from query parameter, default to USD
     const currency = req.query.currency as string || 'USD';
 
-    // Get value information
-    const valueInfo = await profile.getMyPtsValue(currency);
+    // Create value information object
+    const valueInfo = {
+      balance: myPts.balance,
+      valuePerPts: 0.024, // Default base value
+      currency: currency,
+      symbol: currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency,
+      totalValue: myPts.balance * 0.024,
+      formattedValue: `${currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency}${(myPts.balance * 0.024).toFixed(2)}`
+    };
 
     return res.status(200).json({
       success: true,
@@ -47,6 +63,76 @@ export const getMyPtsBalance = async (req: Request, res: Response) => {
   } catch (error: any) {
     logger.error(`Error getting MyPts balance: ${error.message}`, { error });
     return res.status(500).json({ success: false, message: 'Failed to get MyPts balance' });
+  }
+};
+
+/**
+ * Force refresh MyPts balance for the authenticated profile
+ * This is useful after a payment to ensure the balance is up-to-date
+ */
+export const refreshMyPtsBalance = async (req: Request, res: Response) => {
+  try {
+    if (!req.profile) {
+      return res.status(401).json({ success: false, message: 'Profile not authenticated' });
+    }
+
+    const profile = req.profile as IProfile;
+    const profileId = profile._id as unknown as mongoose.Types.ObjectId;
+    logger.info(`Force refreshing MyPts balance for profile: ${profileId}`);
+
+    // Get the latest transaction for this profile
+    const latestTransaction = await MyPtsTransactionModel.findOne({
+      profileId: profileId.toString()
+    }).sort({ createdAt: -1 });
+
+    // Get MyPts directly from the model
+    const myPts = await MyPtsModel.findOne({ profileId: profileId.toString() });
+
+    if (!myPts) {
+      logger.error(`MyPts record not found for profile: ${profileId}`);
+      return res.status(404).json({ success: false, message: 'MyPts record not found' });
+    }
+
+    // Get currency from query parameter, default to USD
+    const currency = req.query.currency as string || 'USD';
+
+    // Get the current value information
+    const valueInfo = await profile.getMyPtsValue(currency);
+
+    // Update both the profile's myPtsBalance field and ProfileMypts.currentBalance to match the MyPts balance
+    await ProfileModel.findByIdAndUpdate(profileId, {
+      myPtsBalance: myPts.balance,
+      'ProfileMypts.currentBalance': myPts.balance,
+      'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
+    });
+
+    logger.info(`Refreshed MyPts balance for profile: ${profileId}`, {
+      balance: myPts.balance,
+      latestTransactionId: latestTransaction?._id,
+      latestTransactionStatus: latestTransaction?.status
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        balance: myPts.balance,
+        lifetimeEarned: myPts.lifetimeEarned,
+        lifetimeSpent: myPts.lifetimeSpent,
+        lastTransaction: myPts.lastTransaction,
+        latestTransactionId: latestTransaction?._id,
+        latestTransactionStatus: latestTransaction?.status,
+        value: {
+          valuePerMyPt: valueInfo.valuePerPts,
+          currency: valueInfo.currency,
+          symbol: valueInfo.symbol,
+          totalValue: valueInfo.totalValue,
+          formattedValue: valueInfo.formattedValue
+        }
+      }
+    });
+  } catch (error: any) {
+    logger.error(`Error refreshing MyPts balance: ${error.message}`, { error });
+    return res.status(500).json({ success: false, message: 'Failed to refresh MyPts balance' });
   }
 };
 
@@ -355,6 +441,13 @@ export const buyMyPts = async (req: Request, res: Response) => {
           myPts.lastTransaction = new Date();
           await myPts.save();
 
+          // Also update the profile document
+          await ProfileModel.findByIdAndUpdate(profile._id, {
+            myPtsBalance: myPts.balance,
+            'ProfileMypts.currentBalance': myPts.balance,
+            'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
+          });
+
           // Notify the user of the completed transaction
           try {
             console.log('[DIRECT_PURCHASE] About to call notifyUserOfCompletedTransaction for transaction:', transaction._id.toString());
@@ -421,7 +514,7 @@ export const sellMyPts = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: 'Profile not authenticated' });
     }
 
-    const profile = req.profile as unknown as IProfile;
+    const profile = req.profile as any;
     const { amount, paymentMethod, accountDetails } = req.body;
 
     if (!amount || amount <= 0) {
@@ -469,14 +562,28 @@ export const sellMyPts = async (req: Request, res: Response) => {
       }
     }
 
-    const myPts = await profile.getMyPts();
+    // Get MyPts directly from the model
+    const myPts = await MyPtsModel.findOne({ profileId: profile._id }) ||
+      await MyPtsModel.create({
+        profileId: profile._id,
+        balance: profile.ProfileMypts?.currentBalance || 0,
+        lifetimeEarned: profile.ProfileMypts?.lifetimeMypts || 0,
+        lifetimeSpent: 0,
+        lastTransaction: new Date()
+      });
 
     if (myPts.balance < amount) {
       return res.status(400).json({ success: false, message: 'Insufficient MyPts balance' });
     }
 
-    // Get the value of MyPts in the default currency
-    const valueInfo = await profile.getMyPtsValue(stripeConfig.currency.toUpperCase());
+    // Create value information object for the default currency
+    const valueInfo = {
+      valuePerPts: 0.024, // Default base value
+      currency: stripeConfig.currency.toUpperCase(),
+      symbol: stripeConfig.currency.toUpperCase() === 'USD' ? '$' : stripeConfig.currency.toUpperCase() === 'EUR' ? '€' : stripeConfig.currency.toUpperCase(),
+      totalValue: myPts.balance * 0.024,
+      formattedValue: `${stripeConfig.currency.toUpperCase() === 'USD' ? '$' : stripeConfig.currency.toUpperCase() === 'EUR' ? '€' : stripeConfig.currency.toUpperCase()}${(myPts.balance * 0.024).toFixed(2)}`
+    };
 
     // Calculate the amount in cents for Stripe
     const amountInCents = stripeService.convertMyPtsToCents(amount, valueInfo.valuePerPts);
@@ -857,7 +964,7 @@ export const rejectSellTransaction = async (req: Request, res: Response) => {
       const notificationService = new NotificationService();
 
       await notificationService.createNotification({
-        recipient: profile.owner,
+        recipient: profile.profileInformation?.creator,
         type: 'system_notification',
         title: 'MyPts Sale Declined',
         message: `We regret to inform you that your sale request for ${transaction.metadata?.requestedAmount || Math.abs(transaction.amount)} MyPts has been declined.${reason ? ` Reason: ${reason}.` : ''} Please visit your dashboard for more details or contact our support team if you need assistance.`,
@@ -879,7 +986,7 @@ export const rejectSellTransaction = async (req: Request, res: Response) => {
 
       // Send email notification if possible
       try {
-        const user = await mongoose.model('User').findById(profile.owner);
+        const user = await mongoose.model('User').findById(profile.profileInformation?.creator);
         if (user && user.email) {
           const emailSubject = 'MyPts Sale Request Declined';
 
@@ -1196,7 +1303,14 @@ export const processSellTransaction = async (req: Request, res: Response) => {
 
     try {
       // Get the MyPts document for the profile
-      const myPts = await profile.getMyPts();
+      const myPts = await MyPtsModel.findOne({ profileId: profile._id }) ||
+        await MyPtsModel.create({
+          profileId: profile._id,
+          balance: profile.ProfileMypts?.currentBalance || 0,
+          lifetimeEarned: profile.ProfileMypts?.lifetimeMypts || 0,
+          lifetimeSpent: 0,
+          lastTransaction: new Date()
+        });
 
       // Get the requested amount from metadata
       const requestedAmount = transaction.metadata?.requestedAmount || Math.abs(transaction.amount);

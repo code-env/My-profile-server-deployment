@@ -302,4 +302,6 @@ export interface IProfile extends Document, IProfileMethods {
   },
   // MyPts related fields
   myPtsBalance?: number; // Quick access to points balance
+  // Link to new profile model
+  newProfileId?: mongoose.Types.ObjectId; // Reference to the new profile model
 }

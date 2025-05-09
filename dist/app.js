@@ -75,6 +75,7 @@ const env_validator_1 = require("./utils/env-validator");
 const license_middleware_1 = require("./middleware/license.middleware");
 const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"));
 const initialize_my_pts_hub_1 = require("./startup/initialize-my-pts-hub");
+const initialize_profile_templates_1 = require("./startup/initialize-profile-templates");
 const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
 const cleanupTokens_1 = require("./jobs/cleanupTokens");
 const scalableTokenCleanup_1 = require("./jobs/scalableTokenCleanup");
@@ -221,7 +222,15 @@ class AppServer {
             origin: cors_config_1.whitelistOrigins,
             credentials: true,
             methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            allowedHeaders: ["Content-Type", "Authorization", "Cookie", "x-profile-token"],
+            allowedHeaders: [
+                "Content-Type",
+                "Authorization",
+                "Cookie",
+                "x-profile-token",
+                "x-user-role",
+                "x-token-verified",
+                "x-user-is-admin"
+            ],
             exposedHeaders: ["Content-Range", "X-Content-Range"],
             maxAge: 600,
         }));
@@ -440,7 +449,14 @@ class AppServer {
             await whatsapp_service_1.default.initialize().catch((error) => {
                 log.warn("WhatsApp service initialization failed: " + error.message);
             });
-            await this.initializeDatabase();
+            // Initialize profile templates
+            try {
+                await (0, initialize_profile_templates_1.initializeProfileTemplates)();
+                log.success("Profile templates initialized successfully");
+            }
+            catch (error) {
+                log.warn("Profile templates initialization failed: " + error.message);
+            }
             // Start WhatsApp service with retries
             let attempts = 0;
             const initWhatsApp = async () => {

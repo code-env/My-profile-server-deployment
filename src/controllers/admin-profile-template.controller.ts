@@ -2,10 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import createHttpError from 'http-errors';
 import { AdminProfileService, TemplateInput, TemplateUpdate } from '../services/admin-profile-template.service';
 
-import { 
+import {
   ProfileCategory as ModelProfileCategory,
   ProfileType as ModelProfileType,
-  PROFILE_TYPE_ENUM 
+  PROFILE_TYPE_ENUM
 } from '../models/profiles/profile-template';
 
 const service = new AdminProfileService();
@@ -62,12 +62,12 @@ export const listTemplates = async (
       category: req.query.category as ProfileCategory | undefined,
       type: req.query.type as ProfileType | undefined
     };
-    
+
     // Validate query params against enums if provided
     if (filter.category && !['individual', 'accessory', 'group'].includes(filter.category)) {
       throw createHttpError(400, 'Invalid category value');
     }
-    
+
     const items = await service.listTemplates(filter);
     res.json(items);
   } catch (err) {

@@ -61,7 +61,7 @@ export const authenticateProfileToken = async (
     }
 
     // Verify that the token matches the one stored in the profile
-    if (profile.accessToken !== token) {
+    if (profile.profileInformation?.accessToken !== token) {
       logger.warn(`Profile token authentication failed: Token mismatch for profile ${decodedToken.profileId}`);
       return res.status(401).json({
         status: 'error',
@@ -70,7 +70,7 @@ export const authenticateProfileToken = async (
     }
 
     // Attach profile to request for later use
-    req.profile = profile;
+    req.profile = profile as any;
 
     logger.info(`Profile authenticated via access token: ${profile._id}`);
     next();
@@ -124,7 +124,7 @@ export const optionalProfileTokenAuth = async (
 
     if (profile) {
       // Attach profile to request for later use
-      req.profile = profile;
+      req.profile = profile as any;
       logger.debug(`Profile optionally authenticated via access token: ${profile._id}`);
     }
 
