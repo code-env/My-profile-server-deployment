@@ -51,9 +51,9 @@ export class SharingService {
       const profileUrl = `${process.env.FRONTEND_URL}/p/${profile.profileInformation?.profileLink || profile._id}`;
 
       // QR Code options
-      const qrOptions: QRCode.QRCodeToBufferOptions = {
-        errorCorrectionLevel: 'H',
-        type: 'png',
+      const qrOptions = {
+        errorCorrectionLevel: 'H' as const,
+        type: 'png' as const,
         margin: 1,
         color: {
           dark: color,

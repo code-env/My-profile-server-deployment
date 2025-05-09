@@ -49,8 +49,8 @@ class EmailService {
 
   // Verify email connection on service initialization
   static {
-    this.transporter
-      .verify()
+    // Use a custom verification method instead of the built-in verify()
+    this.verifyConnection()
       .then(() => {
         const { log } = require('../utils/console-art');
         const chalk = require('chalk');
@@ -66,6 +66,20 @@ class EmailService {
         logger.error("Email Service Connection Failed:", error);
         log.error("✉️ Email Service Connection Failed: " + (error instanceof Error ? error.message : String(error)));
       });
+  }
+
+  // Custom verification method
+  private static async verifyConnection(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      // @ts-ignore - Using internal verify method
+      this.transporter.verify((error: Error | null) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(true);
+        }
+      });
+    });
   }
 
   public static async loadAndCompileTemplate(templateName: string): Promise<HandlebarsTemplateDelegate> {

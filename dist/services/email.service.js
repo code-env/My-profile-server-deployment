@@ -36,6 +36,20 @@ handlebars_1.default.registerHelper('formatDate', function (timestamp) {
     });
 });
 class EmailService {
+    // Custom verification method
+    static async verifyConnection() {
+        return new Promise((resolve, reject) => {
+            // @ts-ignore - Using internal verify method
+            this.transporter.verify((error) => {
+                if (error) {
+                    reject(error);
+                }
+                else {
+                    resolve(true);
+                }
+            });
+        });
+    }
     static async loadAndCompileTemplate(templateName) {
         logger_1.logger.debug(`loadAndCompileTemplate called for: ${templateName}`);
         logger_1.logger.debug(`__dirname: ${__dirname}`);
@@ -217,8 +231,8 @@ EmailService.transporter = nodemailer_1.default.createTransport({
 EmailService.OTP_EXPIRY_MINUTES = 15;
 // Verify email connection on service initialization
 (() => {
-    _a.transporter
-        .verify()
+    // Use a custom verification method instead of the built-in verify()
+    _a.verifyConnection()
         .then(() => {
         const { log } = require('../utils/console-art');
         const chalk = require('chalk');

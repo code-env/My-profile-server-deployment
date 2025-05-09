@@ -175,6 +175,10 @@ declare module 'socket.io-client' {
 declare module 'nodemailer' {
   export interface Transport {
     sendMail(mailOptions: Mail.Options): Promise<any>;
+    // Add verify method with callback style
+    verify(callback: (error: Error | null, success: boolean) => void): void;
+    // Add verify method with promise style (not actually implemented but in our custom code)
+    verify(): Promise<boolean>;
   }
 
   export function createTransport(transport: any, defaults?: any): Transport;
@@ -218,11 +222,17 @@ declare module 'qrcode' {
     };
   }
 
+  // Add the specific type used in the sharing service
+  export interface QRCodeToBufferOptions extends QRCodeOptions {
+    type?: 'png' | 'svg' | 'utf8';
+  }
+
   export function toCanvas(canvasElement: any, text: string, options?: QRCodeOptions): Promise<any>;
   export function toDataURL(text: string, options?: QRCodeOptions): Promise<string>;
   export function toString(text: string, options?: QRCodeOptions): Promise<string>;
   export function toFile(path: string, text: string, options?: QRCodeOptions): Promise<any>;
   export function toFileStream(stream: any, text: string, options?: QRCodeOptions): Promise<any>;
+  export function toBuffer(text: string, options?: QRCodeToBufferOptions): Promise<Buffer>;
 }
 
 // speakeasy

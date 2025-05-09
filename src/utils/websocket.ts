@@ -1,6 +1,6 @@
 // utils/websocket.ts
 import { Server as HTTPServer } from 'http';
-import { WebSocket, WebSocketServer } from 'ws';
+import WebSocket from 'ws';
 import { Server as SocketIOServer } from 'socket.io';
 import { DetailedRequestInfo } from './requestInfo';
 import { logger } from './logger';
@@ -9,7 +9,7 @@ import { InteractionService } from '../services/interaction.service';
 import { Interaction } from '../models/Interaction';
 
 // Existing WebSocket for logs
-let wss: WebSocketServer;
+let wss: WebSocket.Server;
 const clients = new Set<WebSocket>();
 
 // Socket.IO for real-time interactions
@@ -18,7 +18,7 @@ let interactionService: InteractionService;
 
 export const initializeWebSocket = (server: HTTPServer, app: Express) => {
   // Initialize WebSocketServer for logs (keep existing functionality)
-  wss = new WebSocketServer({
+  wss = new WebSocket.Server({
     server,
     path: '/ws/logs'
   });
@@ -38,7 +38,7 @@ export const initializeWebSocket = (server: HTTPServer, app: Express) => {
   interactionService.setSocketServer(io);
 
   // Existing WS connection handling for logs
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws: WebSocket) => {
     clients.add(ws);
     logger.info('New WebSocket client connected for logs');
 
@@ -47,7 +47,7 @@ export const initializeWebSocket = (server: HTTPServer, app: Express) => {
       logger.info('WebSocket client disconnected');
     });
 
-    ws.on('error', (error) => {
+    ws.on('error', (error: Error) => {
       logger.error('WebSocket error:', error);
       clients.delete(ws);
     });

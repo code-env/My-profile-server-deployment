@@ -1,7 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getInteractionService = exports.getIO = exports.broadcastLog = exports.initializeWebSocket = void 0;
-const ws_1 = require("ws");
+const ws_1 = __importDefault(require("ws"));
 const socket_io_1 = require("socket.io");
 const logger_1 = require("./logger");
 const interaction_service_1 = require("../services/interaction.service");
@@ -14,7 +17,7 @@ let io;
 let interactionService;
 const initializeWebSocket = (server, app) => {
     // Initialize WebSocketServer for logs (keep existing functionality)
-    wss = new ws_1.WebSocketServer({
+    wss = new ws_1.default.Server({
         server,
         path: '/ws/logs'
     });
@@ -53,7 +56,7 @@ exports.initializeWebSocket = initializeWebSocket;
 const broadcastLog = (logEntry) => {
     const message = JSON.stringify(logEntry);
     clients.forEach((client) => {
-        if (client.readyState === ws_1.WebSocket.OPEN) {
+        if (client.readyState === ws_1.default.OPEN) {
             try {
                 client.send(message);
             }
