@@ -82,6 +82,7 @@ const scalableTokenCleanup_1 = require("./jobs/scalableTokenCleanup");
 // Import passport configuration
 require("./config/passport");
 const license_service_1 = require("./services/license.service");
+const cookie_config_middleware_1 = require("./middleware/cookie-config.middleware");
 /**
  * @class AppServer
  * @description Core server application class that manages the Express application lifecycle,
@@ -219,7 +220,19 @@ class AppServer {
             xssFilter: true,
         }));
         this.app.use((0, cors_1.default)({
-            origin: cors_config_1.whitelistOrigins,
+            origin: function (origin, callback) {
+                // Allow requests with no origin (like mobile apps, curl, etc)
+                if (!origin)
+                    return callback(null, true);
+                // Check if origin is in whitelist
+                if (cors_config_1.whitelistOrigins.indexOf(origin) !== -1 || cors_config_1.whitelistOrigins.includes('*')) {
+                    return callback(null, true);
+                }
+                else {
+                    logger_1.logger.warn(`CORS blocked request from origin: ${origin}`);
+                    return callback(null, false);
+                }
+            },
             credentials: true,
             methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allowedHeaders: [
@@ -229,9 +242,10 @@ class AppServer {
                 "x-profile-token",
                 "x-user-role",
                 "x-token-verified",
-                "x-user-is-admin"
+                "x-user-is-admin",
+                "x-access-token"
             ],
-            exposedHeaders: ["Content-Range", "X-Content-Range"],
+            exposedHeaders: ["Content-Range", "X-Content-Range", "Set-Cookie"],
             maxAge: 600,
         }));
         // Add advanced tracking middleware after security headers but before routes
@@ -256,6 +270,8 @@ class AppServer {
         });
         this.app.use(express_1.default.urlencoded({ extended: true, limit: "10mb" }));
         this.app.use((0, cookie_parser_1.default)(config_1.config.COOKIE_SECRET));
+        // Add cookie configuration middleware to ensure proper SameSite and Secure settings
+        this.app.use(cookie_config_middleware_1.configureCookiesMiddleware);
         this.app.use((0, compression_1.default)());
         this.app.use(rate_limiter_middleware_1.rateLimiterMiddleware);
         // Serve static files from public directory

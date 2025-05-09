@@ -1,4 +1,3 @@
-"use strict";
 // import { Request, Response, NextFunction } from 'express';
 // import rateLimit from 'express-rate-limit';
 // import RedisStore from 'rate-limit-redis';

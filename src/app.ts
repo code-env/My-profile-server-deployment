@@ -82,6 +82,7 @@ import { licenseConfig } from "./config/license.config";
 // Import passport configuration
 import "./config/passport";
 import { licenseService } from "./services/license.service";
+import { configureCookiesMiddleware } from "./middleware/cookie-config.middleware";
 
 /**
  * @class AppServer
@@ -288,6 +289,10 @@ export class AppServer {
 
     this.app.use(express.urlencoded({ extended: true, limit: "10mb" }));
     this.app.use(cookieParser(config.COOKIE_SECRET));
+
+    // Add cookie configuration middleware to ensure proper SameSite and Secure settings
+    this.app.use(configureCookiesMiddleware);
+
     this.app.use(compression());
     this.app.use(rateLimiterMiddleware);
 

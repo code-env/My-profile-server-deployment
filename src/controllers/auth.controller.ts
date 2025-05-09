@@ -365,23 +365,22 @@ export class AuthController {
       }
 
       // Set tokens in HTTP-only cookies with proper settings
+      // Note: The cookie-config middleware will handle SameSite and Secure settings in production
       res.cookie("accesstoken", tokens.accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Use 'none' in production for cross-site requests
         path: "/",
         maxAge: 1 * 60 * 60 * 1000, // 1 hour
-        domain: process.env.NODE_ENV === "production" ? process.env.COOKIE_DOMAIN : undefined
       });
 
       res.cookie("refreshtoken", tokens.refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Use 'none' in production for cross-site requests
         path: "/",
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-        domain: process.env.NODE_ENV === "production" ? process.env.COOKIE_DOMAIN : undefined
       });
+
+      // Also include tokens in the response for the frontend to store in localStorage
+      // This provides a fallback mechanism if cookies don't work properly
+      console.log("Setting tokens in response for localStorage backup");
       console.log(user);
 
       res.status(200).json({
@@ -390,6 +389,10 @@ export class AuthController {
           id: result.userId,
         },
         message: "Login successful",
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken
+        }
       });
 
 

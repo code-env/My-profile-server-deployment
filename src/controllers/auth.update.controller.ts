@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { User } from '../models/User';
 import { logger } from '../utils/logger';
+import { AuthService } from '../services/auth.service';
 
 /**
  * Controller for handling user profile updates
@@ -21,7 +22,7 @@ export class AuthUpdateController {
       }
 
       const { dateOfBirth, countryOfResidence } = req.body;
-      
+
       // Validate that at least one field is provided
       if (!dateOfBirth && !countryOfResidence) {
         return res.status(400).json({
@@ -32,7 +33,7 @@ export class AuthUpdateController {
 
       // Find the user by ID
       const userToUpdate = await User.findById(user._id);
-      
+
       if (!userToUpdate) {
         return res.status(404).json({
           success: false,
@@ -44,7 +45,7 @@ export class AuthUpdateController {
       if (dateOfBirth) {
         userToUpdate.dateOfBirth = new Date(dateOfBirth);
       }
-      
+
       if (countryOfResidence) {
         userToUpdate.countryOfResidence = countryOfResidence;
       }
@@ -54,7 +55,24 @@ export class AuthUpdateController {
 
       logger.info(`User ${user._id} updated profile information`);
 
-      // Return success response
+      // Generate fresh tokens
+      const tokens = AuthService.generateTokens(userToUpdate._id.toString(), userToUpdate.email);
+
+      // Set tokens in HTTP-only cookies
+      // The cookie-config middleware will handle SameSite and Secure settings in production
+      res.cookie("accesstoken", tokens.accessToken, {
+        httpOnly: true,
+        path: "/",
+        maxAge: 1 * 60 * 60 * 1000, // 1 hour
+      });
+
+      res.cookie("refreshtoken", tokens.refreshToken, {
+        httpOnly: true,
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+
+      // Return success response with tokens
       return res.status(200).json({
         success: true,
         message: 'Profile updated successfully',
@@ -66,6 +84,10 @@ export class AuthUpdateController {
           dateOfBirth: userToUpdate.dateOfBirth,
           countryOfResidence: userToUpdate.countryOfResidence,
           profileImage: userToUpdate.profileImage
+        },
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken
         }
       });
     } catch (error) {
