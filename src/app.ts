@@ -232,7 +232,18 @@ export class AppServer {
 
     this.app.use(
       cors({
-        origin: whitelistOrigins,
+        origin: function(origin, callback) {
+          // Allow requests with no origin (like mobile apps, curl, etc)
+          if (!origin) return callback(null, true);
+
+          // Check if origin is in whitelist
+          if (whitelistOrigins.indexOf(origin) !== -1 || whitelistOrigins.includes('*')) {
+            return callback(null, true);
+          } else {
+            logger.warn(`CORS blocked request from origin: ${origin}`);
+            return callback(null, false);
+          }
+        },
         credentials: true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allowedHeaders: [
@@ -242,9 +253,10 @@ export class AppServer {
           "x-profile-token",
           "x-user-role",
           "x-token-verified",
-          "x-user-is-admin"
+          "x-user-is-admin",
+          "x-access-token"
         ],
-        exposedHeaders: ["Content-Range", "X-Content-Range"],
+        exposedHeaders: ["Content-Range", "X-Content-Range", "Set-Cookie"],
         maxAge: 600,
       })
     );

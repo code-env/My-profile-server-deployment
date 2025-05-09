@@ -364,21 +364,23 @@ export class AuthController {
         await userDoc.save();
       }
 
-      // Set tokens in HTTP-only cookies
+      // Set tokens in HTTP-only cookies with proper settings
       res.cookie("accesstoken", tokens.accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Use 'none' in production for cross-site requests
         path: "/",
         maxAge: 1 * 60 * 60 * 1000, // 1 hour
+        domain: process.env.NODE_ENV === "production" ? process.env.COOKIE_DOMAIN : undefined
       });
 
       res.cookie("refreshtoken", tokens.refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // Use 'none' in production for cross-site requests
         path: "/",
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        domain: process.env.NODE_ENV === "production" ? process.env.COOKIE_DOMAIN : undefined
       });
       console.log(user);
 

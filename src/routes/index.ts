@@ -94,9 +94,16 @@ export const setupRoutes = (app: Application): void => {
 
   app.use(
     session({
-      secret: "some secret, here top secret",
+      secret: process.env.COOKIE_SECRET || "some secret, here top secret",
       resave: false,
-      saveUninitialized: true,
+      saveUninitialized: false, // Changed to false to prevent creating empty sessions
+      cookie: {
+        secure: process.env.NODE_ENV === "production", // Only send cookie over HTTPS in production
+        httpOnly: true, // Prevents JavaScript from reading the cookie
+        sameSite: "lax", // Helps prevent CSRF attacks
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: "/",
+      }
     })
   );
 
