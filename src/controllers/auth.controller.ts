@@ -642,7 +642,112 @@ export class AuthController {
    * ```
    */
  static async verifyOTP(req: Request, res: Response) {
-}
+    try {
+      const { _id, otp, verificationMethod, issue } = req.body;
+      const motive = req.body.motive || "login"; // Default to "login"
+
+      if (!_id || !otp || !verificationMethod) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing required fields: _id, otp, or verificationMethod",
+        });
+      }
+
+      // Call the verifyOTP method
+      const result = await AuthService.verifyOTPResponse(
+        _id,
+        otp,
+        verificationMethod.toLowerCase()
+      );
+
+      if (result.success) {
+        const user = result.user;
+
+        // Handle different verification purposes
+        switch (issue) {
+          case "forgot_username":
+            return res.json({
+              success: true,
+              message: "Username retrieved successfully",
+              username: user?.username
+            });
+
+          case "forgot_email":
+            return res.json({
+              success: true,
+              message: "Email retrieved successfully",
+              email: user?.email
+            });
+
+          case "forgot_password":
+            // For password reset, we still need to let them set a new password
+            return res.json({
+              success: true,
+              message: "OTP verified successfully. You can now reset your password.",
+              email: user?.email
+            });
+
+          case "phone_number_change":
+          case "email_change":
+            // For changes, we verify their identity first, then they can make the change
+            return res.json({
+              success: true,
+              message: "Identity verified successfully. You can now make the requested change.",
+              currentValue: issue === "phone_number_change" ? user?.phoneNumber : user?.email
+            });
+
+          default:
+            // Handle regular login case
+            if (motive === "login") {
+              const tokens = AuthService.generateTokens(_id, user!.email);
+
+              res.cookie("accesstoken", tokens.accessToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                path: "/",
+                maxAge: 1 * 60 * 60 * 1000, // 1 hour
+              });
+
+              res.cookie("refreshtoken", tokens.refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                path: "/",
+                maxAge: 30 * 24 * 60 * 60 * 1000,
+              });
+
+              return res.json({
+                success: true,
+                message: "OTP verified successfully",
+                tokens,
+                user: {
+                  _id: user?._id,
+                  email: user?.email,
+                  username: user?.username,
+                  fullname: user?.fullName,
+                }
+              });
+            }
+
+            return res.json({
+              success: true,
+              message: "OTP verified successfully"
+            });
+        }
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: result.message || "Invalid OTP",
+      });
+    } catch (error) {
+      logger.error("OTP verification error:", error);
+      res.status(400).json({
+        success: false,
+        message: error instanceof Error ? error.message : "Failed to verify OTP",
+      });
+    }
+  }
 
 
 
