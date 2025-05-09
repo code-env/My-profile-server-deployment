@@ -5,7 +5,7 @@
     "lib": ["es2018", "esnext.asynciterable"],
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": false,
+    "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -13,11 +13,8 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "*": ["node_modules/*", "src/types/*"]
-    },
-    "noImplicitAny": false,
-    "allowJs": true,
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+      "*": ["node_modules/*"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/tests", "**/*.test.ts", "**/*.spec.ts"]

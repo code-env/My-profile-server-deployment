@@ -50,7 +50,7 @@ export const emitSocialInteraction = async (
         socket.on('connect', () => {
             console.log('Socket connected with ID:', socket.id);
             console.log('User ID in query:', userId.toString());
-            
+
             const eventData = {
                 type: data.type,
                 profile: data.profile.toString(),
@@ -59,9 +59,9 @@ export const emitSocialInteraction = async (
                 content: data.content
             };
             console.log('Emitting social:interaction event with data:', eventData);
-            
+
             socket.emit('social:interaction', eventData);
-            
+
             setTimeout(() => {
                 console.log('Disconnecting socket...');
                 socket.disconnect();
@@ -69,15 +69,15 @@ export const emitSocialInteraction = async (
             }, 1000);
         });
 
-        socket.on('connect_error', (error) => {
+        socket.on('connect_error', (error: { message: any; }) => {
             console.error('Socket connection error:', error.message);
             console.error('Error details:', error);
             reject(error);
         });
 
-        socket.on('error', (error) => {
+        socket.on('error', (error: any) => {
             console.error('Socket general error:', error);
             reject(error);
         });
     });
-}; 
+};
