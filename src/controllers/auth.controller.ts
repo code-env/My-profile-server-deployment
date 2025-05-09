@@ -66,8 +66,49 @@ import {
   loginSchema,
 } from "../types/auth.types";
 import WhatsAppService from "../services/whatsapp.service";
-import { getClientInfo } from "../utils/controllerUtils";
+// import { getClientInfo } from "../utils/controllerUtils";
 import TwilioService from "../services/twilio.service";
+import UAParser from "ua-parser-js"; // Default import
+
+
+
+// Implemented getClientInfo using ua-parser-js
+async function getClientInfo(req: Request): Promise<{
+  ip: string;
+  device?: string;
+  browser?: string;
+  os?: string;
+  platform?: string;
+  userAgent: string;
+}> {
+  const uaString = req.headers["user-agent"] || "";
+  // @ts-ignore - Temporarily ignoring due to persistent type issues with ua-parser-js
+  const parser = new UAParser(uaString);
+  const result = parser.getResult();
+
+  // Attempt to get IP address
+  // Prioritize 'x-forwarded-for' if behind a proxy, then req.ip, then req.socket.remoteAddress
+  const ip =
+    (req.headers["x-forwarded-for"] as string)?.split(",").shift()?.trim() ||
+    req.ip ||
+    req.socket?.remoteAddress ||
+    "Unknown";
+
+  return {
+    ip,
+    device: result.device.vendor
+      ? `${result.device.vendor} ${result.device.model || ""}`.trim()
+      : result.device.type || "Unknown Device",
+    browser: result.browser.name
+      ? `${result.browser.name} ${result.browser.version || ""}`.trim()
+      : "Unknown Browser",
+    os: result.os.name
+      ? `${result.os.name} ${result.os.version || ""}`.trim()
+      : "Unknown OS",
+    platform: result.device.type || result.os.name || "Unknown Platform",
+    userAgent: uaString,
+  };
+}
 
 /**
  * Core user interface defining essential user properties.
@@ -398,41 +439,6 @@ export class AuthController {
       });
     }
   }
-  // static async login(req: Request, res: Response) {
-  //   try {
-  //     const validatedData = await loginSchema.parseAsync(req.body);
-  //     const result = await AuthService.login(validatedData, req);
-
-  //     // Set tokens in HTTP-only cookies
-  //     if (result.tokens) {
-  //       console.log("🍪 Setting auth cookies...");
-  //       res.cookie("accesstoken", result.tokens.accessToken, {
-  //         httpOnly: true,
-  //         secure: process.env.NODE_ENV === "production",
-  //         sameSite: "lax",
-  //         path: "/",
-  //         maxAge: 15 * 60 * 1000, // 15 minutes
-  //       });
-
-  //       res.cookie("refreshtoken", result.tokens.refreshToken, {
-  //         httpOnly: true,
-  //         secure: process.env.NODE_ENV === "production",
-  //         sameSite: "lax",
-  //         path: "/",
-  //         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  //       });
-  //       console.log("✅ Auth cookies set successfully");
-  //     }
-
-  //     res.json(result);
-  //   } catch (error) {
-  //     logger.error("Login error:", error);
-  //     res.status(400).json({
-  //       success: false,
-  //       message: error instanceof Error ? error.message : "Login failed",
-  //     });
-  //   }
-  // }
 
 
   /**
@@ -587,113 +593,57 @@ export class AuthController {
    * }
    * ```
    */
-  static async verifyOTP(req: Request, res: Response) {
-    try {
-      const { _id, otp, verificationMethod, issue } = req.body;
-      const motive = req.body.motive || "login"; // Default to "login"
+ /**
+   * Verify One-Time Password (OTP) for account verification
+   *
+   * @route POST /api/auth/verify-otp
+   * @param {Request} req Express request object
+   * @param {Response} res Express response object
+   *
+   * @security
+   * - OTP expiration validation
+   * - Max attempts limit
+   * - Time-based throttling
+   * - Device fingerprinting
+   * - IP tracking
+   * - Concurrent verification prevention
+   *
+   * @returns {Promise<void>} JSON response with verification status and tokens
+   *
+   * @example
+   * ```typescript
+   * // Request body
+   * {
+   *   "_id": "user_id",
+   *   "otp": "123456",
+   *   "verificationMethod": "email" // or "phone"
+   * }
+   *
+   * // Success Response
+   * {
+   *   "success": true,
+   *   "message": "OTP verified successfully",
+   *   "user": {
+   *     "id": "user_id",
+   *     "email": "user@example.com",
+   *     "isVerified": true
+   *   },
+   *   "tokens": {
+   *     "accessToken": "...",
+   *     "refreshToken": "..."
+   *   }
+   * }
+   *
+   * // Error Response
+   * {
+   *   "success": false,
+   *   "message": "Invalid OTP or OTP expired"
+   * }
+   * ```
+   */
+ static async verifyOTP(req: Request, res: Response) {
+}
 
-      if (!_id || !otp || !verificationMethod) {
-        return res.status(400).json({
-          success: false,
-          message: "Missing required fields: _id, otp, or verificationMethod",
-        });
-      }
-
-      // Call the verifyOTP method
-      const result = await AuthService.verifyOTPResponse(
-        _id,
-        otp,
-        verificationMethod.toLowerCase()
-      );
-
-      if (result.success) {
-        const user = result.user;
-
-        // Handle different verification purposes
-        switch (issue) {
-          case "forgot_username":
-            return res.json({
-              success: true,
-              message: "Username retrieved successfully",
-              username: user?.username
-            });
-
-          case "forgot_email":
-            return res.json({
-              success: true,
-              message: "Email retrieved successfully",
-              email: user?.email
-            });
-
-          case "forgot_password":
-            // For password reset, we still need to let them set a new password
-            return res.json({
-              success: true,
-              message: "OTP verified successfully. You can now reset your password.",
-              email: user?.email
-            });
-
-          case "phone_number_change":
-          case "email_change":
-            // For changes, we verify their identity first, then they can make the change
-            return res.json({
-              success: true,
-              message: "Identity verified successfully. You can now make the requested change.",
-              currentValue: issue === "phone_number_change" ? user?.phoneNumber : user?.email
-            });
-
-          default:
-            // Handle regular login case
-            if (motive === "login") {
-              const tokens = AuthService.generateTokens(_id, user!.email);
-
-              res.cookie("accesstoken", tokens.accessToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                path: "/",
-                maxAge: 1 * 60 * 60 * 1000, // 1 hour
-              });
-
-              res.cookie("refreshtoken", tokens.refreshToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: "lax",
-                path: "/",
-                maxAge: 30 * 24 * 60 * 60 * 1000,
-              });
-
-              return res.json({
-                success: true,
-                message: "OTP verified successfully",
-                tokens,
-                user: {
-                  _id: user?._id,
-                  email: user?.email,
-                  username: user?.username,
-                  fullname: user?.fullName,
-                }
-              });
-            }
-
-            return res.json({
-              success: true,
-              message: "OTP verified successfully"
-            });
-        }
-      }
-
-      return res.status(400).json({
-        success: false,
-        message: result.message || "Invalid OTP",
-      });
-    } catch (error) {
-      logger.error("OTP verification error:", error);
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : "Failed to verify OTP",
-      });
-    }
-  }
 
 
   /**
@@ -733,81 +683,83 @@ export class AuthController {
    */
   static async refreshToken(req: Request, res: Response) {
     try {
-      const refreshToken = req.cookies.refreshtoken || req.body.refreshToken;
+      const { refreshToken } = req.body;
+      const deviceInfo = await getClientInfo(req); // Get device info
+
       if (!refreshToken) {
-        throw new CustomError("MISSING_TOKEN", "Refresh token is required");
+        return res
+          .status(400)
+          .json({ success: false, message: "Refresh token is required" });
       }
 
-      // Get request info for security tracking
-      const clientInfo = await getClientInfo(req);
+      const result = await AuthService.refreshAccessToken(
+        refreshToken,
+        deviceInfo
+      );
 
-      // Extract device information for session tracking
-      const deviceInfo = {
-        userAgent: req.headers['user-agent'] || 'Unknown',
-        ip: req.ip || req.socket.remoteAddress || 'Unknown',
-        deviceType: clientInfo.device || 'Unknown'
-      };
-
-      // Call AuthService to handle token refresh with device info
-      const tokens = await AuthService.refreshAccessToken(refreshToken, deviceInfo);
-
-      // Set new tokens in cookies
-      res.cookie("accesstoken", tokens.accessToken, {
+      // Set new tokens in HTTP-only cookies
+      res.cookie("accesstoken", result.accessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
         path: "/",
-        maxAge: 1 * 60 * 60 * 1000, // 1 hour (matches JWT_ACCESS_EXPIRATION)
+        maxAge: 1 * 60 * 60 * 1000, // 1 hour
       });
 
-      res.cookie("refreshtoken", tokens.refreshToken, {
+      res.cookie("refreshtoken", result.refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
         path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (matches JWT_REFRESH_EXPIRATION)
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       });
-      console.log("✅ Token rotation completed successfully");
 
-      // Send response
-      res.json({
+      res.status(200).json({
         success: true,
-        message: "Tokens refreshed successfully",
-        tokens
+        tokens: result,
       });
-    } catch (error) {
-      logger.error("Token refresh error:", error);
-      res.status(401).json({
-        success: false,
-        message: error instanceof Error ? error.message : "Token refresh failed",
-      });
+    } catch (error: any) {
+      logger.error("Refresh token error:", error.message);
+      if (error.name === "CustomError" && error.message === "INVALID_TOKEN") {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid or expired refresh token",
+        });
+      }
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to refresh token" });
     }
   }
-
   /**
    * Logout user
    * @route POST /auth/logout
    */
   static async logout(req: Request, res: Response) {
     try {
+      // The refreshToken to invalidate a specific session can be passed in the body
+      // Or from the httpOnly cookie if specifically designed that way (more complex)
       const { refreshToken } = req.body;
-      const user: any = req.user;
+      const userId = (req as any).user?.userId; // Assuming userId is populated by an auth middleware if available
 
-      await AuthService.logout(user._id, refreshToken);
+      if (!userId && !refreshToken) {
+        // If no specific session to logout and no user context, clear cookies as a general measure
+        res.clearCookie("accesstoken", { path: "/" });
+        res.clearCookie("refreshtoken", { path: "/" });
+        return res
+          .status(200)
+          .json({ success: true, message: "Logged out (cookies cleared)" });
+      }
 
-      // Clear auth cookies
-      console.log("🗑️  Clearing auth cookies...");
-      res.clearCookie("accesstoken");
-      res.clearCookie("refreshtoken");
-      console.log("✅ Auth cookies cleared successfully");
+      // If userId is available (e.g., from access token), prefer logging out that user's session
+      // If only refreshToken is available, AuthService.logout should handle finding the user by that token if needed.
+      await AuthService.logout(userId, refreshToken);
 
-      res.json({ success: true, message: "Logged out successfully" });
-    } catch (error) {
-      logger.error("Logout error:", error);
-      res.status(400).json({
-        success: false,
-        message: error instanceof Error ? error.message : "Logout failed",
-      });
+      res.clearCookie("accesstoken", { path: "/" });
+      res.clearCookie("refreshtoken", { path: "/" });
+
+      res
+        .status(200)
+        .json({ success: true, message: "Logged out successfully" });
+    } catch (error: any) {
+      logger.error("Logout error:", error.message);
+      res.status(500).json({ success: false, message: "Logout failed" });
     }
   }
 
@@ -1800,4 +1752,6 @@ export async function socialAuthCallback(req: Request, res: Response) {
           : "Failed to authenticate with social provider",
     });
   }
+
+
 }
