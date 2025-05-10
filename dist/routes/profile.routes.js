@@ -27,4 +27,6 @@ router.get('/p/:profileId', profileController.getProfile.bind(profileController)
 router.get('/p', authMiddleware_1.authenticateToken, profileController.getUserProfiles.bind(profileController));
 router.delete('/p/:profileId', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), profileController.deleteProfile.bind(profileController));
 router.post('/default', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), profileController.createDefaultProfile.bind(profileController));
+// Admin routes for managing all profiles
+router.get('/all', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['admin', 'superadmin']), profileController.getAllProfiles.bind(profileController));
 exports.default = router;

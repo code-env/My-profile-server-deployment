@@ -213,6 +213,20 @@ class MyPtsHubService {
   }
 
   /**
+   * Move MyPts from holding to reserve
+   */
+  public async moveFromHoldingToReserve(
+    amount: number,
+    reason: string,
+    adminId?: mongoose.Types.ObjectId,
+    metadata?: Record<string, any>,
+    transactionId?: mongoose.Types.ObjectId
+  ): Promise<{ success: boolean; logId?: mongoose.Types.ObjectId }> {
+    await this.ensureInitialized();
+    return this.hub!.moveFromHoldingToReserve(amount, reason, adminId, metadata, transactionId);
+  }
+
+  /**
    * Adjust the maximum supply
    */
   public async adjustMaxSupply(

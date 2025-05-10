@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import { getStripe, stripeConfig } from '../config/stripe.config';
 import { logger } from '../utils/logger';
 import { MyPtsTransactionModel } from '../models/my-pts.model';
-import { TransactionStatus } from '../interfaces/my-pts.interface';
+import { TransactionStatus, TransactionType } from '../interfaces/my-pts.interface';
 import { ProfileModel } from '../models/profile.model';
 import { myPtsHubService } from '../services/my-pts-hub.service';
 import { notifyAdminsOfTransaction, notifyUserOfCompletedTransaction } from '../services/admin-notification.service';
@@ -149,20 +149,15 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
       await transaction.save();
       console.log('[WEBHOOK DEBUG] Updated transaction status to COMPLETED');
 
-      // Update MyPts balance
-      myPts.balance += transaction.amount;
-      myPts.lifetimeEarned += transaction.amount;
-      myPts.lastTransaction = new Date();
-      await myPts.save();
-      console.log('[WEBHOOK DEBUG] Updated MyPts balance to:', myPts.balance);
-
-      // Update the profile's myPtsBalance field and ProfileMypts fields to match the MyPts balance
-      await ProfileModel.findByIdAndUpdate(profile._id, {
-        myPtsBalance: myPts.balance,
-        'ProfileMypts.currentBalance': myPts.balance,
-        'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
-      });
-      console.log('[WEBHOOK DEBUG] Updated profile myPtsBalance and ProfileMypts to:', myPts.balance);
+      // Use the addMyPts method which now updates both MyPts and Profile documents
+      await myPts.addMyPts(
+        transaction.amount,
+        TransactionType.BUY_MYPTS,
+        `Completed purchase of ${transaction.amount} MyPts`,
+        { paymentIntentId: paymentIntent.id },
+        paymentIntent.id
+      );
+      console.log('[WEBHOOK DEBUG] Updated MyPts balance using addMyPts method');
 
       // Move MyPts from holding to circulation
       const hub = await myPtsHubService.getHubState();
@@ -290,39 +285,35 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   // Get the MyPts document
   const myPts = await profile.getMyPts();
 
-  // Update MyPts balance
+  // Update MyPts balance using the addMyPts method which now updates both MyPts and Profile documents
   const amount = parseInt(myPtsAmount as string, 10);
-  myPts.balance += amount;
-  myPts.lifetimeEarned += amount;
-  myPts.lastTransaction = new Date();
-  await myPts.save();
-
-  // Update the profile's myPtsBalance field and ProfileMypts fields to match the MyPts balance
-  await ProfileModel.findByIdAndUpdate(profile._id, {
-    myPtsBalance: myPts.balance,
-    'ProfileMypts.currentBalance': myPts.balance,
-    'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
-  });
-  logger.info('Updated profile myPtsBalance and ProfileMypts', {
-    profileId: profile._id.toString(),
-    myPtsBalance: myPts.balance,
-    lifetimeMypts: myPts.lifetimeEarned
-  });
-
-  // Create transaction record
-  const transaction = await MyPtsTransactionModel.create({
-    profileId: profile._id,
-    type: 'BUY_MYPTS',
+  await myPts.addMyPts(
     amount,
-    balance: myPts.balance,
-    description: `Bought ${amount} MyPts via Stripe Checkout`,
-    status: TransactionStatus.COMPLETED,
-    metadata: {
-      checkoutSessionId: session.id,
-      paymentIntentId: session.payment_intent,
-    },
-    referenceId: session.id,
+    TransactionType.BUY_MYPTS,
+    `Bought ${amount} MyPts via Stripe Checkout`,
+    { checkoutSessionId: session.id, paymentIntentId: session.payment_intent },
+    session.id
+  );
+  logger.info('Updated MyPts balance using addMyPts method', {
+    profileId: profile._id.toString(),
+    amount: amount
   });
+
+  // Get the transaction that was created by the addMyPts method
+  const transaction = await MyPtsTransactionModel.findOne({
+    referenceId: session.id,
+    profileId: profile._id,
+    type: TransactionType.BUY_MYPTS,
+    status: TransactionStatus.COMPLETED
+  });
+
+  if (!transaction) {
+    logger.error('Transaction not found after addMyPts call', {
+      sessionId: session.id,
+      profileId: profile._id.toString()
+    });
+    return;
+  }
 
   // Move MyPts from holding to circulation
   const hub = await myPtsHubService.getHubState();

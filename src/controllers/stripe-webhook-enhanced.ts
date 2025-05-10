@@ -15,7 +15,7 @@ import { IProfile } from '../interfaces/profile.interface';
  */
 export async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
   logger.info('Payment intent succeeded', { paymentIntentId: paymentIntent.id });
-  
+
   // Add these lines for debugging
   console.log('[WEBHOOK DEBUG] Payment intent ID:', paymentIntent.id);
   console.log('[WEBHOOK DEBUG] Payment intent metadata:', paymentIntent.metadata);
@@ -34,9 +34,9 @@ export async function handlePaymentIntentSucceeded(paymentIntent: Stripe.Payment
     const transactionByMetadata = await MyPtsTransactionModel.findOne({
       'metadata.paymentIntentId': paymentIntent.id
     });
-    
+
     console.log('[WEBHOOK DEBUG] Found by metadata:', transactionByMetadata ? 'Yes' : 'No');
-    
+
     if (transactionByMetadata) {
       console.log('[WEBHOOK DEBUG] Using transaction found by metadata');
       transaction = transactionByMetadata;
@@ -82,15 +82,15 @@ export async function handlePaymentIntentSucceeded(paymentIntent: Stripe.Payment
         }
       }
     }
-    
+
     // If we still don't have a transaction, log and exit
     if (!transaction) {
       // Log recent transactions for debugging
       const recentTransactions = await MyPtsTransactionModel.find()
         .sort({createdAt: -1})
         .limit(5);
-        
-      console.log('[WEBHOOK DEBUG] Recent transactions:', 
+
+      console.log('[WEBHOOK DEBUG] Recent transactions:',
         recentTransactions.map(t => {
           return {
             id: t._id.toString(),
@@ -102,7 +102,7 @@ export async function handlePaymentIntentSucceeded(paymentIntent: Stripe.Payment
           };
         })
       );
-      
+
       logger.error('Transaction not found for payment intent', { paymentIntentId: paymentIntent.id });
       return;
     }
@@ -110,11 +110,11 @@ export async function handlePaymentIntentSucceeded(paymentIntent: Stripe.Payment
 
   // Process the found transaction
   console.log('[WEBHOOK DEBUG] Processing found transaction:', transaction._id.toString());
-  
+
   // Update transaction status if it's not already completed
   if (transaction.status !== TransactionStatus.COMPLETED) {
     console.log('[WEBHOOK DEBUG] Transaction status is not completed, updating...');
-    
+
     // Get profile
     const profile = await ProfileModel.findById(transaction.profileId) as IProfile & { _id: mongoose.Types.ObjectId };
     if (!profile) {
@@ -142,6 +142,14 @@ export async function handlePaymentIntentSucceeded(paymentIntent: Stripe.Payment
     myPts.lastTransaction = new Date();
     await myPts.save();
     console.log('[WEBHOOK DEBUG] Updated MyPts balance to:', myPts.balance);
+
+    // Update the profile's myPtsBalance field and ProfileMypts fields to match the MyPts balance
+    await ProfileModel.findByIdAndUpdate(profile._id, {
+      myPtsBalance: myPts.balance,
+      'ProfileMypts.currentBalance': myPts.balance,
+      'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
+    });
+    console.log('[WEBHOOK DEBUG] Updated profile myPtsBalance and ProfileMypts to:', myPts.balance);
 
     // Move MyPts from reserve to circulation
     const hub = await myPtsHubService.getHubState();
@@ -181,9 +189,9 @@ export async function handlePaymentIntentSucceeded(paymentIntent: Stripe.Payment
         transactionType: transaction.type,
         amount: transaction.amount
       });
-      
+
       await notifyUserOfCompletedTransaction(transaction);
-      
+
       console.log('[WEBHOOK] Successfully called notifyUserOfCompletedTransaction for transaction:', transaction._id);
       logger.info('[WEBHOOK] User notified of completed transaction', {
         transactionId: transaction._id,
@@ -197,7 +205,7 @@ export async function handlePaymentIntentSucceeded(paymentIntent: Stripe.Payment
       });
       // Continue even if notification fails
     }
-    
+
     console.log('[WEBHOOK DEBUG] Transaction processing complete!');
   } else {
     console.log('[WEBHOOK DEBUG] Transaction already completed, skipping processing');

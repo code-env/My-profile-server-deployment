@@ -102,6 +102,7 @@ export class ProfileController {
       const formattedData = {
         _id: profile._id,
         id: profile._id, // Include both formats for compatibility
+        secondaryId: profile.secondaryId || null, // Include the secondary ID
         name: name,
         username: profileInfo.username,
         type: {
@@ -163,6 +164,7 @@ export class ProfileController {
       const fallbackData = {
         _id: profile._id,
         id: profile._id,
+        secondaryId: profile.secondaryId || null, // Include the secondary ID
         name: fallbackName, // Use username or 'Profile' instead of 'Untitled Profile'
         username: profile.profileInformation?.username || '',
         profileType: 'personal',
@@ -304,5 +306,71 @@ export class ProfileController {
     const formattedProfile = this.formatProfileData(profile);
 
     res.status(201).json({ success: true, profile: formattedProfile });
+  });
+
+  /** GET /all - Get all profiles (admin only) */
+  getAllProfiles = asyncHandler(async (req: Request, res: Response) => {
+    const user = req.user as any;
+
+    // Check if user is authenticated and has admin role
+    if (!user?._id) throw createHttpError(401, 'Unauthorized');
+    if (!user.role || !['admin', 'superadmin'].includes(user.role)) {
+      throw createHttpError(403, 'Admin access required');
+    }
+
+    logger.info(`Admin user ${user._id} (${user.email}) requesting all profiles`);
+
+    // Parse query parameters for pagination and filtering
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    // Get filter parameters
+    const nameFilter = req.query.name as string;
+    const categoryFilter = req.query.category as string;
+    const typeFilter = req.query.type as string;
+
+    // Build filter object
+    const filter: any = {};
+
+    if (nameFilter) {
+      // Case-insensitive search on profile name or username
+      filter['$or'] = [
+        { 'profileInformation.username': { $regex: nameFilter, $options: 'i' } },
+        { 'profileInformation.title': { $regex: nameFilter, $options: 'i' } }
+      ];
+    }
+
+    if (categoryFilter && categoryFilter !== 'all') {
+      filter.profileCategory = categoryFilter;
+    }
+
+    if (typeFilter && typeFilter !== 'all') {
+      filter.profileType = typeFilter;
+    }
+
+    // Get total count for pagination
+    const totalCount = await this.service.countProfiles(filter);
+
+    // Get profiles with pagination
+    const profiles = await this.service.getAllProfiles(filter, skip, limit);
+
+    // Format each profile for frontend consumption
+    const formattedProfiles = profiles.map(profile => this.formatProfileData(profile));
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Return response with pagination info
+    res.json({
+      success: true,
+      profiles: formattedProfiles,
+      pagination: {
+        total: totalCount,
+        page,
+        pages: totalPages,
+        limit
+      }
+    });
   });
 }

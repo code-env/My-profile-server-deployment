@@ -18,7 +18,8 @@ export enum TransactionType {
   // Other
   REFUND = 'REFUND',               // MyPts refunded to user
   EXPIRE = 'EXPIRE',               // MyPts expired
-  ADJUSTMENT = 'ADJUSTMENT'        // Admin adjustment of MyPts
+  ADJUSTMENT = 'ADJUSTMENT',       // Admin adjustment of MyPts
+  ADMIN_WITHDRAWAL = 'ADMIN_WITHDRAWAL'  // Admin withdraws MyPts from a profile
 }
 
 export enum TransactionStatus {

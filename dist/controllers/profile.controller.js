@@ -106,6 +106,59 @@ class ProfileController {
             const formattedProfile = this.formatProfileData(profile);
             res.status(201).json({ success: true, profile: formattedProfile });
         });
+        /** GET /all - Get all profiles (admin only) */
+        this.getAllProfiles = (0, express_async_handler_1.default)(async (req, res) => {
+            const user = req.user;
+            // Check if user is authenticated and has admin role
+            if (!(user === null || user === void 0 ? void 0 : user._id))
+                throw (0, http_errors_1.default)(401, 'Unauthorized');
+            if (!user.role || !['admin', 'superadmin'].includes(user.role)) {
+                throw (0, http_errors_1.default)(403, 'Admin access required');
+            }
+            logger_1.logger.info(`Admin user ${user._id} (${user.email}) requesting all profiles`);
+            // Parse query parameters for pagination and filtering
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 20;
+            const skip = (page - 1) * limit;
+            // Get filter parameters
+            const nameFilter = req.query.name;
+            const categoryFilter = req.query.category;
+            const typeFilter = req.query.type;
+            // Build filter object
+            const filter = {};
+            if (nameFilter) {
+                // Case-insensitive search on profile name or username
+                filter['$or'] = [
+                    { 'profileInformation.username': { $regex: nameFilter, $options: 'i' } },
+                    { 'profileInformation.title': { $regex: nameFilter, $options: 'i' } }
+                ];
+            }
+            if (categoryFilter && categoryFilter !== 'all') {
+                filter.profileCategory = categoryFilter;
+            }
+            if (typeFilter && typeFilter !== 'all') {
+                filter.profileType = typeFilter;
+            }
+            // Get total count for pagination
+            const totalCount = await this.service.countProfiles(filter);
+            // Get profiles with pagination
+            const profiles = await this.service.getAllProfiles(filter, skip, limit);
+            // Format each profile for frontend consumption
+            const formattedProfiles = profiles.map(profile => this.formatProfileData(profile));
+            // Calculate pagination info
+            const totalPages = Math.ceil(totalCount / limit);
+            // Return response with pagination info
+            res.json({
+                success: true,
+                profiles: formattedProfiles,
+                pagination: {
+                    total: totalCount,
+                    page,
+                    pages: totalPages,
+                    limit
+                }
+            });
+        });
     }
     /**
      * Helper function to format profile data for frontend consumption
@@ -159,6 +212,7 @@ class ProfileController {
             const formattedData = {
                 _id: profile._id,
                 id: profile._id, // Include both formats for compatibility
+                secondaryId: profile.secondaryId || null, // Include the secondary ID
                 name: name,
                 username: profileInfo.username,
                 type: {
@@ -218,6 +272,7 @@ class ProfileController {
             const fallbackData = {
                 _id: profile._id,
                 id: profile._id,
+                secondaryId: profile.secondaryId || null, // Include the secondary ID
                 name: fallbackName, // Use username or 'Profile' instead of 'Untitled Profile'
                 username: ((_e = profile.profileInformation) === null || _e === void 0 ? void 0 : _e.username) || '',
                 profileType: 'personal',

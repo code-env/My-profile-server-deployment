@@ -55,6 +55,19 @@ const ProfileSchema = new mongoose_1.Schema({
         ],
         index: true
     },
+    secondaryId: {
+        type: String,
+        unique: true,
+        sparse: true, // Allow null values (for existing profiles until updated)
+        index: true,
+        validate: {
+            validator: function (v) {
+                // Must start with a letter and be 8 characters long with only alphanumeric characters
+                return /^[a-zA-Z][a-zA-Z0-9]{7}$/.test(v);
+            },
+            message: props => `${props.value} is not a valid secondary ID. It must start with a letter and be 8 characters long.`
+        }
+    },
     profileInformation: {
         username: { type: String, required: true, trim: true, index: true },
         profileLink: { type: String, required: true, unique: true, index: true },

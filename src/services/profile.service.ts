@@ -4,7 +4,7 @@ import createHttpError from 'http-errors';
 import { logger } from '../utils/logger';
 import { User } from '../models/User';
 import { ProfileTemplate } from '../models/profiles/profile-template';
-import { generateUniqueConnectLink, generateReferralCode } from '../utils/crypto';
+import { generateUniqueConnectLink, generateReferralCode, generateSecondaryId } from '../utils/crypto';
 import mongoose from 'mongoose';
 
 // Extended interface for profile sections that includes value and enabled status
@@ -130,6 +130,13 @@ export class ProfileService {
     const referralCode = generateReferralCode();
     const referralLink = `mypts-ref-${referralCode}`;
 
+    // Generate a unique secondary ID
+    const secondaryId = await generateSecondaryId(async (id: string) => {
+      // Check if the ID is unique
+      const existingProfile = await Profile.findOne({ secondaryId: id });
+      return !existingProfile; // Return true if no profile with this ID exists
+    });
+
     // Create initial profile sections with all fields disabled by default
     const initialSections = template.categories.map(category => ({
       key: category.name,
@@ -148,6 +155,7 @@ export class ProfileService {
     const profile = new Profile({
       profileCategory: template.profileCategory,
       profileType: template.profileType,
+      secondaryId, // Add the secondary ID
       templatedId: template._id,
       profileInformation: {
         username: username,
@@ -368,6 +376,33 @@ export class ProfileService {
 
     const result = await Profile.deleteOne({ _id: profileId });
     return result.deletedCount > 0;
+  }
+
+  /**
+   * Get all profiles with pagination and filtering (admin only)
+   * @param filter Filter criteria
+   * @param skip Number of documents to skip
+   * @param limit Maximum number of documents to return
+   * @returns Array of profile documents
+   */
+  async getAllProfiles(filter: any = {}, skip = 0, limit = 20): Promise<ProfileDocument[]> {
+    logger.info(`Fetching all profiles with filter: ${JSON.stringify(filter)}, skip: ${skip}, limit: ${limit}`);
+
+    return await Profile.find(filter)
+      .sort({ 'profileInformation.createdAt': -1 })
+      .skip(skip)
+      .limit(limit);
+  }
+
+  /**
+   * Count profiles matching a filter
+   * @param filter Filter criteria
+   * @returns Count of matching profiles
+   */
+  async countProfiles(filter: any = {}): Promise<number> {
+    logger.info(`Counting profiles with filter: ${JSON.stringify(filter)}`);
+
+    return await Profile.countDocuments(filter);
   }
 
   /**

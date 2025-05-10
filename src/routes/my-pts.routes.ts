@@ -16,7 +16,9 @@ import {
   getAllProfileTransactions,
   getMyPtsStats,
   processSellTransaction,
-  rejectSellTransaction
+  rejectSellTransaction,
+  synchronizeMyPtsBalances,
+  adminWithdrawMyPts
 } from '../controllers/my-pts.controller';
 import { protect } from '../middleware/auth.middleware';
 import { attachProfile } from '../middleware/profile-auth.middleware';
@@ -137,6 +139,12 @@ const earnMyPtsSchema = z.object({
   referenceId: z.string().optional()
 });
 
+const adminWithdrawMyPtsSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  amount: z.number().positive('Amount must be positive'),
+  reason: z.string().optional()
+});
+
 // Routes
 router.get('/balance', protect, attachProfile, getMyPtsBalance);
 router.get('/refresh-balance', protect, attachProfile, refreshMyPtsBalance);
@@ -161,5 +169,7 @@ router.get('/admin/stats', protect, getMyPtsStats);
 router.post('/award', protect, attachProfile, validateRequest(awardMyPtsSchema), awardMyPts);
 router.post('/admin/process-sell', protect, validateRequest(processSellTransactionSchema), processSellTransaction);
 router.post('/admin/reject-sell', protect, validateRequest(rejectSellTransactionSchema), rejectSellTransaction);
+router.post('/admin/synchronize-balances', protect, synchronizeMyPtsBalances);
+router.post('/admin/withdraw', protect, validateRequest(adminWithdrawMyPtsSchema), adminWithdrawMyPts);
 
 export default router;

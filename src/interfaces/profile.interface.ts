@@ -1,5 +1,5 @@
 import mongoose, { Document } from 'mongoose';
-import { IMyPts } from './my-pts.interface';
+import { IMyPts, IMyPtsMethods } from './my-pts.interface';
 
 
 // Base interfaces without Document extension
@@ -231,7 +231,7 @@ export interface IProfileMethods {
   addEndorsement(skillId: string, userId: mongoose.Types.ObjectId, comment?: string): Promise<boolean>;
   addRecurringEvent(eventData: any): Promise<boolean>;
   // MyPts methods
-  getMyPts(): Promise<IMyPts>;
+  getMyPts(): Promise<IMyPts & IMyPtsMethods>;
   getMyPtsValue(currency?: string): Promise<{
     balance: number;
     valuePerPts: number;

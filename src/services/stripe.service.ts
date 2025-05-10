@@ -411,6 +411,175 @@ class StripeService {
       throw error;
     }
   }
+
+  /**
+   * Create a bank account token from bank details
+   * @param accountDetails Bank account details
+   * @returns Bank account token
+   */
+  async createBankAccountToken(accountDetails: {
+    accountNumber: string;
+    routingNumber: string;
+    accountHolderName: string;
+    accountType: 'checking' | 'savings';
+    country: string;
+    currency?: string;
+  }): Promise<Stripe.Token> {
+    try {
+      logger.info('Creating bank account token', {
+        accountHolderName: accountDetails.accountHolderName,
+        country: accountDetails.country,
+        accountType: accountDetails.accountType
+      });
+
+      // Set default currency based on country if not provided
+      let currency = accountDetails.currency;
+      if (!currency) {
+        switch (accountDetails.country) {
+          case 'US':
+            currency = 'usd';
+            break;
+          case 'CA':
+            currency = 'cad';
+            break;
+          case 'GB':
+            currency = 'gbp';
+            break;
+          case 'AU':
+            currency = 'aud';
+            break;
+          case 'EU':
+          case 'DE':
+          case 'FR':
+          case 'IT':
+          case 'ES':
+            currency = 'eur';
+            break;
+          default:
+            currency = stripeConfig.currency;
+        }
+      }
+
+      const token = await this.stripe.tokens.create({
+        bank_account: {
+          country: accountDetails.country,
+          currency: currency.toLowerCase(),
+          account_holder_name: accountDetails.accountHolderName,
+          account_holder_type: 'individual',
+          routing_number: accountDetails.routingNumber,
+          account_number: accountDetails.accountNumber,
+          account_type: accountDetails.accountType,
+        },
+      });
+
+      logger.info('Created bank account token successfully', {
+        tokenId: token.id
+      });
+
+      return token;
+    } catch (error) {
+      logger.error('Error creating bank account token', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        country: accountDetails.country,
+        accountType: accountDetails.accountType
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Create a direct bank payout using bank account details
+   * @param amount Amount in cents
+   * @param currency Currency code
+   * @param bankDetails Bank account details
+   * @param metadata Additional metadata
+   * @returns Payout object or payment result
+   */
+  async createDirectBankPayout(
+    amount: number,
+    currency: string = stripeConfig.currency,
+    bankDetails: {
+      accountName: string;
+      accountNumber: string;
+      routingNumber: string;
+      bankName: string;
+      country: string;
+      accountType: 'checking' | 'savings';
+      swiftCode?: string;
+    },
+    metadata: Record<string, any> = {}
+  ): Promise<{ success: boolean; payoutId?: string; message: string; details?: any }> {
+    try {
+      logger.info('Creating direct bank payout', {
+        amount,
+        currency,
+        bankName: bankDetails.bankName,
+        country: bankDetails.country
+      });
+
+      // Check if we're in test mode
+      const isTestMode = stripeConfig.secretKey.startsWith('sk_test_');
+
+      // In live mode, check the balance
+      if (!isTestMode) {
+        const balance = await this.getBalance();
+        const availableBalance = balance.available.find(b => b.currency === currency);
+        const availableAmount = availableBalance ? availableBalance.amount : 0;
+
+        if (availableAmount < amount) {
+          return {
+            success: false,
+            message: `Insufficient Stripe balance for payout. Available: ${availableAmount/100} ${currency.toUpperCase()}, Requested: ${amount/100} ${currency.toUpperCase()}`,
+            details: { availableAmount, requestedAmount: amount }
+          };
+        }
+      }
+
+      // Create a bank account token
+      const bankAccountToken = await this.createBankAccountToken({
+        accountNumber: bankDetails.accountNumber,
+        routingNumber: bankDetails.routingNumber,
+        accountHolderName: bankDetails.accountName,
+        accountType: bankDetails.accountType || 'checking',
+        country: bankDetails.country,
+        currency: currency
+      });
+
+      // Create a payout using the bank account token
+      const payout = await this.createPayout(
+        amount,
+        currency,
+        'standard',
+        bankAccountToken.id,
+        {
+          ...metadata,
+          bankName: bankDetails.bankName,
+          accountName: bankDetails.accountName,
+          country: bankDetails.country,
+          swiftCode: bankDetails.swiftCode || 'N/A'
+        }
+      );
+
+      return {
+        success: true,
+        payoutId: payout.id,
+        message: 'Bank payout created successfully',
+        details: {
+          status: payout.status,
+          arrivalDate: payout.arrival_date ? new Date(payout.arrival_date * 1000).toISOString() : 'unknown'
+        }
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error('Error creating direct bank payout', { error: errorMessage });
+
+      return {
+        success: false,
+        message: `Failed to create bank payout: ${errorMessage}`,
+        details: { error: errorMessage }
+      };
+    }
+  }
 }
 
 // Export a singleton instance

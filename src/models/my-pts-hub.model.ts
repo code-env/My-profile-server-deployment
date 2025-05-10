@@ -10,6 +10,7 @@ export enum MyPtsSupplyAction {
   RESERVE_TO_CIRCULATION = 'RESERVE_TO_CIRCULATION', // Move from reserve to circulation
   CIRCULATION_TO_RESERVE = 'CIRCULATION_TO_RESERVE', // Move from circulation to reserve
   HOLDING_TO_CIRCULATION = 'HOLDING_TO_CIRCULATION', // Move from holding to circulation
+  HOLDING_TO_RESERVE = 'HOLDING_TO_RESERVE',         // Move from holding to reserve
   ADJUST_MAX_SUPPLY = 'ADJUST_MAX_SUPPLY'  // Change the maximum supply cap
 }
 
@@ -59,6 +60,7 @@ export interface IMyPtsHubMethods {
   moveToCirculation(amount: number, reason: string, adminId?: mongoose.Types.ObjectId, metadata?: Record<string, any>, transactionId?: mongoose.Types.ObjectId): Promise<{ success: boolean; logId?: mongoose.Types.ObjectId }>;
   moveToReserve(amount: number, reason: string, adminId?: mongoose.Types.ObjectId, metadata?: Record<string, any>, transactionId?: mongoose.Types.ObjectId): Promise<{ success: boolean; logId?: mongoose.Types.ObjectId }>;
   moveFromHoldingToCirculation(amount: number, reason: string, adminId?: mongoose.Types.ObjectId, metadata?: Record<string, any>, transactionId?: mongoose.Types.ObjectId): Promise<{ success: boolean; logId?: mongoose.Types.ObjectId }>;
+  moveFromHoldingToReserve(amount: number, reason: string, adminId?: mongoose.Types.ObjectId, metadata?: Record<string, any>, transactionId?: mongoose.Types.ObjectId): Promise<{ success: boolean; logId?: mongoose.Types.ObjectId }>;
   adjustMaxSupply(newMaxSupply: number | null, reason: string, adminId?: mongoose.Types.ObjectId): Promise<boolean>;
   updateValuePerMyPt(newValue: number): Promise<boolean>;
   validateSupplyOperation(action: MyPtsSupplyAction, amount: number): { valid: boolean; message?: string };
@@ -542,6 +544,66 @@ myPtsHubSchema.methods.moveFromHoldingToCirculation = async function(
     const logId = await createSupplyLog(
       this as MyPtsHubDocument,
       MyPtsSupplyAction.HOLDING_TO_CIRCULATION,
+      amount,
+      reason,
+      totalSupplyBefore,
+      circulatingSupplyBefore,
+      reserveSupplyBefore,
+      adminId,
+      metadata,
+      transactionId,
+      holdingSupplyBefore
+    );
+
+    await session.commitTransaction();
+    return { success: true, logId };
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+/**
+ * Move MyPts from holding to reserve
+ */
+myPtsHubSchema.methods.moveFromHoldingToReserve = async function(
+  amount: number,
+  reason: string,
+  adminId?: mongoose.Types.ObjectId,
+  metadata?: Record<string, any>,
+  transactionId?: mongoose.Types.ObjectId
+): Promise<{ success: boolean; logId?: mongoose.Types.ObjectId }> {
+  // Validate the amount
+  if (amount <= 0) {
+    throw new Error('Amount must be greater than zero');
+  }
+
+  // Check if there's enough in holding
+  if (amount > this.holdingSupply) {
+    throw new Error(`Not enough MyPts in holding. Requested: ${amount}, Available: ${this.holdingSupply}`);
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const totalSupplyBefore = this.totalSupply;
+    const circulatingSupplyBefore = this.circulatingSupply;
+    const reserveSupplyBefore = this.reserveSupply;
+    const holdingSupplyBefore = this.holdingSupply;
+
+    // Update the hub document
+    this.reserveSupply += amount;
+    this.holdingSupply -= amount;
+    this.lastAdjustment = new Date();
+    await this.save({ session });
+
+    // Create log entry
+    const logId = await createSupplyLog(
+      this as MyPtsHubDocument,
+      MyPtsSupplyAction.HOLDING_TO_RESERVE,
       amount,
       reason,
       totalSupplyBefore,

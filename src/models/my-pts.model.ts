@@ -119,6 +119,32 @@ myPtsSchema.methods.addMyPts = async function(
   this.lastTransaction = new Date();
   await this.save();
 
+  // Update the profile document to keep it in sync
+  try {
+    const { ProfileModel } = require('./profile.model');
+    console.log(`[MyPts.addMyPts] Updating profile ${this.profileId} with balance ${this.balance} and lifetimeEarned ${this.lifetimeEarned}`);
+
+    const result = await ProfileModel.findByIdAndUpdate(this.profileId, {
+      myPtsBalance: this.balance,
+      'ProfileMypts.currentBalance': this.balance,
+      'ProfileMypts.lifetimeMypts': this.lifetimeEarned
+    }, { new: true });
+
+    console.log(`[MyPts.addMyPts] Profile update result:`, {
+      id: result?._id,
+      myPtsBalance: result?.myPtsBalance,
+      currentBalance: result?.ProfileMypts?.currentBalance,
+      lifetimeMypts: result?.ProfileMypts?.lifetimeMypts
+    });
+
+    if (!result) {
+      console.error(`[MyPts.addMyPts] Profile ${this.profileId} not found or not updated`);
+    }
+  } catch (error) {
+    console.error('[MyPts.addMyPts] Error updating profile document:', error);
+    // Don't throw the error to avoid disrupting the main transaction
+  }
+
   // Check if balance has crossed the 1000 MyPts threshold for referral rewards
   if (previousBalance < 1000 && this.balance >= 1000) {
     try {
@@ -167,6 +193,32 @@ myPtsSchema.methods.deductMyPts = async function(
   this.lifetimeSpent += amount;
   this.lastTransaction = new Date();
   await this.save();
+
+  // Update the profile document to keep it in sync
+  try {
+    const { ProfileModel } = require('./profile.model');
+    console.log(`[MyPts.deductMyPts] Updating profile ${this.profileId} with balance ${this.balance} and lifetimeEarned ${this.lifetimeEarned}`);
+
+    const result = await ProfileModel.findByIdAndUpdate(this.profileId, {
+      myPtsBalance: this.balance,
+      'ProfileMypts.currentBalance': this.balance,
+      'ProfileMypts.lifetimeMypts': this.lifetimeEarned
+    }, { new: true });
+
+    console.log(`[MyPts.deductMyPts] Profile update result:`, {
+      id: result?._id,
+      myPtsBalance: result?.myPtsBalance,
+      currentBalance: result?.ProfileMypts?.currentBalance,
+      lifetimeMypts: result?.ProfileMypts?.lifetimeMypts
+    });
+
+    if (!result) {
+      console.error(`[MyPts.deductMyPts] Profile ${this.profileId} not found or not updated`);
+    }
+  } catch (error) {
+    console.error('[MyPts.deductMyPts] Error updating profile document:', error);
+    // Don't throw the error to avoid disrupting the main transaction
+  }
 
   // Create transaction record
   const transaction = await MyPtsTransactionModel.create({

@@ -19,6 +19,8 @@
     "test:sockets": "ts-node src/scripts/test-socket-interactions.ts",
     "test:sockets:watch": "nodemon --exec ts-node src/scripts/test-socket-interactions.ts",
     "migrate-tokens": "ts-node src/scripts/migrate-refresh-tokens.ts",
+    "update-secondary-ids": "ts-node src/scripts/update-profiles-with-secondary-id.ts",
+    "update-secondary-ids:prod": "node dist/scripts/update-profiles-with-secondary-id.js",
     "cleanup-tokens": "ts-node src/scripts/run-token-cleanup.ts",
     "cleanup-tokens:prod": "node dist/scripts/run-token-cleanup.js",
     "cleanup-tokens:scalable": "ts-node src/scripts/run-scalable-token-cleanup.ts",

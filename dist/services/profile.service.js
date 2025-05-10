@@ -94,6 +94,12 @@ class ProfileService {
         // Generate a unique referral link
         const referralCode = (0, crypto_1.generateReferralCode)();
         const referralLink = `mypts-ref-${referralCode}`;
+        // Generate a unique secondary ID
+        const secondaryId = await (0, crypto_1.generateSecondaryId)(async (id) => {
+            // Check if the ID is unique
+            const existingProfile = await profile_model_1.ProfileModel.findOne({ secondaryId: id });
+            return !existingProfile; // Return true if no profile with this ID exists
+        });
         // Create initial profile sections with all fields disabled by default
         const initialSections = template.categories.map(category => ({
             key: category.name,
@@ -110,6 +116,7 @@ class ProfileService {
         const profile = new profile_model_1.ProfileModel({
             profileCategory: template.profileCategory,
             profileType: template.profileType,
+            secondaryId, // Add the secondary ID
             templatedId: template._id,
             profileInformation: {
                 username: username,
@@ -285,6 +292,29 @@ class ProfileService {
         }
         const result = await profile_model_1.ProfileModel.deleteOne({ _id: profileId });
         return result.deletedCount > 0;
+    }
+    /**
+     * Get all profiles with pagination and filtering (admin only)
+     * @param filter Filter criteria
+     * @param skip Number of documents to skip
+     * @param limit Maximum number of documents to return
+     * @returns Array of profile documents
+     */
+    async getAllProfiles(filter = {}, skip = 0, limit = 20) {
+        logger_1.logger.info(`Fetching all profiles with filter: ${JSON.stringify(filter)}, skip: ${skip}, limit: ${limit}`);
+        return await profile_model_1.ProfileModel.find(filter)
+            .sort({ 'profileInformation.createdAt': -1 })
+            .skip(skip)
+            .limit(limit);
+    }
+    /**
+     * Count profiles matching a filter
+     * @param filter Filter criteria
+     * @returns Count of matching profiles
+     */
+    async countProfiles(filter = {}) {
+        logger_1.logger.info(`Counting profiles with filter: ${JSON.stringify(filter)}`);
+        return await profile_model_1.ProfileModel.countDocuments(filter);
     }
     /**
      * Creates a default personal profile for a new user

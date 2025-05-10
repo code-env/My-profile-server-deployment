@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateUniqueConnectLink = exports.generateProfileAccessToken = exports.generateReferralCode = void 0;
+exports.generateSecondaryId = exports.generateUniqueConnectLink = exports.generateProfileAccessToken = exports.generateReferralCode = void 0;
 exports.generateOTP = generateOTP;
 /**
  * Utility functions for cryptographic operations
@@ -71,3 +71,40 @@ const generateUniqueConnectLink = async () => {
     return connectLink;
 };
 exports.generateUniqueConnectLink = generateUniqueConnectLink;
+/**
+ * Generates a unique secondary ID for profiles
+ * The ID starts with a letter and consists of 8 mixed alphanumeric characters
+ * @param checkUniqueness Function to check if the generated ID already exists in the database
+ * @returns A promise that resolves to a unique secondary ID string
+ */
+const generateSecondaryId = async (checkUniqueness) => {
+    // Characters for the ID (letters and numbers)
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const alphanumeric = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    // Use Node.js crypto module for secure random generation
+    const crypto = require('crypto');
+    let isUnique = false;
+    let secondaryId = '';
+    // Try to generate a unique ID (max 10 attempts)
+    let attempts = 0;
+    const maxAttempts = 10;
+    while (!isUnique && attempts < maxAttempts) {
+        // First character must be a letter
+        const firstChar = letters[crypto.randomInt(0, letters.length)];
+        // Generate the remaining 7 characters (can be letters or numbers)
+        let remainingChars = '';
+        for (let i = 0; i < 7; i++) {
+            const randomIndex = crypto.randomInt(0, alphanumeric.length);
+            remainingChars += alphanumeric[randomIndex];
+        }
+        secondaryId = firstChar + remainingChars;
+        // Check if this ID is unique
+        isUnique = await checkUniqueness(secondaryId);
+        attempts++;
+    }
+    if (!isUnique) {
+        throw new Error('Failed to generate a unique secondary ID after maximum attempts');
+    }
+    return secondaryId;
+};
+exports.generateSecondaryId = generateSecondaryId;

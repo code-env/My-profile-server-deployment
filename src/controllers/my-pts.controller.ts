@@ -9,6 +9,7 @@ import { IProfile } from '../interfaces/profile.interface';
 import { notifyAdminsOfTransaction, notifyUserOfCompletedTransaction } from '../services/admin-notification.service';
 import { NotificationService } from '../services/notification.service';
 import EmailService from '../services/email.service';
+import { User } from '../models/User';
 
 /**
  * Get MyPts balance for the authenticated profile
@@ -792,14 +793,18 @@ export const purchaseProduct = async (req: Request, res: Response) => {
         { session }
       );
 
-      // Update the profile's myPtsBalance for quick access
+      // Update the profile's myPtsBalance and ProfileMypts fields
       await ProfileModel.findByIdAndUpdate(profile._id, {
-        myPtsBalance: myPts.balance
+        myPtsBalance: myPts.balance,
+        'ProfileMypts.currentBalance': myPts.balance,
+        'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
       }, { session });
 
-      // Update recipient's myPtsBalance for quick access
+      // Update recipient's myPtsBalance and ProfileMypts fields
       await ProfileModel.findByIdAndUpdate(toProfileId, {
-        myPtsBalance: receiverPoints?.balance || amount
+        myPtsBalance: receiverPoints?.balance || amount,
+        'ProfileMypts.currentBalance': receiverPoints?.balance || amount,
+        'ProfileMypts.lifetimeMypts': receiverPoints?.lifetimeEarned || amount
       }, { session });
 
       await session.commitTransaction();
@@ -1097,12 +1102,89 @@ export const processSellTransaction = async (req: Request, res: Response) => {
       });
 
       if (paymentMethod === 'bank_transfer') {
-        // For bank transfers, we'll record the payment reference
-        paymentResult = {
-          type: 'bank_transfer',
-          reference: paymentReference || `MANUAL-${Date.now()}`,
-          status: 'completed'
-        };
+        try {
+          // For bank transfers, use the enhanced direct bank payout method
+          logger.info('Processing bank transfer using Stripe Payouts API', {
+            transactionId: transaction._id.toString(),
+            bankName: accountDetails.bankName,
+            country: accountDetails.country || 'US'
+          });
+
+          // Convert account details to the format expected by createDirectBankPayout
+          const bankDetails = {
+            accountName: accountDetails.accountName,
+            accountNumber: accountDetails.accountNumber,
+            routingNumber: accountDetails.routingNumber || '',
+            bankName: accountDetails.bankName,
+            country: accountDetails.country || 'US',
+            accountType: accountDetails.accountType || 'checking',
+            swiftCode: accountDetails.swiftCode
+          };
+
+          // Create metadata for the payout
+          const bankPayoutMetadata = {
+            transactionId: transaction._id.toString(),
+            profileId: transaction.profileId,
+            description: `Payout for selling ${Math.abs(transaction.amount)} MyPts`,
+            paymentReference: paymentReference || `BANK-${Date.now()}`
+          };
+
+          // Attempt to create a direct bank payout
+          const bankPayoutResult = await stripeService.createDirectBankPayout(
+            amountInCents,
+            currency,
+            bankDetails,
+            bankPayoutMetadata
+          );
+
+          if (bankPayoutResult.success) {
+            // Successful automated payout
+            paymentResult = {
+              type: 'bank_transfer',
+              method: 'stripe_payout',
+              reference: paymentReference || bankPayoutResult.payoutId || `BANK-${Date.now()}`,
+              payoutId: bankPayoutResult.payoutId,
+              status: 'completed',
+              details: bankPayoutResult.details
+            };
+
+            logger.info('Bank transfer processed successfully via Stripe Payouts API', {
+              transactionId: transaction._id.toString(),
+              payoutId: bankPayoutResult.payoutId
+            });
+          } else {
+            // Automated payout failed, fall back to manual processing
+            logger.warn('Automated bank transfer failed, falling back to manual processing', {
+              transactionId: transaction._id.toString(),
+              error: bankPayoutResult.message
+            });
+
+            paymentResult = {
+              type: 'bank_transfer',
+              method: 'manual',
+              reference: paymentReference || `MANUAL-BANK-${Date.now()}`,
+              status: 'completed',
+              automatedAttemptFailed: true,
+              failureReason: bankPayoutResult.message
+            };
+          }
+        } catch (error) {
+          // If there's any error, fall back to manual processing
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          logger.error('Error processing bank transfer, falling back to manual processing', {
+            error: errorMessage,
+            transactionId: transaction._id.toString()
+          });
+
+          paymentResult = {
+            type: 'bank_transfer',
+            method: 'manual',
+            reference: paymentReference || `MANUAL-BANK-${Date.now()}`,
+            status: 'completed',
+            automatedAttemptFailed: true,
+            failureReason: errorMessage
+          };
+        }
       }
       else if (paymentMethod === 'paypal') {
         // For PayPal, we'll record the payment reference
@@ -1345,9 +1427,11 @@ export const processSellTransaction = async (req: Request, res: Response) => {
         transaction._id
       );
 
-      // Update the profile's myPtsBalance for quick access
+      // Update the profile's myPtsBalance and ProfileMypts fields
       await ProfileModel.findByIdAndUpdate(profile._id, {
-        myPtsBalance: myPts.balance
+        myPtsBalance: myPts.balance,
+        'ProfileMypts.currentBalance': myPts.balance,
+        'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
       }, { session });
 
       // Update transaction status and add payment details
@@ -1429,18 +1513,113 @@ export const awardMyPts = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, message: 'Profile not found' });
     }
 
-    // Get the hub and check reserve
-    const hub = await myPtsHubService.getHubState();
+    // Get the hub and check supply pools
+    let hub = await myPtsHubService.getHubState();
+    logger.info(`Current hub state before award: reserveSupply=${hub.reserveSupply}, holdingSupply=${hub.holdingSupply}, amount=${amount}`);
 
-    // Check if we need to issue new MyPts
+    // Create a valid ObjectId for the admin user
+    let adminObjectId;
+    try {
+      if (mongoose.Types.ObjectId.isValid(user._id)) {
+        adminObjectId = mongoose.Types.ObjectId.createFromHexString(user._id.toString());
+      } else {
+        logger.error(`Invalid admin ID format: ${user._id}`);
+        adminObjectId = undefined;
+      }
+    } catch (idError) {
+      logger.error(`Error creating ObjectId from admin ID: ${user._id}`, { error: idError });
+      adminObjectId = undefined; // Use undefined if we can't create a valid ObjectId
+    }
+
+    // First, check if we need to move MyPts from holding to reserve
+    if (hub.reserveSupply < amount && hub.holdingSupply > 0) {
+      logger.info(`Need to move MyPts from holding to reserve: reserveSupply=${hub.reserveSupply}, holdingSupply=${hub.holdingSupply}, amount=${amount}`);
+
+      try {
+        // Calculate how much to move from holding to reserve
+        const moveAmount = Math.min(amount - hub.reserveSupply, hub.holdingSupply);
+
+        // Move MyPts from holding to reserve
+        const moveResult = await myPtsHubService.moveFromHoldingToReserve(
+          moveAmount,
+          `Moving MyPts from holding to reserve for admin award to profile ${profileId}`,
+          adminObjectId,
+          {
+            automatic: true,
+            profileId: profileId,
+            reason
+          }
+        );
+
+        logger.info(`MyPts move from holding to reserve result:`, moveResult);
+
+        // Refresh hub state to get updated supply numbers
+        hub = await myPtsHubService.getHubState();
+        logger.info(`Hub state after moving from holding to reserve: reserveSupply=${hub.reserveSupply}, holdingSupply=${hub.holdingSupply}, amount=${amount}`);
+      } catch (moveError) {
+        const errorMessage = moveError instanceof Error ? moveError.message : String(moveError);
+        logger.error(`Error moving MyPts from holding to reserve: ${errorMessage}`, { error: moveError });
+        throw new Error(`Failed to move MyPts from holding to reserve: ${errorMessage}`);
+      }
+    }
+
+    // Then, check if we still need to issue new MyPts (if reserve is still insufficient)
     if (hub.reserveSupply < amount) {
-      // Issue new MyPts to cover the amount
-      await myPtsHubService.issueMyPts(
-        amount - hub.reserveSupply,
-        `Automatic issuance for admin award to profile ${profileId}`,
-        mongoose.Types.ObjectId.createFromHexString(user._id),
-        { automatic: true, profileId: profileId, reason }
-      );
+      logger.info(`Need to issue new MyPts: reserveSupply=${hub.reserveSupply}, amount=${amount}, deficit=${amount - hub.reserveSupply}`);
+
+      try {
+        // Issue new MyPts to cover the deficit
+        const issueAmount = amount - hub.reserveSupply;
+        const issueResult = await myPtsHubService.issueMyPts(
+          issueAmount,
+          `Automatic issuance for admin award to profile ${profileId}`,
+          adminObjectId,
+          {
+            automatic: true,
+            profileId: profileId,
+            reason
+          }
+        );
+
+        logger.info(`MyPts issuance result:`, issueResult);
+
+        // After issuing, we need to move from holding to reserve since issueMyPts adds to holding
+        hub = await myPtsHubService.getHubState();
+        logger.info(`Hub state after issuance: reserveSupply=${hub.reserveSupply}, holdingSupply=${hub.holdingSupply}, amount=${amount}`);
+
+        // Move the newly issued MyPts from holding to reserve
+        if (hub.holdingSupply >= issueAmount) {
+          const moveResult = await myPtsHubService.moveFromHoldingToReserve(
+            issueAmount,
+            `Moving newly issued MyPts from holding to reserve for award to profile ${profileId}`,
+            adminObjectId,
+            {
+              automatic: true,
+              profileId: profileId,
+              reason
+            }
+          );
+
+          logger.info(`Moving newly issued MyPts from holding to reserve result:`, moveResult);
+        } else {
+          logger.error(`Not enough MyPts in holding after issuance: holdingSupply=${hub.holdingSupply}, needed=${issueAmount}`);
+          throw new Error(`Failed to prepare enough MyPts for award. Holding: ${hub.holdingSupply}, Needed: ${issueAmount}`);
+        }
+
+        // Refresh hub state to get updated supply numbers
+        hub = await myPtsHubService.getHubState();
+        logger.info(`Final hub state before award: reserveSupply=${hub.reserveSupply}, holdingSupply=${hub.holdingSupply}, amount=${amount}`);
+
+        // Double-check that we have enough in reserve now
+        if (hub.reserveSupply < amount) {
+          logger.error(`Failed to prepare enough MyPts: reserveSupply=${hub.reserveSupply}, amount=${amount}`);
+          throw new Error(`Failed to prepare enough MyPts for award. Reserve: ${hub.reserveSupply}, Needed: ${amount}`);
+        }
+      } catch (issueError) {
+        const errorMessage = issueError instanceof Error ? issueError.message : String(issueError);
+        logger.error(`Error preparing MyPts: ${errorMessage}`, { error: issueError });
+        throw new Error(`Failed to prepare MyPts: ${errorMessage}`);
+      }
     }
 
     // Start a session for transaction
@@ -1450,8 +1629,22 @@ export const awardMyPts = async (req: Request, res: Response) => {
     let transactionRecord;
 
     try {
+      // Ensure profileId is a valid ObjectId
+      let profileObjectId;
+      try {
+        // If profileId is already an ObjectId, use it directly
+        if (mongoose.Types.ObjectId.isValid(profileId)) {
+          profileObjectId = mongoose.Types.ObjectId.createFromHexString(profileId.toString());
+        } else {
+          throw new Error('Invalid profile ID format');
+        }
+      } catch (idError) {
+        logger.error(`Error creating ObjectId from profileId: ${profileId}`, { error: idError });
+        throw new Error(`Invalid profile ID format: ${profileId}`);
+      }
+
       // Get or create MyPts for the profile
-      const myPts = await MyPtsModel.findOrCreate(mongoose.Types.ObjectId.createFromHexString(profileId.toString()));
+      const myPts = await MyPtsModel.findOrCreate(profileObjectId);
 
       // Update MyPts document
       myPts.balance += amount;
@@ -1472,12 +1665,25 @@ export const awardMyPts = async (req: Request, res: Response) => {
       transactionRecord = transaction[0];
 
       // Move MyPts from reserve to circulation and link with transaction
+      let adminObjectId;
+      try {
+        if (mongoose.Types.ObjectId.isValid(user._id)) {
+          adminObjectId = mongoose.Types.ObjectId.createFromHexString(user._id.toString());
+        } else {
+          logger.error(`Invalid admin ID format: ${user._id}`);
+          adminObjectId = undefined;
+        }
+      } catch (idError) {
+        logger.error(`Error creating ObjectId from admin ID: ${user._id}`, { error: idError });
+        adminObjectId = undefined; // Use undefined if we can't create a valid ObjectId
+      }
+
       const hubResult = await myPtsHubService.moveToCirculation(
         amount,
         `Admin award to profile ${profileId}`,
-        mongoose.Types.ObjectId.createFromHexString(user._id),
+        adminObjectId,
         {
-          profileId,
+          profileId: profileObjectId.toString(), // Use the validated profileId
           reason: reason || `Admin award: ${amount} MyPts`
         },
         transaction[0]._id
@@ -1492,10 +1698,14 @@ export const awardMyPts = async (req: Request, res: Response) => {
         );
       }
 
-      // Update the profile's myPtsBalance for quick access
+      // Update the profile's myPtsBalance and ProfileMypts fields
       await ProfileModel.findByIdAndUpdate(profileId, {
-        myPtsBalance: myPts.balance
+        myPtsBalance: myPts.balance,
+        'ProfileMypts.currentBalance': myPts.balance,
+        'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
       }, { session });
+
+      logger.info(`Updated profile MyPts balance: profileId=${profileId}, balance=${myPts.balance}, lifetimeEarned=${myPts.lifetimeEarned}`);
 
       await session.commitTransaction();
     } catch (error) {
@@ -1613,15 +1823,23 @@ export const donateMyPts = async (req: Request, res: Response) => {
         { session }
       );
 
-      // Update the profile's myPtsBalance for quick access
+      // Update the profile's myPtsBalance and ProfileMypts fields
       await ProfileModel.findByIdAndUpdate(profile._id, {
-        myPtsBalance: myPts.balance
+        myPtsBalance: myPts.balance,
+        'ProfileMypts.currentBalance': myPts.balance,
+        'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
       }, { session });
 
-      // Update recipient's myPtsBalance for quick access
+      logger.info(`Updated sender profile MyPts balance: profileId=${profile._id}, balance=${myPts.balance}, lifetimeEarned=${myPts.lifetimeEarned}`);
+
+      // Update recipient's myPtsBalance and ProfileMypts fields
       await ProfileModel.findByIdAndUpdate(toProfileId, {
-        myPtsBalance: receiverPoints?.balance || amount
+        myPtsBalance: receiverPoints?.balance || amount,
+        'ProfileMypts.currentBalance': receiverPoints?.balance || amount,
+        'ProfileMypts.lifetimeMypts': receiverPoints?.lifetimeEarned || amount
       }, { session });
+
+      logger.info(`Updated recipient profile MyPts balance: profileId=${toProfileId}, balance=${receiverPoints?.balance || amount}, lifetimeEarned=${receiverPoints?.lifetimeEarned || amount}`);
 
       await session.commitTransaction();
 
@@ -1712,10 +1930,14 @@ export const withdrawMyPts = async (req: Request, res: Response) => {
         );
       }
 
-      // Update the profile's myPtsBalance for quick access
+      // Update the profile's myPtsBalance and ProfileMypts fields
       await ProfileModel.findByIdAndUpdate(profile._id, {
-        myPtsBalance: myPts.balance
+        myPtsBalance: myPts.balance,
+        'ProfileMypts.currentBalance': myPts.balance,
+        'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
       }, { session });
+
+      logger.info(`Updated profile MyPts balance after withdrawal: profileId=${profile._id}, balance=${myPts.balance}, lifetimeEarned=${myPts.lifetimeEarned}`);
 
       await session.commitTransaction();
 
@@ -1744,6 +1966,205 @@ export const withdrawMyPts = async (req: Request, res: Response) => {
 /**
  * Earn MyPts through activities
  */
+/**
+ * Admin withdrawal of MyPts from a profile
+ * This allows admins to withdraw MyPts from a profile for various reasons
+ */
+export const adminWithdrawMyPts = async (req: Request, res: Response) => {
+  try {
+    // Check if user is admin
+    const user = req.user as any;
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const { profileId, amount, reason } = req.body;
+
+    if (!profileId) {
+      return res.status(400).json({ success: false, message: 'Profile ID is required' });
+    }
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Amount must be a positive number' });
+    }
+
+    // Find the profile
+    const profile = await ProfileModel.findById(profileId);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Profile not found' });
+    }
+
+    // Get the MyPts document
+    const myPts = await MyPtsModel.findOne({ profileId }) ||
+      await MyPtsModel.create({
+        profileId,
+        balance: profile.ProfileMypts?.currentBalance || 0,
+        lifetimeEarned: profile.ProfileMypts?.lifetimeMypts || 0,
+        lifetimeSpent: 0,
+        lastTransaction: new Date()
+      });
+
+    // Check if the profile has enough MyPts
+    if (myPts.balance < amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient MyPts balance',
+        data: {
+          currentBalance: myPts.balance,
+          requestedAmount: amount
+        }
+      });
+    }
+
+    // Start a session for transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Deduct MyPts from the profile
+      myPts.balance -= amount;
+      myPts.lifetimeSpent += amount;
+      myPts.lastTransaction = new Date();
+      await myPts.save({ session });
+
+      // Create transaction record
+      const transaction = await MyPtsTransactionModel.create([{
+        profileId,
+        type: TransactionType.ADMIN_WITHDRAWAL,
+        amount: -amount, // Negative amount for withdrawals
+        balance: myPts.balance,
+        description: reason ? `Admin withdrawal: ${reason}` : 'Admin withdrawal',
+        status: TransactionStatus.COMPLETED,
+        metadata: {
+          adminId: user._id,
+          reason,
+          adminUsername: user.username || user.email
+        }
+      }], { session });
+
+      // Move MyPts from circulation to reserve
+      const hubResult = await myPtsHubService.moveToReserve(
+        amount,
+        `Admin withdrawal from profile ${profileId}: ${reason || 'No reason provided'}`,
+        user._id,
+        {
+          profileId,
+          reason,
+          adminId: user._id
+        },
+        transaction[0]._id
+      );
+
+      // Update the profile's myPtsBalance and ProfileMypts fields
+      await ProfileModel.findByIdAndUpdate(profileId, {
+        myPtsBalance: myPts.balance,
+        'ProfileMypts.currentBalance': myPts.balance,
+        'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
+      }, { session });
+
+      await session.commitTransaction();
+
+      // Notify the user of the withdrawal
+      try {
+        await notifyUserOfCompletedTransaction(transaction[0]);
+        logger.info(`User notified of admin withdrawal: ${transaction[0]._id}`);
+      } catch (notifyError) {
+        logger.error(`Error notifying user of admin withdrawal: ${transaction[0]._id}`, notifyError);
+        // Continue even if notification fails
+      }
+
+      // Notify admins
+      await notifyAdminsOfTransaction(transaction[0]);
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          transaction: transaction[0],
+          newBalance: myPts.balance
+        }
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  } catch (error: any) {
+    logger.error(`Error in admin withdrawal: ${error.message}`, { error });
+    return res.status(500).json({ success: false, message: 'Failed to process admin withdrawal' });
+  }
+};
+
+/**
+ * Synchronize MyPts balances for all profiles
+ * This ensures that the myPtsBalance field and ProfileMypts fields match the actual MyPts balance
+ */
+export const synchronizeMyPtsBalances = async (req: Request, res: Response) => {
+  try {
+    // Check if user is admin
+    const user = req.user as any
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    // Get all MyPts documents
+    const myPtsDocuments = await MyPtsModel.find({});
+    logger.info(`Found ${myPtsDocuments.length} MyPts documents to synchronize`);
+
+    const results = {
+      total: myPtsDocuments.length,
+      updated: 0,
+      errors: 0,
+      details: [] as Array<{ profileId: string; status: string; message?: string }>
+    };
+
+    // Update each profile
+    for (const myPts of myPtsDocuments) {
+      try {
+        // Update the profile document
+        const updateResult = await ProfileModel.findByIdAndUpdate(myPts.profileId, {
+          myPtsBalance: myPts.balance,
+          'ProfileMypts.currentBalance': myPts.balance,
+          'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
+        });
+
+        if (updateResult) {
+          results.updated++;
+          results.details.push({
+            profileId: myPts.profileId.toString(),
+            status: 'success'
+          });
+          logger.info(`Synchronized MyPts balance for profile: ${myPts.profileId}, balance: ${myPts.balance}, lifetimeEarned: ${myPts.lifetimeEarned}`);
+        } else {
+          results.errors++;
+          results.details.push({
+            profileId: myPts.profileId.toString(),
+            status: 'error',
+            message: 'Profile not found'
+          });
+          logger.error(`Failed to synchronize MyPts balance for profile: ${myPts.profileId} - Profile not found`);
+        }
+      } catch (error: any) {
+        results.errors++;
+        results.details.push({
+          profileId: myPts.profileId.toString(),
+          status: 'error',
+          message: error.message
+        });
+        logger.error(`Error synchronizing MyPts balance for profile: ${myPts.profileId}`, { error });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: results
+    });
+  } catch (error: any) {
+    logger.error(`Error synchronizing MyPts balances: ${error.message}`, { error });
+    return res.status(500).json({ success: false, message: 'Failed to synchronize MyPts balances' });
+  }
+};
+
 /**
  * Get MyPts statistics for admin
  */
