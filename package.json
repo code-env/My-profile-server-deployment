@@ -25,7 +25,9 @@
     "cleanup-tokens:prod": "node dist/scripts/run-token-cleanup.js",
     "cleanup-tokens:scalable": "ts-node src/scripts/run-scalable-token-cleanup.ts",
     "cleanup-tokens:scalable:prod": "node dist/scripts/run-scalable-token-cleanup.js",
-    "cleanup-tokens:scalable:bun": "bun run src/scripts/run-scalable-token-cleanup.ts"
+    "cleanup-tokens:scalable:bun": "bun run src/scripts/run-scalable-token-cleanup.ts",
+    "update-profile-usernames": "ts-node src/scripts/update-profile-usernames.ts",
+    "update-profile-usernames:prod": "node dist/scripts/update-profile-usernames.js"
   },
   "keywords": [
     "authentication",

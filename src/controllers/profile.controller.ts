@@ -295,6 +295,30 @@ export class ProfileController {
     res.json({ success: deleted });
   });
 
+  /** PUT /p/:profileId/basic-info */
+  updateProfileBasicInfo = asyncHandler(async (req: Request, res: Response) => {
+    const userId = (req.user as any)?._id;
+    if (!userId) throw createHttpError(401, 'Unauthorized');
+
+    const { profileId } = req.params;
+    if (!isValidObjectId(profileId)) throw createHttpError(400, 'Invalid profileId');
+
+    const { username, description } = req.body;
+    if (!username) throw createHttpError(400, 'Username is required');
+
+    const updated = await this.service.updateProfileBasicInfo(
+      profileId,
+      userId,
+      username,
+      description
+    );
+
+    // Format the profile data for frontend consumption
+    const formattedProfile = this.formatProfileData(updated);
+
+    res.json({ success: true, profile: formattedProfile });
+  });
+
   /** POST /default */
   createDefaultProfile = asyncHandler(async (req: Request, res: Response) => {
     const userId = (req.user as any)?._id;

@@ -95,6 +95,23 @@ class ProfileController {
             const deleted = await this.service.deleteProfile(profileId, userId);
             res.json({ success: deleted });
         });
+        /** PUT /p/:profileId/basic-info */
+        this.updateProfileBasicInfo = (0, express_async_handler_1.default)(async (req, res) => {
+            var _a;
+            const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a._id;
+            if (!userId)
+                throw (0, http_errors_1.default)(401, 'Unauthorized');
+            const { profileId } = req.params;
+            if (!(0, mongoose_1.isValidObjectId)(profileId))
+                throw (0, http_errors_1.default)(400, 'Invalid profileId');
+            const { username, description } = req.body;
+            if (!username)
+                throw (0, http_errors_1.default)(400, 'Username is required');
+            const updated = await this.service.updateProfileBasicInfo(profileId, userId, username, description);
+            // Format the profile data for frontend consumption
+            const formattedProfile = this.formatProfileData(updated);
+            res.json({ success: true, profile: formattedProfile });
+        });
         /** POST /default */
         this.createDefaultProfile = (0, express_async_handler_1.default)(async (req, res) => {
             var _a;

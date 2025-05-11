@@ -28,7 +28,7 @@ async function createProfileForUser(userId) {
 
     if (existingProfiles.length > 0) {
       console.log(`User ${userId} already has ${existingProfiles.length} profiles`);
-      
+
       // Update user's profiles array if needed
       const profileIds = existingProfiles.map(p => p._id);
       if (!user.profiles || user.profiles.length === 0) {
@@ -36,7 +36,7 @@ async function createProfileForUser(userId) {
         await user.save();
         console.log(`Updated user's profiles array with existing profiles`);
       }
-      
+
       return existingProfiles[0];
     }
 
@@ -49,7 +49,7 @@ async function createProfileForUser(userId) {
     // If template doesn't exist, create it
     if (!template) {
       console.log('Default personal profile template not found, creating one...');
-      
+
       // Create a default admin ID (this is required by the schema)
       const adminId = new mongoose.Types.ObjectId();
 
@@ -115,7 +115,7 @@ async function createProfileForUser(userId) {
           }
         ]
       });
-      
+
       console.log(`Created default personal profile template: ${template._id}`);
     }
 
@@ -146,7 +146,7 @@ async function createProfileForUser(userId) {
       profileType: template.profileType,
       templatedId: template._id,
       profileInformation: {
-        username: user.username,
+        username: user.fullName, // Use fullName instead of username
         title: `${user.fullName}'s Profile`,
         profileLink: profileLink,
         creator: new mongoose.Types.ObjectId(userId),

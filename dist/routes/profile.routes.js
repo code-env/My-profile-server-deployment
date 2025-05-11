@@ -23,6 +23,7 @@ router.delete('/t/:id', authMiddleware_1.authenticateToken, (0, roleMiddleware_1
 router.post('/p', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), profileController.createProfile.bind(profileController));
 router.post('/p/:profileId/fields', authMiddleware_1.authenticateToken, profileController.setEnabledFields.bind(profileController));
 router.put('/p/:profileId/content', authMiddleware_1.authenticateToken, profileController.updateProfileContent.bind(profileController));
+router.put('/p/:profileId/basic-info', authMiddleware_1.authenticateToken, profileController.updateProfileBasicInfo.bind(profileController));
 router.get('/p/:profileId', profileController.getProfile.bind(profileController)); // Public access
 router.get('/p', authMiddleware_1.authenticateToken, profileController.getUserProfiles.bind(profileController));
 router.delete('/p/:profileId', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), profileController.deleteProfile.bind(profileController));

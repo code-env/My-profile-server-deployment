@@ -31,6 +31,7 @@ router.delete('/t/:id', authenticateToken, requireRole(['admin', 'superadmin']),
 router.post('/p', authenticateToken, requireRole(['user', 'admin', 'superadmin']), profileController.createProfile.bind(profileController));
 router.post('/p/:profileId/fields', authenticateToken, profileController.setEnabledFields.bind(profileController));
 router.put('/p/:profileId/content', authenticateToken, profileController.updateProfileContent.bind(profileController));
+router.put('/p/:profileId/basic-info', authenticateToken, profileController.updateProfileBasicInfo.bind(profileController));
 router.get('/p/:profileId', profileController.getProfile.bind(profileController)); // Public access
 
 

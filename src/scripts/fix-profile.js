@@ -1,6 +1,6 @@
 /**
  * Script to check and fix missing profiles for users
- * 
+ *
  * Run with: node src/scripts/fix-profile.js
  */
 
@@ -55,7 +55,7 @@ async function checkAndFixProfile(userId) {
     // Check if the user has a profileId
     if (user.profileId) {
       console.log(`User has profileId: ${user.profileId}`);
-      
+
       // Check if the profile exists
       const profile = await ProfileModel.findById(user.profileId);
       if (profile) {
@@ -69,30 +69,30 @@ async function checkAndFixProfile(userId) {
     // Check profiles array
     if (user.profiles && user.profiles.length > 0) {
       console.log(`User has ${user.profiles.length} profiles in profiles array`);
-      
+
       // Check if any of these profiles exist
       for (const profileId of user.profiles) {
         const profile = await ProfileModel.findById(profileId);
         if (profile) {
           console.log(`Found existing profile: ${profile._id}`);
-          
+
           // Update user's profileId if it's not set
           if (!user.profileId) {
             user.profileId = profile._id.toString();
             await user.save();
             console.log(`Updated user's profileId to ${profile._id}`);
           }
-          
+
           return;
         }
       }
-      
+
       console.log('None of the profiles in the profiles array exist in the database');
     }
 
     // If we get here, we need to create a new profile
     console.log('Creating new profile for user');
-    
+
     // Generate a unique connect link
     const connectLink = await generateUniqueConnectLink();
 
@@ -108,6 +108,9 @@ async function checkAndFixProfile(userId) {
       claimed: true,
       claimedBy: userId,
       claimedAt: new Date(),
+      profileInformation: {
+        username: user.fullName, // Use fullName instead of username
+      },
       settings: {
         visibility: 'public',
         allowComments: true,

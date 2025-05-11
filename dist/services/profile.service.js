@@ -12,6 +12,7 @@ const User_1 = require("../models/User");
 const profile_template_1 = require("../models/profiles/profile-template");
 const crypto_1 = require("../utils/crypto");
 const mongoose_2 = __importDefault(require("mongoose"));
+// No custom interfaces needed - we'll use type assertions with 'any' where necessary
 class ProfileService {
     /**
      * Creates a profile with content in one step
@@ -27,7 +28,9 @@ class ProfileService {
         const profile = await this.createProfile(userId, templateId);
         // Update profile information
         if (profileInformation) {
-            profile.profileInformation.username = profileInformation.username;
+            // Get user data to ensure we use fullName for username
+            const user = await User_1.User.findById(userId);
+            profile.profileInformation.username = (user === null || user === void 0 ? void 0 : user.fullName) || profileInformation.username;
             if (profileInformation.title)
                 profile.profileInformation.title = profileInformation.title;
             if (profileInformation.accountHolder)
@@ -110,16 +113,16 @@ class ProfileService {
                 enabled: false // Fields are disabled by default
             }))
         }));
-        // Get user data for username
+        // Get user data for profile username (using fullName instead of username)
         const user = await User_1.User.findById(userId);
-        const username = (user === null || user === void 0 ? void 0 : user.username) || '';
+        const profileUsername = (user === null || user === void 0 ? void 0 : user.fullName) || (user === null || user === void 0 ? void 0 : user.username) || '';
         const profile = new profile_model_1.ProfileModel({
             profileCategory: template.profileCategory,
             profileType: template.profileType,
             secondaryId, // Add the secondary ID
             templatedId: template._id,
             profileInformation: {
-                username: username,
+                username: profileUsername,
                 profileLink: profileLink,
                 creator: new mongoose_2.default.Types.ObjectId(userId),
                 connectLink,
@@ -315,6 +318,85 @@ class ProfileService {
     async countProfiles(filter = {}) {
         logger_1.logger.info(`Counting profiles with filter: ${JSON.stringify(filter)}`);
         return await profile_model_1.ProfileModel.countDocuments(filter);
+    }
+    /**
+     * Updates a profile's username and description
+     * @param profileId The profile ID to update
+     * @param userId The user ID making the update
+     * @param username The new username for the profile
+     * @param description Optional description for the profile
+     * @returns The updated profile document
+     */
+    async updateProfileBasicInfo(profileId, userId, username, description) {
+        logger_1.logger.info(`Updating basic info for profile ${profileId}`);
+        if (!(0, mongoose_1.isValidObjectId)(profileId) || !(0, mongoose_1.isValidObjectId)(userId)) {
+            throw (0, http_errors_1.default)(400, 'Invalid profile ID or user ID');
+        }
+        if (!username || username.trim() === '') {
+            throw (0, http_errors_1.default)(400, 'Username is required');
+        }
+        const profile = await profile_model_1.ProfileModel.findById(profileId);
+        if (!profile) {
+            throw (0, http_errors_1.default)(404, 'Profile not found');
+        }
+        // Verify user has permission to update
+        if (profile.profileInformation.creator.toString() !== userId) {
+            throw (0, http_errors_1.default)(403, 'You do not have permission to update this profile');
+        }
+        // Get user data to ensure we're using the correct fullName
+        const user = await User_1.User.findById(userId);
+        if (!user) {
+            throw (0, http_errors_1.default)(404, 'User not found');
+        }
+        // Update the profile username with the user's fullName
+        profile.profileInformation.username = user.fullName || username;
+        profile.profileInformation.updatedAt = new Date();
+        // If description is provided, update it using the updateProfileContent method
+        if (description !== undefined) {
+            try {
+                // Find the basic section that contains the bio/description field
+                const basicSection = profile.sections.find(s => s.key === 'basic' ||
+                    s.fields.some(f => f.key === 'bio' || f.key === 'description'));
+                if (basicSection) {
+                    // Find the bio/description field
+                    const bioField = basicSection.fields.find(f => f.key === 'bio' || f.key === 'description');
+                    if (bioField) {
+                        // Use the existing updateProfileContent method to update the field
+                        // First, ensure the field is enabled
+                        await this.setEnabledFields(profileId, userId, [
+                            {
+                                sectionKey: basicSection.key,
+                                fieldKey: bioField.key,
+                                enabled: true
+                            }
+                        ]);
+                        // Then update the content
+                        await this.updateProfileContent(profileId, userId, [
+                            {
+                                sectionKey: basicSection.key,
+                                fieldKey: bioField.key,
+                                value: description
+                            }
+                        ]);
+                        logger_1.logger.info(`Updated description for profile ${profileId}`);
+                    }
+                    else {
+                        logger_1.logger.warn(`Could not find bio/description field in profile ${profileId}`);
+                    }
+                }
+                else {
+                    // If the section doesn't exist, we can't add the description
+                    logger_1.logger.warn(`Could not find basic section in profile ${profileId} to update description`);
+                }
+            }
+            catch (error) {
+                logger_1.logger.error(`Error updating description for profile ${profileId}:`, error);
+                // Don't throw the error to avoid disrupting the username update
+            }
+        }
+        await profile.save();
+        logger_1.logger.info(`Basic info updated for profile ${profileId}`);
+        return profile;
     }
     /**
      * Creates a default personal profile for a new user
