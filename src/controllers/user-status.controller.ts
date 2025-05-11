@@ -10,7 +10,7 @@ export class UserStatusController {
   async getUserStatus(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params;
-      
+
       if (!userId) {
         res.status(400).json({
           success: false,
@@ -21,7 +21,7 @@ export class UserStatusController {
 
       // Find the user
       const user = await User.findById(userId);
-      
+
       if (!user) {
         res.status(404).json({
           success: false,
@@ -34,11 +34,11 @@ export class UserStatusController {
       // If the user has logged in within the last 15 minutes, they're online
       // Otherwise, they're offline
       const now = new Date();
-      const lastActive = user.lastLogin || user.updatedAt || user.createdAt;
+      const lastActive = user.lastLogin || user._id.getTimestamp();
       const diffMinutes = Math.floor((now.getTime() - lastActive.getTime()) / (1000 * 60));
-      
+
       let status = 'offline';
-      
+
       if (diffMinutes < 15) {
         status = 'online';
       }
