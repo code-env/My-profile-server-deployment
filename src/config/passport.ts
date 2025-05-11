@@ -8,7 +8,7 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import { config } from '../config/config';
 
 // Maximum number of refresh tokens to store per user
-const MAX_REFRESH_TOKENS = 5;
+const MAX_REFRESH_TOKENS = 3;
 
 // Generate access and refresh tokens
 const generateTokens = (userId: string, email: string) => {

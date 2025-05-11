@@ -7,7 +7,7 @@
  * Key features:
  * - Removes expired refresh tokens from the refreshTokens array
  * - Removes inactive sessions older than 30 days
- * - Limits the number of active sessions per user to 10
+ * - Limits the number of active sessions per user to 3
  * - Logs cleanup statistics for monitoring
  */
 
@@ -47,9 +47,9 @@ export async function cleanupTokens() {
       if (user.refreshTokens && user.refreshTokens.length > 0) {
         const originalTokenCount = user.refreshTokens.length;
 
-        // If user has more than 10 tokens, keep only the 10 most recent
-        if (user.refreshTokens.length > 10) {
-          user.refreshTokens = user.refreshTokens.slice(-10);
+        // If user has more than 3 tokens, keep only the 3 most recent
+        if (user.refreshTokens.length > 3) {
+          user.refreshTokens = user.refreshTokens.slice(-3);
           totalTokensRemoved += originalTokenCount - user.refreshTokens.length;
           userUpdated = true;
         }
@@ -67,15 +67,15 @@ export async function cleanupTokens() {
           return true; // Keep this session
         });
 
-        // If user still has more than 10 active sessions, keep only the 10 most recent
-        if (user.sessions.length > 10) {
+        // If user still has more than 3 active sessions, keep only the 3 most recent
+        if (user.sessions.length > 3) {
           // Sort by lastUsed (most recent first)
           user.sessions.sort((a, b) =>
             new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
           );
 
-          // Keep only the 10 most recent
-          user.sessions = user.sessions.slice(0, 10);
+          // Keep only the 3 most recent
+          user.sessions = user.sessions.slice(0, 3);
         }
 
         // Calculate how many sessions were removed

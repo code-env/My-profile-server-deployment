@@ -201,7 +201,32 @@ class AuthService {
             }
             // If no 2FA, login success
             const tokens = this.generateTokens(user._id.toString(), user.email);
+            // Clear old refresh tokens and add the new one
+            // This ensures we don't accumulate tokens
             user.refreshTokens = [tokens.refreshToken];
+            // Add to sessions with device info
+            const now = new Date();
+            if (!user.sessions) {
+                user.sessions = [];
+            }
+            // Add new session
+            user.sessions.push({
+                refreshToken: tokens.refreshToken,
+                deviceInfo: {
+                    userAgent: 'Login session',
+                    ip: 'Unknown',
+                    deviceType: 'Unknown'
+                },
+                lastUsed: now,
+                createdAt: now,
+                isActive: true
+            });
+            // Limit the number of sessions to 3
+            if (user.sessions.length > 3) {
+                // Sort by lastUsed (most recent first) and keep only the 3 most recent
+                user.sessions.sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime());
+                user.sessions = user.sessions.slice(0, 3);
+            }
             user.lastLogin = new Date();
             await user.save();
             return { success: true, userId: user._id.toString(), tokens };
@@ -273,11 +298,11 @@ class AuthService {
                     createdAt: now,
                     isActive: true
                 });
-                // Limit the number of sessions to 10
-                if (user.sessions.length > 10) {
-                    // Sort by lastUsed (most recent first) and keep only the 10 most recent
+                // Limit the number of sessions to 3
+                if (user.sessions.length > 3) {
+                    // Sort by lastUsed (most recent first) and keep only the 3 most recent
                     user.sessions.sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime());
-                    user.sessions = user.sessions.slice(0, 10);
+                    user.sessions = user.sessions.slice(0, 3);
                 }
             }
             // If token was in the sessions array, update that session

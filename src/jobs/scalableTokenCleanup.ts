@@ -20,7 +20,7 @@ import cron from 'node-cron';
 // Configuration
 const BATCH_SIZE = 1000;
 const PROCESSING_DELAY_MS = 100; // Delay between batches to reduce DB load
-const MAX_TOKENS_PER_USER = 10;
+const MAX_TOKENS_PER_USER = 3;
 const INACTIVE_SESSION_RETENTION_DAYS = 30;
 
 // Metrics for monitoring

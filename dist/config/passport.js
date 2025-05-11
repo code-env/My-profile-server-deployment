@@ -13,7 +13,7 @@ const logger_1 = require("../utils/logger");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const config_1 = require("../config/config");
 // Maximum number of refresh tokens to store per user
-const MAX_REFRESH_TOKENS = 5;
+const MAX_REFRESH_TOKENS = 3;
 // Generate access and refresh tokens
 const generateTokens = (userId, email) => {
     const jwtSecret = process.env.JWT_SECRET || '';
