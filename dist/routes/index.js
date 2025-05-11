@@ -65,6 +65,7 @@ const user_notification_preferences_routes_1 = __importDefault(require("./user-n
 const notification_test_routes_1 = __importDefault(require("./notification-test.routes"));
 const user_device_routes_1 = __importDefault(require("./user-device.routes"));
 const profile_referral_routes_1 = __importDefault(require("./profile-referral.routes"));
+const presence_routes_1 = __importDefault(require("./presence.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
 const express_session_1 = __importDefault(require("express-session"));
@@ -139,6 +140,7 @@ const setupRoutes = (app) => {
     app.use('/api/user/devices', auth_middleware_1.protect, user_device_routes_1.default);
     app.use('/api/test/notifications', auth_middleware_1.protect, notification_test_routes_1.default);
     app.use('/api/referrals', profile_referral_routes_1.default);
+    app.use('/api/presence', auth_middleware_1.protect, presence_routes_1.default);
     // Test email route
     app.get('/api/test/email', async (req, res) => {
         try {

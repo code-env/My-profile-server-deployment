@@ -61,6 +61,7 @@ import userNotificationPreferencesRoutes from './user-notification-preferences.r
 import notificationTestRoutes from './notification-test.routes';
 import userDeviceRoutes from './user-device.routes';
 import profileReferralRoutes from './profile-referral.routes';
+import presenceRoutes from './presence.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
@@ -146,6 +147,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/user/devices', protect, userDeviceRoutes);
   app.use('/api/test/notifications', protect, notificationTestRoutes);
   app.use('/api/referrals', profileReferralRoutes);
+  app.use('/api/presence', protect, presenceRoutes);
 
   // Test email route
   app.get('/api/test/email', async (req, res) => {
