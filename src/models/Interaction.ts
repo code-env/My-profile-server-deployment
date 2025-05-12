@@ -104,7 +104,7 @@ const InteractionSchema = new Schema<IInteraction>({
     priority: {
         type: String,
         enum: Object.values(PriorityLevel),
-        default: PriorityLevel.LOW
+        default: PriorityLevel.Low
     },
     reward: {
         type: rewardSchema,

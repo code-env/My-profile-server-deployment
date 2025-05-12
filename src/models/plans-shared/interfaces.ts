@@ -64,6 +64,7 @@ export interface ISubTask {
 export interface Comment {
   _id?: Types.ObjectId;
   text: string;
+  profile: Types.ObjectId | IProfile;
   createdBy: Types.ObjectId | IProfile;
   createdAt?: Date;
   updatedAt?: Date;

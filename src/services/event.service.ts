@@ -26,6 +26,7 @@ class EventService {
         if (eventData.startTime && eventData.endTime) {
             const overlapCheck = await checkTimeOverlap(
                 eventData.createdBy?.toString() || '',
+                eventData.profile?.toString() || '',
                 {
                     startTime: eventData.startTime,
                     endTime: eventData.endTime,
@@ -41,6 +42,7 @@ class EventService {
         const event = new Event({
             ...eventData,
             createdBy: eventData.createdBy || null,
+            profile: eventData.profile || null,
             eventType: eventData.eventType || 'meeting',
             isAllDay: eventData.isAllDay || false,
             repeat: eventData.repeat || {
@@ -49,7 +51,7 @@ class EventService {
                 endCondition: 'Never'
             },
             reminders: eventData.reminders || [],
-            visibility: eventData.visibility || 'Everyone (Public)',
+            visibility: eventData.visibility || 'Public',
             participants: eventData.participants || [],
             color: eventData.color || '#1DA1F2',
             category: eventData.category || 'Personal',
@@ -96,11 +98,29 @@ class EventService {
         }
 
         return Event.findById(eventId)
-            .populate('createdBy', 'name email')
-            .populate('participants', 'name email')
-            .populate('serviceProvider.profileId', 'name avatar')
-            .populate('agendaItems.assignedTo', 'name email')
-            .populate('attachments.uploadedBy', 'name email');
+            .populate('createdBy', 'fullName email')
+            .populate('profile', 'profileInformation.username profileType')
+            .populate('participants', 'profileInformation.username profileType')
+            .populate('serviceProvider.profileId', 'profileInformation.username profileType')
+            .populate('agendaItems.assignedTo', 'profileInformation.username profileType')
+            .populate('attachments.uploadedBy', 'profileInformation.username profileType')
+            .populate({
+                path: 'comments',
+                populate: [
+                    { path: 'profile', select: 'profileInformation.username profileType' },
+                    { path: 'likes', select: 'profileInformation.username profileType' }
+                ]
+            })
+            .lean()
+            .exec()
+            .then(event => {
+                if (!event) return null;
+                return {
+                    ...event,
+                    likesCount: event.likes?.length || 0,
+                    commentsCount: event.comments?.length || 0
+                };
+            });
     }
 
     /**
@@ -394,6 +414,7 @@ class EventService {
     async addComment(
         eventId: string,
         userId: string,
+        profileId: string,
         commentData: {
             text: string;
             createdBy?: mongoose.Types.ObjectId;
@@ -402,6 +423,7 @@ class EventService {
         const comment = {
             ...commentData,
             createdBy: commentData.createdBy || new mongoose.Types.ObjectId(userId),
+            profile: new mongoose.Types.ObjectId(profileId),
             createdAt: new Date()
         };
 
@@ -477,7 +499,7 @@ class EventService {
     /**
      * Like an event
      */
-    async likeEvent(eventId: string, userId: string): Promise<IEvent> {
+    async likeEvent(eventId: string, userId: string, profileId: string): Promise<IEvent> {
         const event = await Event.findOneAndUpdate(
             { _id: eventId },
             { $addToSet: { likes: new mongoose.Types.ObjectId(userId) } },

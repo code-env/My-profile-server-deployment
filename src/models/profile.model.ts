@@ -174,6 +174,37 @@ interface IProfile {
 
   templatedId: mongoose.Types.ObjectId;
   sections: ITemplateSection[];
+
+  availability?: {
+    isAvailable: boolean;
+    defaultDuration: number; // in minutes
+    bufferTime: number; // in minutes
+    endDate?: Date; // Add end date field
+    workingHours: {
+      [key: string]: { // key is day of week (0-6)
+        start: string; // format: "HH:mm"
+        end: string; // format: "HH:mm"
+        isWorking: boolean;
+      };
+    };
+    exceptions: Array<{
+      date: Date;
+      isAvailable: boolean;
+      slots?: Array<{
+        start: string; // format: "HH:mm"
+        end: string; // format: "HH:mm"
+      }>;
+    }>;
+    bookingWindow: {
+      minNotice: number; // minimum notice in minutes
+      maxAdvance: number; // maximum advance booking in days
+    };
+    breakTime: Array<{
+      start: string; // format: "HH:mm"
+      end: string; // format: "HH:mm"
+      days: string[];
+    }>;
+  };
 }
 
 interface ITemplateSection {
@@ -397,6 +428,46 @@ const ProfileSchema = new Schema<IProfile>(
         videos: { type: Number, default: 0 },
       }
     },
+    availability: {
+      isAvailable: { type: Boolean, default: false },
+      defaultDuration: { type: Number, default: 60 }, // 60 minutes default
+      bufferTime: { type: Number, default: 15 }, // 15 minutes default
+      endDate: { type: Date }, // Optional end date
+      workingHours: {
+        type: Map,
+        of: {
+          start: { type: String, required: true },
+          end: { type: String, required: true },
+          isWorking: { type: Boolean, default: true }
+        },
+        default: {
+          "Sunday": { start: "09:00", end: "17:00", isWorking: false },
+          "Monday": { start: "09:00", end: "17:00", isWorking: true },
+          "Tuesday": { start: "09:00", end: "17:00", isWorking: true },
+          "Wednesday": { start: "09:00", end: "17:00", isWorking: true },
+          "Thursday": { start: "09:00", end: "17:00", isWorking: true },
+          "Friday": { start: "09:00", end: "17:00", isWorking: true },
+          "Saturday": { start: "09:00", end: "17:00", isWorking: false }
+        }
+      },
+      exceptions: [{
+        date: { type: Date, required: true },
+        isAvailable: { type: Boolean, default: true },
+        slots: [{
+          start: { type: String, required: true },
+          end: { type: String, required: true }
+        }]
+      }],
+      bookingWindow: {
+        minNotice: { type: Number, default: 60 }, // 1 hour default
+        maxAdvance: { type: Number, default: 30 } // 30 days default
+      },
+      breakTime: [{
+        start: { type: String, required: true },
+        end: { type: String, required: true },
+        days: [{ type: String, enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] }]
+      }]
+    },
   },
   { timestamps: true }
 );
@@ -476,6 +547,123 @@ ProfileSchema.post('save', async function(doc) {
     // Don't throw the error to avoid disrupting the save operation
   }
 });
+
+// Add method to check availability for a specific time slot
+ProfileSchema.methods.checkAvailability = async function(startTime: Date, endTime: Date): Promise<boolean> {
+  if (!this.availability?.isAvailable) return false;
+
+  const dayOfWeek = startTime.getDay();
+  const workingHours = this.availability.workingHours[dayOfWeek];
+  
+  // Check if it's a working day
+  if (!workingHours?.isWorking) return false;
+
+  // Check if time is within working hours
+  const startHour = parseInt(workingHours.start.split(':')[0]);
+  const startMinute = parseInt(workingHours.start.split(':')[1]);
+  const endHour = parseInt(workingHours.end.split(':')[0]);
+  const endMinute = parseInt(workingHours.end.split(':')[1]);
+
+  const slotStartHour = startTime.getHours();
+  const slotStartMinute = startTime.getMinutes();
+  const slotEndHour = endTime.getHours();
+  const slotEndMinute = endTime.getMinutes();
+
+  if (slotStartHour < startHour || (slotStartHour === startHour && slotStartMinute < startMinute)) return false;
+  if (slotEndHour > endHour || (slotEndHour === endHour && slotEndMinute > endMinute)) return false;
+
+  // Check for exceptions
+  const dateStr = startTime.toISOString().split('T')[0];
+  const exception = this.availability.exceptions?.find((e: { date: Date; isAvailable: boolean; slots?: Array<{ start: string; end: string }> }) => 
+    e.date.toISOString().split('T')[0] === dateStr
+  );
+
+  if (exception) {
+    if (!exception.isAvailable) return false;
+    if (exception.slots) {
+      return exception.slots.some((slot: { start: string; end: string }) => {
+        const slotStart = new Date(`${dateStr}T${slot.start}`);
+        const slotEnd = new Date(`${dateStr}T${slot.end}`);
+        return startTime >= slotStart && endTime <= slotEnd;
+      });
+    }
+  }
+
+  // Check for break times
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayName = dayNames[dayOfWeek];
+  const isInBreakTime = this.availability.breakTime?.some((breakTime: { start: string; end: string; days: string[] }) => {
+    if (!breakTime.days.includes(dayName)) return false;
+    const breakStart = new Date(`${dateStr}T${breakTime.start}`);
+    const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
+    return (startTime >= breakStart && startTime < breakEnd) || 
+           (endTime > breakStart && endTime <= breakEnd);
+  });
+
+  if (isInBreakTime) return false;
+
+  return true;
+};
+
+// Add method to get available slots for a specific date
+ProfileSchema.methods.getAvailableSlots = async function(date: Date): Promise<Array<{start: Date, end: Date}>> {
+  if (!this.availability?.isAvailable) return [];
+
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayOfWeek = dayNames[date.getDay()];
+  const workingHours = this.availability.workingHours[dayOfWeek];
+  
+  if (!workingHours?.isWorking) return [];
+
+  const dateStr = date.toISOString().split('T')[0];
+  const slots: Array<{start: Date, end: Date}> = [];
+
+  // Check for exceptions
+  const exception = this.availability.exceptions?.find((e: { date: Date; isAvailable: boolean; slots?: Array<{ start: string; end: string }> }) => 
+    e.date.toISOString().split('T')[0] === dateStr
+  );
+
+  if (exception) {
+    if (!exception.isAvailable) return [];
+    if (exception.slots) {
+      return exception.slots.map((slot: { start: string; end: string }) => ({
+        start: new Date(`${dateStr}T${slot.start}`),
+        end: new Date(`${dateStr}T${slot.end}`)
+      }));
+    }
+  }
+
+  // Generate slots based on working hours and default duration
+  const startTime = new Date(`${dateStr}T${workingHours.start}`);
+  const endTime = new Date(`${dateStr}T${workingHours.end}`);
+  const duration = this.availability.defaultDuration;
+  const buffer = this.availability.bufferTime;
+
+  let currentTime = new Date(startTime);
+  while (currentTime < endTime) {
+    const slotEnd = new Date(currentTime.getTime() + duration * 60000);
+    if (slotEnd <= endTime) {
+      // Check if slot overlaps with break time
+      const isInBreakTime = this.availability.breakTime?.some((breakTime: { start: string; end: string; days: string[] }) => {
+        if (!breakTime.days.includes(dayOfWeek)) return false;
+        const breakStart = new Date(`${dateStr}T${breakTime.start}`);
+        const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
+        return (currentTime >= breakStart && currentTime < breakEnd) || 
+               (slotEnd > breakStart && slotEnd <= breakEnd);
+      });
+
+      if (!isInBreakTime) {
+        slots.push({
+          start: new Date(currentTime),
+          end: new Date(slotEnd)
+        });
+      }
+    }
+    currentTime = new Date(currentTime.getTime() + (duration + buffer) * 60000);
+  }
+
+  return slots;
+};
 
 // Define interface for model type with methods
 interface IProfileModel extends Model<IProfile> {

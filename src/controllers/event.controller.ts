@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import eventService from '../services/event.service';
 import {
     PriorityLevel,
@@ -13,6 +13,7 @@ import {
 import createHttpError from 'http-errors';
 import asyncHandler from 'express-async-handler';
 import CloudinaryService from '../services/cloudinary.service';
+import { emitSocialInteraction } from '../utils/socketEmitter';
 
 // Helper function to validate event data
 const validateEventData = (data: any) => {
@@ -456,15 +457,15 @@ export const setServiceProvider = asyncHandler(async (req: Request, res: Respons
         throw createHttpError(400, 'Invalid event ID');
     }
 
-    if (!req.body.profileId || !req.body.role) {
-        throw createHttpError(400, 'profileId and role are required');
+    if (!req.body.profile || !req.body.role) {
+        throw createHttpError(400, 'profile and role are required');
     }
 
     const event = await eventService.setServiceProvider(
         req.params.id,
         user._id,
         {
-            profileId: new mongoose.Types.ObjectId(req.body.profileId),
+            profileId: new mongoose.Types.ObjectId(req.body.profile),
             role: req.body.role
         }
     );
@@ -473,5 +474,135 @@ export const setServiceProvider = asyncHandler(async (req: Request, res: Respons
         success: true,
         data: event,
         message: 'Service provider set successfully'
+    });
+});
+
+// @desc    Add comment to event
+// @route   POST /events/:id/comments
+// @access  Private
+export const addComment = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.text) {
+        throw createHttpError(400, 'Comment text is required');
+    }
+
+    if (!req.body.profile) {
+        throw createHttpError(400, 'Profile is required');
+    }
+
+    const event = await eventService.getEventById(req.params.id);
+    if (!event) {
+        throw createHttpError(404, 'Event not found');
+    }
+
+    if (!event.profile) {
+        throw createHttpError(400, 'Event has no associated profile');
+    }
+
+
+    const profile = req.body.profile;
+    const updatedEvent = await eventService.addComment(
+        req.params.id,
+        user._id,
+        profile,
+        { text: req.body.text }
+    );
+
+    // display the updated event
+    try {
+        await emitSocialInteraction(user._id, {
+            type: 'comment',
+            profile: new Types.ObjectId(user._id),
+            targetProfile: new Types.ObjectId(event.profile?._id as Types.ObjectId),
+            contentId: (updatedEvent as mongoose.Document).get('_id').toString(),
+            content: req.body.text
+        });
+    } catch (error) {
+        console.error('Failed to emit social interaction:', error);
+    }
+
+    res.json({
+        success: true,
+        data: updatedEvent,
+        message: 'Comment added successfully'
+    });
+});
+
+// @desc    Like event
+// @route   POST /events/:id/like
+// @access  Private
+export const likeEvent = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    const eventToLike = await eventService.getEventById(req.params.id);
+    if (!eventToLike) {
+        throw createHttpError(404, 'Event not found');
+    }
+
+    if (!eventToLike.profile) {
+        throw createHttpError(400, 'Event has no associated profile');
+    }
+
+    if (!req.body.profile) {
+        throw createHttpError(400, 'Profile is required');
+    }
+
+    const profile = req.body.profile;
+
+    const event = await eventService.likeEvent(req.params.id, user._id, profile);
+
+    // display the updated event
+    try {
+        await emitSocialInteraction(user._id, {
+            type: 'like',
+            profile: new Types.ObjectId(user._id),
+            targetProfile: new Types.ObjectId(event.profile?._id as Types.ObjectId),
+            contentId: (event as mongoose.Document).get('_id').toString(),
+            content: req.body.text
+        });
+    } catch (error) {
+        console.error('Failed to emit social interaction:', error);
+    }
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Event liked successfully'
+    });
+});
+
+// @desc    Like comment
+// @route   POST /events/:id/comments/:commentId/like
+// @access  Private
+export const likeComment = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.params.commentId || !mongoose.Types.ObjectId.isValid(req.params.commentId)) {
+        throw createHttpError(400, 'Invalid comment ID');
+    }
+
+    const event = await eventService.likeComment(
+        req.params.id,
+        user._id,
+        new mongoose.Types.ObjectId(req.params.commentId)
+    );
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Comment liked successfully'
     });
 });

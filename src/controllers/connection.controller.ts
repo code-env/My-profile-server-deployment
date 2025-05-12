@@ -4,6 +4,8 @@ import { logger } from '../utils/logger';
 import { CustomError } from '../utils/errors';
 import { ProfileModel } from '../models/profile.model';
 import { Connection } from '../models/Connection';
+import { Types } from 'mongoose';
+import { emitSocialInteraction } from '../utils/socketEmitter';
 
 export class ConnectionController {
   /**
@@ -56,7 +58,15 @@ export class ConnectionController {
       }
 
       const connection = await ConnectionService.updateConnectionStatus(connectionId, status);
-
+      // TODO: use the actual profile id here, not the user id and then emit the event
+      // if (status === 'accepted') {
+      //   await emitSocialInteraction(userId, {
+      //     type: 'connection',
+      //     profile: new Types.ObjectId(userId),
+      //     targetProfile: new Types.ObjectId(connection.toProfile),
+      //     contentId: connection._id as Types.ObjectId,
+      //   });
+      // }
       res.json({
         success: true,
         data: connection

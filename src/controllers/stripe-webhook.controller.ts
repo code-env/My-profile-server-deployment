@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 import { getStripe, stripeConfig } from '../config/stripe.config';
 import { logger } from '../utils/logger';
 import { MyPtsTransactionModel } from '../models/my-pts.model';
-import { TransactionStatus, TransactionType } from '../interfaces/my-pts.interface';
+import { TransactionStatus, TransactionType, IMyPts, IMyPtsMethods } from '../interfaces/my-pts.interface';
 import { ProfileModel } from '../models/profile.model';
 import { myPtsHubService } from '../services/my-pts-hub.service';
 import { notifyAdminsOfTransaction, notifyUserOfCompletedTransaction } from '../services/admin-notification.service';
@@ -141,7 +141,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
       console.log('[WEBHOOK DEBUG] Found profile:', profile._id.toString());
 
       // Get MyPts
-      const myPts = await profile.getMyPts();
+      const myPts = await profile.getMyPts() as IMyPts & IMyPtsMethods;
       console.log('[WEBHOOK DEBUG] Current MyPts balance:', myPts.balance);
 
       // Update transaction status
@@ -283,7 +283,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   }
 
   // Get the MyPts document
-  const myPts = await profile.getMyPts();
+  const myPts = await profile.getMyPts() as IMyPts & IMyPtsMethods;
 
   // Update MyPts balance using the addMyPts method which now updates both MyPts and Profile documents
   const amount = parseInt(myPtsAmount as string, 10);

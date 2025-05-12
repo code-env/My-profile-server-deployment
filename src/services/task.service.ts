@@ -17,6 +17,7 @@ class TaskService {
         if (taskData.startTime && taskData.endTime) {
             const overlapCheck = await checkTimeOverlap(
                 taskData.createdBy?.toString() || '',
+                taskData.profile?.toString() || '',
                 {
                     startTime: taskData.startTime,
                     endTime: taskData.endTime,
@@ -42,7 +43,7 @@ class TaskService {
                 endCondition: 'Never'
             },
             reminders: taskData.reminders || [],
-            visibility: taskData.visibility || 'Everyone (Public)',
+            visibility: taskData.visibility || 'Public',
             participants: taskData.participants || [],
             color: taskData.color || '#1DA1F2',
             category: taskData.category || 'Personal',
@@ -117,12 +118,27 @@ class TaskService {
 
         return Task.findById(taskId)
             .populate('createdBy', 'fullName email')
-            .populate('participants', 'fullName email')
-            .populate('profile', 'fullName avatar')
+            .populate('participants', 'profileInformation.username profileType')
+            .populate('profile', 'profileInformation.username profileType')
             .populate('relatedList', 'name type items')
-            .populate('attachments.uploadedBy', 'fullName email')
-            .populate('comments.createdBy', 'fullName email')
-            .populate('comments.likes', 'fullName email');
+            .populate('attachments.uploadedBy', 'profileInformation.username profileType')
+            .populate({
+                path: 'comments',
+                populate: [
+                    { path: 'profile', select: 'profileInformation.username profileType' },
+                    { path: 'likes', select: 'profileInformation.username profileType' }
+                ]
+            })
+            .lean()
+            .exec()
+            .then(task => {
+                if (!task) return null;
+                return {
+                    ...task,
+                    likesCount: task.likes?.length || 0,
+                    commentsCount: task.comments?.length || 0
+                };
+            });
     }
 
     /**
@@ -331,10 +347,12 @@ class TaskService {
     async addComment(
         taskId: string,
         userId: string,
+        profileId: string,
         text: string
     ): Promise<ITask> {
         const comment: Comment = {
             text,
+            profile: new mongoose.Types.ObjectId(profileId),
             createdBy: new mongoose.Types.ObjectId(userId),
             createdAt: new Date(),
             likes: []
@@ -359,7 +377,8 @@ class TaskService {
     async likeComment(
         taskId: string,
         commentIndex: number,
-        userId: string
+        userId: string,
+        profileId: string
     ): Promise<ITask> {
         const task = await Task.findOne({ _id: taskId });
         if (!task) {
@@ -372,6 +391,7 @@ class TaskService {
 
         const comment = task.comments[commentIndex];
         const userIdObj = new mongoose.Types.ObjectId(userId);
+        const profileIdObj = new mongoose.Types.ObjectId(profileId);
 
         // Check if already liked
         if (comment.likes.some(like => like.toString() === userIdObj.toString())) {

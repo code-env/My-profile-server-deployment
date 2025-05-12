@@ -1,11 +1,12 @@
 // controllers/profile.controller.ts
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import asyncHandler from 'express-async-handler';
 import createHttpError from 'http-errors';
 import { isValidObjectId } from 'mongoose';
 import { ProfileService } from '../services/profile.service';
 import { ProfileDocument } from '../models/profile.model';
 import { logger } from '../utils/logger';
+import { ProfileModel } from '../models/profile.model';
 
 interface ProfileFieldToggle {
   sectionKey: string;
@@ -395,6 +396,73 @@ export class ProfileController {
         pages: totalPages,
         limit
       }
+    });
+  });
+
+  /**
+   * Get available slots for a specific date
+   */
+  getAvailableSlots = asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { profileId } = req.params;
+    const { date } = req.query;
+
+    if (!date) {
+      throw createHttpError(400, 'Date is required');
+    }
+
+    const slots = await this.service.getAvailableSlots(profileId, new Date(date as string));
+
+    res.status(200).json({
+      success: true,
+      data: slots,
+      message: 'Available slots retrieved successfully'
+    });
+  });
+
+  /**
+   * Set profile availability
+   */
+  setAvailability = asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { profileId } = req.params;
+    const availabilityData = req.body;
+
+    const availability = await this.service.setAvailability(profileId, availabilityData);
+
+    res.status(200).json({
+      success: true,
+      data: availability,
+      message: 'Profile availability updated successfully'
+    });
+  });
+
+  /**
+   * Update profile availability
+   */
+  updateAvailability = asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { profileId } = req.params;
+    const updates = req.body;
+
+    const availability = await this.service.updateAvailability(profileId, updates);
+
+    res.status(200).json({
+      success: true,
+      data: availability,
+      message: 'Profile availability updated successfully'
+    });
+  });
+
+  /**
+   * Get profile availability
+   */
+  getAvailability = asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const { profileId } = req.params;
+
+    const availability = await this.service.getAvailability(profileId);
+
+    res.status(200).json({
+      success: true,
+      data: availability,
+      message: 'Profile availability retrieved successfully'
     });
   });
 }

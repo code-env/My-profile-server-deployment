@@ -446,6 +446,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
     const updatedTask = await taskService.addComment(
         req.params.id,
         user._id,
+        profileId,
         req.body.text
     );
 
@@ -494,11 +495,16 @@ export const likeComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Invalid comment index');
     }
 
+
+
+    const profileId = req.body.profileId;
+
     const commentIndex = parseInt(req.params.commentIndex);
     const task = await taskService.likeComment(
         req.params.id,
         commentIndex,
-        user._id
+        user._id,
+        profileId
     );
 
     // Emit the social interaction event
