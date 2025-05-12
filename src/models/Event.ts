@@ -33,6 +33,7 @@ export interface IEvent extends Document {
   reminders: Reminder[];
   visibility: VisibilityType;
   participants?: Types.ObjectId[] | IProfile[];
+  profile?: Types.ObjectId | IProfile;
   reward?: Reward;
   color: string;
   category: string;
@@ -93,7 +94,7 @@ const EventSchema = new Schema<IEvent>(
     visibility: {
       type: String,
       enum: Object.values(VisibilityType),
-      default: VisibilityType.Everyone
+      default: VisibilityType.Public
     },
     participants: [{
       type: Schema.Types.ObjectId,
@@ -105,8 +106,9 @@ const EventSchema = new Schema<IEvent>(
     priority: {
       type: String,
       enum: Object.values(PriorityLevel),
-      default: PriorityLevel.LOW
+      default: PriorityLevel.Low
     },
+    profile: { type: Schema.Types.ObjectId, ref: 'Profile' },
     status: {
       type: String,
       enum: ['upcoming', 'in-progress', 'completed', 'cancelled'],

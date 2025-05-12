@@ -207,7 +207,7 @@ export interface IProfileMethods {
   isVerified(): boolean;
   calculateEngagement(): number;
   getPublicProfile(): Partial<IProfile>;
-  getAvailableSlots(startDate: Date, endDate: Date): Promise<Array<{ start: Date; end: Date }>>;
+  getAvailableSlots(date: Date): Promise<Array<{start: Date, end: Date}>>;
   checkAvailability(startTime: Date, endTime: Date): Promise<boolean>;
   getFeaturedProjects(limit?: number): Promise<any[]>;
   getSkillsByCategory(): Promise<Record<string, ISkill[]>>;
@@ -231,7 +231,7 @@ export interface IProfileMethods {
   addEndorsement(skillId: string, userId: mongoose.Types.ObjectId, comment?: string): Promise<boolean>;
   addRecurringEvent(eventData: any): Promise<boolean>;
   // MyPts methods
-  getMyPts(): Promise<IMyPts & IMyPtsMethods>;
+  getMyPts(): Promise<IMyPts>;
   getMyPtsValue(currency?: string): Promise<{
     balance: number;
     valuePerPts: number;

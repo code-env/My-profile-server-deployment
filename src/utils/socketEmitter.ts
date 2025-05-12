@@ -2,7 +2,7 @@ import Client from 'socket.io-client';
 import { Types } from 'mongoose';
 
 interface SocialInteractionData {
-    type: 'like' | 'comment' | 'share';
+    type: 'like' | 'comment' | 'share' | 'connection';
     profile: string | Types.ObjectId;
     targetProfile: string | Types.ObjectId;
     contentId: string | Types.ObjectId;
@@ -15,8 +15,8 @@ const validateInteractionData = (data: SocialInteractionData) => {
     if (!data.profile) errors.push('profileId is required');
     if (!data.targetProfile) errors.push('targetProfileId is required');
     if (!data.contentId) errors.push('contentId is required');
-    if (!['like', 'comment', 'share'].includes(data.type)) {
-        errors.push('type must be one of: like, comment, share');
+    if (!['like', 'comment', 'share', 'connection'].includes(data.type)) {
+        errors.push('type must be one of: like, comment, share, connection');
     }
     if (data.type === 'comment' && !data.content) {
         errors.push('content is required for comment type');

@@ -21,21 +21,32 @@ export function doTimeRangesOverlap(range1: TimeRange, range2: TimeRange): boole
     return true;
   }
 
-  // Convert to timestamps for easier comparison
-  const start1 = range1.startTime.getTime();
-  const end1 = range1.endTime.getTime();
-  const start2 = range2.startTime.getTime();
-  const end2 = range2.endTime.getTime();
+  // Convert to Date objects if they're strings
+  const start1 = typeof range1.startTime === 'string'
+    ? new Date(range1.startTime).getTime()
+    : range1.startTime.getTime();
+
+  const end1 = typeof range1.endTime === 'string'
+    ? new Date(range1.endTime).getTime()
+    : range1.endTime.getTime();
+
+  const start2 = typeof range2.startTime === 'string'
+    ? new Date(range2.startTime).getTime()
+    : range2.startTime.getTime();
+
+  const end2 = typeof range2.endTime === 'string'
+    ? new Date(range2.endTime).getTime()
+    : range2.endTime.getTime();
 
   // Check if one range starts before the other ends and ends after the other starts
   return (start1 < end2 && end1 > start2);
 }
-
 /**
  * Checks if a new time range overlaps with any existing tasks or events
  */
 export async function checkTimeOverlap(
   userId: string,
+  profile: string,
   newRange: TimeRange,
   excludeId?: string
 ): Promise<{ overlaps: boolean; conflictingItems: ConflictingItem[] }> {
@@ -45,6 +56,7 @@ export async function checkTimeOverlap(
   // Find all tasks and events for the user that could overlap
   const tasks = await Task.find({
     createdBy: userId,
+    profile: profile,
     _id: { $ne: excludeId },
     $or: [
       { isAllDay: true },

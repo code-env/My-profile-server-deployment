@@ -2,6 +2,7 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
 import { ITask } from './Tasks';
 import { IProfile } from '../interfaces/profile.interface';
 import { IUser } from './User';
+import { VisibilityType } from './plans-shared';
 
 export interface IList extends Document {
   name: string;
@@ -54,11 +55,6 @@ export enum ImportanceLevel {
   High = 'High'
 }
 
-export enum VisibilityType {
-  Everyone = 'Everyone (Public)',
-  Connections = 'Connections only (Private)',
-  OnlyMe = 'Only me (Hidden)'
-}
 
 export interface Reward {
   type: 'Reward' | 'Punishment';
@@ -107,7 +103,7 @@ const listSchema = new Schema<IList>(
     visibility: { 
       type: String, 
       enum: Object.values(VisibilityType),
-      default: VisibilityType.Everyone
+      default: VisibilityType.Public
     },
     reward: rewardSchema,
     color: { type: String, default: '#1DA1F2' },

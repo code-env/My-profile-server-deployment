@@ -767,7 +767,7 @@ export class AuthService {
       }
 
       // Clear verification data
-      user.verificationData = undefined;
+      // user.verificationData = undefined;
       await user.save();
 
       try {

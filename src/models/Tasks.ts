@@ -24,6 +24,7 @@ import {
   attachmentSchema,
   locationSchema
 } from './plans-shared';
+import { commentSchema } from './plans-shared/comment.schema';
 
 export interface ITask extends Document {
   name: string;
@@ -67,17 +68,6 @@ const subTaskSchema = new Schema<ISubTask>({
   completedAt: { type: Date }
 });
 
-const commentSchema = new Schema<Comment>({
-  text: { type: String, required: true },
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Profile',
-    required: true
-  },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date },
-  likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }]
-});
 
 const taskSchema = new Schema<ITask>(
   {
@@ -96,7 +86,7 @@ const taskSchema = new Schema<ITask>(
     visibility: { 
       type: String, 
       enum: Object.values(VisibilityType),
-      default: VisibilityType.Everyone
+      default: VisibilityType.Public
     },
     participants: [{
       type: Schema.Types.ObjectId,
@@ -112,7 +102,7 @@ const taskSchema = new Schema<ITask>(
     priority: { 
       type: String, 
       enum: Object.values(PriorityLevel),
-      default: PriorityLevel.LOW
+      default: PriorityLevel.Low
     },
     status: { 
       type: String, 

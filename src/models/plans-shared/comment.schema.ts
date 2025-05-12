@@ -3,6 +3,11 @@ import { Comment } from './interfaces';
 
 export const commentSchema = new Schema<Comment>({
   text: { type: String, required: true },
+  profile: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'Profile',
+    required: true
+  },
   createdBy: { 
     type: Schema.Types.ObjectId, 
     ref: 'Profile',
