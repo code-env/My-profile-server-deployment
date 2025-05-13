@@ -6,11 +6,16 @@ import {
     Attachment,
     Location,
     PriorityLevel,
-    VisibilityType
+    VisibilityType,
+    EventType,
+    BookingStatus
 } from '../models/plans-shared';
 
 import { IEvent, Event } from '../models/Event';
+import { User } from '../models/User';
 import { checkTimeOverlap } from '../utils/timeUtils';
+import { MyPtsModel } from '../models/my-pts.model';
+import { TransactionType } from '../interfaces/my-pts.interface';
 
 class EventService {
     /**
@@ -18,8 +23,8 @@ class EventService {
      */
     async createEvent(eventData: Partial<IEvent>): Promise<IEvent> {
         // Validate meeting-specific requirements
-        if (eventData.eventType === 'appointment' && !eventData.serviceProvider) {
-            throw new Error('Service provider is required for meetings');
+        if (eventData.eventType === EventType.Appointment && !eventData.serviceProvider) {
+            throw new Error('Service provider is required for appointments');
         }
 
         // Check for time overlap if the event has a time range
@@ -204,8 +209,8 @@ class EventService {
         updateData: Partial<IEvent>
     ): Promise<IEvent> {
         // Validate meeting-specific requirements
-        if (updateData.eventType === 'meeting' && !updateData.serviceProvider) {
-            throw new Error('Service provider is required for meetings');
+        if (updateData.eventType === EventType.Appointment && !updateData.serviceProvider) {
+            throw new Error('Service provider is required for appointments');
         }
 
         // Handle all-day event adjustments
@@ -537,9 +542,246 @@ class EventService {
         return event;
     }
 
+    /**
+     * Update booking status
+     */
+    async updateBookingStatus(
+        eventId: string,
+        userId: string,
+        profileId: string,
+        status: BookingStatus,
+        cancellationReason?: string
+    ): Promise<IEvent> {
+        const event = await Event.findOne({ _id: eventId });
+        if (!event) {
+            throw new Error('Event not found');
+        }
 
+        if (event.eventType !== EventType.Booking || !event.booking) {
+            throw new Error('Event is not a booking');
+        }
 
+        console.log(event.booking.serviceProvider.profileId, profileId);
+        // Only allow status updates by the service provider or the booking creator's profile
+        if (!event.booking.serviceProvider.profileId.equals(profileId) && !event.profile?.equals(profileId)) {
+            // log the profile id and the event id
+            console.info(profileId, eventId);
+            throw new Error('Not authorized to update booking status');
+        }
 
+        event.booking.status = status;
+        if (status === BookingStatus.Cancelled && cancellationReason) {
+            event.booking.cancellationReason = cancellationReason;
+        }
+
+        await event.save();
+        return event;
+    }
+
+    /**
+     * Update booking reward status
+     */
+    async updateBookingReward(
+        eventId: string,
+        userId: string,
+        profileId: string,
+        rewardData: {
+            status: 'pending' | 'completed' | 'failed';
+            transactionId?: string;
+        }
+    ): Promise<IEvent> {
+        const event = await Event.findOne({ _id: eventId });
+        if (!event) {
+            throw new Error('Event not found');
+        }
+
+        if (event.eventType !== EventType.Booking || !event.booking) {
+            throw new Error('Event is not a booking');
+        }
+
+        // Only allow reward updates by the service provider or the booking creator's profile
+        if (!event.booking.serviceProvider.profileId.equals(profileId) && !event.profile?.equals(profileId)) {
+            throw new Error('Not authorized to update reward status');
+        }
+
+        if (!event.booking.reward) {
+            event.booking.reward = {
+                type: 'Reward',
+                points: 0,
+                currency: 'MyPts',
+                description: `Booking reward for ${event.title}`,
+                required: false,
+                status: 'pending',
+                transactionId: undefined
+            };
+        }
+
+        // Update reward status
+        if (rewardData.status === 'completed') {
+            const myPts = await MyPtsModel.findOrCreate(new mongoose.Types.ObjectId(userId));
+            await myPts.deductMyPts(
+                event.booking.reward.points,
+                TransactionType.PURCHASE_PRODUCT,
+                `Payment for booking: ${event.title}`,
+                { eventId: event._id },
+                rewardData.transactionId
+            );
+        }
+
+        await event.save();
+        return event;
+    }
+
+    /**
+     * Reschedule a booking
+     */
+    async rescheduleBooking(
+        eventId: string,
+        userId: string,
+        profileId: string,
+        newStartTime: Date,
+        newEndTime: Date
+    ): Promise<IEvent> {
+        const event = await Event.findOne({ _id: eventId });
+        if (!event) {
+            throw new Error('Event not found');
+        }
+
+        if (event.eventType !== EventType.Booking || !event.booking) {
+            throw new Error('Event is not a booking');
+        }
+
+        // Only allow rescheduling by the service provider or the booking creator's profile
+        if (!event.booking.serviceProvider.profileId.equals(profileId) && !event.profile?.equals(profileId)) {
+            throw new Error('Not authorized to reschedule booking');
+        }
+
+        // Check if booking can be rescheduled
+        if (!(event as any).canReschedule()) {
+            throw new Error('Maximum reschedule limit reached');
+        }
+
+        // Check for time overlap using profile IDs
+        const overlapCheck = await checkTimeOverlap(
+            event.profile?.toString() || '',
+            event.booking.serviceProvider.profileId.toString(),
+            {
+                startTime: newStartTime,
+                endTime: newEndTime,
+                isAllDay: event.isAllDay
+            }
+        );
+
+        if (overlapCheck.overlaps) {
+            throw new Error(`Time conflict with existing items: ${overlapCheck.conflictingItems.map(item => `${item.type}: ${item.title}`).join(', ')}`);
+        }
+
+        // Update times and increment reschedule count
+        event.startTime = newStartTime;
+        event.endTime = newEndTime;
+        event.booking.rescheduleCount += 1;
+
+        await event.save();
+        return event;
+    }
+
+    /**
+     * Get bookings for a service provider
+     */
+    async getProviderBookings(
+        profileId: mongoose.Types.ObjectId,
+        filters: {
+            status?: BookingStatus;
+            fromDate?: Date;
+            toDate?: Date;
+        } = {}
+    ): Promise<IEvent[]> {
+        const query: any = {
+            eventType: EventType.Booking,
+            'booking.serviceProvider.profileId': profileId
+        };
+
+        if (filters.status) {
+            query['booking.status'] = filters.status;
+        }
+
+        if (filters.fromDate || filters.toDate) {
+            query.$and = [];
+            if (filters.fromDate) {
+                query.$and.push({ startTime: { $gte: filters.fromDate } });
+            }
+            if (filters.toDate) {
+                query.$and.push({ endTime: { $lte: filters.toDate } });
+            }
+        }
+
+        return Event.find(query)
+            .sort({ startTime: 1 })
+            .populate('createdBy', 'name email')
+            .populate('profile', 'profileInformation.username profileType')
+            .populate('booking.serviceProvider.profileId', 'profileInformation.username profileType');
+    }
+
+    /**
+     * Create a booking event
+     */
+    async createBooking(
+        eventData: Partial<IEvent>,
+        userId: string,
+        profileId: string
+    ): Promise<IEvent> {
+        // Validate booking-specific requirements
+        if (!eventData.booking?.serviceProvider?.profileId) {
+            throw new Error('Service provider profile ID is required for bookings');
+        }
+
+        // If service name is provided, validate service duration
+        if (eventData.booking?.service?.name && !eventData.booking?.service?.duration) {
+            throw new Error('Service duration is required when service name is provided');
+        }
+
+        // Check for time overlap
+        if (eventData.startTime && eventData.endTime) {
+            const overlap = await checkTimeOverlap(
+                eventData.createdBy?.toString() || '',
+                eventData.profile?.toString() || '',
+                {
+                    startTime: eventData.startTime,
+                    endTime: eventData.endTime,
+                    isAllDay: eventData.isAllDay || false
+                }
+            );
+            if (overlap) {
+                throw new Error('Time slot overlaps with existing booking');
+            }
+        }
+
+        // Set initial booking status
+        if (eventData.booking) {
+            eventData.booking.status = BookingStatus.Pending;
+            // Initialize reward if it exists
+            if (eventData.booking.reward) {
+                eventData.booking.reward = {
+                    type: 'Reward',
+                    points: eventData.booking.reward.points,
+                    currency: 'MyPts',
+                    description: eventData.booking.reward.description,
+                    required: eventData.booking.reward.required || false,
+                    status: 'pending',
+                    transactionId: undefined
+                };
+            }
+        }
+
+        const event = new Event({
+            ...eventData,
+            eventType: EventType.Booking,
+            createdBy: new mongoose.Types.ObjectId(userId),
+            profile: new mongoose.Types.ObjectId(profileId)
+        });
+
+        return event.save();
+    }
 }
 
 export default new EventService();

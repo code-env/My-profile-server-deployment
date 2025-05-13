@@ -1,193 +1,317 @@
-import mongoose, { Document, Schema, Model, Types } from 'mongoose';
-import { IProfile } from '../interfaces/profile.interface';
-import { IUser } from './User';
+import { Schema, model, Document, Types } from 'mongoose';
 import { 
-    Attachment, 
-    Comment as IComment,
-    attachmentSchema, 
-    locationSchema, 
-    PriorityLevel, 
-    Reminder, 
-    reminderSchema, 
-    RepeatSettings, 
-    repeatSettingsSchema, 
-    rewardSchema,
-    VisibilityType,
-    Reward
+  Location, 
+  Attachment, 
+  Comment, 
+  EventType, 
+  EventStatus, 
+  BookingStatus, 
+  PriorityLevel, 
+  VisibilityType,
+  RepeatSettings,
+  Reminder,
+  Reward
 } from './plans-shared';
-import { Location } from 'express-validator';
-import { commentSchema } from './plans-shared/comment.schema';
 
 export interface IEvent extends Document {
   title: string;
   description?: string;
-  eventType: 'individual'|'meeting' | 'celebration' | 'appointment';
   startTime: Date;
   endTime: Date;
   isAllDay: boolean;
+  eventType: EventType;
+  status: EventStatus;
+  priority: PriorityLevel;
+  visibility: VisibilityType;
+  color: string;
+  category: string;
+  location?: Location;
+  participants: Types.ObjectId[];
+  createdBy: Types.ObjectId;
+  profile?: Types.ObjectId;
+  attachments: Attachment[];
+  comments: Comment[];
+  agendaItems: Array<{
+    description: string;
+    assignedTo?: Types.ObjectId;
+    completed: boolean;
+  }>;
+  isGroupEvent: boolean;
   duration?: {
     hours: number;
     minutes: number;
   };
   repeat: RepeatSettings;
   reminders: Reminder[];
-  visibility: VisibilityType;
-  participants?: Types.ObjectId[] | IProfile[];
-  profile?: Types.ObjectId | IProfile;
-  reward?: Reward;
-  color: string;
-  category: string;
-  priority: PriorityLevel;
-  status: 'upcoming' | 'in-progress' | 'completed' | 'cancelled';
-  notes?: string;
-  attachments: Attachment[];
-  location?: Location;
-  createdBy: Types.ObjectId | IUser;
-  updatedAt: Date;
-  createdAt: Date;
-  comments: IComment[];
-  likes: Types.ObjectId[] | IProfile[];
-
-  // Event-specific fields
-  agendaItems?: {
-    description: string;
-    assignedTo?: Types.ObjectId;
-    completed?: boolean;
-  }[];
-  isGroupEvent?: boolean;
+  likes: Types.ObjectId[];
   serviceProvider?: {
     profileId: Types.ObjectId;
     role: string;
+    organization?: Types.ObjectId;
+  };
+  // Only used when eventType === EventType.Booking
+  booking?: {
+    serviceProvider: {
+      profileId: Types.ObjectId;
+      role: string;
+      organization?: Types.ObjectId;
+    };
+    service?: {
+      name: string;
+      description?: string;
+      duration: number;  // in minutes
+      reward?: Reward;
+    };
+    status: BookingStatus;
+    reward?: Reward & {
+      required: boolean;
+      transactionId?: string;
+      status: 'pending' | 'completed' | 'failed';
+    };
+    notes?: string;
+    cancellationReason?: string;
+    rescheduleCount: number;
+    requireApproval: boolean;
   };
 }
 
-
-const agendaItemSchema = new Schema({
-  description: { type: String, required: true },
-  assignedTo: { type: Schema.Types.ObjectId, ref: 'Profile' },
-  completed: { type: Boolean, default: false }
-});
-
-const serviceProviderSchema = new Schema({
-  profileId: { type: Schema.Types.ObjectId, ref: 'Profile', required: true },
-  role: { type: String, required: true }
-});
-
-const EventSchema = new Schema<IEvent>(
-  {
-    title: { type: String, required: true },
-    description: { type: String },
-    eventType: {
-      type: String,
-      enum: ['meeting', 'celebration', 'appointment'],
-      required: true
+const EventSchema = new Schema<IEvent>({
+  title: { type: String, required: true },
+  description: String,
+  startTime: { type: Date, required: true },
+  endTime: { type: Date, required: true },
+  isAllDay: { type: Boolean, default: false },
+  eventType: {
+    type: String,
+    enum: Object.values(EventType),
+    default: EventType.Meeting
+  },
+  status: {
+    type: String,
+    enum: Object.values(EventStatus),
+    default: EventStatus.Upcoming
+  },
+  priority: {
+    type: String,
+    enum: Object.values(PriorityLevel),
+    default: PriorityLevel.Low
+  },
+  visibility: {
+    type: String,
+    enum: Object.values(VisibilityType),
+    default: VisibilityType.Public
+  },
+  color: { type: String, default: '#1DA1F2' },
+  category: { type: String, default: 'Personal' },
+  location: {
+    name: String,
+    address: String,
+    coordinates: {
+      lat: Number,
+      lng: Number
     },
-    startTime: { type: Date, required: true },
-    endTime: { type: Date, required: true },
-    isAllDay: { type: Boolean, default: false },
-    duration: {
-      hours: { type: Number, min: 0, max: 23 },
-      minutes: { type: Number, min: 0, max: 59 }
-    },
-    repeat: repeatSettingsSchema,
-    reminders: [reminderSchema],
-    visibility: {
-      type: String,
-      enum: Object.values(VisibilityType),
-      default: VisibilityType.Public
-    },
-    participants: [{
+    online: { type: Boolean, default: false },
+    meetingUrl: String
+  },
+  participants: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Profile'
+  }],
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'Users',
+    required: true
+  },
+  profile: {
+    type: Schema.Types.ObjectId,
+    ref: 'Profile'
+  },
+  attachments: [{
+    fileType: String,
+    url: String,
+    name: String,
+    uploadedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'Users'
+    }
+  }],
+  comments: [{
+    text: String,
+    postedBy: {
       type: Schema.Types.ObjectId,
       ref: 'Profile'
-    }],
-    reward: rewardSchema,
-    color: { type: String, default: '#1DA1F2' },
-    category: { type: String, default: 'Personal' },
-    priority: {
-      type: String,
-      enum: Object.values(PriorityLevel),
-      default: PriorityLevel.Low
     },
-    profile: { type: Schema.Types.ObjectId, ref: 'Profile' },
+    replies: [{
+      text: String,
+      postedBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'Profile'
+      }
+    }],
+    reactions: {
+      type: Map,
+      of: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Profile'
+      }]
+    }
+  }],
+  agendaItems: [{
+    description: String,
+    assignedTo: {
+      type: Schema.Types.ObjectId,
+      ref: 'Profile'
+    },
+    completed: { type: Boolean, default: false }
+  }],
+  isGroupEvent: { type: Boolean, default: false },
+  duration: {
+    hours: { type: Number, min: 0, max: 23, default: 0 },
+    minutes: { type: Number, min: 0, max: 59, default: 0 }
+  },
+  repeat: {
+    isRepeating: { type: Boolean, default: false },
+    frequency: { 
+      type: String, 
+      enum: ['None', 'Daily', 'Weekdays', 'Weekends', 'Weekly', 'BiWeekly', 'Monthly', 'Yearly', 'Custom'],
+      default: 'None'
+    },
+    interval: { type: Number, min: 1 },
+    endCondition: { 
+      type: String, 
+      enum: ['Never', 'UntilDate', 'AfterOccurrences'],
+      default: 'Never'
+    },
+    endDate: { type: Date },
+    occurrences: { type: Number, min: 1 },
+    nextRun: { type: Date }
+  },
+  reminders: [{
+    type: {
+      type: String,
+      enum: ['None', 'AtEventTime', 'Minutes15', 'Minutes30', 'Hours1', 'Hours2', 'Days1', 'Days2', 'Weeks1', 'Custom'],
+      required: true,
+      default: 'None'
+    },
+    amount: { type: Number, min: 1 },
+    unit: { type: String, enum: ['Minutes', 'Hours', 'Days', 'Weeks'] },
+    customEmail: { type: String },
+    triggered: { type: Boolean, default: false },
+    triggerTime: { type: Date },
+    minutesBefore: { type: Number }
+  }],
+  likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
+  serviceProvider: {
+    profileId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Profile'
+    },
+    role: String,
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization'
+    }
+  },
+  // Only used when eventType === EventType.Booking
+  booking: {
+    serviceProvider: {
+      profileId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Profile',
+        default: null
+      },
+      role: { type: String, default: 'provider' },
+      organization: {
+        type: Schema.Types.ObjectId,
+        ref: 'Organization'
+      }
+    },
+    service: {
+      name: { type: String },
+      description: String,
+      duration: { type: Number },  // in minutes
+      reward: {
+        type: { 
+          type: String, 
+          enum: ['Reward', 'Punishment'],
+          default: 'Reward'
+        },
+        points: { type: Number, default: 0, min: 0 },
+        currency: { type: String, default: 'MyPts' },
+        description: { type: String }
+      }
+    },
     status: {
       type: String,
-      enum: ['upcoming', 'in-progress', 'completed', 'cancelled'],
-      default: 'upcoming'
+      enum: Object.values(BookingStatus),
+      default: BookingStatus.Pending
     },
-    notes: { type: String },
-    attachments: [attachmentSchema],
-    location: locationSchema,
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'Users',
-      required: true
-    },
-    comments: [commentSchema],
-    likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
-    agendaItems: [agendaItemSchema],
-    isGroupEvent: { type: Boolean },
-    serviceProvider: serviceProviderSchema
-  },
-  {
-    timestamps: true,
-    toJSON: {
-      virtuals: true,
-      transform: function (doc, ret) {
-        ret.id = ret._id;
-        delete ret._id;
-        delete ret.__v;
+    reward: {
+      type: { 
+        type: String, 
+        enum: ['Reward', 'Punishment'],
+        default: 'Reward'
+      },
+      points: { type: Number, default: 0, min: 0 },
+      currency: { type: String, default: 'MyPts' },
+      description: { type: String },
+      required: { type: Boolean, default: false },
+      transactionId: String,
+      status: {
+        type: String,
+        enum: ['pending', 'completed', 'failed'],
+        default: 'pending'
       }
-    }
+    },
+    notes: String,
+    cancellationReason: String,
+    rescheduleCount: { type: Number, default: 0 },
+    requireApproval: { type: Boolean, default: false }
   }
-);
-
-// Virtual for display time
-EventSchema.virtual('displayTime').get(function () {
-  if (this.isAllDay) {
-    return 'All day';
-  }
-  if (this.startTime && this.endTime) {
-    return `${this.startTime.toLocaleTimeString()} - ${this.endTime.toLocaleTimeString()}`;
-  }
-  return '';
+}, {
+  timestamps: true
 });
 
-// Virtual for comment count
-EventSchema.virtual('commentCount').get(function () {
-  return this.comments?.length || 0;
-});
+// Indexes for efficient querying
+EventSchema.index({ startTime: 1 });
+EventSchema.index({ endTime: 1 });
+EventSchema.index({ 'booking.serviceProvider.profileId': 1, startTime: 1 });
+EventSchema.index({ 'booking.status': 1 });
 
-// Virtual for like count
-EventSchema.virtual('likeCount').get(function () {
-  return this.likes?.length || 0;
-});
+// Add method to check if booking can be rescheduled
+EventSchema.methods.canReschedule = function(maxReschedules: number = 3): boolean {
+  if (this.eventType !== EventType.Booking || !this.booking) return false;
+  return this.booking.rescheduleCount < maxReschedules;
+};
+
+// Add method to check if booking can be cancelled
+EventSchema.methods.canCancel = function(cancellationWindow: number = 24): boolean {
+  if (this.eventType !== EventType.Booking || !this.booking) return false;
+  const hoursUntilStart = (this.startTime.getTime() - new Date().getTime()) / (1000 * 60 * 60);
+  return hoursUntilStart >= cancellationWindow;
+};
 
 // Pre-save hook for all-day events
-EventSchema.pre('save', function (next) {
+EventSchema.pre('save', function(next) {
   if (this.isAllDay) {
     const start = new Date(this.startTime);
     start.setHours(0, 0, 0, 0);
     this.startTime = start;
-
+    
     const end = new Date(start);
     end.setHours(23, 59, 59, 999);
     this.endTime = end;
 
+    // Set duration to 24 hours
     this.duration = { hours: 24, minutes: 0 };
   }
+
+  // Set booking to undefined if eventType is not Booking
+  if (this.eventType !== EventType.Booking) {
+    this.set('booking', undefined);
+  }
+
   next();
 });
 
-// Indexes for better query performance
-EventSchema.index({ createdBy: 1, status: 1 });
-EventSchema.index({ startTime: 1 });
-EventSchema.index({ endTime: 1 });
-EventSchema.index({ 'repeat.nextRun': 1 });
-EventSchema.index({ likes: 1 }); // Index for likes
-EventSchema.index({ 'comments.createdAt': 1 }); // Index for comment timestamps
-
-export interface EventModel extends Model<IEvent> {
-  // You can add static methods here if needed
-}
-
-export const Event = mongoose.model<IEvent, EventModel>('Event', EventSchema);
+export const Event = model<IEvent>('Event', EventSchema);

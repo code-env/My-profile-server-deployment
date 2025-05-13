@@ -52,7 +52,8 @@ const notificationSchema = new Schema<INotification>(
         'achievement_unlocked',
         'sell_submitted',
         'sell_request',
-        'sell_completed'
+        'sell_completed',
+        'booking_request'
       ],
     },
     title: {
@@ -66,7 +67,7 @@ const notificationSchema = new Schema<INotification>(
     relatedTo: {
       model: {
         type: String,
-        enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction'],
+        enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction', 'Event'],
       },
       id: {
         type: Schema.Types.ObjectId,

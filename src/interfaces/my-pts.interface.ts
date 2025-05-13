@@ -6,6 +6,11 @@ export enum TransactionType {
   SELL_MYPTS = 'SELL_MYPTS',           // User sells MyPts for real money
   WITHDRAW_MYPTS = 'WITHDRAW_MYPTS',    // User withdraws MyPts back to reserve
   EARN_MYPTS = 'EARN_MYPTS',           // User earns MyPts through activities
+  BOOKING_PAYMENT = 'BOOKING_PAYMENT', // User pays for a booking using MyPts
+  BOOKING_REWARD = 'BOOKING_REWARD', // User receives a reward for a booking
+  BOOKING_PUNISHMENT = 'BOOKING_PUNISHMENT', // User receives a punishment for a booking
+  BOOKING_REFUND = 'BOOKING_REFUND', // User receives a refund for a booking
+  TASK_REWARD = 'TASK_REWARD', // User receives a reward for a task
 
   // Product transactions
   PURCHASE_PRODUCT = 'PURCHASE_PRODUCT',           // User purchases a product for another profile using MyPts

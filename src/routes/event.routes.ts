@@ -13,7 +13,12 @@ import {
     setServiceProvider,
     addComment,
     likeEvent,
-    likeComment
+    likeComment,
+    createBooking,
+    updateBookingStatus,
+    updateBookingReward,
+    rescheduleBooking,
+    getProviderBookings
 } from '../controllers/event.controller';
 
 const router = express.Router();
@@ -43,5 +48,12 @@ router.post('/:id/comments/:commentId/like', likeComment);
 
 // Like route
 router.post('/:id/like', likeEvent);
+
+// Booking routes
+router.post('/booking', createBooking);
+router.patch('/:id/booking/status', updateBookingStatus);
+router.patch('/:id/booking/reward', updateBookingReward);
+router.patch('/:id/booking/reschedule', rescheduleBooking);
+router.get('/bookings/provider/:profileId', getProviderBookings);
 
 export default router;

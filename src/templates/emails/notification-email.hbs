@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}}</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9f9;
+    }
+    .container {
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 30px;
+      background-color: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    .header {
+      text-align: center;
+      padding: 0 0 20px 0;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 25px;
+    }
+    .logo {
+      max-width: 40px;
+      height: auto;
+      margin-bottom: 15px;
+    }
+    .title {
+      font-size: 24px;
+      color: #2c3e50;
+      margin: 0;
+      font-weight: 600;
+    }
+    .content {
+      padding: 0;
+      color: #4a5568;
+      font-size: 16px;
+    }
+    .message {
+      margin-bottom: 25px;
+      line-height: 1.7;
+    }
+    .footer {
+      text-align: center;
+      padding: 25px 0 0 0;
+      font-size: 13px;
+      color: #718096;
+      border-top: 1px solid #eee;
+      margin-top: 30px;
+    }
+    .button {
+      display: inline-block;
+      padding: 12px 24px;
+      background-color: #4299e1;
+      color: #ffffff !important;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: 500;
+      margin-top: 20px;
+      transition: background-color 0.2s;
+    }
+    .button:hover {
+      background-color: #3182ce;
+    }
+    .metadata {
+      background-color: #f8fafc;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 20px 0;
+      font-size: 14px;
+    }
+    .metadata-item {
+      margin: 8px 0;
+    }
+    .metadata-label {
+      color: #718096;
+      font-weight: 500;
+    }
+    @media only screen and (max-width: 600px) {
+      .container {
+        margin: 10px;
+        padding: 20px;
+      }
+      .title {
+        font-size: 20px;
+      }
+      .content {
+        font-size: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="cid:company-logo" alt="{{appName}}" class="logo">
+      <h1 class="title">{{title}}</h1>
+    </div>
+    <div class="content">
+      <div class="message">{{message}}</div>
+      
+      {{#if metadata}}
+      <div class="metadata">
+        {{#each metadata}}
+        <div class="metadata-item">
+          <span class="metadata-label">{{@key}}:</span> {{this}}
+        </div>
+        {{/each}}
+      </div>
+      {{/if}}
+      
+      {{#if action.url}}
+      <div style="text-align: center;">
+        <a href="{{action.url}}" class="button">{{action.text}}</a>
+      </div>
+      {{/if}}
+    </div>
+    <div class="footer">
+      <p>&copy; {{year}} {{appName}}. All rights reserved.</p>
+      <p>This is an automated message, please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -38,7 +38,6 @@
 import { Application } from 'express';
 import authRoutes from './auth.routes';
 import userRoutes from './user.routes'
-import planRoutes from './plan.routes'
 import profileRoutes from './profile.routes';
 // import connectionRoutes from './connection.routes';
 import profileConnectionRoutes from './profile-connection.routes';
@@ -128,7 +127,6 @@ export const setupRoutes = (app: Application): void => {
   // app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/profile-connections', protect, profileConnectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
-  app.use('/api/plans', protect, planRoutes);
   app.use('/api/tasks', protect, taskRoutes);
   app.use('/api/lists', protect, listRoutes);
   app.use('/api/events', protect, eventRoutes);
