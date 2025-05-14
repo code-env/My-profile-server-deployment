@@ -29,7 +29,7 @@ const validateInteractionData = (data: SocialInteractionData) => {
 
 // Get socket URL from environment or config
 const getSocketUrl = () => {
-    return process.env.SOCKET_SERVER_URL || 'http://localhost:3000';
+    return process.env.SOCKET_IO_URL || 'http://localhost:3000';
 };
 
 export const emitSocialInteraction = async (
