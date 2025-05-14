@@ -68,7 +68,7 @@ import passport from 'passport';
 import socialAuthRoutes from './auth.social.routes';
 import participantRoutes from './participant.routes';
 import reminderRoutes from './reminder.routes';
-
+import plansRoutes from './plans.routes';
 
 /**
  * Configures and sets up all API routes for the application
@@ -134,6 +134,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/lists', protect, listRoutes);
   app.use('/api/events', protect, eventRoutes);
   app.use('/api/interactions', protect, interactionRoutes);
+  app.use('/api/plans', protect, plansRoutes);
   app.use('/api/relationships', protect, RelationshipTypeRoutes);
   app.use('/api/logs', logsRoutes);
   app.use('/api/my-pts', protect, myPtsRoutes);

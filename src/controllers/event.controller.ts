@@ -564,10 +564,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         req.params.id,
         user._id,
         profile,
-        { 
-            text: req.body.text,
-            parentCommentId: req.body.parentCommentId ? new mongoose.Types.ObjectId(req.body.parentCommentId) : undefined
-        }
+        { text: req.body.text }
     );
 
     // Emit social interaction
@@ -587,45 +584,6 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         success: true,
         data: updatedEvent,
         message: 'Comment added successfully'
-    });
-});
-
-// @desc    Get comment thread
-// @route   GET /events/:id/comments/:threadId/thread
-// @access  Private
-export const getThread = asyncHandler(async (req: Request, res: Response) => {
-    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid event ID');
-    }
-
-    if (!req.params.threadId || !mongoose.Types.ObjectId.isValid(req.params.threadId)) {
-        throw createHttpError(400, 'Invalid thread ID');
-    }
-
-    const thread = await eventService.getThread(
-        req.params.id,
-        new mongoose.Types.ObjectId(req.params.threadId)
-    );
-
-    res.json({
-        success: true,
-        data: thread
-    });
-});
-
-// @desc    Get all threads for an event
-// @route   GET /events/:id/threads
-// @access  Private
-export const getEventThreads = asyncHandler(async (req: Request, res: Response) => {
-    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid event ID');
-    }
-
-    const threads = await eventService.getEventThreads(req.params.id);
-
-    res.json({
-        success: true,
-        data: threads
     });
 });
 
@@ -679,29 +637,54 @@ export const likeEvent = asyncHandler(async (req: Request, res: Response) => {
 // @desc    Like comment
 // @route   POST /events/:id/comments/:commentId/like
 // @access  Private
-export const likeComment = asyncHandler(async (req: Request, res: Response) => {
-    const user: any = req.user!;
+export const likeComment = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid event ID' });
+        }
 
-    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-        throw createHttpError(400, 'Invalid event ID');
+        if (!req.params.commentIndex || isNaN(parseInt(req.params.commentIndex))) {
+            return res.status(400).json({ error: 'Invalid comment index' });
+        }
+
+        if (!req.body.profileId) {
+            return res.status(400).json({ error: 'Profile ID is required' });
+        }
+
+        const commentIndex = parseInt(req.params.commentIndex);
+        const event = await eventService.likeComment(
+            req.params.id,
+            commentIndex,
+            user._id,
+            req.body.profileId
+        );
+
+        // Emit social interaction
+        try {
+            await emitSocialInteraction(user._id, {
+                type: 'like',
+                profile: new Types.ObjectId(user._id),
+                targetProfile: new Types.ObjectId(event.profile?._id as Types.ObjectId),
+                contentId: (event as mongoose.Document).get('_id').toString(),
+                content: ''
+            });
+        } catch (error) {
+            console.error('Failed to emit social interaction:', error);
+        }
+
+        return res.json({
+            success: true,
+            data: event,
+            message: 'Comment liked successfully'
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to like comment'
+        });
     }
-
-    if (!req.params.commentId || !mongoose.Types.ObjectId.isValid(req.params.commentId)) {
-        throw createHttpError(400, 'Invalid comment ID');
-    }
-
-    const event = await eventService.likeComment(
-        req.params.id,
-        user._id,
-        new mongoose.Types.ObjectId(req.params.commentId)
-    );
-
-    res.json({
-        success: true,
-        data: event,
-        message: 'Comment liked successfully'
-    });
-});
+};
 
 // @desc    Create a booking event
 // @route   POST /events/booking

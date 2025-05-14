@@ -420,6 +420,8 @@ export const deleteSubTask = asyncHandler(async (req: Request, res: Response) =>
 export const addComment = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
+    console.log('Adding comment to task:', req.params.id);
+
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
         throw createHttpError(400, 'Invalid task ID');
     }
@@ -433,14 +435,10 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(404, 'Task not found');
     }
 
-    console.log('takeProfileId', task);
-
     if (!task.profile) {
         throw createHttpError(400, 'Task has no associated profile');
     }
 
-    // Type assertions for IDs
-    const targetProfileId = (task.profile as any)._id.toString();
     const profileId = (task.profile as any)._id.toString();
 
     const updatedTask = await taskService.addComment(
@@ -457,18 +455,6 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
             targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
             contentId: (updatedTask as mongoose.Document).get('_id').toString(),
             content: req.body.text
-        });
-    } catch (error) {
-        console.error('Failed to emit social interaction:', error);
-    }
-
-    try {
-        await emitSocialInteraction(user._id, {
-            type: 'like',
-            profile: new Types.ObjectId(user._id),
-            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
-            contentId: (updatedTask as mongoose.Document).get('_id').toString(),
-            content: ''
         });
     } catch (error) {
         console.error('Failed to emit social interaction:', error);
@@ -495,31 +481,19 @@ export const likeComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Invalid comment index');
     }
 
-
-
+    const commentIndex = parseInt(req.params.commentIndex);
     const profileId = req.body.profileId;
 
-    const commentIndex = parseInt(req.params.commentIndex);
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
+
     const task = await taskService.likeComment(
         req.params.id,
         commentIndex,
         user._id,
         profileId
     );
-
-    // Emit the social interaction event
-    try {
-        await emitSocialInteraction(user._id, {
-            type: 'like',
-            profile: new Types.ObjectId(user._id),
-            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
-            contentId: (task as mongoose.Document).get('_id').toString(),
-            content: ''
-        });
-    } catch (error) {
-        console.error('Failed to emit social interaction:', error);
-        // Don't throw the error as the like was still added successfully
-    }
 
     res.json({
         success: true,
@@ -630,8 +604,6 @@ export const removeAttachment = asyncHandler(async (req: Request, res: Response)
 export const likeTask = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
-    const profileId = new Types.ObjectId(req.params.profileId);
-
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
         throw createHttpError(400, 'Invalid task ID');
     }
@@ -642,13 +614,11 @@ export const likeTask = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(404, 'Task not found');
     }
 
-
     if (!taskToLike.profile) {
         throw createHttpError(400, 'Task has no associated profile');
     }
 
-    const targetProfileId = new Types.ObjectId(taskToLike.get('profile')._id);
-
+    const profileId = new Types.ObjectId((taskToLike.profile as { _id: Types.ObjectId })._id.toString());
     const task = await taskService.likeTask(req.params.id, profileId);
 
     if (!task) {
@@ -660,17 +630,17 @@ export const likeTask = asyncHandler(async (req: Request, res: Response) => {
         await emitSocialInteraction(user._id, {
             type: 'like',
             profile: new Types.ObjectId(user._id),
-            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
+            targetProfile: profileId,
             contentId: (task as mongoose.Document).get('_id').toString(),
             content: ''
         });
     } catch (error) {
         console.error('Failed to emit social interaction:', error);
     }
-
     res.json({
         success: true,
         data: task,
         message: 'Task liked successfully'
     });
 });
+

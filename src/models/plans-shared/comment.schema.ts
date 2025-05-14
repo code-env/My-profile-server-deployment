@@ -5,22 +5,11 @@ export const commentSchema = new Schema<Comment>({
   text: { type: String, required: true },
   postedBy: { 
     type: Schema.Types.ObjectId, 
-    ref: 'Post',
+    ref: 'Profile',
     required: true
   },
-  parentComment: {
-    type: Schema.Types.ObjectId,
-    ref: 'Comment',
-    default: null
-  },
-  depth: { type: Number, default: 0 },
-  threadId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Comment',
-    default: null
-  },
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date },
+  updatedAt: { type: Date, default: Date.now },
   likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }]
 }, {
   toJSON: {

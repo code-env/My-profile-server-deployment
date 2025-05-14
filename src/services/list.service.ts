@@ -24,8 +24,8 @@ class ListService {
     return List.findById(listId)
       .populate('createdBy', 'name email')
       .populate('relatedTask')
-      .populate('likes.profile', 'name email')
-      .populate('comments.createdBy', 'name email');
+      .populate('likes.profile', 'profileInformation.username profileType')
+      .populate('comments.postedBy', 'profileInformation.username profileType');
   }
 
   /**
@@ -184,55 +184,101 @@ class ListService {
   /**
    * Add a comment to a list
    */
-  async addListComment(listId: string, userId: string, text: string) {
-    const comment = {
-      text,
-      createdBy: userId,
-      createdAt: new Date(),
-    };
-
-    const list = await List.findOneAndUpdate(
-      { _id: listId },
-      { $push: { comments: comment } },
-      { new: true }
-    );
-
+  async addListComment(
+    listId: string,
+    userId: string,
+    profileId: string,
+    text: string
+  ): Promise<IList> {
+    const list = await List.findById(listId);
     if (!list) {
       throw new Error('List not found');
     }
 
+    const comment = {
+      text,
+      postedBy: new mongoose.Types.ObjectId(profileId),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      likes: []
+    };
+
+    list.comments.push(comment);
+    await list.save();
+
+    return list;
+  }
+
+  /**
+   * Like a comment on a list
+   */
+  async likeComment(listId: string, commentIndex: number, userId: string, profileId: string) {
+    const list = await List.findOne({ _id: listId });
+    if (!list) {
+      throw new Error('List not found');
+    }
+
+    if (commentIndex < 0 || commentIndex >= list.comments.length) {
+      throw new Error('Invalid comment index');
+    }
+
+    const comment = list.comments[commentIndex];
+    const profileIdObj = new mongoose.Types.ObjectId(profileId);
+
+    // Add the like if not already present
+    if (!comment.likes.some(id => id.equals(profileIdObj))) {
+      comment.likes.push(profileIdObj);
+    }
+
+    await list.save();
+    return list;
+  }
+
+  /**
+   * Unlike a comment on a list
+   */
+  async unlikeComment(listId: string, commentIndex: number, userId: string, profileId: string) {
+    const list = await List.findOne({ _id: listId });
+    if (!list) {
+      throw new Error('List not found');
+    }
+
+    if (commentIndex < 0 || commentIndex >= list.comments.length) {
+      throw new Error('Invalid comment index');
+    }
+
+    const comment = list.comments[commentIndex];
+    const profileIdObj = new mongoose.Types.ObjectId(profileId);
+
+    // Remove the like if present
+    comment.likes = comment.likes.filter(id => !id.equals(profileIdObj));
+
+    await list.save();
     return list;
   }
 
   /**
    * Like a list
    */
-  async likeList(listId: string, userId: string) {
-    // Check if already liked
-    const alreadyLiked = await List.findOne({
-      _id: listId,
-      'likes.profile': userId,
-    });
-
-    if (alreadyLiked) {
-      throw new Error('List already liked by this user');
-    }
-
+  async likeList(listId: string, userId: string, profileId: string) {
     const list = await List.findOneAndUpdate(
-      { _id: listId },
+      { 
+        _id: listId,
+        'likes.profile': { $ne: new mongoose.Types.ObjectId(profileId) }
+      },
       {
         $push: {
           likes: {
-            profile: userId,
-            createdAt: new Date(),
-          },
-        },
+            profile: new mongoose.Types.ObjectId(profileId),
+            createdAt: new Date()
+          }
+        }
       },
       { new: true }
     );
 
     if (!list) {
-      throw new Error('List not found');
+      throw new Error('List not found or already liked');
     }
 
     return list;
@@ -241,13 +287,13 @@ class ListService {
   /**
    * Unlike a list
    */
-  async unlikeList(listId: string, userId: string) {
+  async unlikeList(listId: string, userId: string, profileId: string) {
     const list = await List.findOneAndUpdate(
       { _id: listId },
       {
         $pull: {
-          likes: { profile: userId },
-        },
+          likes: { profile: new mongoose.Types.ObjectId(profileId) }
+        }
       },
       { new: true }
     );

@@ -72,13 +72,7 @@ export interface Comment {
   _id?: Types.ObjectId;
   text: string;
   postedBy: Types.ObjectId | IProfile;
-  parentComment?: Types.ObjectId;
-  depth: number;
-  threadId?: Types.ObjectId;
-  isThreadRoot: boolean;
-  replies: Types.ObjectId[];
-  reactions: Map<string, Types.ObjectId[]>;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
   likes: Types.ObjectId[];
 }

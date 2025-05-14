@@ -118,26 +118,9 @@ const taskSchema = new Schema<ITask>(
         ref: 'Profile',
         required: true
       },
-      parentComment: {
-        type: Schema.Types.ObjectId,
-        ref: 'Comment'
-      },
-      depth: { type: Number, default: 0 },
-      threadId: { type: Schema.Types.ObjectId },
-      isThreadRoot: { type: Boolean, default: true },
-      replies: [{
-        type: Schema.Types.ObjectId,
-        ref: 'Comment'
-      }],
-      reactions: {
-        type: Map,
-        of: [{
-          type: Schema.Types.ObjectId,
-          ref: 'Profile'
-        }]
-      },
       createdAt: { type: Date, default: Date.now },
-      updatedAt: { type: Date, default: Date.now }
+      updatedAt: { type: Date, default: Date.now },
+      likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }]
     }],
     location: locationSchema,
     profile: { 

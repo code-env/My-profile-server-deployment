@@ -52,6 +52,8 @@ export interface IEvent extends Document {
   reminders: Reminder[];
   likes: Types.ObjectId[];
   maxAttendees?: number;
+  createdAt: Date;
+  updatedAt: Date;
   serviceProvider?: {
     profileId: Types.ObjectId;
     role: string;
@@ -106,6 +108,7 @@ export interface IEvent extends Document {
     updatedBy?: Types.ObjectId;
     notes?: string;
   }>;
+  [key: string]: any; // For additional fields specific to tasks or events
 }
 
 const EventSchema = new Schema<IEvent>({
@@ -379,7 +382,9 @@ const EventSchema = new Schema<IEvent>({
       ref: 'Users'
     },
     notes: String
-  }]
+  }],
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
 }, {
   timestamps: true
 });

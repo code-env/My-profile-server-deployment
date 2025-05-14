@@ -4,13 +4,10 @@ import {
     Reminder,
     Reward,
     Attachment,
-    Location,
     PriorityLevel,
-    VisibilityType,
     EventType,
     BookingStatus,
     EventStatus,
-    Comment,
     RepeatFrequency,
     EndCondition
 } from '../models/plans-shared';
@@ -199,29 +196,14 @@ class EventService {
             .populate('serviceProvider.profileId', 'profileInformation.username profileType')
             .populate('agendaItems.assignedTo', 'profileInformation.username profileType')
             .populate('attachments.uploadedBy', 'profileInformation.username profileType')
-            .populate({
-                path: 'comments',
-                populate: [
-                    { path: 'postedBy', select: 'profileInformation.username profileType' },
-                    { path: 'reactions', select: 'profileInformation.username profileType' }
-                ]
-            })
+            .populate('comments.postedBy', 'profileInformation.username profileType')
             .lean()
             .exec();
 
         if (!event) return null;
 
-        // Convert reactions from plain object to Map
-        const eventWithMaps = {
-            ...event,
-            comments: event.comments.map(comment => ({
-                ...comment,
-                reactions: new Map(Object.entries(comment.reactions))
-            }))
-        };
-
         return {
-            ...eventWithMaps,
+            ...event,
             likesCount: event.likes?.length || 0,
             commentsCount: event.comments?.length || 0
         } as IEvent;
@@ -521,8 +503,6 @@ class EventService {
         profileId: string,
         commentData: {
             text: string;
-            parentCommentId?: mongoose.Types.ObjectId;
-            createdBy?: mongoose.Types.ObjectId;
         }
     ): Promise<IEvent> {
         const event = await Event.findById(eventId);
@@ -533,180 +513,14 @@ class EventService {
         const comment = {
             text: commentData.text,
             postedBy: new mongoose.Types.ObjectId(profileId),
-            parentComment: commentData.parentCommentId,
-            depth: 0,
-            threadId: new mongoose.Types.ObjectId(),
-            isThreadRoot: !commentData.parentCommentId,
-            replies: [],
-            reactions: new Map(),
             createdAt: new Date(),
             updatedAt: new Date(),
             likes: []
-        } as Comment;
-
-        if (commentData.parentCommentId) {
-            // Find parent comment
-            const parentComment = event.comments.find(c => c._id?.equals(commentData.parentCommentId));
-            if (!parentComment) {
-                throw new Error('Parent comment not found');
-            }
-
-            // Set thread properties
-            comment.parentComment = commentData.parentCommentId;
-            comment.depth = parentComment.depth + 1;
-            comment.threadId = parentComment.threadId || parentComment._id;
-            comment.isThreadRoot = false;
-
-            // Add to parent's replies
-            parentComment.replies.push(comment._id!);
-        }
+        };
 
         event.comments.push(comment);
         await event.save();
 
-        return event;
-    }
-
-    /**
-     * Get thread for a comment
-     */
-    async getThread(
-        eventId: string,
-        threadId: mongoose.Types.ObjectId
-    ): Promise<any> {
-        const event = await Event.findById(eventId)
-            .populate('comments.postedBy', 'profileInformation.username profileType')
-            .populate('comments.reactions', 'profileInformation.username profileType')
-            .lean();
-
-        if (!event) {
-            throw new Error('Event not found');
-        }
-
-        // Get all comments in the thread
-        const threadComments = event.comments.filter(c => 
-            c.threadId?.equals(threadId)
-        ).sort((a, b) => a.depth - b.depth);
-
-        return {
-            rootComment: threadComments.find(c => c.isThreadRoot),
-            replies: threadComments.filter(c => !c.isThreadRoot)
-        };
-    }
-
-    /**
-     * Get all threads for an event
-     */
-    async getEventThreads(eventId: string): Promise<any[]> {
-        const event = await Event.findById(eventId)
-            .populate('comments.postedBy', 'profileInformation.username profileType')
-            .populate('comments.reactions', 'profileInformation.username profileType')
-            .lean();
-
-        if (!event) {
-            throw new Error('Event not found');
-        }
-
-        // Get all root comments
-        const rootComments = event.comments.filter(c => c.isThreadRoot);
-        
-        // For each root comment, get its thread
-        const threads = await Promise.all(
-            rootComments.map(async (root) => {
-                const thread = await this.getThread(eventId, root.threadId!);
-                return {
-                    ...thread,
-                    replyCount: thread.replies.length
-                };
-            })
-        );
-
-        return threads;
-    }
-
-    /**
-     * Update a comment on an event
-     */
-    async updateComment(
-        eventId: string,
-        userId: string,
-        profileId: string,
-        commentId: mongoose.Types.ObjectId,
-        updateData: {
-            text?: string;
-            updatedAt?: Date;
-        }
-    ): Promise<IEvent> {
-        const event = await Event.findOne({ _id: eventId });
-        if (!event) {
-            throw new Error('Event not found');
-        }
-
-        const comment = event.comments.find(c => c._id?.equals(commentId));
-        if (!comment) {
-            throw new Error('Comment not found');
-        }
-
-        // Verify user has permission to update
-        if (!(comment.postedBy as Types.ObjectId).equals(new Types.ObjectId(profileId))) {
-            throw new Error('Not authorized to update this comment');
-        }
-
-        if (updateData.text !== undefined) {
-            comment.text = updateData.text;
-        }
-        comment.updatedAt = updateData.updatedAt || new Date();
-
-        await event.save();
-        return event;
-    }
-
-    /**
-     * Delete a comment from an event
-     */
-    async deleteComment(
-        eventId: string,
-        userId: string,
-        profileId: string,
-        commentId: mongoose.Types.ObjectId
-    ): Promise<IEvent> {
-        const event = await Event.findOne({ _id: eventId });
-        if (!event) {
-            throw new Error('Event not found');
-        }
-
-        const comment = event.comments.find(c => c._id?.equals(commentId));
-        if (!comment) {
-            throw new Error('Comment not found');
-        }
-
-        // Verify user has permission to delete
-        if (!(comment.postedBy as Types.ObjectId).equals(new Types.ObjectId(profileId))) {
-            throw new Error('Not authorized to delete this comment');
-        }
-
-        // If it's a root comment, delete all replies
-        if (comment.isThreadRoot) {
-            event.comments = event.comments.filter(c => 
-                !c.threadId?.equals(comment.threadId)
-            );
-        } else {
-            // Remove from parent's replies
-            const parentComment = event.comments.find(c => 
-                c._id?.equals(comment.parentComment)
-            );
-            if (parentComment) {
-                parentComment.replies = parentComment.replies.filter(
-                    replyId => !replyId.equals(commentId)
-                );
-            }
-            // Remove the comment
-            event.comments = event.comments.filter(c => 
-                !c._id?.equals(commentId)
-            );
-        }
-
-        await event.save();
         return event;
     }
 
@@ -722,27 +536,6 @@ class EventService {
 
         if (!event) {
             throw new Error('Event not found');
-        }
-
-        return event;
-    }
-
-    /**
-     * Like a comment on an event
-     */
-    async likeComment(
-        eventId: string,
-        userId: string,
-        commentId: mongoose.Types.ObjectId
-    ): Promise<IEvent> {
-        const event = await Event.findOneAndUpdate(
-            { _id: eventId, 'comments._id': commentId },
-            { $addToSet: { 'comments.$.likes': new mongoose.Types.ObjectId(userId) } },
-            { new: true }
-        );
-
-        if (!event) {
-            throw new Error('Event or comment not found');
         }
 
         return event;
@@ -1577,6 +1370,64 @@ class EventService {
         }
 
         return series;
+    }
+
+    /**
+     * Like a comment on an event
+     */
+    async likeComment(
+        eventId: string,
+        commentIndex: number,
+        userId: string,
+        profileId: string
+    ): Promise<IEvent> {
+        const event = await Event.findOne({ _id: eventId });
+        if (!event) {
+            throw new Error('Event not found');
+        }
+
+        if (commentIndex < 0 || commentIndex >= event.comments.length) {
+            throw new Error('Invalid comment index');
+        }
+
+        const comment = event.comments[commentIndex];
+        const profileIdObj = new mongoose.Types.ObjectId(profileId);
+
+        // Add the like if not already present
+        if (!comment.likes.some(id => id.equals(profileIdObj))) {
+            comment.likes.push(profileIdObj);
+        }
+
+        await event.save();
+        return event;
+    }
+
+    /**
+     * Unlike a comment on an event
+     */
+    async unlikeComment(
+        eventId: string,
+        commentIndex: number,
+        userId: string,
+        profileId: string
+    ): Promise<IEvent> {
+        const event = await Event.findOne({ _id: eventId });
+        if (!event) {
+            throw new Error('Event not found');
+        }
+
+        if (commentIndex < 0 || commentIndex >= event.comments.length) {
+            throw new Error('Invalid comment index');
+        }
+
+        const comment = event.comments[commentIndex];
+        const profileIdObj = new mongoose.Types.ObjectId(profileId);
+
+        // Remove the like if present
+        comment.likes = comment.likes.filter(id => !id.equals(profileIdObj));
+
+        await event.save();
+        return event;
     }
 }
 

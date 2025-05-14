@@ -111,47 +111,18 @@ class TaskService {
     /**
      * Get task by ID with populated fields
      */
-    async getTaskById(taskId: string): Promise<ITask | null> {
-        if (!mongoose.Types.ObjectId.isValid(taskId)) {
-            throw new Error('Invalid task ID');
+    async getTaskById(taskId: string) {
+        const task = await Task.findById(taskId)
+            .populate('createdBy', 'name email')
+            .populate('profile', 'profileInformation.username')
+            .populate('participants', 'profileInformation.username')
+            .populate('comments.postedBy', 'profileInformation.username');
+
+        if (!task) {
+            throw new Error('Task not found');
         }
 
-        const task = await Task.findById(taskId)
-            .populate('createdBy', 'fullName email')
-            .populate('participants', 'profileInformation.username profileType')
-            .populate('profile', 'profileInformation.username profileType')
-            .populate('relatedList', 'name type items')
-            .populate('attachments.uploadedBy', 'profileInformation.username profileType')
-            .populate({
-                path: 'comments',
-                populate: [
-                    { path: 'postedBy', select: 'profileInformation.username profileType' },
-                    { path: 'reactions', select: 'profileInformation.username profileType' }
-                ]
-            })
-            .lean()
-            .exec();
-
-        if (!task) return null;
-
-        // Convert reactions from plain object to Map
-        const taskWithMaps = {
-            ...task,
-            comments: task.comments.map(comment => ({
-                ...comment,
-                reactions: new Map(Object.entries(comment.reactions || {}))
-            }))
-        };
-
-        // Convert the task to a proper ITask
-        const convertedTask = {
-            ...taskWithMaps,
-            likesCount: task.likes?.length || 0,
-            commentsCount: task.comments?.length || 0,
-            relatedList: task.relatedList ? new mongoose.Types.ObjectId(task.relatedList.toString()) : undefined
-        };
-
-        return convertedTask as unknown as ITask;
+        return task;
     }
 
     /**
@@ -218,9 +189,9 @@ class TaskService {
                 startTime: 1,
                 createdAt: -1
             })
-            .populate('createdBy', 'fullName email')
-            .populate('participants', 'fullName email')
-            .populate('profile', 'fullName avatar');
+            .populate('createdBy', 'Information.username')
+            .populate('participants', 'profileInformation.username')
+            .populate('profile', 'profileInformation.username');
     }
 
     /**
@@ -366,18 +337,15 @@ class TaskService {
         const comment = {
             text,
             postedBy: new mongoose.Types.ObjectId(profileId),
-            depth: 0,
-            isThreadRoot: true,
-            replies: [],
-            reactions: new Map(),
             createdAt: new Date(),
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            likes: []
         };
 
         const task = await Task.findOneAndUpdate(
             { _id: taskId },
             { $push: { comments: comment } },
-            { new: true }
+            { new: true, runValidators: false }
         );
 
         if (!task) {
@@ -406,23 +374,13 @@ class TaskService {
         }
 
         const comment = task.comments[commentIndex];
-        const userIdObj = new mongoose.Types.ObjectId(userId);
         const profileIdObj = new mongoose.Types.ObjectId(profileId);
 
-        // Initialize reactions Map if it doesn't exist
-        if (!comment.reactions) {
-            comment.reactions = new Map();
-        }
-
-        // Add the reaction
-        const reactions = comment.reactions.get('like') || [];
-        if (!reactions.some(id => id.equals(profileIdObj))) {
-            reactions.push(profileIdObj);
-            comment.reactions.set('like', reactions);
+        if (!comment.likes.includes(profileIdObj)) {
+            comment.likes.push(profileIdObj);
         }
 
         await task.save();
-
         return task;
     }
 
@@ -445,19 +403,9 @@ class TaskService {
         }
 
         const comment = task.comments[commentIndex];
-        const userIdObj = new mongoose.Types.ObjectId(userId);
         const profileIdObj = new mongoose.Types.ObjectId(profileId);
 
-        // Initialize reactions Map if it doesn't exist
-        if (!comment.reactions) {
-            comment.reactions = new Map();
-        }
-
-        // Remove the reaction
-        const reactions = comment.reactions.get('like') || [];
-        const updatedReactions = reactions.filter(id => !id.equals(profileIdObj));
-        comment.reactions.set('like', updatedReactions);
-
+        comment.likes = comment.likes.filter(id => !id.equals(profileIdObj));
         await task.save();
 
         return task;
@@ -512,33 +460,29 @@ class TaskService {
         return task;
     }
 
-    async likeTask(taskId: string, userId: Types.ObjectId) {
-        const task = await Task.findById(taskId);
+    async likeTask(taskId: string, profileId: Types.ObjectId) {
+        const task = await Task.findOneAndUpdate(
+            { _id: taskId },
+            { $addToSet: { likes: profileId } },
+            { new: true, runValidators: false }
+        );
+
         if (!task) {
             throw new Error('Task not found');
-        }
-
-        if (!task.likes) {
-            task.likes = [];
-        }
-
-        if (!task.likes.includes(userId)) {
-            task.likes.push(userId);
-            await task.save();
         }
 
         return task;
     }
 
-    async unlikeTask(taskId: string, userId: Types.ObjectId) {
-        const task = await Task.findById(taskId);
+    async unlikeTask(taskId: string, profileId: Types.ObjectId) {
+        const task = await Task.findOneAndUpdate(
+            { _id: taskId },
+            { $pull: { likes: profileId } },
+            { new: true, runValidators: false }
+        );
+
         if (!task) {
             throw new Error('Task not found');
-        }
-
-        if (task.likes) {
-            task.likes = task.likes.filter(id => !id.equals(userId));
-            await task.save();
         }
 
         return task;

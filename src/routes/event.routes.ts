@@ -14,8 +14,6 @@ import {
     addComment,
     likeEvent,
     likeComment,
-    getThread,
-    getEventThreads,
     createBooking,
     updateBookingStatus,
     updateBookingReward,
@@ -41,9 +39,7 @@ router.delete('/:id', deleteEvent);
 
 // Comment routes
 router.post('/:id/comments', addComment);
-router.get('/:id/comments/:threadId/thread', getThread);
-router.get('/:id/threads', getEventThreads);
-router.post('/:id/comments/:commentId/like', likeComment);
+router.post('/:id/comments/:commentIndex/like', likeComment);
 
 // Event interaction routes
 router.post('/:id/agenda', addAgendaItem);

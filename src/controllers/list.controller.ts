@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import listService from '../services/list.service';
 import { ImportanceLevel, ListType } from '../models/List';
+import { emitSocialInteraction } from '../utils/socketEmitter';
 
 // Helper function to validate list data
 const validateListData = (data: any) => {
@@ -204,13 +205,102 @@ export const addListComment = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Comment text is required' });
         }
 
+        if (!req.body.profileId) {
+            return res.status(400).json({ error: 'Profile ID is required' });
+        }
+
         const list = await listService.addListComment(
             req.params.id,
             user._id,
+            req.body.profileId,
             req.body.text
         );
 
+        // Emit social interaction
+        try {
+            await emitSocialInteraction(user._id, {
+                type: 'comment',
+                profile: new Types.ObjectId(user._id),
+                targetProfile: new Types.ObjectId(list.profile?._id as Types.ObjectId),
+                contentId: (list as mongoose.Document).get('_id').toString(),
+                content: req.body.text
+            });
+        } catch (error) {
+            console.error('Failed to emit social interaction:', error);
+        }
+
         return successResponse(res, list, 'Comment added successfully');
+    } catch (error) {
+        handleErrorResponse(error, res);
+    }
+};
+
+export const likeComment = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid list ID' });
+        }
+
+        if (!req.params.commentIndex || isNaN(parseInt(req.params.commentIndex))) {
+            return res.status(400).json({ error: 'Invalid comment index' });
+        }
+
+        if (!req.body.profileId) {
+            return res.status(400).json({ error: 'Profile ID is required' });
+        }
+
+        const commentIndex = parseInt(req.params.commentIndex);
+        const list = await listService.likeComment(
+            req.params.id,
+            commentIndex,
+            user._id,
+            req.body.profileId
+        );
+
+        // Emit social interaction
+        try {
+            await emitSocialInteraction(user._id, {
+                type: 'like',
+                profile: new Types.ObjectId(user._id),
+                targetProfile: new Types.ObjectId(list.profile?._id as Types.ObjectId),
+                contentId: (list as mongoose.Document).get('_id').toString(),
+                content: ''
+            });
+        } catch (error) {
+            console.error('Failed to emit social interaction:', error);
+        }
+
+        return successResponse(res, list, 'Comment liked successfully');
+    } catch (error) {
+        handleErrorResponse(error, res);
+    }
+};
+
+export const unlikeComment = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid list ID' });
+        }
+
+        if (!req.params.commentIndex || isNaN(parseInt(req.params.commentIndex))) {
+            return res.status(400).json({ error: 'Invalid comment index' });
+        }
+
+        if (!req.body.profileId) {
+            return res.status(400).json({ error: 'Profile ID is required' });
+        }
+
+        const commentIndex = parseInt(req.params.commentIndex);
+        const list = await listService.unlikeComment(
+            req.params.id,
+            commentIndex,
+            user._id,
+            req.body.profileId
+        );
+
+        return successResponse(res, list, 'Comment unliked successfully');
     } catch (error) {
         handleErrorResponse(error, res);
     }
@@ -223,7 +313,28 @@ export const likeList = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Invalid list ID' });
         }
 
-        const list = await listService.likeList(req.params.id, user._id);
+        if (!req.body.profileId) {
+            return res.status(400).json({ error: 'Profile ID is required' });
+        }
+
+        const list = await listService.likeList(
+            req.params.id,
+            user._id,
+            req.body.profileId
+        );
+
+        // Emit social interaction
+        try {
+            await emitSocialInteraction(user._id, {
+                type: 'like',
+                profile: new Types.ObjectId(user._id),
+                targetProfile: new Types.ObjectId(list.profile?._id as Types.ObjectId),
+                contentId: (list as mongoose.Document).get('_id').toString()
+            });
+        } catch (error) {
+            console.error('Failed to emit social interaction:', error);
+        }
+
         return successResponse(res, list, 'List liked successfully');
     } catch (error) {
         handleErrorResponse(error, res);
@@ -237,7 +348,16 @@ export const unlikeList = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Invalid list ID' });
         }
 
-        const list = await listService.unlikeList(req.params.id, user._id);
+        if (!req.body.profileId) {
+            return res.status(400).json({ error: 'Profile ID is required' });
+        }
+
+        const list = await listService.unlikeList(
+            req.params.id,
+            user._id,
+            req.body.profileId
+        );
+
         return successResponse(res, list, 'List unliked successfully');
     } catch (error) {
         handleErrorResponse(error, res);

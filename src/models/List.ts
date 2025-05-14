@@ -2,7 +2,8 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
 import { ITask } from './Tasks';
 import { IProfile } from '../interfaces/profile.interface';
 import { IUser } from './User';
-import { VisibilityType } from './plans-shared';
+import { VisibilityType, Comment } from './plans-shared';
+import { commentSchema } from './plans-shared/comment.schema';
 
 export interface IList extends Document {
   name: string;
@@ -19,7 +20,7 @@ export interface IList extends Document {
   updatedAt: Date;
   relatedTask?: mongoose.Types.ObjectId | ITask;
   likes: Like[];
-  comments: ListComment[];
+  comments: Comment[];
 }
 
 export interface ListItem {
@@ -32,13 +33,6 @@ export interface ListItem {
 export interface Like {
   profile: mongoose.Types.ObjectId | IProfile;
   createdAt: Date;
-}
-
-export interface ListComment {
-  text: string;
-  createdBy: mongoose.Types.ObjectId | IProfile;
-  createdAt: Date;
-  updatedAt?: Date;
 }
 
 export enum ListType {
@@ -75,16 +69,6 @@ const likeSchema = new Schema<Like>({
     required: true
   },
   createdAt: { type: Date, default: Date.now }
-});
-
-const listCommentSchema = new Schema<ListComment>({
-  text: { type: String, required: true },
-  createdBy: { 
-    type: Schema.Types.ObjectId,
-    ref: 'Users'
-  },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date }
 });
 
 const rewardSchema = new Schema<Reward>({
@@ -131,7 +115,7 @@ const listSchema = new Schema<IList>(
       ref: 'Task'
     },
     likes: [likeSchema],
-    comments: [listCommentSchema]
+    comments: [commentSchema]
   },
   {
     timestamps: true,
