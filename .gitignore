@@ -44,3 +44,7 @@ temp/
 *.tgz
 *.tar.gz
 node_modules
+
+docs/notifictions-settings.md
+docs/notifictions-settings-list.md
+docs/api-endpoints.md
