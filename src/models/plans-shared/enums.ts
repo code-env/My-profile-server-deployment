@@ -81,10 +81,13 @@ export enum EventType {
 }
 
 export enum EventStatus {
-  Upcoming = 'upcoming',
-  InProgress = 'in-progress',
-  Completed = 'completed',
-  Cancelled = 'cancelled'
+  Draft = 'Draft',
+  Upcoming = 'Upcoming',
+  InProgress = 'InProgress',
+  Completed = 'Completed',
+  Cancelled = 'Cancelled',
+  Postponed = 'Postponed',
+  Archived = 'Archived'
 }
 
 export enum BookingStatus {

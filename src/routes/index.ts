@@ -62,11 +62,14 @@ import userDeviceRoutes from './user-device.routes';
 import profileReferralRoutes from './profile-referral.routes';
 import presenceRoutes from './presence.routes';
 import { protect } from '../middleware/auth.middleware';
-import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
 import session from 'express-session';
 import passport from 'passport';
 import socialAuthRoutes from './auth.social.routes';
+import participantRoutes from './participant.routes';
+import reminderRoutes from './reminder.routes';
+
+
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -146,6 +149,10 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/test/notifications', protect, notificationTestRoutes);
   app.use('/api/referrals', profileReferralRoutes);
   app.use('/api/presence', protect, presenceRoutes);
+
+  // additional routes related to plans
+  app.use('/api/participant', participantRoutes);
+  app.use('/api/events', reminderRoutes);
 
   // Test email route
   app.get('/api/test/email', async (req, res) => {

@@ -27,7 +27,7 @@ import {
 import { commentSchema } from './plans-shared/comment.schema';
 
 export interface ITask extends Document {
-  name: string;
+  title: string;
   type: TaskType;
   description?: string;
   subTasks: ISubTask[];
@@ -71,7 +71,7 @@ const subTaskSchema = new Schema<ISubTask>({
 
 const taskSchema = new Schema<ITask>(
   {
-    name: { type: String, required: true },
+    title: { type: String, required: true },
     description: { type: String },
     subTasks: [subTaskSchema],
     startTime: { type: Date },
@@ -111,7 +111,34 @@ const taskSchema = new Schema<ITask>(
     },
     notes: { type: String },
     attachments: [attachmentSchema],
-    comments: [commentSchema],
+    comments: [{
+      text: { type: String, required: true },
+      postedBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'Profile',
+        required: true
+      },
+      parentComment: {
+        type: Schema.Types.ObjectId,
+        ref: 'Comment'
+      },
+      depth: { type: Number, default: 0 },
+      threadId: { type: Schema.Types.ObjectId },
+      isThreadRoot: { type: Boolean, default: true },
+      replies: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Comment'
+      }],
+      reactions: {
+        type: Map,
+        of: [{
+          type: Schema.Types.ObjectId,
+          ref: 'Profile'
+        }]
+      },
+      createdAt: { type: Date, default: Date.now },
+      updatedAt: { type: Date, default: Date.now }
+    }],
     location: locationSchema,
     profile: { 
       type: Schema.Types.ObjectId, 

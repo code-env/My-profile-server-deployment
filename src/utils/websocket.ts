@@ -35,12 +35,12 @@ export const initializeWebSocket = (server: HTTPServer, app: Express) => {
   });
 
   // Initialize interaction service and set up socket server
-  console.log('Initializing interaction service...');
+  console.info('Initializing interaction service...');
   interactionService = new InteractionService(Interaction);
   interactionService.setSocketServer(io);
 
   // Initialize presence service for online/offline status
-  console.log('Initializing presence service...');
+  console.info('Initializing presence service...');
   presenceService = new PresenceService();
   presenceService.setSocketServer(io);
 

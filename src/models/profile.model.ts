@@ -671,3 +671,17 @@ interface IProfileModel extends Model<IProfile> {
 }
 
 export const ProfileModel: Model<IProfile> = mongoose.model<IProfile, IProfileModel>('Profile', ProfileSchema);
+
+
+// notifications
+// events
+// tasks
+// status updates
+// connections
+// connections requests
+// tasks
+// goals
+// habits
+// other items
+
+

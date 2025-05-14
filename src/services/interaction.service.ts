@@ -19,26 +19,26 @@ export class InteractionService {
             service: 'interaction-service',
             timestamp: new Date().toISOString()
         };
-        console.info(`InteractionService initialized ${JSON.stringify(metadata)}`);
+        logger.info(`InteractionService initialized ${JSON.stringify(metadata)}`);
     }
 
     setSocketServer(io: any) {
-        console.log('Setting up socket server in InteractionService');
+        logger.info('Setting up socket server in InteractionService');
         this.io = io;
         this.setupSocketListeners();
     }
 
     private setupSocketListeners() {
         if (!this.io) {
-            console.error('No socket server available');
+            logger.error('No socket server available');
             return;
         }
-        console.log('Setting up socket listeners');
+        logger.info('Setting up socket listeners');
 
         this.io.on('connection', (socket: Socket) => {
-            console.log('New socket connection received');
+            logger.info('New socket connection received');
             const userId = socket.handshake.query.userId as string;
-            console.log('Connection userId:', userId);
+            logger.info('Connection userId:', userId);
             
             if (userId) {
                 this.registerUserSocket(userId, socket);
@@ -46,7 +46,7 @@ export class InteractionService {
 
                 // Log all incoming events for debugging
                 socket.onAny((eventName, ...args) => {
-                    console.log(`Received event "${eventName}"`, args);
+                    logger.info(`Received event "${eventName}"`, args);
                 });
 
                 // Handle QR scan interactions
@@ -99,7 +99,7 @@ export class InteractionService {
                     contentId: string,
                     content?: string
                 }) => {
-                    console.log('Received social:interaction event:', data);
+                    logger.info('Received social:interaction event:', data);
                     try {
                         const interaction = await this.handleSocialInteraction(
                             new Types.ObjectId(userId),
@@ -109,17 +109,16 @@ export class InteractionService {
                             data.contentId,
                             data.content
                         );
-                        console.log('Created interaction:', interaction);
+                        logger.info('Created interaction:', interaction.title);
                         this.emitToUser(userId, 'interaction:social:recorded', interaction);
                     } catch (error) {
-                        console.error('Social interaction error:', error);
                         logger.error('Social interaction error:', error);
                     }
                 });
             }
 
             socket.on('disconnect', () => {
-                console.log(`Socket ${socket.id} disconnected, userId: ${userId}`);
+                logger.info(`Socket ${socket.id} disconnected, userId: ${userId}`);
                 if (userId) {
                     this.userSockets.delete(userId);
                     logger.info(`User ${userId} disconnected from interaction service`);
@@ -286,7 +285,7 @@ export class InteractionService {
         contentId: string,
         content?: string
     ): Promise<IInteraction> {
-        console.log('handleSocialInteraction', userId, profileId, targetProfile, type, contentId, content);
+        logger.info('handleSocialInteraction', userId, profileId, targetProfile, type, contentId, content);
         const interaction = new this.interactionModel({
             title: `Social Media ${type.charAt(0).toUpperCase() + type.slice(1)}`,
             profile: profileId,

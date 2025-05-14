@@ -543,10 +543,17 @@ export const unlikeComment = asyncHandler(async (req: Request, res: Response) =>
     }
 
     const commentIndex = parseInt(req.params.commentIndex);
+    const profileId = req.body.profileId;
+
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
+
     const task = await taskService.unlikeComment(
         req.params.id,
         commentIndex,
-        user._id
+        user._id,
+        profileId
     );
 
     res.json({

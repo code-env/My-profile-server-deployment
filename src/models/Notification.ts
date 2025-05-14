@@ -53,7 +53,8 @@ const notificationSchema = new Schema<INotification>(
         'sell_submitted',
         'sell_request',
         'sell_completed',
-        'booking_request'
+        'booking_request',
+        'reminder'
       ],
     },
     title: {
@@ -117,3 +118,11 @@ notificationSchema.index({ expiresAt: 1 }, {
 });
 
 export const Notification = mongoose.model<INotification>('Notification', notificationSchema);
+
+
+// various arears of reminders
+// 1. Event reminders
+// 2. Task reminders
+// 3. Goal reminders
+// 4. Habit reminders
+// 5. Reminders for other items

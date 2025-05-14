@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import {
     RepeatSettings,
     Reminder,
@@ -8,7 +8,11 @@ import {
     PriorityLevel,
     VisibilityType,
     EventType,
-    BookingStatus
+    BookingStatus,
+    EventStatus,
+    Comment,
+    RepeatFrequency,
+    EndCondition
 } from '../models/plans-shared';
 
 import { IEvent, Event } from '../models/Event';
@@ -16,8 +20,74 @@ import { User } from '../models/User';
 import { checkTimeOverlap } from '../utils/timeUtils';
 import { MyPtsModel } from '../models/my-pts.model';
 import { TransactionType } from '../interfaces/my-pts.interface';
+import { NotificationService } from '../services/notification.service';
+import participantService from './participant.service';
 
 class EventService {
+    private notificationService: NotificationService;
+
+    constructor() {
+        this.notificationService = new NotificationService();
+    }
+
+    /**
+     * Calculate reminder trigger time based on reminder type and event start time
+     */
+    private calculateReminderTime(startTime: Date, reminderType: string, amount?: number, unit?: string): Date {
+        const reminderTime = new Date(startTime);
+        
+        switch (reminderType) {
+            case 'AtEventTime':
+                return reminderTime;
+            case 'Minutes15':
+                reminderTime.setMinutes(reminderTime.getMinutes() - 15);
+                break;
+            case 'Minutes30':
+                reminderTime.setMinutes(reminderTime.getMinutes() - 30);
+                break;
+            case 'Hours1':
+                reminderTime.setHours(reminderTime.getHours() - 1);
+                break;
+            case 'Hours2':
+                reminderTime.setHours(reminderTime.getHours() - 2);
+                break;
+            case 'Days1':
+                reminderTime.setDate(reminderTime.getDate() - 1);
+                break;
+            case 'Days2':
+                reminderTime.setDate(reminderTime.getDate() - 2);
+                break;
+            case 'Weeks1':
+                reminderTime.setDate(reminderTime.getDate() - 7);
+                break;
+            case 'Custom':
+                if (!amount || !unit) {
+                    throw new Error('Custom reminder requires amount and unit');
+                }
+                switch (unit) {
+                    case 'Minutes':
+                        reminderTime.setMinutes(reminderTime.getMinutes() - amount);
+                        break;
+                    case 'Hours':
+                        reminderTime.setHours(reminderTime.getHours() - amount);
+                        break;
+                    case 'Days':
+                        reminderTime.setDate(reminderTime.getDate() - amount);
+                        break;
+                    case 'Weeks':
+                        reminderTime.setDate(reminderTime.getDate() - (amount * 7));
+                        break;
+                    default:
+                        throw new Error(`Invalid reminder unit: ${unit}`);
+                }
+                break;
+            default:
+                return reminderTime;
+        }
+        
+        return reminderTime;
+    }
+
     /**
      * Create a new event with all fields
      */
@@ -42,6 +112,26 @@ class EventService {
             if (overlapCheck.overlaps) {
                 throw new Error(`Time conflict with existing items: ${overlapCheck.conflictingItems.map(item => `${item.type}: ${item.title}`).join(', ')}`);
             }
+        }
+
+        // Process reminders to calculate trigger times
+        if (eventData.reminders && Array.isArray(eventData.reminders)) {
+            eventData.reminders = eventData.reminders.map(reminder => ({
+                ...reminder,
+                triggered: false,
+                triggerTime: this.calculateReminderTime(
+                    eventData.startTime!, 
+                    reminder.type,
+                    reminder.amount,
+                    reminder.unit
+                ),
+                minutesBefore: reminder.type === 'Minutes15' ? 15 : 
+                             reminder.type === 'Minutes30' ? 30 : 
+                             reminder.type === 'Hours1' ? 60 :
+                             reminder.type === 'Hours2' ? 120 :
+                             reminder.type === 'Custom' ? reminder.amount :
+                             undefined
+            }));
         }
 
         const event = new Event({
@@ -102,7 +192,7 @@ class EventService {
             throw new Error('Invalid event ID');
         }
 
-        return Event.findById(eventId)
+        const event = await Event.findById(new Types.ObjectId(eventId))
             .populate('createdBy', 'fullName email')
             .populate('profile', 'profileInformation.username profileType')
             .populate('participants', 'profileInformation.username profileType')
@@ -112,20 +202,29 @@ class EventService {
             .populate({
                 path: 'comments',
                 populate: [
-                    { path: 'profile', select: 'profileInformation.username profileType' },
-                    { path: 'likes', select: 'profileInformation.username profileType' }
+                    { path: 'postedBy', select: 'profileInformation.username profileType' },
+                    { path: 'reactions', select: 'profileInformation.username profileType' }
                 ]
             })
             .lean()
-            .exec()
-            .then(event => {
-                if (!event) return null;
-                return {
-                    ...event,
-                    likesCount: event.likes?.length || 0,
-                    commentsCount: event.comments?.length || 0
-                };
-            });
+            .exec();
+
+        if (!event) return null;
+
+        // Convert reactions from plain object to Map
+        const eventWithMaps = {
+            ...event,
+            comments: event.comments.map(comment => ({
+                ...comment,
+                reactions: new Map(Object.entries(comment.reactions))
+            }))
+        };
+
+        return {
+            ...eventWithMaps,
+            likesCount: event.likes?.length || 0,
+            commentsCount: event.comments?.length || 0
+        } as IEvent;
     }
 
     /**
@@ -422,27 +521,107 @@ class EventService {
         profileId: string,
         commentData: {
             text: string;
+            parentCommentId?: mongoose.Types.ObjectId;
             createdBy?: mongoose.Types.ObjectId;
         }
     ): Promise<IEvent> {
-        const comment = {
-            ...commentData,
-            createdBy: commentData.createdBy || new mongoose.Types.ObjectId(userId),
-            profile: new mongoose.Types.ObjectId(profileId),
-            createdAt: new Date()
-        };
-
-        const event = await Event.findOneAndUpdate(
-            { _id: eventId, createdBy: userId },
-            { $push: { comments: comment } },
-            { new: true }
-        );
-
+        const event = await Event.findById(eventId);
         if (!event) {
-            throw new Error('Event not found or access denied');
+            throw new Error('Event not found');
         }
 
+        const comment = {
+            text: commentData.text,
+            postedBy: new mongoose.Types.ObjectId(profileId),
+            parentComment: commentData.parentCommentId,
+            depth: 0,
+            threadId: new mongoose.Types.ObjectId(),
+            isThreadRoot: !commentData.parentCommentId,
+            replies: [],
+            reactions: new Map(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            likes: []
+        } as Comment;
+
+        if (commentData.parentCommentId) {
+            // Find parent comment
+            const parentComment = event.comments.find(c => c._id?.equals(commentData.parentCommentId));
+            if (!parentComment) {
+                throw new Error('Parent comment not found');
+            }
+
+            // Set thread properties
+            comment.parentComment = commentData.parentCommentId;
+            comment.depth = parentComment.depth + 1;
+            comment.threadId = parentComment.threadId || parentComment._id;
+            comment.isThreadRoot = false;
+
+            // Add to parent's replies
+            parentComment.replies.push(comment._id!);
+        }
+
+        event.comments.push(comment);
+        await event.save();
+
         return event;
+    }
+
+    /**
+     * Get thread for a comment
+     */
+    async getThread(
+        eventId: string,
+        threadId: mongoose.Types.ObjectId
+    ): Promise<any> {
+        const event = await Event.findById(eventId)
+            .populate('comments.postedBy', 'profileInformation.username profileType')
+            .populate('comments.reactions', 'profileInformation.username profileType')
+            .lean();
+
+        if (!event) {
+            throw new Error('Event not found');
+        }
+
+        // Get all comments in the thread
+        const threadComments = event.comments.filter(c => 
+            c.threadId?.equals(threadId)
+        ).sort((a, b) => a.depth - b.depth);
+
+        return {
+            rootComment: threadComments.find(c => c.isThreadRoot),
+            replies: threadComments.filter(c => !c.isThreadRoot)
+        };
+    }
+
+    /**
+     * Get all threads for an event
+     */
+    async getEventThreads(eventId: string): Promise<any[]> {
+        const event = await Event.findById(eventId)
+            .populate('comments.postedBy', 'profileInformation.username profileType')
+            .populate('comments.reactions', 'profileInformation.username profileType')
+            .lean();
+
+        if (!event) {
+            throw new Error('Event not found');
+        }
+
+        // Get all root comments
+        const rootComments = event.comments.filter(c => c.isThreadRoot);
+        
+        // For each root comment, get its thread
+        const threads = await Promise.all(
+            rootComments.map(async (root) => {
+                const thread = await this.getThread(eventId, root.threadId!);
+                return {
+                    ...thread,
+                    replyCount: thread.replies.length
+                };
+            })
+        );
+
+        return threads;
     }
 
     /**
@@ -451,28 +630,32 @@ class EventService {
     async updateComment(
         eventId: string,
         userId: string,
+        profileId: string,
         commentId: mongoose.Types.ObjectId,
         updateData: {
             text?: string;
             updatedAt?: Date;
         }
     ): Promise<IEvent> {
-        const event = await Event.findOne({ _id: eventId, createdBy: userId });
+        const event = await Event.findOne({ _id: eventId });
         if (!event) {
-            throw new Error('Event not found or access denied');
+            throw new Error('Event not found');
         }
 
-        const comment = event.comments.find(c => c?._id?.equals(commentId));
+        const comment = event.comments.find(c => c._id?.equals(commentId));
         if (!comment) {
             throw new Error('Comment not found');
+        }
+
+        // Verify user has permission to update
+        if (!(comment.postedBy as Types.ObjectId).equals(new Types.ObjectId(profileId))) {
+            throw new Error('Not authorized to update this comment');
         }
 
         if (updateData.text !== undefined) {
             comment.text = updateData.text;
         }
-        if (updateData.updatedAt !== undefined) {
-            comment.updatedAt = updateData.updatedAt;
-        }
+        comment.updatedAt = updateData.updatedAt || new Date();
 
         await event.save();
         return event;
@@ -484,19 +667,45 @@ class EventService {
     async deleteComment(
         eventId: string,
         userId: string,
+        profileId: string,
         commentId: mongoose.Types.ObjectId
     ): Promise<IEvent> {
-        const event = await Event.findOne({ _id: eventId, createdBy: userId });
+        const event = await Event.findOne({ _id: eventId });
         if (!event) {
-            throw new Error('Event not found or access denied');
+            throw new Error('Event not found');
         }
 
-        const commentIndex = event.comments.findIndex(c => c._id?.equals(commentId));
-        if (commentIndex === -1) {
+        const comment = event.comments.find(c => c._id?.equals(commentId));
+        if (!comment) {
             throw new Error('Comment not found');
         }
 
-        event.comments.splice(commentIndex, 1);
+        // Verify user has permission to delete
+        if (!(comment.postedBy as Types.ObjectId).equals(new Types.ObjectId(profileId))) {
+            throw new Error('Not authorized to delete this comment');
+        }
+
+        // If it's a root comment, delete all replies
+        if (comment.isThreadRoot) {
+            event.comments = event.comments.filter(c => 
+                !c.threadId?.equals(comment.threadId)
+            );
+        } else {
+            // Remove from parent's replies
+            const parentComment = event.comments.find(c => 
+                c._id?.equals(comment.parentComment)
+            );
+            if (parentComment) {
+                parentComment.replies = parentComment.replies.filter(
+                    replyId => !replyId.equals(commentId)
+                );
+            }
+            // Remove the comment
+            event.comments = event.comments.filter(c => 
+                !c._id?.equals(commentId)
+            );
+        }
+
         await event.save();
         return event;
     }
@@ -516,14 +725,11 @@ class EventService {
         }
 
         return event;
-
     }
-
 
     /**
      * Like a comment on an event
      */
-
     async likeComment(
         eventId: string,
         userId: string,
@@ -561,11 +767,9 @@ class EventService {
             throw new Error('Event is not a booking');
         }
 
-        console.log(event.booking.serviceProvider.profileId, profileId);
         // Only allow status updates by the service provider or the booking creator's profile
-        if (!event.booking.serviceProvider.profileId.equals(profileId) && !event.profile?.equals(profileId)) {
-            // log the profile id and the event id
-            console.info(profileId, eventId);
+        if (!event.booking.serviceProvider.profileId.equals(new mongoose.Types.ObjectId(profileId)) && 
+            !event.profile?.equals(new mongoose.Types.ObjectId(profileId))) {
             throw new Error('Not authorized to update booking status');
         }
 
@@ -600,7 +804,8 @@ class EventService {
         }
 
         // Only allow reward updates by the service provider or the booking creator's profile
-        if (!event.booking.serviceProvider.profileId.equals(profileId) && !event.profile?.equals(profileId)) {
+        if (!event.booking.serviceProvider.profileId.equals(new mongoose.Types.ObjectId(profileId)) && 
+            !event.profile?.equals(new mongoose.Types.ObjectId(profileId))) {
             throw new Error('Not authorized to update reward status');
         }
 
@@ -652,7 +857,8 @@ class EventService {
         }
 
         // Only allow rescheduling by the service provider or the booking creator's profile
-        if (!event.booking.serviceProvider.profileId.equals(profileId) && !event.profile?.equals(profileId)) {
+        if (!event.booking.serviceProvider.profileId.equals(new mongoose.Types.ObjectId(profileId)) && 
+            !event.profile?.equals(new mongoose.Types.ObjectId(profileId))) {
             throw new Error('Not authorized to reschedule booking');
         }
 
@@ -781,6 +987,596 @@ class EventService {
         });
 
         return event.save();
+    }
+
+    /**
+     * Create a celebration event
+     */
+    async createCelebration(
+        eventData: Partial<IEvent>,
+        userId: string,
+        profileId: string
+    ): Promise<IEvent> {
+        // Validate celebration-specific requirements
+        if (!eventData.title) {
+            throw new Error('Title is required for celebrations');
+        }
+
+        // Set default celebration properties
+        const celebrationData = {
+            ...eventData,
+            eventType: EventType.Celebration,
+            createdBy: new mongoose.Types.ObjectId(userId),
+            profile: new mongoose.Types.ObjectId(profileId),
+            status: EventStatus.Upcoming,
+            isGroupEvent: eventData.isGroupEvent || true,
+            category: eventData.category || 'birthday'
+        };
+
+        const event = new Event(celebrationData);
+        return event.save();
+    }
+
+    /**
+     * Add a gift to a celebration
+     */
+    async addGift(
+        eventId: string,
+        giftData: {
+            description: string;
+            requestedBy?: string;
+            link?: string;
+        }
+    ): Promise<IEvent> {
+        const event = await Event.findById(eventId);
+        if (!event) {
+            throw new Error('Event not found');
+        }
+
+        if (event.eventType !== EventType.Celebration) {
+            throw new Error('Event is not a celebration');
+        }
+
+        if (!event.celebration) {
+            event.celebration = {
+                gifts: [],
+                category: 'birthday',
+                status: 'planning',
+                socialMediaPosts: []
+            };
+        }
+
+        event.celebration.gifts.push({
+            description: giftData.description,
+            requestedBy: giftData.requestedBy ? new mongoose.Types.ObjectId(giftData.requestedBy) : undefined,
+            received: false,
+            link: giftData.link
+        });
+
+        await event.save();
+        return event;
+    }
+
+    /**
+     * Mark a gift as received in a celebration
+     */
+    async markGiftReceived(
+        eventId: string,
+        giftIndex: number
+    ): Promise<IEvent> {
+        const event = await Event.findById(eventId);
+        if (!event) {
+            throw new Error('Event not found');
+        }
+
+        if (event.eventType !== EventType.Celebration || !event.celebration) {
+            throw new Error('Event is not a celebration');
+        }
+
+        if (!event.celebration.gifts[giftIndex]) {
+            throw new Error('Gift not found');
+        }
+
+        event.celebration.gifts[giftIndex].received = true;
+        await event.save();
+        return event;
+    }
+
+    /**
+     * Add a social media post to a celebration
+     */
+    async addSocialMediaPost(
+        eventId: string,
+        postData: {
+            platform: string;
+            postId: string;
+            url: string;
+        }
+    ): Promise<IEvent> {
+        const event = await Event.findById(eventId);
+        if (!event) {
+            throw new Error('Event not found');
+        }
+
+        if (event.eventType !== EventType.Celebration) {
+            throw new Error('Event is not a celebration');
+        }
+
+        if (!event.celebration) {
+            event.celebration = {
+                gifts: [],
+                category: 'birthday',
+                status: 'planning',
+                socialMediaPosts: []
+            };
+        }
+
+        event.celebration.socialMediaPosts.push({
+            platform: postData.platform,
+            postId: postData.postId,
+            url: postData.url
+        });
+
+        await event.save();
+        return event;
+    }
+
+    /**
+     * Update celebration status
+     */
+    async updateCelebrationStatus(
+        eventId: string,
+        status: 'planning' | 'upcoming' | 'completed' | 'cancelled'
+    ): Promise<IEvent> {
+        const event = await Event.findById(eventId);
+        if (!event) {
+            throw new Error('Event not found');
+        }
+
+        if (event.eventType !== EventType.Celebration || !event.celebration) {
+            throw new Error('Event is not a celebration');
+        }
+
+        event.celebration.status = status;
+        await event.save();
+        return event;
+    }
+
+    /**
+     * Update event status
+     */
+    async updateEventStatus(
+        eventId: string,
+        userId: string,
+        status: EventStatus,
+        metadata?: {
+            reason?: string;
+            updatedBy?: string;
+            notes?: string;
+        }
+    ): Promise<IEvent> {
+        const event = await Event.findOne({ _id: eventId, createdBy: userId });
+        if (!event) {
+            throw new Error('Event not found or access denied');
+        }
+
+        // Validate status transition
+        this.validateStatusTransition(event.status, status);
+
+        // Update status and metadata
+        event.status = status;
+        if (metadata) {
+            event.statusHistory = event.statusHistory || [];
+            event.statusHistory.push({
+                status,
+                changedAt: new Date(),
+                reason: metadata.reason,
+                updatedBy: metadata.updatedBy ? new mongoose.Types.ObjectId(metadata.updatedBy) : undefined,
+                notes: metadata.notes
+            });
+        }
+
+        // Handle status-specific actions
+        await this.handleStatusChange(event, status);
+
+        await event.save();
+        return event;
+    }
+
+    /**
+     * Validate status transition
+     */
+    private validateStatusTransition(currentStatus: EventStatus, newStatus: EventStatus): void {
+        const validTransitions: Record<EventStatus, EventStatus[]> = {
+            [EventStatus.Draft]: [EventStatus.Upcoming, EventStatus.Cancelled],
+            [EventStatus.Upcoming]: [EventStatus.InProgress, EventStatus.Cancelled, EventStatus.Postponed],
+            [EventStatus.InProgress]: [EventStatus.Completed, EventStatus.Cancelled],
+            [EventStatus.Completed]: [EventStatus.Archived],
+            [EventStatus.Cancelled]: [EventStatus.Archived],
+            [EventStatus.Postponed]: [EventStatus.Upcoming, EventStatus.Cancelled],
+            [EventStatus.Archived]: []
+        };
+
+        if (!validTransitions[currentStatus].includes(newStatus)) {
+            throw new Error(`Invalid status transition from ${currentStatus} to ${newStatus}`);
+        }
+    }
+
+    /**
+     * Handle status-specific actions
+     */
+    private async handleStatusChange(event: IEvent, newStatus: EventStatus): Promise<void> {
+        switch (newStatus) {
+            case EventStatus.InProgress:
+                // Notify participants that event has started
+                await this.notifyParticipants(event, 'Event has started');
+                break;
+            case EventStatus.Completed:
+                // Handle completion tasks
+                await this.handleEventCompletion(event);
+                break;
+            case EventStatus.Cancelled:
+                // Handle cancellation tasks
+                await this.handleEventCancellation(event);
+                break;
+            case EventStatus.Postponed:
+                // Handle postponement tasks
+                await this.handleEventPostponement(event);
+                break;
+        }
+    }
+
+    /**
+     * Handle event completion
+     */
+    private async handleEventCompletion(event: IEvent): Promise<void> {
+        // Mark all agenda items as completed
+        if (event.agendaItems) {
+            event.agendaItems.forEach(item => item.completed = true);
+        }
+
+        // Notify participants
+        await this.notifyParticipants(event, 'Event has been completed');
+
+        // Handle booking completion if applicable
+        if (event.eventType === EventType.Booking && event.booking) {
+            await this.handleBookingCompletion(event);
+        }
+    }
+
+    /**
+     * Handle event cancellation
+     */
+    private async handleEventCancellation(event: IEvent): Promise<void> {
+        // Notify participants
+        await this.notifyParticipants(event, 'Event has been cancelled');
+
+        // Handle booking cancellation if applicable
+        if (event.eventType === EventType.Booking && event.booking) {
+            await this.handleBookingCancellation(event);
+        }
+    }
+
+    /**
+     * Handle event postponement
+     */
+    private async handleEventPostponement(event: IEvent): Promise<void> {
+        // Notify participants
+        await this.notifyParticipants(event, 'Event has been postponed');
+    }
+
+    /**
+     * Handle booking completion
+     */
+    private async handleBookingCompletion(event: IEvent): Promise<void> {
+        if (!event.booking) return;
+
+        // Update booking status
+        event.booking.status = BookingStatus.Completed;
+
+        // Process reward if applicable
+        if (event.booking.reward && event.booking.reward.status === 'pending') {
+            // Handle reward completion logic
+            event.booking.reward.status = 'completed';
+        }
+    }
+
+    /**
+     * Handle booking cancellation
+     */
+    private async handleBookingCancellation(event: IEvent): Promise<void> {
+        if (!event.booking) return;
+
+        // Update booking status
+        event.booking.status = BookingStatus.Cancelled;
+
+        // Handle reward cancellation if applicable
+        if (event.booking.reward && event.booking.reward.status === 'pending') {
+            event.booking.reward.status = 'failed';
+        }
+    }
+
+    /**
+     * Notify event participants
+     */
+    private async notifyParticipants(event: IEvent, message: string): Promise<void> {
+        const participants = await participantService.getEventParticipants((event._id as Types.ObjectId).toString());
+        await this.notificationService.createNotification({
+            recipient: event.createdBy,
+            type: 'event_update',
+            title: 'Event Update',
+            message,
+            relatedTo: {
+                model: 'Event',
+                id: event._id
+            },
+            priority: 'medium',
+            isRead: false,
+            isArchived: false
+        });
+    }
+
+    /**
+     * Update status for multiple events
+     */
+    async bulkUpdateEventStatus(
+        eventIds: string[],
+        userId: string,
+        status: EventStatus,
+        metadata?: {
+            reason?: string;
+            updatedBy?: string;
+            notes?: string;
+        }
+    ): Promise<{ success: string[]; failed: { id: string; error: string }[] }> {
+        const results = {
+            success: [] as string[],
+            failed: [] as { id: string; error: string }[]
+        };
+
+        // Process events in parallel
+        await Promise.all(
+            eventIds.map(async (eventId) => {
+                try {
+                    const event = await Event.findOne({ _id: eventId, createdBy: userId });
+                    if (!event) {
+                        throw new Error('Event not found or access denied');
+                    }
+
+                    // Validate status transition
+                    this.validateStatusTransition(event.status, status);
+
+                    // Update status and metadata
+                    event.status = status;
+                    if (metadata) {
+                        event.statusHistory = event.statusHistory || [];
+                        event.statusHistory.push({
+                            status,
+                            changedAt: new Date(),
+                            reason: metadata.reason,
+                            updatedBy: metadata.updatedBy ? new mongoose.Types.ObjectId(metadata.updatedBy) : undefined,
+                            notes: metadata.notes
+                        });
+                    }
+
+                    // Handle status-specific actions
+                    await this.handleStatusChange(event, status);
+
+                    await event.save();
+                    results.success.push(eventId);
+                } catch (error) {
+                    results.failed.push({
+                        id: eventId,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
+            })
+        );
+
+        return results;
+    }
+
+    /**
+     * Calculate next run date for repeating events
+     */
+    private calculateNextRun(event: Partial<IEvent>): Date {
+        if (!event.repeat?.isRepeating || !event.repeat?.frequency) {
+            return event.startTime!;
+        }
+
+        const lastRun = event.repeat.nextRun || event.startTime!;
+        const frequency = event.repeat.frequency;
+        const interval = event.repeat.interval || 1;
+
+        let nextRun = new Date(lastRun);
+
+        switch (frequency) {
+            case RepeatFrequency.Daily:
+                nextRun.setDate(nextRun.getDate() + interval);
+                break;
+            case RepeatFrequency.Weekly:
+                nextRun.setDate(nextRun.getDate() + (7 * interval));
+                break;
+            case RepeatFrequency.Monthly:
+                nextRun.setMonth(nextRun.getMonth() + interval);
+                break;
+            case RepeatFrequency.Yearly:
+                nextRun.setFullYear(nextRun.getFullYear() + interval);
+                break;
+            case RepeatFrequency.Custom:
+                if (event.repeat.customPattern) {
+                    nextRun = this.calculateCustomPatternNextRun(lastRun, event.repeat.customPattern);
+                }
+                break;
+            default:
+                break;
+        }
+
+        return nextRun;
+    }
+
+    /**
+     * Calculate next run for custom repeat patterns
+     */
+    private calculateCustomPatternNextRun(lastRun: Date, pattern: {
+        daysOfWeek?: number[];
+        daysOfMonth?: number[];
+        monthsOfYear?: number[];
+        interval?: number;
+    }): Date {
+        const nextRun = new Date(lastRun);
+        const interval = pattern.interval || 1;
+
+        if (pattern.daysOfWeek) {
+            // Find next occurrence of specified days
+            let daysToAdd = 1;
+            while (daysToAdd <= 7) {
+                nextRun.setDate(nextRun.getDate() + 1);
+                if (pattern.daysOfWeek.includes(nextRun.getDay())) {
+                    break;
+                }
+                daysToAdd++;
+            }
+        } else if (pattern.daysOfMonth) {
+            // Find next occurrence of specified days in month
+            const currentDay = nextRun.getDate();
+            const nextDay = pattern.daysOfMonth.find(day => day > currentDay);
+            if (nextDay) {
+                nextRun.setDate(nextDay);
+            } else {
+                nextRun.setMonth(nextRun.getMonth() + interval);
+                nextRun.setDate(pattern.daysOfMonth[0]);
+            }
+        } else if (pattern.monthsOfYear) {
+            // Find next occurrence of specified months
+            const currentMonth = nextRun.getMonth();
+            const nextMonth = pattern.monthsOfYear.find(month => month > currentMonth);
+            if (nextMonth) {
+                nextRun.setMonth(nextMonth);
+            } else {
+                nextRun.setFullYear(nextRun.getFullYear() + interval);
+                nextRun.setMonth(pattern.monthsOfYear[0]);
+            }
+        }
+
+        return nextRun;
+    }
+
+    /**
+     * Check if repeating event should end based on conditions
+     */
+    private shouldEndRepeating(event: IEvent, nextRun: Date): boolean {
+        if (!event.repeat?.endCondition) {
+            return false;
+        }
+
+        switch (event.repeat.endCondition) {
+            case EndCondition.Never:
+                return false;
+            case EndCondition.AfterOccurrences:
+                return event.repeat.occurrences ? event.repeat.occurrences <= 0 : false;
+            case EndCondition.UntilDate:
+                return event.repeat.endDate ? nextRun > event.repeat.endDate : false;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Update repeat settings for an event
+     */
+    async updateRepeatSettings(
+        eventId: string,
+        userId: string,
+        repeatSettings: {
+            isRepeating: boolean;
+            frequency?: RepeatFrequency;
+            interval?: number;
+            endCondition?: EndCondition;
+            endDate?: Date;
+            occurrences?: number;
+            customPattern?: {
+                daysOfWeek?: number[];
+                daysOfMonth?: number[];
+                monthsOfYear?: number[];
+                interval?: number;
+            };
+        }
+    ): Promise<IEvent> {
+        const event = await Event.findOne({ 
+            _id: new Types.ObjectId(eventId), 
+            createdBy: new Types.ObjectId(userId) 
+        });
+        if (!event) {
+            throw new Error('Event not found or access denied');
+        }
+
+        // Update repeat settings
+        event.repeat = {
+            ...event.repeat,
+            ...repeatSettings,
+            frequency: repeatSettings.frequency || event.repeat.frequency,
+            endCondition: repeatSettings.endCondition || event.repeat.endCondition
+        };
+
+        if (repeatSettings.isRepeating) {
+            event.repeat.nextRun = this.calculateNextRun({ ...event.toObject(), startTime: event.repeat.nextRun });
+        } else {
+            event.repeat.nextRun = undefined;
+        }
+
+        await event.save();
+        return event.toObject() as IEvent;
+    }
+
+    /**
+     * Generate series of events based on repeat settings
+     */
+    async generateEventSeries(
+        eventId: string,
+        userId: string,
+        count: number = 10
+    ): Promise<IEvent[]> {
+        const event = await Event.findOne({ 
+            _id: new Types.ObjectId(eventId), 
+            createdBy: new Types.ObjectId(userId) 
+        });
+        if (!event) {
+            throw new Error('Event not found or access denied');
+        }
+
+        if (!event.repeat?.isRepeating) {
+            throw new Error('Event is not repeating');
+        }
+
+        const series: IEvent[] = [];
+        let currentEvent = { ...event.toObject() };
+        let nextRun = event.repeat.nextRun || event.startTime;
+
+        for (let i = 0; i < count; i++) {
+            if (this.shouldEndRepeating(event, nextRun)) {
+                break;
+            }
+
+            const seriesEvent = new Event({
+                ...currentEvent,
+                _id: undefined,
+                startTime: nextRun,
+                endTime: new Date(nextRun.getTime() + (event.endTime.getTime() - event.startTime.getTime())),
+                repeat: {
+                    ...event.repeat,
+                    nextRun: this.calculateNextRun({ ...event.toObject(), startTime: nextRun })
+                },
+                isSeriesInstance: true
+            });
+
+            await seriesEvent.save();
+            series.push(seriesEvent.toObject() as IEvent);
+
+            nextRun = this.calculateNextRun({ ...event.toObject(), startTime: nextRun });
+        }
+
+        return series;
     }
 }
 

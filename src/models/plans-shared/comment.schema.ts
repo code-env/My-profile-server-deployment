@@ -3,15 +3,21 @@ import { Comment } from './interfaces';
 
 export const commentSchema = new Schema<Comment>({
   text: { type: String, required: true },
-  profile: { 
+  postedBy: { 
     type: Schema.Types.ObjectId, 
-    ref: 'Profile',
+    ref: 'Post',
     required: true
   },
-  createdBy: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Profile',
-    required: true
+  parentComment: {
+    type: Schema.Types.ObjectId,
+    ref: 'Comment',
+    default: null
+  },
+  depth: { type: Number, default: 0 },
+  threadId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Comment',
+    default: null
   },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date },

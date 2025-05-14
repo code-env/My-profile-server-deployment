@@ -74,6 +74,7 @@ import { initializeProfileTemplates } from "./startup/initialize-profile-templat
 import { advancedTrackingMiddleware } from "./middleware/advanced-tracking.middleware";
 import { scheduleTokenCleanup } from "./jobs/cleanupTokens";
 import { scheduleScalableTokenCleanup } from "./jobs/scalableTokenCleanup";
+import { scheduleReminderProcessing } from "./jobs/reminderScheduler";
 // Import passport configuration
 import "./config/passport";
 import { configureCookiesMiddleware } from "./middleware/cookie-config.middleware";
@@ -502,6 +503,10 @@ export class AppServer {
         logger.info('Using standard token cleanup');
         scheduleTokenCleanup();
       }
+
+      // Schedule reminder processing
+      scheduleReminderProcessing();
+      logger.info('Reminder processing job scheduled');
 
       // Always use HTTP server as Render handles SSL/HTTPS
       await this.startHttpServer();

@@ -11,7 +11,8 @@ import {
     VisibilityType,
     Attachment,
     EventType,
-    BookingStatus
+    BookingStatus,
+    EventStatus
 } from '../models/plans-shared';
 import createHttpError from 'http-errors';
 import asyncHandler from 'express-async-handler';
@@ -558,16 +559,18 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Event has no associated profile');
     }
 
-
     const profile = req.body.profile;
     const updatedEvent = await eventService.addComment(
         req.params.id,
         user._id,
         profile,
-        { text: req.body.text }
+        { 
+            text: req.body.text,
+            parentCommentId: req.body.parentCommentId ? new mongoose.Types.ObjectId(req.body.parentCommentId) : undefined
+        }
     );
 
-    // display the updated event
+    // Emit social interaction
     try {
         await emitSocialInteraction(user._id, {
             type: 'comment',
@@ -584,6 +587,45 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         success: true,
         data: updatedEvent,
         message: 'Comment added successfully'
+    });
+});
+
+// @desc    Get comment thread
+// @route   GET /events/:id/comments/:threadId/thread
+// @access  Private
+export const getThread = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.params.threadId || !mongoose.Types.ObjectId.isValid(req.params.threadId)) {
+        throw createHttpError(400, 'Invalid thread ID');
+    }
+
+    const thread = await eventService.getThread(
+        req.params.id,
+        new mongoose.Types.ObjectId(req.params.threadId)
+    );
+
+    res.json({
+        success: true,
+        data: thread
+    });
+});
+
+// @desc    Get all threads for an event
+// @route   GET /events/:id/threads
+// @access  Private
+export const getEventThreads = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    const threads = await eventService.getEventThreads(req.params.id);
+
+    res.json({
+        success: true,
+        data: threads
     });
 });
 
@@ -883,5 +925,197 @@ export const updateBookingReward = asyncHandler(async (req: Request, res: Respon
         success: true,
         data: event,
         message: 'Booking reward updated successfully'
+    });
+});
+
+// @desc    Create a celebration event
+// @route   POST /events/celebration
+// @access  Private
+export const createCelebration = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    // Validate event data
+    try {
+        validateEventData(req.body);
+    } catch (error: any) {
+        throw createHttpError(400, error.message);
+    }
+
+    // Create the celebration event
+    const event = await eventService.createCelebration(
+        req.body,
+        user._id,
+        req.body.profileId
+    );
+
+    res.status(201).json({
+        success: true,
+        data: event,
+        message: 'Celebration created successfully'
+    });
+});
+
+// @desc    Add a gift to a celebration
+// @route   POST /events/:id/celebration/gift
+// @access  Private
+export const addGift = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.description) {
+        throw createHttpError(400, 'Gift description is required');
+    }
+
+    const event = await eventService.addGift(req.params.id, {
+        description: req.body.description,
+        requestedBy: req.body.requestedBy,
+        link: req.body.link
+    });
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Gift added successfully'
+    });
+});
+
+// @desc    Mark a gift as received
+// @route   PATCH /events/:id/celebration/gift/:giftIndex
+// @access  Private
+export const markGiftReceived = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    const giftIndex = parseInt(req.params.giftIndex);
+    if (isNaN(giftIndex)) {
+        throw createHttpError(400, 'Invalid gift index');
+    }
+
+    const event = await eventService.markGiftReceived(req.params.id, giftIndex);
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Gift marked as received'
+    });
+});
+
+// @desc    Add a social media post to a celebration
+// @route   POST /events/:id/celebration/social
+// @access  Private
+export const addSocialMediaPost = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.platform || !req.body.postId || !req.body.url) {
+        throw createHttpError(400, 'Platform, post ID, and URL are required');
+    }
+
+    const event = await eventService.addSocialMediaPost(req.params.id, {
+        platform: req.body.platform,
+        postId: req.body.postId,
+        url: req.body.url
+    });
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Social media post added successfully'
+    });
+});
+
+// @desc    Update celebration status
+// @route   PATCH /events/:id/celebration/status
+// @access  Private
+export const updateCelebrationStatus = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.status || !['planning', 'upcoming', 'completed', 'cancelled'].includes(req.body.status)) {
+        throw createHttpError(400, 'Invalid celebration status');
+    }
+
+    const event = await eventService.updateCelebrationStatus(req.params.id, req.body.status);
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Celebration status updated successfully'
+    });
+});
+
+// @desc    Update event status
+// @route   PATCH /events/:id/status
+// @access  Private
+export const updateEventStatus = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.status || !Object.values(EventStatus).includes(req.body.status)) {
+        throw createHttpError(400, 'Invalid event status');
+    }
+
+    const event = await eventService.updateEventStatus(
+        req.params.id,
+        user._id,
+        req.body.status,
+        {
+            reason: req.body.reason,
+            updatedBy: user._id,
+            notes: req.body.notes
+        }
+    );
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Event status updated successfully'
+    });
+});
+
+// @desc    Bulk update event statuses
+// @route   PATCH /events/bulk/status
+// @access  Private
+export const bulkUpdateEventStatus = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!Array.isArray(req.body.eventIds) || req.body.eventIds.length === 0) {
+        throw createHttpError(400, 'Event IDs array is required');
+    }
+
+    if (!req.body.status || !Object.values(EventStatus).includes(req.body.status)) {
+        throw createHttpError(400, 'Invalid event status');
+    }
+
+    const results = await eventService.bulkUpdateEventStatus(
+        req.body.eventIds,
+        user._id,
+        req.body.status,
+        {
+            reason: req.body.reason,
+            updatedBy: user._id,
+            notes: req.body.notes
+        }
+    );
+
+    res.json({
+        success: true,
+        data: results,
+        message: `Updated ${results.success.length} events, ${results.failed.length} failed`
     });
 });

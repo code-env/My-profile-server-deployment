@@ -1,5 +1,5 @@
 import { Document, Types } from 'mongoose';
-import { EndCondition, ReminderType, RepeatFrequency } from './enums';
+import { EndCondition, ReminderType, ReminderUnit, RepeatFrequency } from './enums';
 import { IProfile } from '../../interfaces/profile.interface';
 
 // Common interfaces
@@ -11,12 +11,19 @@ export interface RepeatSettings {
   endDate?: Date;
   occurrences?: number;
   nextRun?: Date;
+  customPattern?: {
+    daysOfWeek?: number[];
+    daysOfMonth?: number[];
+    monthsOfYear?: number[];
+    interval?: number;
+  };
 }
 
 export interface Reminder {
+  _id?: Types.ObjectId;
   type: ReminderType;
   amount?: number;
-  unit?: ReminderType;
+  unit?: ReminderUnit;
   customEmail?: string;
   triggered?: boolean;
   triggerTime?: Date;
@@ -64,9 +71,14 @@ export interface ISubTask {
 export interface Comment {
   _id?: Types.ObjectId;
   text: string;
-  profile: Types.ObjectId | IProfile;
-  createdBy: Types.ObjectId | IProfile;
+  postedBy: Types.ObjectId | IProfile;
+  parentComment?: Types.ObjectId;
+  depth: number;
+  threadId?: Types.ObjectId;
+  isThreadRoot: boolean;
+  replies: Types.ObjectId[];
+  reactions: Map<string, Types.ObjectId[]>;
   createdAt?: Date;
   updatedAt?: Date;
-  likes: Types.ObjectId[] | IProfile[];
+  likes: Types.ObjectId[];
 }

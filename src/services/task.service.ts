@@ -71,7 +71,7 @@ class TaskService {
     private async createListsFromSubtasks(task: ITask): Promise<void> {
         console.log(task);
         const listPromise = new List({
-            name: task.name || 'New List',
+            name: task.title || 'New List',
             type: 'Todo',
             createdBy: task.createdBy,
             relatedTask: task._id,
@@ -116,7 +116,7 @@ class TaskService {
             throw new Error('Invalid task ID');
         }
 
-        return Task.findById(taskId)
+        const task = await Task.findById(taskId)
             .populate('createdBy', 'fullName email')
             .populate('participants', 'profileInformation.username profileType')
             .populate('profile', 'profileInformation.username profileType')
@@ -125,20 +125,33 @@ class TaskService {
             .populate({
                 path: 'comments',
                 populate: [
-                    { path: 'profile', select: 'profileInformation.username profileType' },
-                    { path: 'likes', select: 'profileInformation.username profileType' }
+                    { path: 'postedBy', select: 'profileInformation.username profileType' },
+                    { path: 'reactions', select: 'profileInformation.username profileType' }
                 ]
             })
             .lean()
-            .exec()
-            .then(task => {
-                if (!task) return null;
-                return {
-                    ...task,
-                    likesCount: task.likes?.length || 0,
-                    commentsCount: task.comments?.length || 0
-                };
-            });
+            .exec();
+
+        if (!task) return null;
+
+        // Convert reactions from plain object to Map
+        const taskWithMaps = {
+            ...task,
+            comments: task.comments.map(comment => ({
+                ...comment,
+                reactions: new Map(Object.entries(comment.reactions || {}))
+            }))
+        };
+
+        // Convert the task to a proper ITask
+        const convertedTask = {
+            ...taskWithMaps,
+            likesCount: task.likes?.length || 0,
+            commentsCount: task.comments?.length || 0,
+            relatedList: task.relatedList ? new mongoose.Types.ObjectId(task.relatedList.toString()) : undefined
+        };
+
+        return convertedTask as unknown as ITask;
     }
 
     /**
@@ -350,12 +363,15 @@ class TaskService {
         profileId: string,
         text: string
     ): Promise<ITask> {
-        const comment: Comment = {
+        const comment = {
             text,
-            profile: new mongoose.Types.ObjectId(profileId),
-            createdBy: new mongoose.Types.ObjectId(userId),
+            postedBy: new mongoose.Types.ObjectId(profileId),
+            depth: 0,
+            isThreadRoot: true,
+            replies: [],
+            reactions: new Map(),
             createdAt: new Date(),
-            likes: []
+            updatedAt: new Date()
         };
 
         const task = await Task.findOneAndUpdate(
@@ -393,13 +409,20 @@ class TaskService {
         const userIdObj = new mongoose.Types.ObjectId(userId);
         const profileIdObj = new mongoose.Types.ObjectId(profileId);
 
-        // Check if already liked
-        if (comment.likes.some(like => like.toString() === userIdObj.toString())) {
-            throw new Error('Comment already liked by this user');
+        // Initialize reactions Map if it doesn't exist
+        if (!comment.reactions) {
+            comment.reactions = new Map();
         }
 
-        comment.likes.push(userIdObj as unknown as IProfile & mongoose.Types.ObjectId);
+        // Add the reaction
+        const reactions = comment.reactions.get('like') || [];
+        if (!reactions.some(id => id.equals(profileIdObj))) {
+            reactions.push(profileIdObj);
+            comment.reactions.set('like', reactions);
+        }
+
         await task.save();
+
         return task;
     }
 
@@ -409,7 +432,8 @@ class TaskService {
     async unlikeComment(
         taskId: string,
         commentIndex: number,
-        userId: string
+        userId: string,
+        profileId: string
     ): Promise<ITask> {
         const task = await Task.findOne({ _id: taskId });
         if (!task) {
@@ -422,10 +446,20 @@ class TaskService {
 
         const comment = task.comments[commentIndex];
         const userIdObj = new mongoose.Types.ObjectId(userId);
+        const profileIdObj = new mongoose.Types.ObjectId(profileId);
 
-        // Remove like
-        comment.likes = comment.likes.filter(like => like.toString() !== userIdObj.toString()) as mongoose.Types.ObjectId[];
+        // Initialize reactions Map if it doesn't exist
+        if (!comment.reactions) {
+            comment.reactions = new Map();
+        }
+
+        // Remove the reaction
+        const reactions = comment.reactions.get('like') || [];
+        const updatedReactions = reactions.filter(id => !id.equals(profileIdObj));
+        comment.reactions.set('like', updatedReactions);
+
         await task.save();
+
         return task;
     }
 

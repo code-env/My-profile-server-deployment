@@ -13,6 +13,13 @@ import {
   Reward
 } from './plans-shared';
 
+export interface IParticipant {
+  profile: Types.ObjectId;
+  role: 'attendee' | 'organizer' | 'speaker';
+  status: 'pending' | 'accepted' | 'declined' | 'maybe';
+  joinedAt: Date | null;
+}
+
 export interface IEvent extends Document {
   title: string;
   description?: string;
@@ -26,7 +33,7 @@ export interface IEvent extends Document {
   color: string;
   category: string;
   location?: Location;
-  participants: Types.ObjectId[];
+  participants: IParticipant[];
   createdBy: Types.ObjectId;
   profile?: Types.ObjectId;
   attachments: Attachment[];
@@ -44,6 +51,7 @@ export interface IEvent extends Document {
   repeat: RepeatSettings;
   reminders: Reminder[];
   likes: Types.ObjectId[];
+  maxAttendees?: number;
   serviceProvider?: {
     profileId: Types.ObjectId;
     role: string;
@@ -73,6 +81,31 @@ export interface IEvent extends Document {
     rescheduleCount: number;
     requireApproval: boolean;
   };
+  // Only used when eventType === EventType.Celebration
+  celebration?: {
+    gifts: Array<{
+      description: string;
+      requestedBy?: Types.ObjectId;
+      promisedBy?: Types.ObjectId;
+      received: boolean;
+      link?: string;
+    }>;
+    category: 'birthday' | 'anniversary' | 'holiday' | 'achievement' | 'other';
+    status: 'planning' | 'upcoming' | 'completed' | 'cancelled';
+    photoAlbum?: Types.ObjectId;
+    socialMediaPosts: Array<{
+      platform: string;
+      postId: string;
+      url: string;
+    }>;
+  };
+  statusHistory?: Array<{
+    status: EventStatus;
+    changedAt: Date;
+    reason?: string;
+    updatedBy?: Types.ObjectId;
+    notes?: string;
+  }>;
 }
 
 const EventSchema = new Schema<IEvent>({
@@ -114,8 +147,25 @@ const EventSchema = new Schema<IEvent>({
     meetingUrl: String
   },
   participants: [{
-    type: Schema.Types.ObjectId,
-    ref: 'Profile'
+    profile: {
+      type: Schema.Types.ObjectId,
+      ref: 'Profile',
+      required: true
+    },
+    role: {
+      type: String,
+      enum: ['attendee', 'organizer', 'speaker'],
+      default: 'attendee'
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'accepted', 'declined', 'maybe'],
+      default: 'pending'
+    },
+    joinedAt: {
+      type: Date,
+      default: null
+    }
   }],
   createdBy: {
     type: Schema.Types.ObjectId,
@@ -141,12 +191,16 @@ const EventSchema = new Schema<IEvent>({
       type: Schema.Types.ObjectId,
       ref: 'Profile'
     },
+    parentComment: {
+      type: Schema.Types.ObjectId,
+      ref: 'Comment'
+    },
+    depth: { type: Number, default: 0 },
+    threadId: { type: Schema.Types.ObjectId },
+    isThreadRoot: { type: Boolean, default: true },
     replies: [{
-      text: String,
-      postedBy: {
-        type: Schema.Types.ObjectId,
-        ref: 'Profile'
-      }
+      type: Schema.Types.ObjectId,
+      ref: 'Comment'
     }],
     reactions: {
       type: Map,
@@ -154,7 +208,9 @@ const EventSchema = new Schema<IEvent>({
         type: Schema.Types.ObjectId,
         ref: 'Profile'
       }]
-    }
+    },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
   }],
   agendaItems: [{
     description: String,
@@ -212,6 +268,10 @@ const EventSchema = new Schema<IEvent>({
       ref: 'Organization'
     }
   },
+  maxAttendees: {
+    type: Number,
+    min: 1
+  },
   // Only used when eventType === EventType.Booking
   booking: {
     serviceProvider: {
@@ -267,7 +327,59 @@ const EventSchema = new Schema<IEvent>({
     cancellationReason: String,
     rescheduleCount: { type: Number, default: 0 },
     requireApproval: { type: Boolean, default: false }
-  }
+  },
+  // Only used when eventType === EventType.Celebration
+  celebration: {
+    gifts: [{
+      description: { type: String, required: true },
+      requestedBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'Profile'
+      },
+      promisedBy: {
+        type: Schema.Types.ObjectId,
+        ref: 'Profile'
+      },
+      received: { type: Boolean, default: false },
+      link: String
+    }],
+    category: {
+      type: String,
+      enum: ['birthday', 'anniversary', 'holiday', 'achievement', 'other'],
+      default: 'birthday'
+    },
+    status: {
+      type: String,
+      enum: ['planning', 'upcoming', 'completed', 'cancelled'],
+      default: 'planning'
+    },
+    photoAlbum: {
+      type: Schema.Types.ObjectId,
+      ref: 'PhotoAlbum'
+    },
+    socialMediaPosts: [{
+      platform: { type: String, required: true },
+      postId: { type: String, required: true },
+      url: { type: String, required: true }
+    }]
+  },
+  statusHistory: [{
+    status: {
+      type: String,
+      enum: Object.values(EventStatus),
+      required: true
+    },
+    changedAt: {
+      type: Date,
+      default: Date.now
+    },
+    reason: String,
+    updatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'Users'
+    },
+    notes: String
+  }]
 }, {
   timestamps: true
 });
@@ -309,6 +421,11 @@ EventSchema.pre('save', function(next) {
   // Set booking to undefined if eventType is not Booking
   if (this.eventType !== EventType.Booking) {
     this.set('booking', undefined);
+  }
+
+  // Set celebration to undefined if eventType is not Celebration
+  if (this.eventType !== EventType.Celebration) {
+    this.set('celebration', undefined);
   }
 
   next();
