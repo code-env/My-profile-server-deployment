@@ -151,6 +151,7 @@ export interface IUser extends Document {
   referralRewards: IReferralRewards;
   verificationToken?: string;
   verificationTokenExpiry?: Date;
+  formattedPhoneNumber?: string;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -399,7 +400,8 @@ const userSchema = new Schema<IUser>(
       }]
     },
     verificationToken: String,
-    verificationTokenExpiry: Date
+    verificationTokenExpiry: Date,
+    formattedPhoneNumber: String
   },
   {
     timestamps: true,
