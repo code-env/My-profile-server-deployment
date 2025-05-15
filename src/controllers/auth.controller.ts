@@ -56,7 +56,7 @@ import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
 import { logger } from "../utils/logger";
 import { CustomError } from "../utils/errors";
-import { User } from "../models/User"; // Added User import
+import { User, IUser } from "../models/User"; // Added IUser import
 import EmailService from "../services/email.service";
 import { randomBytes } from "crypto";
 import { config } from "../config/config";
@@ -1821,6 +1821,130 @@ export class AuthController {
       return res.status(500).json({
         success: false,
         message: "Failed to update username"
+      });
+    }
+  }
+
+  /**
+   * Change user identifier (email, username, phone) after verification
+   * @route POST /auth/change-identifier
+   */
+  static async changeIdentifier(req: Request, res: Response) {
+    try {
+      const { userId, identifierType, newValue, formattedValue } = req.body;
+
+      // Validate required fields
+      if (!userId || !identifierType || !newValue) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing required fields: userId, identifierType, or newValue"
+        });
+      }
+
+      // Validate identifier type
+      const validTypes = ['email', 'username', 'phone'] as const;
+      type IdentifierType = typeof validTypes[number];
+      
+      if (!validTypes.includes(identifierType as IdentifierType)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid identifier type. Must be one of: email, username, phone"
+        });
+      }
+
+      // Find user
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found"
+        });
+      }
+
+      // Check if new value is already in use by another user
+      const existingUser = await User.findOne({
+        [identifierType]: identifierType === 'phone' ? newValue : newValue.toLowerCase(),
+        _id: { $ne: userId }
+      });
+
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: `${identifierType.charAt(0).toUpperCase() + identifierType.slice(1)} is already in use`
+        });
+      }
+
+      // Prepare update object based on identifier type
+      const updateData: Partial<IUser> = {};
+      
+      switch (identifierType as IdentifierType) {
+        case 'email':
+          updateData.email = newValue.toLowerCase();
+          updateData.isEmailVerified = true; // Since they've already verified through OTP
+          break;
+        case 'username':
+          updateData.username = newValue.toLowerCase();
+          break;
+        case 'phone':
+          updateData.phoneNumber = newValue;
+          updateData.formattedPhoneNumber = formattedValue || newValue;
+          updateData.isPhoneVerified = true; // Since they've already verified through OTP
+          break;
+      }
+
+      // Update user's identifier
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        updateData,
+        { new: true }
+      );
+
+      if (!updatedUser) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to update identifier"
+        });
+      }
+
+      // Get client info for security logging
+      const clientInfo = await getClientInfo(req);
+
+      // Log the change for security audit
+      logger.info(`User ${userId} changed their ${identifierType} from ${user[identifierType as keyof IUser]} to ${newValue}`, {
+        userId,
+        oldValue: user[identifierType as keyof IUser],
+        newValue,
+        ipAddress: clientInfo.ip,
+        userAgent: clientInfo.userAgent,
+        timestamp: new Date()
+      });
+
+      // Send notification email about the change
+      if (identifierType === 'email') {
+        // Send to old email
+        await EmailService.sendVerificationEmail(
+          user.email,
+          'email',
+          { ipAddress: clientInfo.ip, userAgent: clientInfo.os }
+        );
+      } else if (identifierType === 'phone') {
+        // Send SMS notification to old phone
+        await TwilioService.sendOTPMessage(
+          user.phoneNumber,
+          'phone'
+        );
+      }
+
+      return res.json({
+        success: true,
+        message: `${identifierType.charAt(0).toUpperCase() + identifierType.slice(1)} updated successfully`,
+        [identifierType]: newValue
+      });
+    } catch (error) {
+      logger.error("Change identifier error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update identifier"
       });
     }
   }
