@@ -1863,7 +1863,7 @@ export class AuthController {
 
       // Check if new value is already in use by another user
       const existingUser = await User.findOne({
-        [identifierType]: identifierType === 'phone' ? newValue : newValue.toLowerCase(),
+        [identifierType]: identifierType === 'phone' ? newValue.replace(/[^+\d]/g, "").replace("+", "").replace(" ", "") : newValue.toLowerCase(),
         _id: { $ne: userId }
       });
 
@@ -1885,10 +1885,10 @@ export class AuthController {
         case 'username':
           updateData.username = newValue.toLowerCase();
           break;
-        case 'phone':
-          updateData.phoneNumber = newValue;
+         case 'phone':
+          updateData.phoneNumber =  newValue.replace(/[^+\d]/g, "").replace("+", "").replace(" ", "");
           updateData.formattedPhoneNumber = formattedValue || newValue;
-          updateData.isPhoneVerified = true; // Since they've already verified through OTP
+          updateData.isPhoneVerified = true;
           break;
       }
 
@@ -1929,10 +1929,11 @@ export class AuthController {
         );
       } else if (identifierType === 'phone') {
         // Send SMS notification to old phone
-        await TwilioService.sendOTPMessage(
-          user.phoneNumber,
-          'phone'
-        );
+        // TODO: Send SMS
+        // await TwilioService.sendOTPMessage(
+        //   user.phoneNumber,
+        //   'phone'
+        // );
       }
 
       return res.json({
