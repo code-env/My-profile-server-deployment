@@ -129,7 +129,7 @@ router.post("/resend-otp", AuthController.resendOTP);
 router.post("/select-otp-method", AuthController.selectOTPMethod);
 
 // Change identifier endpoint (requires authentication)
-router.post("/change-identifier", authenticateToken, AuthController.changeIdentifier);
+router.post("/change-identifier", AuthController.changeIdentifier);
 
 // Email verification
 router.post("/verify-email", AuthController.verifyEmail);

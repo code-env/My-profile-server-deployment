@@ -626,7 +626,7 @@ class AuthService {
                 user.isPhoneVerified = true;
             }
             // Clear verification data
-            user.verificationData = undefined;
+            // user.verificationData = undefined;
             await user.save();
             try {
                 // Create a default profile for the user

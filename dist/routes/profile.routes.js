@@ -29,5 +29,10 @@ router.get('/p', authMiddleware_1.authenticateToken, profileController.getUserPr
 router.delete('/p/:profileId', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), profileController.deleteProfile.bind(profileController));
 router.post('/default', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), profileController.createDefaultProfile.bind(profileController));
 // Admin routes for managing all profiles
-router.get('/all', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['admin', 'superadmin']), profileController.getAllProfiles.bind(profileController));
+router.get('/all', authMiddleware_1.authenticateToken, profileController.getAllProfiles.bind(profileController));
+// Profile availability routes
+router.post('/:profileId/availability', profileController.setAvailability);
+router.patch('/:profileId/availability', profileController.updateAvailability);
+router.get('/:profileId/availability', profileController.getAvailability);
+router.get('/:profileId/availability/slots', profileController.getAvailableSlots);
 exports.default = router;

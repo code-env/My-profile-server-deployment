@@ -50,6 +50,15 @@ class ConnectionController {
                 throw new errors_1.CustomError("MISSING_TOKEN", 'User not authenticated');
             }
             const connection = await connection_service_1.default.updateConnectionStatus(connectionId, status);
+            // TODO: use the actual profile id here, not the user id and then emit the event
+            // if (status === 'accepted') {
+            //   await emitSocialInteraction(userId, {
+            //     type: 'connection',
+            //     profile: new Types.ObjectId(userId),
+            //     targetProfile: new Types.ObjectId(connection.toProfile),
+            //     contentId: connection._id as Types.ObjectId,
+            //   });
+            // }
             res.json({
                 success: true,
                 data: connection

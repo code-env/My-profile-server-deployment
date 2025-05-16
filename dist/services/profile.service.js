@@ -540,5 +540,158 @@ class ProfileService {
         }
         return profile;
     }
+    /**
+     * Set profile availability
+     */
+    async setAvailability(profileId, availabilityData) {
+        const profile = await this.getProfile(profileId);
+        if (!profile) {
+            throw (0, http_errors_1.default)(404, 'Profile not found');
+        }
+        // Convert profile to document to access methods
+        const profileDoc = profile;
+        profileDoc.availability = {
+            ...profileDoc.availability,
+            ...availabilityData,
+            isAvailable: true
+        };
+        await profileDoc.save();
+        return profileDoc.availability;
+    }
+    /**
+     * Update profile availability
+     */
+    async updateAvailability(profileId, updates) {
+        const profile = await this.getProfile(profileId);
+        if (!profile) {
+            throw (0, http_errors_1.default)(404, 'Profile not found');
+        }
+        // Convert profile to document to access methods
+        const profileDoc = profile;
+        if (!profileDoc.availability) {
+            profileDoc.availability = {
+                isAvailable: true,
+                defaultDuration: 60,
+                bufferTime: 15,
+                workingHours: {},
+                exceptions: [],
+                bookingWindow: {
+                    minNotice: 60,
+                    maxAdvance: 30
+                },
+                breakTime: []
+            };
+        }
+        // Update specific fields
+        if (updates.defaultDuration)
+            profileDoc.availability.defaultDuration = updates.defaultDuration;
+        if (updates.bufferTime)
+            profileDoc.availability.bufferTime = updates.bufferTime;
+        if (updates.workingHours)
+            profileDoc.availability.workingHours = updates.workingHours;
+        if (updates.exceptions)
+            profileDoc.availability.exceptions = updates.exceptions;
+        if (updates.bookingWindow)
+            profileDoc.availability.bookingWindow = updates.bookingWindow;
+        if (updates.breakTime) {
+            // Ensure breakTime days are properly formatted strings
+            profileDoc.availability.breakTime = updates.breakTime.map((breakTime) => ({
+                start: breakTime.start,
+                end: breakTime.end,
+                days: breakTime.days.map((day) => day.charAt(0).toUpperCase() + day.slice(1).toLowerCase())
+            }));
+        }
+        if (updates.isAvailable !== undefined)
+            profileDoc.availability.isAvailable = updates.isAvailable;
+        await profileDoc.save();
+        return profileDoc.availability;
+    }
+    /**
+     * Get profile availability
+     */
+    async getAvailability(profileId) {
+        const profile = await this.getProfile(profileId);
+        if (!profile) {
+            throw (0, http_errors_1.default)(404, 'Profile not found');
+        }
+        return profile.availability;
+    }
+    /**
+     * Get available slots for a specific date
+     */
+    async getAvailableSlots(profileId, date) {
+        var _a, _b, _c;
+        const profile = await this.getProfile(profileId);
+        if (!profile) {
+            throw new Error('Profile not found');
+        }
+        if (!((_a = profile.availability) === null || _a === void 0 ? void 0 : _a.isAvailable)) {
+            console.log('Debug - Profile is not available');
+            return [];
+        }
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayOfWeek = dayNames[date.getDay()];
+        // Handle both Map and object formats for workingHours
+        const workingHours = profile.availability.workingHours instanceof Map
+            ? profile.availability.workingHours.get(dayOfWeek)
+            : profile.availability.workingHours[dayOfWeek];
+        console.log('Debug - Working hours:', workingHours);
+        if (!(workingHours === null || workingHours === void 0 ? void 0 : workingHours.isWorking)) {
+            console.log('Debug - Not a working day');
+            return [];
+        }
+        const dateStr = date.toISOString().split('T')[0];
+        const slots = [];
+        // Check for exceptions
+        const exception = (_b = profile.availability.exceptions) === null || _b === void 0 ? void 0 : _b.find(e => e.date.toISOString().split('T')[0] === dateStr);
+        console.log('Debug - Exception found:', exception);
+        if (exception) {
+            if (!exception.isAvailable) {
+                console.log('Debug - Exception marks day as unavailable');
+                return [];
+            }
+            if (exception.slots) {
+                console.log('Debug - Using exception slots');
+                return exception.slots.map(slot => ({
+                    start: new Date(`${dateStr}T${slot.start}`),
+                    end: new Date(`${dateStr}T${slot.end}`)
+                }));
+            }
+        }
+        // Generate slots based on working hours and default duration
+        const startTime = new Date(`${dateStr}T${workingHours.start}`);
+        const endTime = new Date(`${dateStr}T${workingHours.end}`);
+        const duration = profile.availability.defaultDuration;
+        const buffer = profile.availability.bufferTime;
+        console.log('Debug - Slot generation:', {
+            startTime,
+            endTime,
+            duration,
+            buffer
+        });
+        let currentTime = new Date(startTime);
+        while (currentTime < endTime) {
+            const slotEnd = new Date(currentTime.getTime() + duration * 60000);
+            if (slotEnd <= endTime) {
+                // Check if slot overlaps with break time
+                const isInBreakTime = (_c = profile.availability.breakTime) === null || _c === void 0 ? void 0 : _c.some(breakTime => {
+                    if (!breakTime.days.includes(dayOfWeek))
+                        return false;
+                    const breakStart = new Date(`${dateStr}T${breakTime.start}`);
+                    const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
+                    return (currentTime >= breakStart && currentTime < breakEnd) ||
+                        (slotEnd > breakStart && slotEnd <= breakEnd);
+                });
+                if (!isInBreakTime) {
+                    slots.push({
+                        start: new Date(currentTime),
+                        end: new Date(slotEnd)
+                    });
+                }
+            }
+            currentTime = new Date(currentTime.getTime() + (duration + buffer) * 60000);
+        }
+        return slots;
+    }
 }
 exports.ProfileService = ProfileService;

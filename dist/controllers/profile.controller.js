@@ -176,6 +176,60 @@ class ProfileController {
                 }
             });
         });
+        /**
+         * Get available slots for a specific date
+         */
+        this.getAvailableSlots = (0, express_async_handler_1.default)(async (req, res, next) => {
+            const { profileId } = req.params;
+            const { date } = req.query;
+            if (!date) {
+                throw (0, http_errors_1.default)(400, 'Date is required');
+            }
+            const slots = await this.service.getAvailableSlots(profileId, new Date(date));
+            res.status(200).json({
+                success: true,
+                data: slots,
+                message: 'Available slots retrieved successfully'
+            });
+        });
+        /**
+         * Set profile availability
+         */
+        this.setAvailability = (0, express_async_handler_1.default)(async (req, res, next) => {
+            const { profileId } = req.params;
+            const availabilityData = req.body;
+            const availability = await this.service.setAvailability(profileId, availabilityData);
+            res.status(200).json({
+                success: true,
+                data: availability,
+                message: 'Profile availability updated successfully'
+            });
+        });
+        /**
+         * Update profile availability
+         */
+        this.updateAvailability = (0, express_async_handler_1.default)(async (req, res, next) => {
+            const { profileId } = req.params;
+            const updates = req.body;
+            const availability = await this.service.updateAvailability(profileId, updates);
+            res.status(200).json({
+                success: true,
+                data: availability,
+                message: 'Profile availability updated successfully'
+            });
+        });
+        /**
+         * Get profile availability
+         */
+        this.getAvailability = (0, express_async_handler_1.default)(async (req, res, next) => {
+            const { profileId } = req.params;
+            const availability = await this.service.getAvailability(profileId);
+            res.status(200).json({
+                success: true,
+                data: availability,
+                message: 'Profile availability retrieved successfully'
+            });
+        });
     }
     /**
      * Helper function to format profile data for frontend consumption
