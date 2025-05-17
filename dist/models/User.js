@@ -284,7 +284,8 @@ const userSchema = new mongoose_1.Schema({
             }]
     },
     verificationToken: String,
-    verificationTokenExpiry: Date
+    verificationTokenExpiry: Date,
+    formattedPhoneNumber: String
 }, {
     timestamps: true,
 });

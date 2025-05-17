@@ -77,6 +77,7 @@ const initialize_profile_templates_1 = require("./startup/initialize-profile-tem
 const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
 const cleanupTokens_1 = require("./jobs/cleanupTokens");
 const scalableTokenCleanup_1 = require("./jobs/scalableTokenCleanup");
+const updateLeaderboard_1 = require("./jobs/updateLeaderboard");
 // Import passport configuration
 require("./config/passport");
 const cookie_config_middleware_1 = require("./middleware/cookie-config.middleware");
@@ -446,6 +447,9 @@ class AppServer {
             // Initialize admin settings
             const { initializeDefaultSettings } = require('./models/admin-settings.model');
             await initializeDefaultSettings();
+            // Initialize leaderboard and schedule updates
+            await (0, updateLeaderboard_1.runImmediateLeaderboardUpdate)();
+            (0, updateLeaderboard_1.scheduleLeaderboardUpdate)();
             // Schedule token cleanup job
             // Use scalable token cleanup for large user bases (1M+ users)
             const useScalableCleanup = process.env.USE_SCALABLE_CLEANUP === 'true' ||

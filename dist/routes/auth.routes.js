@@ -117,6 +117,8 @@ router.get("/user/info", (req, res) => {
 router.post("/verify-otp", auth_controller_1.AuthController.verifyOTP);
 router.post("/resend-otp", auth_controller_1.AuthController.resendOTP);
 router.post("/select-otp-method", auth_controller_1.AuthController.selectOTPMethod);
+// Change identifier endpoint (requires authentication)
+router.post("/change-identifier", auth_controller_1.AuthController.changeIdentifier);
 // Email verification
 router.post("/verify-email", auth_controller_1.AuthController.verifyEmail);
 router.post("/resend-verification", auth_controller_1.AuthController.resendVerification);

@@ -61,7 +61,7 @@ exports.socialAuthCallback = socialAuthCallback;
 const auth_service_1 = require("../services/auth.service");
 const logger_1 = require("../utils/logger");
 const errors_1 = require("../utils/errors");
-const User_1 = require("../models/User"); // Added User import
+const User_1 = require("../models/User"); // Added IUser import
 const email_service_1 = __importDefault(require("../services/email.service"));
 const crypto_1 = require("crypto");
 const config_1 = require("../config/config");
@@ -265,18 +265,35 @@ class AuthController {
             }
             // Set tokens in HTTP-only cookies with proper settings
             // Note: The cookie-config middleware will handle SameSite and Secure settings in production
+            // Convert JWT expiration strings to milliseconds
+            const accessExpMs = parseDuration(config_1.config.JWT_ACCESS_EXPIRATION);
+            const refreshExpMs = parseDuration(config_1.config.JWT_REFRESH_EXPIRATION);
+            // Set cookies with proper configuration
             res.cookie("accesstoken", tokens.accessToken, {
                 httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
                 path: "/",
-                maxAge: 1 * 60 * 60 * 1000, // 1 hour
+                maxAge: accessExpMs,
             });
             res.cookie("refreshtoken", tokens.refreshToken, {
                 httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
                 path: "/",
-                maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+                maxAge: refreshExpMs,
             });
-            // Also include tokens in the response for the frontend to store in localStorage
-            // This provides a fallback mechanism if cookies don't work properly
+            // Helper function to parse duration strings like "24h", "30d" to milliseconds
+            function parseDuration(duration) {
+                const unit = duration.slice(-1);
+                const value = parseInt(duration.slice(0, -1));
+                switch (unit) {
+                    case 'h': return value * 60 * 60 * 1000;
+                    case 'd': return value * 24 * 60 * 60 * 1000;
+                    default: return 24 * 60 * 60 * 1000; // Default 24 hours
+                }
+            }
+            // Include tokens in response for localStorage backup
             console.log("Setting tokens in response for localStorage backup");
             res.status(200).json({
                 success: true,
@@ -541,18 +558,22 @@ class AuthController {
                         // Handle regular login case
                         if (motive === "login") {
                             const tokens = auth_service_1.AuthService.generateTokens(_id, user.email);
+                            // Convert JWT expiration strings to milliseconds
+                            const accessExpMs = parseDuration(config_1.config.JWT_ACCESS_EXPIRATION);
+                            const refreshExpMs = parseDuration(config_1.config.JWT_REFRESH_EXPIRATION);
                             res.cookie("accesstoken", tokens.accessToken, {
                                 httpOnly: true,
                                 secure: process.env.NODE_ENV === "production",
+                                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
                                 path: "/",
-                                maxAge: 1 * 60 * 60 * 1000, // 1 hour
+                                maxAge: accessExpMs,
                             });
                             res.cookie("refreshtoken", tokens.refreshToken, {
                                 httpOnly: true,
                                 secure: process.env.NODE_ENV === "production",
-                                sameSite: "lax",
+                                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
                                 path: "/",
-                                maxAge: 30 * 24 * 60 * 60 * 1000,
+                                maxAge: refreshExpMs,
                             });
                             return res.json({
                                 success: true,
@@ -630,16 +651,23 @@ class AuthController {
                     .json({ success: false, message: "Refresh token is required" });
             }
             const result = await auth_service_1.AuthService.refreshAccessToken(refreshToken, deviceInfo);
-            // Set new tokens in HTTP-only cookies
+            // Convert JWT expiration strings to milliseconds
+            const accessExpMs = parseDuration(config_1.config.JWT_ACCESS_EXPIRATION);
+            const refreshExpMs = parseDuration(config_1.config.JWT_REFRESH_EXPIRATION);
+            // Set new tokens in HTTP-only cookies with proper security settings
             res.cookie("accesstoken", result.accessToken, {
                 httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
                 path: "/",
-                maxAge: 1 * 60 * 60 * 1000, // 1 hour
+                maxAge: accessExpMs,
             });
             res.cookie("refreshtoken", result.refreshToken, {
                 httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
                 path: "/",
-                maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+                maxAge: refreshExpMs,
             });
             res.status(200).json({
                 success: true,
@@ -1540,6 +1568,109 @@ class AuthController {
             });
         }
     }
+    /**
+     * Change user identifier (email, username, phone) after verification
+     * @route POST /auth/change-identifier
+     */
+    static async changeIdentifier(req, res) {
+        try {
+            const { userId, identifierType, newValue, formattedValue } = req.body;
+            // Validate required fields
+            if (!userId || !identifierType || !newValue) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Missing required fields: userId, identifierType, or newValue"
+                });
+            }
+            // Validate identifier type
+            const validTypes = ['email', 'username', 'phone'];
+            if (!validTypes.includes(identifierType)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid identifier type. Must be one of: email, username, phone"
+                });
+            }
+            // Find user
+            const user = await User_1.User.findById(userId);
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: "User not found"
+                });
+            }
+            // Check if new value is already in use by another user
+            const existingUser = await User_1.User.findOne({
+                [identifierType]: identifierType === 'phone' ? newValue.replace(/[^+\d]/g, "").replace("+", "").replace(" ", "") : newValue.toLowerCase(),
+                _id: { $ne: userId }
+            });
+            if (existingUser) {
+                return res.status(400).json({
+                    success: false,
+                    message: `${identifierType.charAt(0).toUpperCase() + identifierType.slice(1)} is already in use`
+                });
+            }
+            // Prepare update object based on identifier type
+            const updateData = {};
+            switch (identifierType) {
+                case 'email':
+                    updateData.email = newValue.toLowerCase();
+                    updateData.isEmailVerified = true; // Since they've already verified through OTP
+                    break;
+                case 'username':
+                    updateData.username = newValue.toLowerCase();
+                    break;
+                case 'phone':
+                    updateData.phoneNumber = newValue.replace(/[^+\d]/g, "").replace("+", "").replace(" ", "");
+                    updateData.formattedPhoneNumber = formattedValue || newValue;
+                    updateData.isPhoneVerified = true;
+                    break;
+            }
+            // Update user's identifier
+            const updatedUser = await User_1.User.findByIdAndUpdate(userId, updateData, { new: true });
+            if (!updatedUser) {
+                return res.status(500).json({
+                    success: false,
+                    message: "Failed to update identifier"
+                });
+            }
+            // Get client info for security logging
+            const clientInfo = await getClientInfo(req);
+            // Log the change for security audit
+            logger_1.logger.info(`User ${userId} changed their ${identifierType} from ${user[identifierType]} to ${newValue}`, {
+                userId,
+                oldValue: user[identifierType],
+                newValue,
+                ipAddress: clientInfo.ip,
+                userAgent: clientInfo.userAgent,
+                timestamp: new Date()
+            });
+            // Send notification email about the change
+            if (identifierType === 'email') {
+                // Send to old email
+                await email_service_1.default.sendVerificationEmail(user.email, 'email', { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
+            }
+            else if (identifierType === 'phone') {
+                // Send SMS notification to old phone
+                // TODO: Send SMS
+                // await TwilioService.sendOTPMessage(
+                //   user.phoneNumber,
+                //   'phone'
+                // );
+            }
+            return res.json({
+                success: true,
+                message: `${identifierType.charAt(0).toUpperCase() + identifierType.slice(1)} updated successfully`,
+                [identifierType]: newValue
+            });
+        }
+        catch (error) {
+            logger_1.logger.error("Change identifier error:", error);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to update identifier"
+            });
+        }
+    }
 }
 exports.AuthController = AuthController;
 function generateOTP(length) {
@@ -1566,5 +1697,32 @@ async function socialAuthCallback(req, res) {
                 ? error.message
                 : "Failed to authenticate with social provider",
         });
+    }
+}
+function parseDuration(duration) {
+    if (!duration || typeof duration !== 'string') {
+        // Default to 24 hours if duration is invalid or not provided
+        logger_1.logger.warn(`Invalid or missing duration string: "${duration}". Defaulting to 24 hours.`);
+        return 24 * 60 * 60 * 1000;
+    }
+    const unit = duration.slice(-1);
+    const valueString = duration.slice(0, -1);
+    const value = parseInt(valueString, 10);
+    if (isNaN(value) || value <= 0) {
+        logger_1.logger.warn(`Invalid duration value: "${valueString}". Defaulting to 24 hours.`);
+        return 24 * 60 * 60 * 1000; // Default 24 hours
+    }
+    switch (unit) {
+        case 's': // seconds
+            return value * 1000;
+        case 'm': // minutes
+            return value * 60 * 1000;
+        case 'h': // hours
+            return value * 60 * 60 * 1000;
+        case 'd': // days
+            return value * 24 * 60 * 60 * 1000;
+        default:
+            logger_1.logger.warn(`Unknown duration unit: "${unit}" in duration string "${duration}". Defaulting to 24 hours.`);
+            return 24 * 60 * 60 * 1000; // Default 24 hours if unit is unrecognized
     }
 }

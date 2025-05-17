@@ -66,6 +66,9 @@ const notification_test_routes_1 = __importDefault(require("./notification-test.
 const user_device_routes_1 = __importDefault(require("./user-device.routes"));
 const profile_referral_routes_1 = __importDefault(require("./profile-referral.routes"));
 const presence_routes_1 = __importDefault(require("./presence.routes"));
+const gamification_routes_1 = __importDefault(require("./gamification.routes"));
+const analytics_dashboard_routes_1 = __importDefault(require("./analytics-dashboard.routes"));
+const sessions_routes_1 = __importDefault(require("./sessions.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
 const express_session_1 = __importDefault(require("express-session"));
@@ -141,6 +144,9 @@ const setupRoutes = (app) => {
     app.use('/api/test/notifications', auth_middleware_1.protect, notification_test_routes_1.default);
     app.use('/api/referrals', profile_referral_routes_1.default);
     app.use('/api/presence', auth_middleware_1.protect, presence_routes_1.default);
+    app.use('/api/gamification', auth_middleware_1.protect, gamification_routes_1.default);
+    app.use('/api/analytics', auth_middleware_1.protect, analytics_dashboard_routes_1.default);
+    app.use('/api/sessions', auth_middleware_1.protect, sessions_routes_1.default);
     // Test email route
     app.get('/api/test/email', async (req, res) => {
         try {

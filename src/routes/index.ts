@@ -62,6 +62,9 @@ import notificationTestRoutes from './notification-test.routes';
 import userDeviceRoutes from './user-device.routes';
 import profileReferralRoutes from './profile-referral.routes';
 import presenceRoutes from './presence.routes';
+import gamificationRoutes from './gamification.routes';
+import analyticsDashboardRoutes from './analytics-dashboard.routes';
+import sessionsRoutes from './sessions.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
@@ -148,6 +151,9 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/test/notifications', protect, notificationTestRoutes);
   app.use('/api/referrals', profileReferralRoutes);
   app.use('/api/presence', protect, presenceRoutes);
+  app.use('/api/gamification', protect, gamificationRoutes);
+  app.use('/api/analytics', protect, analyticsDashboardRoutes);
+  app.use('/api/sessions', protect, sessionsRoutes);
 
   // Test email route
   app.get('/api/test/email', async (req, res) => {

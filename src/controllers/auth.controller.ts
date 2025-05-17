@@ -404,20 +404,40 @@ export class AuthController {
 
       // Set tokens in HTTP-only cookies with proper settings
       // Note: The cookie-config middleware will handle SameSite and Secure settings in production
+      // Convert JWT expiration strings to milliseconds
+      const accessExpMs = parseDuration(config.JWT_ACCESS_EXPIRATION);
+      const refreshExpMs = parseDuration(config.JWT_REFRESH_EXPIRATION);
+
+      // Set cookies with proper configuration
       res.cookie("accesstoken", tokens.accessToken, {
         httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         path: "/",
-        maxAge: 1 * 60 * 60 * 1000, // 1 hour
+        maxAge: accessExpMs,
       });
 
       res.cookie("refreshtoken", tokens.refreshToken, {
         httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: refreshExpMs,
       });
 
-      // Also include tokens in the response for the frontend to store in localStorage
-      // This provides a fallback mechanism if cookies don't work properly
+      // Helper function to parse duration strings like "24h", "30d" to milliseconds
+      function parseDuration(duration: string): number {
+        const unit = duration.slice(-1);
+        const value = parseInt(duration.slice(0, -1));
+
+        switch(unit) {
+          case 'h': return value * 60 * 60 * 1000;
+          case 'd': return value * 24 * 60 * 60 * 1000;
+          default: return 24 * 60 * 60 * 1000; // Default 24 hours
+        }
+      }
+
+      // Include tokens in response for localStorage backup
       console.log("Setting tokens in response for localStorage backup");
 
       res.status(200).json({
@@ -701,19 +721,24 @@ export class AuthController {
             if (motive === "login") {
               const tokens = AuthService.generateTokens(_id, user!.email);
 
+              // Convert JWT expiration strings to milliseconds
+              const accessExpMs = parseDuration(config.JWT_ACCESS_EXPIRATION);
+              const refreshExpMs = parseDuration(config.JWT_REFRESH_EXPIRATION);
+
               res.cookie("accesstoken", tokens.accessToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
                 path: "/",
-                maxAge: 1 * 60 * 60 * 1000, // 1 hour
+                maxAge: accessExpMs,
               });
 
               res.cookie("refreshtoken", tokens.refreshToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
-                sameSite: "lax",
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
                 path: "/",
-                maxAge: 30 * 24 * 60 * 60 * 1000,
+                maxAge: refreshExpMs,
               });
 
               return res.json({
@@ -802,17 +827,25 @@ export class AuthController {
         deviceInfo
       );
 
-      // Set new tokens in HTTP-only cookies
+      // Convert JWT expiration strings to milliseconds
+      const accessExpMs = parseDuration(config.JWT_ACCESS_EXPIRATION);
+      const refreshExpMs = parseDuration(config.JWT_REFRESH_EXPIRATION);
+
+      // Set new tokens in HTTP-only cookies with proper security settings
       res.cookie("accesstoken", result.accessToken, {
         httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         path: "/",
-        maxAge: 1 * 60 * 60 * 1000, // 1 hour
+        maxAge: accessExpMs,
       });
 
       res.cookie("refreshtoken", result.refreshToken, {
         httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         path: "/",
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: refreshExpMs,
       });
 
       res.status(200).json({
@@ -1844,7 +1877,7 @@ export class AuthController {
       // Validate identifier type
       const validTypes = ['email', 'username', 'phone'] as const;
       type IdentifierType = typeof validTypes[number];
-      
+
       if (!validTypes.includes(identifierType as IdentifierType)) {
         return res.status(400).json({
           success: false,
@@ -1876,7 +1909,7 @@ export class AuthController {
 
       // Prepare update object based on identifier type
       const updateData: Partial<IUser> = {};
-      
+
       switch (identifierType as IdentifierType) {
         case 'email':
           updateData.email = newValue.toLowerCase();
@@ -1984,4 +2017,34 @@ export async function socialAuthCallback(req: Request, res: Response) {
   }
 
 
+}
+function parseDuration(duration: string): number {
+  if (!duration || typeof duration !== 'string') {
+    // Default to 24 hours if duration is invalid or not provided
+    logger.warn(`Invalid or missing duration string: "${duration}". Defaulting to 24 hours.`);
+    return 24 * 60 * 60 * 1000;
+  }
+
+  const unit = duration.slice(-1);
+  const valueString = duration.slice(0, -1);
+  const value = parseInt(valueString, 10);
+
+  if (isNaN(value) || value <= 0) {
+    logger.warn(`Invalid duration value: "${valueString}". Defaulting to 24 hours.`);
+    return 24 * 60 * 60 * 1000; // Default 24 hours
+  }
+
+  switch (unit) {
+    case 's': // seconds
+      return value * 1000;
+    case 'm': // minutes
+      return value * 60 * 1000;
+    case 'h': // hours
+      return value * 60 * 60 * 1000;
+    case 'd': // days
+      return value * 24 * 60 * 60 * 1000;
+    default:
+      logger.warn(`Unknown duration unit: "${unit}" in duration string "${duration}". Defaulting to 24 hours.`);
+      return 24 * 60 * 60 * 1000; // Default 24 hours if unit is unrecognized
+  }
 }
