@@ -20,6 +20,7 @@ export const whitelistOrigins = [
   "https://my-profile-web-olive.vercel.app",
   "https://new-backend-chat-system.onrender.com",
   "https://my-profile-server-api.onrender.com",
+  "https://my-pts.vercel.app",
 
   // Environment variables
   process.env.CLIENT_URL,
