@@ -1,4 +1,4 @@
-import { CronJob } from 'cron';
+import cron from 'node-cron';
 import { LeaderboardService } from '../services/leaderboard.service';
 import { logger } from '../utils/logger';
 
@@ -8,27 +8,20 @@ import { logger } from '../utils/logger';
  */
 export const scheduleLeaderboardUpdate = (): void => {
   const leaderboardService = new LeaderboardService();
-  
+
   // Schedule job to run at midnight every day
-  const job = new CronJob(
-    '0 0 * * *', // Cron expression: At 00:00 every day
-    async () => {
-      try {
-        logger.info('Starting scheduled leaderboard update');
-        await leaderboardService.updateLeaderboard();
-        logger.info('Scheduled leaderboard update completed successfully');
-      } catch (error) {
-        logger.error('Error in scheduled leaderboard update:', error);
-      }
-    },
-    null, // onComplete
-    false, // start
-    'UTC' // timezone
-  );
-  
-  // Start the job
-  job.start();
-  
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      logger.info('Starting scheduled leaderboard update');
+      await leaderboardService.updateLeaderboard();
+      logger.info('Scheduled leaderboard update completed successfully');
+    } catch (error) {
+      logger.error('Error in scheduled leaderboard update:', error);
+    }
+  }, {
+    timezone: 'UTC'
+  });
+
   logger.info('Leaderboard update job scheduled to run at midnight UTC daily');
 };
 
@@ -39,7 +32,7 @@ export const scheduleLeaderboardUpdate = (): void => {
 export const runImmediateLeaderboardUpdate = async (): Promise<void> => {
   try {
     const leaderboardService = new LeaderboardService();
-    
+
     logger.info('Running immediate leaderboard update');
     await leaderboardService.updateLeaderboard();
     logger.info('Immediate leaderboard update completed successfully');
