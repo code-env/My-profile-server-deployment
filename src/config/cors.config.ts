@@ -14,6 +14,7 @@ export const whitelistOrigins = [
   'http://127.0.0.1:5173',
   'http://localhost:42133',
   'http://127.0.0.1:42133',
+  'https://solid-trout-6jqrj4gpgrqfrv6x-3000.app.github.dev',
 
   // Production domains
   "https://my-pts-dashboard-management.vercel.app",
