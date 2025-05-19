@@ -1,7 +1,28 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
-import { IUserBadge } from '../../interfaces/gamification.interface';
+import { IUserBadge, IUserBadgeActivityProgress } from '../../interfaces/gamification.interface';
 
 export type ProfileBadgeDocument = IUserBadge & Document;
+
+// Define the activity progress schema
+const ActivityProgressSchema = new Schema<IUserBadgeActivityProgress>({
+  activityId: {
+    type: String,
+    required: true
+  },
+  progress: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  isCompleted: {
+    type: Boolean,
+    default: false
+  },
+  completedAt: {
+    type: Date
+  }
+});
 
 const ProfileBadgeSchema = new Schema<IUserBadge>(
   {
@@ -22,7 +43,8 @@ const ProfileBadgeSchema = new Schema<IUserBadge>(
     },
     completedAt: {
       type: Date
-    }
+    },
+    activityProgress: [ActivityProgressSchema]
   },
   { timestamps: true }
 );

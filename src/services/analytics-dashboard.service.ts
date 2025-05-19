@@ -153,7 +153,7 @@ export class AnalyticsDashboardService {
       dashboard.usage.activityHistory = recentActivities.map((activity) => ({
         date: activity.timestamp,
         activityType: activity.activityType,
-        pointsEarned: activity.pointsEarned
+        pointsEarned: activity.MyPtsEarned
       }));
     } catch (error) {
       logger.error(`Error updating usage data for profile ${profileId}:`, error);

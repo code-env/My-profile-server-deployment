@@ -4,6 +4,7 @@ import { ProfileModel } from "../models/profile.model";
 import { MyPtsModel } from "../models/my-pts.model";
 import { logger } from "../utils/logger";
 import { generateReferralCode } from "../utils/crypto";
+import { LeaderboardTimeFrame } from "../interfaces/profile-referral.interface";
 
 export class ProfileReferralService {
   /**
@@ -271,6 +272,237 @@ export class ProfileReferralService {
       };
     } catch (error) {
       logger.error("Error getting referral stats:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the date range for a time frame
+   * @param timeFrame The time frame (all, week, month, year)
+   * @returns The start date for the time frame
+   */
+  private static getTimeFrameDate(timeFrame: LeaderboardTimeFrame): Date | null {
+    const now = new Date();
+
+    switch (timeFrame) {
+      case LeaderboardTimeFrame.WEEKLY:
+        // Get date from 7 days ago
+        const weekAgo = new Date();
+        weekAgo.setDate(now.getDate() - 7);
+        return weekAgo;
+
+      case LeaderboardTimeFrame.MONTHLY:
+        // Get date from 30 days ago
+        const monthAgo = new Date();
+        monthAgo.setDate(now.getDate() - 30);
+        return monthAgo;
+
+      case LeaderboardTimeFrame.YEARLY:
+        // Get date from 365 days ago
+        const yearAgo = new Date();
+        yearAgo.setDate(now.getDate() - 365);
+        return yearAgo;
+
+      case LeaderboardTimeFrame.ALL_TIME:
+      default:
+        // No date filter for all-time
+        return null;
+    }
+  }
+
+  /**
+   * Get referral leaderboard with time frame filtering
+   * @param timeFrame The time frame to filter by (all, week, month, year)
+   * @param limit The maximum number of results to return
+   * @param page The page number for pagination
+   * @returns The leaderboard data
+   */
+  static async getReferralLeaderboard(
+    timeFrame: LeaderboardTimeFrame = LeaderboardTimeFrame.ALL_TIME,
+    limit: number = 10,
+    page: number = 1
+  ) {
+    try {
+      const skip = (page - 1) * limit;
+      const startDate = this.getTimeFrameDate(timeFrame);
+
+      // Build the query based on the time frame
+      let query: any = {};
+
+      if (startDate) {
+        // For time-based queries, we need to filter referrals that reached the threshold within the time frame
+        query = {
+          'referredProfiles.thresholdReachedDate': { $gte: startDate }
+        };
+      }
+
+      // Get the top referrers based on successful referrals
+      const leaderboard = await ProfileReferralModel.find(query)
+        .sort({ successfulReferrals: -1, totalReferrals: -1, earnedPoints: -1, createdAt: 1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('profileId', 'name profileImage profileInformation')
+        .select('profileId referralCode totalReferrals successfulReferrals currentMilestoneLevel earnedPoints');
+
+      // Count total documents for pagination
+      const total = await ProfileReferralModel.countDocuments(query);
+
+      return {
+        data: leaderboard.map(entry => ({
+          profile: entry.profileId,
+          referralCode: entry.referralCode,
+          totalReferrals: entry.totalReferrals,
+          successfulReferrals: entry.successfulReferrals,
+          milestoneLevel: entry.currentMilestoneLevel,
+          earnedPoints: entry.earnedPoints
+        })),
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      logger.error("Error getting referral leaderboard:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get top earners leaderboard with time frame filtering
+   * @param timeFrame The time frame to filter by (all, week, month, year)
+   * @param limit The maximum number of results to return
+   * @param page The page number for pagination
+   * @returns The leaderboard data
+   */
+  static async getTopEarnersLeaderboard(
+    timeFrame: LeaderboardTimeFrame = LeaderboardTimeFrame.ALL_TIME,
+    limit: number = 10,
+    page: number = 1
+  ) {
+    try {
+      const skip = (page - 1) * limit;
+      const startDate = this.getTimeFrameDate(timeFrame);
+
+      // Build the query based on the time frame
+      let query: any = {};
+      let matchStage: any = {};
+
+      if (startDate) {
+        // For time-based queries on MyPts, we need to filter transactions within the time frame
+        matchStage = {
+          'transactions.date': { $gte: startDate },
+          'transactions.type': 'EARN_MYPTS' // Only count earned MyPts
+        };
+      }
+
+      // Use aggregation to get top earners
+      const pipeline: any[] = [
+        { $match: query },
+        {
+          $lookup: {
+            from: 'mypts',
+            localField: 'profileId',
+            foreignField: 'profileId',
+            as: 'myPtsData'
+          }
+        },
+        { $unwind: '$myPtsData' },
+        {
+          $lookup: {
+            from: 'profiles',
+            localField: 'profileId',
+            foreignField: '_id',
+            as: 'profileData'
+          }
+        },
+        { $unwind: '$profileData' },
+        {
+          $project: {
+            profileId: 1,
+            referralCode: 1,
+            totalReferrals: 1,
+            successfulReferrals: 1,
+            currentMilestoneLevel: 1,
+            earnedPoints: 1,
+            profile: {
+              _id: '$profileData._id',
+              name: '$profileData.name',
+              profileImage: '$profileData.ProfileFormat.profileImage',
+              profileInformation: '$profileData.profileInformation'
+            },
+            myPts: {
+              balance: '$myPtsData.balance',
+              transactions: '$myPtsData.transactions'
+            }
+          }
+        }
+      ];
+
+      // Add match stage for time filtering if needed
+      if (Object.keys(matchStage).length > 0) {
+        pipeline.push({ $match: matchStage });
+      }
+
+      // Add sorting, pagination, and projection
+      pipeline.push(
+        {
+          $addFields: {
+            // For time-based queries, calculate the sum of earned MyPts within the time frame
+            filteredEarnedPoints: {
+              $cond: {
+                if: { $eq: [timeFrame, LeaderboardTimeFrame.ALL_TIME] },
+                then: '$myPts.balance',
+                else: {
+                  $sum: {
+                    $filter: {
+                      input: '$myPts.transactions',
+                      as: 'tx',
+                      cond: {
+                        $and: [
+                          { $gte: ['$$tx.date', startDate || new Date(0)] },
+                          { $eq: ['$$tx.type', 'EARN_MYPTS'] }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        { $sort: { filteredEarnedPoints: -1, successfulReferrals: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        {
+          $project: {
+            profile: 1,
+            referralCode: 1,
+            totalReferrals: 1,
+            successfulReferrals: 1,
+            milestoneLevel: '$currentMilestoneLevel',
+            earnedPoints: '$filteredEarnedPoints'
+          }
+        }
+      );
+
+      const leaderboard = await ProfileReferralModel.aggregate(pipeline);
+
+      // Count total documents for pagination (simplified count for performance)
+      const total = await ProfileReferralModel.countDocuments(query);
+
+      return {
+        data: leaderboard,
+        pagination: {
+          total,
+          page,
+          limit,
+          pages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      logger.error("Error getting top earners leaderboard:", error);
       throw error;
     }
   }

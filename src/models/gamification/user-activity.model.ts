@@ -22,7 +22,7 @@ const UserActivitySchema = new Schema<IUserActivity>(
       default: Date.now,
       required: true
     },
-    pointsEarned: {
+    MyPtsEarned: {
       type: Number,
       required: true,
       min: 0

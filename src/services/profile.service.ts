@@ -45,9 +45,7 @@ export class ProfileService {
 
     // Update profile information
     if (profileInformation) {
-      // Get user data to ensure we use fullName for username
-      const user = await User.findById(userId);
-      profile.profileInformation.username = user?.fullName || profileInformation.username;
+      profile.profileInformation.username = profileInformation.username;
 
       if (profileInformation.title) profile.profileInformation.title = profileInformation.title;
       if (profileInformation.accountHolder) profile.profileInformation.accountHolder = profileInformation.accountHolder;
@@ -146,6 +144,31 @@ export class ProfileService {
     const user = await User.findById(userId);
     const profileUsername = user?.fullName || user?.username || '';
 
+    // Get country information from user
+    const userCountry = user?.countryOfResidence || '';
+    // Simple country code mapping for common countries (can be expanded)
+    const countryCodeMap: Record<string, string> = {
+      'United States': 'US',
+      'Canada': 'CA',
+      'United Kingdom': 'GB',
+      'Australia': 'AU',
+      'Germany': 'DE',
+      'France': 'FR',
+      'Italy': 'IT',
+      'Spain': 'ES',
+      'Japan': 'JP',
+      'China': 'CN',
+      'India': 'IN',
+      'Brazil': 'BR',
+      'Mexico': 'MX',
+      'South Africa': 'ZA',
+      'Nigeria': 'NG',
+      'Kenya': 'KE',
+      'Ghana': 'GH',
+      'Cameroon': 'CM'
+    };
+    const countryCode = countryCodeMap[userCountry] || '';
+
     const profile = new Profile({
       profileCategory: template.profileCategory,
       profileType: template.profileType,
@@ -159,6 +182,10 @@ export class ProfileService {
         followLink: profileLink,
         createdAt: new Date(),
         updatedAt: new Date()
+      },
+      profileLocation: {
+        country: userCountry,
+        countryCode: countryCode
       },
       ProfileReferal: {
         referalLink: referralLink,
@@ -199,8 +226,12 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    // Verify user has permission to update
-    if (profile.profileInformation.creator.toString() !== userId) {
+    // Get user data to check if they're an admin
+    const user = await User.findById(userId);
+
+    // Verify user has permission to update (either creator or admin)
+    if (profile.profileInformation.creator.toString() !== userId &&
+        (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
       throw createHttpError(403, 'You do not have permission to update this profile');
     }
 
@@ -248,8 +279,12 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    // Verify user has permission to update
-    if (profile.profileInformation.creator.toString() !== userId) {
+    // Get user data to check if they're an admin
+    const user = await User.findById(userId);
+
+    // Verify user has permission to update (either creator or admin)
+    if (profile.profileInformation.creator.toString() !== userId &&
+        (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
       throw createHttpError(403, 'You do not have permission to update this profile');
     }
 
@@ -364,7 +399,12 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    if (profile.profileInformation.creator.toString() !== userId) {
+    // Get user data to check if they're an admin
+    const user = await User.findById(userId);
+
+    // Verify user has permission to delete (either creator or admin)
+    if (profile.profileInformation.creator.toString() !== userId &&
+        (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
       throw createHttpError(403, 'You do not have permission to delete this profile');
     }
 
@@ -428,19 +468,20 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    // Verify user has permission to update
-    if (profile.profileInformation.creator.toString() !== userId) {
-      throw createHttpError(403, 'You do not have permission to update this profile');
-    }
-
-    // Get user data to ensure we're using the correct fullName
+    // Get user data to check if they're an admin and for fullName
     const user = await User.findById(userId);
     if (!user) {
       throw createHttpError(404, 'User not found');
     }
 
-    // Update the profile username with the user's fullName
-    profile.profileInformation.username = user.fullName || username;
+    // Verify user has permission to update (either creator or admin)
+    if (profile.profileInformation.creator.toString() !== userId &&
+        (!user.role || !['admin', 'superadmin'].includes(user.role))) {
+      throw createHttpError(403, 'You do not have permission to update this profile');
+    }
+
+    // Update the profile username with the provided username
+    profile.profileInformation.username = username;
     profile.profileInformation.updatedAt = new Date();
 
     // If description is provided, update it using the updateProfileContent method
@@ -744,13 +785,13 @@ export class ProfileService {
 
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = dayNames[date.getDay()];
-    
+
     // Handle both Map and object formats for workingHours
-    const workingHours = profile.availability.workingHours instanceof Map 
+    const workingHours = profile.availability.workingHours instanceof Map
       ? profile.availability.workingHours.get(dayOfWeek)
       : profile.availability.workingHours[dayOfWeek];
     console.log('Debug - Working hours:', workingHours);
-    
+
     if (!workingHours?.isWorking) {
       console.log('Debug - Not a working day');
       return [];
@@ -760,7 +801,7 @@ export class ProfileService {
     const slots: Array<{start: Date, end: Date}> = [];
 
     // Check for exceptions
-    const exception = profile.availability.exceptions?.find(e => 
+    const exception = profile.availability.exceptions?.find(e =>
       e.date.toISOString().split('T')[0] === dateStr
     );
     console.log('Debug - Exception found:', exception);
@@ -801,7 +842,7 @@ export class ProfileService {
           if (!breakTime.days.includes(dayOfWeek)) return false;
           const breakStart = new Date(`${dateStr}T${breakTime.start}`);
           const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
-          return (currentTime >= breakStart && currentTime < breakEnd) || 
+          return (currentTime >= breakStart && currentTime < breakEnd) ||
                  (slotEnd > breakStart && slotEnd <= breakEnd);
         });
 

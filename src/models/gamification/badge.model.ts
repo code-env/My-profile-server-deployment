@@ -1,7 +1,47 @@
 import mongoose, { Document, Schema, Model } from 'mongoose';
-import { IBadge, BadgeCategory, BadgeRarity } from '../../interfaces/gamification.interface';
+import { IBadge, IBadgeActivity, BadgeCategory, BadgeRarity } from '../../interfaces/gamification.interface';
 
 export type BadgeDocument = IBadge & Document;
+
+// Define the badge activity schema
+const BadgeActivitySchema = new Schema<IBadgeActivity>({
+  activityId: {
+    type: String,
+    required: true
+  },
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  myPtsReward: {
+    type: Number,
+    required: true,
+    default: 0,
+    min: 0
+  },
+  isRequired: {
+    type: Boolean,
+    default: true
+  },
+  completionCriteria: {
+    type: {
+      type: String,
+      required: true
+    },
+    threshold: {
+      type: Number,
+      required: true,
+      min: 1
+    },
+    condition: String
+  }
+});
 
 const BadgeSchema = new Schema<IBadge>(
   {
@@ -40,6 +80,11 @@ const BadgeSchema = new Schema<IBadge>(
         required: true
       },
       condition: String
+    },
+    activities: [BadgeActivitySchema],
+    requiredActivitiesCount: {
+      type: Number,
+      min: 0
     }
   },
   { timestamps: true }

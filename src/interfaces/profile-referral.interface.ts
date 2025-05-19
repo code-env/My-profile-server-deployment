@@ -9,6 +9,13 @@ export enum ReferralRewardType {
   MILESTONE_LEVEL_5 = 'milestone_level_5'
 }
 
+export enum LeaderboardTimeFrame {
+  ALL_TIME = 'all',
+  WEEKLY = 'week',
+  MONTHLY = 'month',
+  YEARLY = 'year'
+}
+
 export enum ReferralRewardStatus {
   PENDING = 'pending',
   COMPLETED = 'completed'
@@ -48,6 +55,9 @@ export interface IProfileReferralMethods {
   addReferredProfile(profileId: mongoose.Types.ObjectId): Promise<void>;
   updateReferralStatus(referredProfileId: mongoose.Types.ObjectId, hasReachedThreshold: boolean): Promise<void>;
   checkAndUpdateMilestoneLevel(): Promise<number>;
-  checkLevel1Milestone(successfulReferrals: any[]): Promise<boolean>;
+  checkLevel2Eligibility(successfulReferrals: any[]): Promise<boolean>;
+  checkLevel3Eligibility(successfulReferrals: any[]): Promise<boolean>;
+  checkLevel4Eligibility(successfulReferrals: any[]): Promise<boolean>;
+  checkLevel5Eligibility(successfulReferrals: any[]): Promise<boolean>;
   awardReferralPoints(type: ReferralRewardType, amount: number): Promise<IReferralReward>;
 }

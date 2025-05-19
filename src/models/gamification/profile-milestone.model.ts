@@ -20,7 +20,7 @@ const ProfileMilestoneSchema = new Schema<IProfileMilestone>(
     },
     currentPoints: {
       type: Number,
-      default: 0,
+      default: 0, // review needed.
       min: 0
     },
     nextLevel: {

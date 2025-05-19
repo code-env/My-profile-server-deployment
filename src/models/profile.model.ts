@@ -70,6 +70,7 @@ interface IProfile {
     city?: string;
     stateOrProvince?: string;
     country?: string;
+    countryCode?: string;
     coordinates?: {
       latitude: number;
       longitude: number;
@@ -329,6 +330,7 @@ const ProfileSchema = new Schema<IProfile>(
       city: String,
       stateOrProvince: String,
       country: String,
+      countryCode: String,
       coordinates: {
         latitude: { type: Number, default: 0 },
         longitude: { type: Number, default: 0 }
@@ -554,7 +556,7 @@ ProfileSchema.methods.checkAvailability = async function(startTime: Date, endTim
 
   const dayOfWeek = startTime.getDay();
   const workingHours = this.availability.workingHours[dayOfWeek];
-  
+
   // Check if it's a working day
   if (!workingHours?.isWorking) return false;
 
@@ -574,7 +576,7 @@ ProfileSchema.methods.checkAvailability = async function(startTime: Date, endTim
 
   // Check for exceptions
   const dateStr = startTime.toISOString().split('T')[0];
-  const exception = this.availability.exceptions?.find((e: { date: Date; isAvailable: boolean; slots?: Array<{ start: string; end: string }> }) => 
+  const exception = this.availability.exceptions?.find((e: { date: Date; isAvailable: boolean; slots?: Array<{ start: string; end: string }> }) =>
     e.date.toISOString().split('T')[0] === dateStr
   );
 
@@ -596,7 +598,7 @@ ProfileSchema.methods.checkAvailability = async function(startTime: Date, endTim
     if (!breakTime.days.includes(dayName)) return false;
     const breakStart = new Date(`${dateStr}T${breakTime.start}`);
     const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
-    return (startTime >= breakStart && startTime < breakEnd) || 
+    return (startTime >= breakStart && startTime < breakEnd) ||
            (endTime > breakStart && endTime <= breakEnd);
   });
 
@@ -612,14 +614,14 @@ ProfileSchema.methods.getAvailableSlots = async function(date: Date): Promise<Ar
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const dayOfWeek = dayNames[date.getDay()];
   const workingHours = this.availability.workingHours[dayOfWeek];
-  
+
   if (!workingHours?.isWorking) return [];
 
   const dateStr = date.toISOString().split('T')[0];
   const slots: Array<{start: Date, end: Date}> = [];
 
   // Check for exceptions
-  const exception = this.availability.exceptions?.find((e: { date: Date; isAvailable: boolean; slots?: Array<{ start: string; end: string }> }) => 
+  const exception = this.availability.exceptions?.find((e: { date: Date; isAvailable: boolean; slots?: Array<{ start: string; end: string }> }) =>
     e.date.toISOString().split('T')[0] === dateStr
   );
 
@@ -648,7 +650,7 @@ ProfileSchema.methods.getAvailableSlots = async function(date: Date): Promise<Ar
         if (!breakTime.days.includes(dayOfWeek)) return false;
         const breakStart = new Date(`${dateStr}T${breakTime.start}`);
         const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
-        return (currentTime >= breakStart && currentTime < breakEnd) || 
+        return (currentTime >= breakStart && currentTime < breakEnd) ||
                (slotEnd > breakStart && slotEnd <= breakEnd);
       });
 
