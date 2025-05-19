@@ -16,11 +16,11 @@ import {
 } from '../models/plans-shared';
 import createHttpError from 'http-errors';
 import asyncHandler from 'express-async-handler';
-import CloudinaryService from '../services/cloudinary.service';
 import { emitSocialInteraction } from '../utils/socketEmitter';
 import { MyPtsModel } from '../models/my-pts.model';
 import { TransactionType } from '../interfaces/my-pts.interface';
 import { User } from '../models/User';
+import vaultService from '../services/vault.service';
 
 const notificationService = new NotificationService();
 
@@ -101,8 +101,6 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
     let uploadedFiles: Attachment[] = [];
 
     if (req.body.attachments && Array.isArray(req.body.attachments)) {
-        const cloudinaryService = new CloudinaryService();
-
         uploadedFiles = await Promise.all(
             req.body.attachments.map(async (attachment: { data: string; type: string }) => {
                 try {
@@ -116,34 +114,31 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
                         throw new Error(`Invalid attachment type: ${type}`);
                     }
 
-                    let resourceType: 'image' | 'raw' = 'image';
-                    if (type === 'File') {
-                        resourceType = 'raw';
-                    }
-
-                    const fileTypeMatch = base64String.match(/^data:(image\/\w+|application\/\w+);base64,/);
-                    const extension = fileTypeMatch ?
-                        fileTypeMatch[1].split('/')[1] :
-                        'dat';
-
-                    const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(
+                    // Upload to vault
+                    const uploadResult = await vaultService.uploadAndAddToVault(
+                        user._id,
+                        req.body.profileId,
                         base64String,
+                        type === "Photo" ? "Media" : type === "File" ? "Documents" : "Other",
+                        // let the sub category be either Photo, Video, or Audio
+                        type === "Photo" ? "Photo" : type === "File" ? "Video" : "Audio",
                         {
-                            folder: 'event-attachments',
-                            resourceType,
-                            tags: [`type-${type.toLowerCase()}`]
+                            eventId: req.body._id,
+                            eventName: req.body.name,
+                            attachmentType: type,
+                            description: req.body.description
                         }
                     );
 
                     return {
                         type: type as 'Photo' | 'File' | 'Link' | 'Other',
                         url: uploadResult.secure_url,
-                        name: uploadResult.original_filename || `attachment-${Date.now()}.${extension}`,
+                        name: uploadResult.original_filename || `attachment-${Date.now()}`,
                         description: '',
                         uploadedAt: new Date(),
                         uploadedBy: user._id,
                         size: uploadResult.bytes,
-                        fileType: uploadResult.format || extension,
+                        fileType: uploadResult.format,
                         publicId: uploadResult.public_id
                     };
                 } catch (error) {
@@ -268,7 +263,6 @@ export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
     let uploadedFiles: Attachment[] = [];
 
     if (req.body.attachments && Array.isArray(req.body.attachments)) {
-        const cloudinaryService = new CloudinaryService();
 
         uploadedFiles = await Promise.all(
             req.body.attachments.map(async (attachment: { data: string; type: string }) => {
@@ -288,12 +282,18 @@ export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
                         resourceType = 'raw';
                     }
 
-                    const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(
+                    const uploadResult = await vaultService.uploadAndAddToVault(
+                        user._id,
+                        req.body.profileId,
                         base64String,
+                        type === "Photo" ? "Media" : type === "File" ? "Documents" : "Other",
+                        // let the sub category be either Photo, Video, or Audio
+                        type === "Photo" ? "Photo" : type === "File" ? "Video" : "Audio",
                         {
-                            folder: 'event-attachments',
-                            resourceType,
-                            tags: [`type-${type.toLowerCase()}`]
+                            eventId: req.body._id,
+                            eventName: req.body.name,
+                            attachmentType: type,
+                            description: req.body.description
                         }
                     );
 
@@ -512,7 +512,7 @@ export const setServiceProvider = asyncHandler(async (req: Request, res: Respons
         throw createHttpError(400, 'Invalid event ID');
     }
 
-    if (!req.body.profile || !req.body.role) {
+    if (!req.body.profileId || !req.body.role) {
         throw createHttpError(400, 'profile and role are required');
     }
 
@@ -520,7 +520,7 @@ export const setServiceProvider = asyncHandler(async (req: Request, res: Respons
         req.params.id,
         user._id,
         {
-            profileId: new mongoose.Types.ObjectId(req.body.profile),
+            profileId: new mongoose.Types.ObjectId(req.body.profileId),
             role: req.body.role
         }
     );
@@ -546,7 +546,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Comment text is required');
     }
 
-    if (!req.body.profile) {
+    if (!req.body.profileId) {
         throw createHttpError(400, 'Profile is required');
     }
 
@@ -559,7 +559,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Event has no associated profile');
     }
 
-    const profile = req.body.profile;
+    const profile = req.body.profileId;
     const updatedEvent = await eventService.addComment(
         req.params.id,
         user._id,
@@ -606,11 +606,11 @@ export const likeEvent = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Event has no associated profile');
     }
 
-    if (!req.body.profile) {
+    if (!req.body.profileId) {
         throw createHttpError(400, 'Profile is required');
     }
 
-    const profile = req.body.profile;
+    const profile = req.body.profileId;
 
     const event = await eventService.likeEvent(req.params.id, user._id, profile);
 

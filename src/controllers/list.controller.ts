@@ -103,17 +103,22 @@ export const addListItem = async (req: Request, res: Response) => {
         if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
             return res.status(400).json({ error: 'Invalid list ID' });
         }
-
-        if (!req.body.name) {
-            return res.status(400).json({ error: 'Item name is required' });
-        }
-
         const itemData = {
+            _id: new mongoose.Types.ObjectId(),
             name: req.body.name,
-            isCompleted: false,
+            isCompleted: req.body.isCompleted || false,
             createdAt: new Date(),
+            completedAt: req.body.completedAt,
+            assignedTo: req.body.assignedTo,
+            repeat: req.body.repeat,
+            reminders: req.body.reminders,
+            duration: req.body.duration,
+            status: req.body.status,
+            subTasks: req.body.subTasks,
+            attachments: req.body.attachments,
+            category: req.body.category,
+            notes: req.body.notes
         };
-
         const list = await listService.addListItem(req.params.id, user._id, itemData);
         return successResponse(res, list, 'List item added successfully');
     } catch (error) {
@@ -127,19 +132,30 @@ export const updateListItem = async (req: Request, res: Response) => {
         if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
             return res.status(400).json({ error: 'Invalid list ID' });
         }
-
-        if (!req.params.itemIndex || isNaN(parseInt(req.params.itemIndex))) {
-            return res.status(400).json({ error: 'Invalid item index' });
+        if (!req.params.itemId || !mongoose.Types.ObjectId.isValid(req.params.itemId)) {
+            return res.status(400).json({ error: 'Invalid item ID' });
         }
-
         const itemIndex = parseInt(req.params.itemIndex);
+        const updateData = {
+            name: req.body.name,
+            isCompleted: req.body.isCompleted,
+            completedAt: req.body.completedAt,
+            assignedTo: req.body.assignedTo,
+            repeat: req.body.repeat,
+            reminders: req.body.reminders,
+            duration: req.body.duration,
+            status: req.body.status,
+            subTasks: req.body.subTasks,
+            attachments: req.body.attachments,
+            category: req.body.category,
+            notes: req.body.notes
+        };
         const list = await listService.updateListItem(
             req.params.id,
             user._id,
-            itemIndex,
-            req.body
+            req.params.itemId,
+            updateData
         );
-
         return successResponse(res, list, 'List item updated successfully');
     } catch (error) {
         handleErrorResponse(error, res);
@@ -153,15 +169,14 @@ export const deleteListItem = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Invalid list ID' });
         }
 
-        if (!req.params.itemIndex || isNaN(parseInt(req.params.itemIndex))) {
-            return res.status(400).json({ error: 'Invalid item index' });
+        if (!req.params.itemId || !mongoose.Types.ObjectId.isValid(req.params.itemId)) {
+            return res.status(400).json({ error: 'Invalid item ID' });
         }
 
-        const itemIndex = parseInt(req.params.itemIndex);
         const list = await listService.deleteListItem(
             req.params.id,
             user._id,
-            itemIndex
+            req.params.itemId
         );
 
         return successResponse(res, list, 'List item deleted successfully');
@@ -173,25 +188,12 @@ export const deleteListItem = async (req: Request, res: Response) => {
 export const toggleItemCompletion = async (req: Request, res: Response) => {
     try {
         const user: any = req.user!;
-        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
-            return res.status(400).json({ error: 'Invalid list ID' });
-        }
-
-        if (!req.params.itemIndex || isNaN(parseInt(req.params.itemIndex))) {
-            return res.status(400).json({ error: 'Invalid item index' });
-        }
-
-        const itemIndex = parseInt(req.params.itemIndex);
-        const list = await listService.toggleItemCompletion(
-            req.params.id,
-            user._id,
-            itemIndex
-        );
-
+        const { id, itemId } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        if (!itemId || !mongoose.Types.ObjectId.isValid(itemId)) return res.status(400).json({ error: 'Invalid item ID' });
+        const list = await listService.toggleItemCompletion(id, user._id, itemId);
         return successResponse(res, list, 'Item completion status toggled successfully');
-    } catch (error) {
-        handleErrorResponse(error, res);
-    }
+    } catch (error) { handleErrorResponse(error, res); }
 };
 
 export const addListComment = async (req: Request, res: Response) => {
@@ -362,6 +364,135 @@ export const unlikeList = async (req: Request, res: Response) => {
     } catch (error) {
         handleErrorResponse(error, res);
     }
+};
+
+export const assignItemToProfile = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id, itemId } = req.params;
+        const { profileId } = req.body;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        if (itemId === undefined || !mongoose.Types.ObjectId.isValid(itemId)) return res.status(400).json({ error: 'Invalid item ID' });
+        if (!profileId) return res.status(400).json({ error: 'Profile ID is required' });
+        const list = await listService.assignItemToProfile(id, user._id, itemId, profileId);
+        return successResponse(res, list, 'Item assigned to profile');
+    } catch (error) { handleErrorResponse(error, res); }
+};
+
+export const addParticipant = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id } = req.params;
+        const { profileId } = req.body;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        if (!profileId) return res.status(400).json({ error: 'Profile ID is required' });
+        const list = await listService.addParticipant(id, user._id, profileId);
+        return successResponse(res, list, 'Participant added');
+    } catch (error) { handleErrorResponse(error, res); }
+};
+
+export const removeParticipant = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id } = req.params;
+        const { profileId } = req.body;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        if (!profileId) return res.status(400).json({ error: 'Profile ID is required' });
+        const list = await listService.removeParticipant(id, user._id, profileId);
+        return successResponse(res, list, 'Participant removed');
+    } catch (error) { handleErrorResponse(error, res); }
+};
+
+export const addAttachmentToItem = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id, itemId } = req.params;
+        const attachment = req.body.attachment;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        if (itemId === undefined || !mongoose.Types.ObjectId.isValid(itemId)) return res.status(400).json({ error: 'Invalid item ID' });
+        if (!attachment) return res.status(400).json({ error: 'Attachment is required' });
+        const list = await listService.addAttachmentToItem(id, user._id, itemId, attachment);
+        return successResponse(res, list, 'Attachment added to item');
+    } catch (error) { handleErrorResponse(error, res); }
+};
+
+export const removeAttachmentFromItem = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id, itemIndex, attachmentIndex } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        if (itemIndex === undefined || isNaN(parseInt(itemIndex))) return res.status(400).json({ error: 'Invalid item index' });
+        if (attachmentIndex === undefined || isNaN(parseInt(attachmentIndex))) return res.status(400).json({ error: 'Invalid attachment index' });
+        const list = await listService.removeAttachmentFromItem(id, user._id, parseInt(itemIndex), parseInt(attachmentIndex));
+        return successResponse(res, list, 'Attachment removed from item');
+    } catch (error) { handleErrorResponse(error, res); }
+};
+
+export const addSubTask = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id, itemId } = req.params;
+        const subTask = req.body.subTask;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        if (!itemId || !mongoose.Types.ObjectId.isValid(itemId)) return res.status(400).json({ error: 'Invalid item ID' });
+        if (!subTask) return res.status(400).json({ error: 'Sub-task is required' });
+        const list = await listService.addSubTask(id, user._id, itemId, subTask);
+        return successResponse(res, list, 'Sub-task added');
+    } catch (error) { handleErrorResponse(error, res); }
+};
+
+export const removeSubTask = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id, itemId, subTaskId } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        if (!itemId || !mongoose.Types.ObjectId.isValid(itemId)) return res.status(400).json({ error: 'Invalid item ID' });
+        if (!subTaskId || !mongoose.Types.ObjectId.isValid(subTaskId)) return res.status(400).json({ error: 'Invalid sub-task ID' });
+        const list = await listService.removeSubTask(id, user._id, itemId, subTaskId);
+        return successResponse(res, list, 'Sub-task removed');
+    } catch (error) { handleErrorResponse(error, res); }
+};
+
+export const duplicateList = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        const newList = await listService.duplicateList(id, user._id);
+        return successResponse(res, newList, 'List duplicated successfully');
+    } catch (error) { handleErrorResponse(error, res); }
+};
+
+export const checkAllItems = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        const list = await listService.checkAllItems(id, user._id);
+        return successResponse(res, list, 'All items marked as complete');
+    } catch (error) { handleErrorResponse(error, res); }
+};
+
+export const uncheckAllItems = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id } = req.params;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        const list = await listService.uncheckAllItems(id, user._id);
+        return successResponse(res, list, 'All items marked as incomplete');
+    } catch (error) { handleErrorResponse(error, res); }
+};
+
+export const shareList = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        const { id } = req.params;
+        const { profileIds } = req.body;
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid list ID' });
+        if (!Array.isArray(profileIds) || profileIds.length === 0) return res.status(400).json({ error: 'profileIds array is required' });
+        const list = await listService.shareList(id, user._id, profileIds);
+        return successResponse(res, list, 'List shared successfully');
+    } catch (error) { handleErrorResponse(error, res); }
 };
 
 // Helper functions

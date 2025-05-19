@@ -11,7 +11,7 @@ import asyncHandler from 'express-async-handler';
  */
 export const addReminder = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
-    const { eventId } = req.params;
+    const { itemType, itemId, itemIndex } = req.params;
     const { type, amount, unit, message, recipients } = req.body;
 
     // Validate reminder data
@@ -25,17 +25,17 @@ export const addReminder = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Invalid reminder unit');
     }
 
-    const event = await reminderService.addReminder(eventId, user._id, {
-        type,
-        value: amount,
-        unit,
-        message,
-        recipients
-    });
+    const result = await reminderService.addReminder(
+        itemId,
+        user._id,
+        { type, value: amount, unit, message, recipients },
+        itemType as any,
+        itemType === 'list' && itemIndex !== undefined ? Number(itemIndex) : undefined
+    );
 
     res.status(201).json({
         success: true,
-        data: event,
+        data: result,
         message: 'Reminder added successfully'
     });
 });
@@ -46,16 +46,9 @@ export const addReminder = asyncHandler(async (req: Request, res: Response) => {
  * @access  Private
  */
 export const cancelAllReminders = asyncHandler(async (req: Request, res: Response) => {
-    const user: any = req.user!;
-    const { eventId } = req.params;
-
-    const event = await reminderService.cancelAllReminders(eventId);
-
-    res.json({
-        success: true,
-        data: event,
-        message: 'All reminders cancelled successfully'
-    });
+    const { itemType, itemId } = req.params;
+    const result = await reminderService.cancelAllReminders(itemId, itemType as any);
+    res.json({ success: true, data: result, message: 'All reminders cancelled successfully' });
 });
 
 /**
@@ -63,13 +56,10 @@ export const cancelAllReminders = asyncHandler(async (req: Request, res: Respons
  * @route   GET /api/events/:eventId/reminders
  * @access  Private
  */
-export const getEventReminders = asyncHandler(async (req: Request, res: Response) => {
-    const { eventId } = req.params;
-    const reminders = await reminderService.getReminders(eventId, 'event');
-    res.json({
-        success: true,
-        data: reminders
-    });
+export const getReminders = asyncHandler(async (req: Request, res: Response) => {
+    const { itemType, itemId } = req.params;
+    const reminders = await reminderService.getReminders(itemId, itemType as any);
+    res.json({ success: true, data: reminders });
 });
 
 /**
@@ -78,12 +68,9 @@ export const getEventReminders = asyncHandler(async (req: Request, res: Response
  * @access  Private
  */
 export const deleteReminder = asyncHandler(async (req: Request, res: Response) => {
-    const { eventId, reminderId } = req.params;
-    await reminderService.deleteReminder(eventId, reminderId);
-    res.json({
-        success: true,
-        message: 'Reminder deleted successfully'
-    });
+    const { itemType, itemId, reminderId } = req.params;
+    await reminderService.deleteReminder(itemId, reminderId, itemType as any);
+    res.json({ success: true, message: 'Reminder deleted successfully' });
 });
 
 /**
@@ -98,4 +85,10 @@ export const processDueReminders = asyncHandler(async (req: Request, res: Respon
         success: true,
         message: 'Due reminders processed successfully'
     });
+});
+
+export const getAllReminders = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+    const reminders = await reminderService.getAllRemindersForUser(user._id);
+    res.json({ success: true, data: reminders });
 }); 

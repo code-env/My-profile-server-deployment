@@ -1,20 +1,16 @@
 import { Request, Response } from 'express';
 import mongoose, { Types } from 'mongoose';
 import taskService from '../services/task.service';
-import { ITask } from '../models/Tasks';
 import {
     TaskStatus,
     TaskType
 } from '../models/plans-shared';
-import createHttpError from 'http-errors';
 import asyncHandler from 'express-async-handler';
-import CloudinaryService from '../services/cloudinary.service';
-import { request } from 'http';
-import { InteractionService } from '../services/interaction.service';
-import { Interaction } from '../models/Interaction';
 import { Attachment, EndCondition, PriorityLevel, ReminderType, ReminderUnit, RepeatFrequency, TaskCategory, VisibilityType } from '../models/plans-shared';
-import Client from 'socket.io-client';
 import { emitSocialInteraction } from '../utils/socketEmitter';
+import vaultService from '../services/vault.service';
+import createHttpError from 'http-errors';
+
 
 // Helper function to validate task data
 const validateTaskData = (data: any) => {
@@ -85,8 +81,6 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
     let uploadedFiles: Attachment[] = [];
 
     if (req.body.attachments && Array.isArray(req.body.attachments)) {
-        const cloudinaryService = new CloudinaryService();
-
         // Process each attachment object
         uploadedFiles = await Promise.all(
             req.body.attachments.map(async (attachment: { data: string; type: string }) => {
@@ -102,25 +96,19 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
                         throw new Error(`Invalid attachment type: ${type}`);
                     }
 
-                    // Determine Cloudinary resource type based on attachment type
-                    let resourceType: 'image' | 'raw' = 'image';
-                    if (type === 'File') {
-                        resourceType = 'raw';
-                    }
-
-                    // Extract file extension from base64 string
-                    const fileTypeMatch = base64String.match(/^data:(image\/\w+|application\/\w+);base64,/);
-                    const extension = fileTypeMatch ?
-                        fileTypeMatch[1].split('/')[1] :
-                        'dat';
-
-                    // Upload to Cloudinary
-                    const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(
+                    // Upload to Cloudinary and add to vault
+                    const uploadResult = await vaultService.uploadAndAddToVault(
+                        user._id,
+                        req.body.profile,
                         base64String,
+                        type === "Photo" ? "Media" : type === "File" ? "Documents" : "Other",
+                        'Task Attachments',
                         {
-                            folder: 'task-attachments',
-                            resourceType,
-                            tags: [`type-${type.toLowerCase()}`]
+
+                            taskId: req.body._id,
+                            taskName: req.body.name,
+                            attachmentType: type,
+                            description: req.body.description
                         }
                     );
 
@@ -128,12 +116,12 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
                     return {
                         type: type as 'Photo' | 'File' | 'Link' | 'Other',
                         url: uploadResult.secure_url,
-                        name: uploadResult.original_filename || `attachment-${Date.now()}.${extension}`,
+                        name: uploadResult.original_filename || `attachment-${Date.now()}`,
                         description: '',
                         uploadedAt: new Date(),
-                        uploadedBy: user._id, // This should already be an ObjectId
+                        uploadedBy: user._id,
                         size: uploadResult.bytes,
-                        fileType: uploadResult.format || extension,
+                        fileType: uploadResult.format,
                         publicId: uploadResult.public_id
                     };
                 } catch (error) {
@@ -237,7 +225,6 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     let uploadedFiles: Attachment[] = [];
 
     if (req.body.attachments && Array.isArray(req.body.attachments)) {
-        const cloudinaryService = new CloudinaryService();
 
         // Process each attachment object
         uploadedFiles = await Promise.all(
@@ -268,12 +255,18 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
                         'dat';
 
                     // Upload to Cloudinary
-                    const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(
+                    const uploadResult = await vaultService.uploadAndAddToVault(
+                        user._id,
+                        req.body.profile,
                         base64String,
+                        resourceType === "raw" ? "Documents" : "Media",
+                        // let the sub category be either Photo, Video, or Audio
+                        resourceType === "image" ? "Photo" : resourceType === "raw" ? "Video" : "Audio",
                         {
-                            folder: 'task-attachments',
-                            resourceType,
-                            tags: [`type-${type.toLowerCase()}`]
+                            taskId: req.body._id,
+                            taskName: req.body.name,
+                            attachmentType: type,
+                            description: req.body.description
                         }
                     );
 
@@ -284,7 +277,7 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
                         name: uploadResult.original_filename || `attachment-${Date.now()}.${extension}`,
                         description: '',
                         uploadedAt: new Date(),
-                        uploadedBy: user._id, // This should already be an ObjectId
+                        uploadedBy: user._id,
                         size: uploadResult.bytes,
                         fileType: uploadResult.format || extension,
                         publicId: uploadResult.public_id

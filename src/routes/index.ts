@@ -69,6 +69,7 @@ import socialAuthRoutes from './auth.social.routes';
 import participantRoutes from './participant.routes';
 import reminderRoutes from './reminder.routes';
 import plansRoutes from './plans.routes';
+import vaultRoutes from './vault.routes';
 
 /**
  * Configures and sets up all API routes for the application
@@ -135,6 +136,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/events', protect, eventRoutes);
   app.use('/api/interactions', protect, interactionRoutes);
   app.use('/api/plans', protect, plansRoutes);
+  app.use('/api/vault', protect, vaultRoutes);
   app.use('/api/relationships', protect, RelationshipTypeRoutes);
   app.use('/api/logs', logsRoutes);
   app.use('/api/my-pts', protect, myPtsRoutes);
@@ -153,7 +155,7 @@ export const setupRoutes = (app: Application): void => {
 
   // additional routes related to plans
   app.use('/api/participant', participantRoutes);
-  app.use('/api/events', reminderRoutes);
+  app.use('/api/reminders', reminderRoutes);
 
   // Test email route
   app.get('/api/test/email', async (req, res) => {
