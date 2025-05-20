@@ -294,6 +294,16 @@ export class SocialAuthController {
           // Create a new user
           const username = await SocialAuthController.generateUniqueUsername(profile.name || profile.email.split('@')[0]);
 
+          // Check URL for referral code
+          let referralCode = '';
+          try {
+            const url = new URL(req.url || '', `http://${req.headers.host}`);
+            referralCode = url.searchParams.get('ref') || '';
+            logger.info(`Found referral code in URL: ${referralCode}`);
+          } catch (urlError) {
+            logger.error('Error extracting referral code from URL:', urlError);
+          }
+
           // Create a new user with required fields
           user = new User({
             googleId: profile.id,
@@ -303,6 +313,8 @@ export class SocialAuthController {
             signupType: 'google',
             isEmailVerified: true,
             profileImage: profile.picture,
+            // Store referral code if present
+            referralCode: referralCode || undefined,
             // Set these fields to undefined to avoid validation errors
             // They will be collected in the complete-profile page
             dateOfBirth: undefined,

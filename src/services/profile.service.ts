@@ -658,29 +658,42 @@ export class ProfileService {
       logger.info(`Created referral record for profile: ${profile._id}`);
 
       // Check if the user was referred (has a valid referral code)
-      if (user.referralCode && typeof user.referralCode === 'string' && user.referralCode.trim() !== '') {
+      // Always check for referral code, whether from normal registration or social auth
+      const referralCode = user.referralCode;
+      logger.info(`Checking referral code for user ${userId}: ${referralCode}`);
+
+      if (referralCode && typeof referralCode === 'string' && referralCode.trim() !== '') {
         try {
           // Validate the referral code
-          const referringProfileId = await ProfileReferralService.validateReferralCode(user.referralCode);
+          const referringProfileId = await ProfileReferralService.validateReferralCode(referralCode);
 
           if (referringProfileId) {
-            // Process the referral
-            const referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+            // Process the referral and retry if it fails initially
+            let referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+
+            // If first attempt fails, wait briefly and retry once
+            if (!referralProcessed) {
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+              referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+            }
 
             if (referralProcessed) {
-              logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${user.referralCode}`);
+              logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${referralCode}`);
+
+              // Initialize referral record for the new profile
+              await ProfileReferralService.initializeReferralCode(profile._id);
             } else {
-              logger.warn(`Failed to process referral for profile ${profile._id} with referral code ${user.referralCode}`);
+              logger.error(`Failed to process referral for profile ${profile._id} with referral code ${referralCode} after retry`);
             }
           } else {
-            logger.info(`Referral code ${user.referralCode} is invalid or not found, skipping referral processing`);
+            logger.warn(`Invalid referral code provided: ${referralCode}`);
           }
         } catch (referralError) {
           logger.error(`Error processing referral for profile ${profile._id}:`, referralError);
-          // Don't throw the error to avoid disrupting the profile creation process
+          // Continue profile creation even if referral processing fails
         }
       } else {
-        logger.info(`No valid referral code found for user ${userId}, skipping referral processing`);
+        logger.info(`No referral code found for user ${userId}`);
       }
     } catch (error) {
       logger.error(`Error creating referral record for profile ${profile._id}:`, error);
