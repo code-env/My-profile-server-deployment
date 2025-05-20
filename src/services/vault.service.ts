@@ -1,7 +1,18 @@
-import { Vault, VaultCategory, VaultSubcategory, VaultItem, IVaultItem } from '../models/Vault';
+import { Vault, VaultCategory, VaultSubcategory, VaultItem, IVaultItem, IVaultSubcategory } from '../models/Vault';
 import { Types } from 'mongoose';
 import CloudinaryService from '../services/cloudinary.service';
 import { User } from '../models/User';
+import createHttpError from 'http-errors';
+
+interface ISubcategoryWithChildren {
+  _id: Types.ObjectId;
+  name: string;
+  order: number;
+  hasChildren: boolean;
+  count: number;
+  items: any[];
+  subcategories: ISubcategoryWithChildren[];
+}
 
 class VaultService {
   private cloudinaryService: CloudinaryService;
@@ -88,7 +99,10 @@ class VaultService {
     const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) return null;
 
-    const query: any = { vaultId: vault._id };
+    const query: any = { 
+      vaultId: vault._id,
+      status: { $ne: 'archived' }  // Exclude archived items
+    };
     
     if (filters) {
       if (filters.categoryId) {
@@ -142,6 +156,111 @@ class VaultService {
 
     const items = await VaultItem.find(query)
       .sort({ createdAt: -1 });
+
+    // If we're filtering by subcategory, we don't need to group by category
+    if (filters?.subcategoryId) {
+      const subcategory = await VaultSubcategory.findById(filters.subcategoryId);
+      const category = subcategory ? await VaultCategory.findById(subcategory.categoryId) : null;
+      
+      // Get child subcategories
+      const childSubcategories = await VaultSubcategory.find({
+        vaultId: vault._id,
+        categoryId: subcategory?.categoryId,
+        parentId: subcategory?._id,
+        status: { $ne: 'archived' }
+      }).sort({ order: 1 });
+
+      // Get items for child subcategories
+      const childSubcategoriesWithItems = await Promise.all(
+        childSubcategories.map(async (childSub) => {
+          const [childCount, childItems] = await Promise.all([
+            VaultItem.countDocuments({
+              vaultId: vault._id,
+              subcategoryId: childSub._id,
+              status: { $ne: 'archived' }
+            }),
+            VaultItem.find({
+              vaultId: vault._id,
+              subcategoryId: childSub._id,
+              status: { $ne: 'archived' }
+            }).sort({ createdAt: -1 })
+          ]);
+
+          return {
+            _id: childSub._id,
+            name: childSub.name,
+            order: childSub.order,
+            hasChildren: false,
+            count: childCount,
+            status: childSub.status,
+            items: childItems.map(item => {
+              const itemObj = item.toObject() as Record<string, any>;
+              const typeData = itemObj[itemObj.type] || {};
+              delete itemObj[itemObj.type];
+
+              // Remove empty document field if it exists
+              if (itemObj.document && (!itemObj.document.tags || itemObj.document.tags.length === 0)) {
+                delete itemObj.document;
+              }
+
+              const finalItem = {
+                ...itemObj,
+                categoryName: category?.name,
+                subcategoryName: childSub.name,
+                status: itemObj.status || 'active'
+              };
+
+              // Only include type data if it's not empty
+              if (Object.keys(typeData).length > 0) {
+                Object.assign(finalItem, typeData);
+              }
+
+              return finalItem;
+            }),
+            subcategories: []
+          };
+        })
+      );
+
+      return {
+        items: [{
+          _id: category?._id,
+          name: category?.name,
+          count: items.length + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
+          subcategories: [{
+            _id: subcategory?._id,
+            name: subcategory?.name,
+            count: items.length + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
+            status: subcategory?.status || 'active',
+            items: items.map(item => {
+              const itemObj = item.toObject() as Record<string, any>;
+              const typeData = itemObj[itemObj.type] || {};
+              delete itemObj[itemObj.type];
+
+              // Remove empty document field if it exists
+              if (itemObj.document && (!itemObj.document.tags || itemObj.document.tags.length === 0)) {
+                delete itemObj.document;
+              }
+
+              const finalItem = {
+                ...itemObj,
+                categoryName: category?.name,
+                subcategoryName: subcategory?.name,
+                status: itemObj.status || 'active'
+              };
+
+              // Only include type data if it's not empty
+              if (Object.keys(typeData).length > 0) {
+                Object.assign(finalItem, typeData);
+              }
+
+              return finalItem;
+            }),
+            subcategories: childSubcategoriesWithItems
+          }]
+        }]
+      };
+    }
 
     // Get categories and subcategories based on the query
     let categories;
@@ -251,16 +370,50 @@ class VaultService {
     };
   }
 
-  async addItem(userId: string, profileId: string, category: string, subcategory: string, item: any) {
+  async addItem(userId: string, profileId: string, category: string, subcategoryId: string, item: any) {
     let fileSize = 0;
     const uploadedImages: any = {};
+
+    // Get or create vault
+    let vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      vault = await Vault.create({
+        userId: new Types.ObjectId(userId),
+        profileId: new Types.ObjectId(profileId),
+        storageUsed: fileSize
+      });
+    }
+
+    // Get or create category
+    let categoryDoc = await VaultCategory.findOne({ 
+      vaultId: vault._id,
+      name: category 
+    });
+    if (!categoryDoc) {
+      categoryDoc = await VaultCategory.create({
+        vaultId: vault._id,
+        name: category,
+        order: await VaultCategory.countDocuments({ vaultId: vault._id })
+      });
+    }
+
+    // Verify subcategory exists and belongs to the correct category
+    const subcategoryDoc = await VaultSubcategory.findOne({
+      vaultId: vault._id,
+      categoryId: categoryDoc._id,
+      _id: new Types.ObjectId(subcategoryId)
+    });
+
+    if (!subcategoryDoc) {
+      throw new Error('Subcategory not found or does not belong to the specified category');
+    }
 
     // Handle main file upload if present
     if (item.fileData) {
       const uploadOptions = {
-        folder: `vault/${profileId}/${category}/${subcategory}`,
+        folder: `vault/${profileId}/${category}/${subcategoryDoc.name}`,
         resourceType: this.getResourceTypeFromCategory(category),
-        tags: [`vault-${category}`, `vault-${subcategory}`]
+        tags: [`vault-${category}`, `vault-${subcategoryDoc.name}`]
       };
 
       const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(item.fileData, uploadOptions);
@@ -276,7 +429,7 @@ class VaultService {
       const cardImages = item.card.images;
       if (cardImages.front?.fileData) {
         const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(cardImages.front.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategory}/card/front`,
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/card/front`,
           resourceType: 'image'
         });
         uploadedImages.front = {
@@ -290,7 +443,7 @@ class VaultService {
       }
       if (cardImages.back?.fileData) {
         const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(cardImages.back.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategory}/card/back`,
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/card/back`,
           resourceType: 'image'
         });
         uploadedImages.back = {
@@ -307,7 +460,7 @@ class VaultService {
           cardImages.additional.map(async (img: any, index: number) => {
             if (img.fileData) {
               const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
-                folder: `vault/${profileId}/${category}/${subcategory}/card/additional`,
+                folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/card/additional`,
                 resourceType: 'image'
               });
               fileSize += uploadResult.bytes;
@@ -332,7 +485,7 @@ class VaultService {
       const docImages = item.document.images;
       if (docImages.front?.fileData) {
         const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(docImages.front.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategory}/document/front`,
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/document/front`,
           resourceType: 'image'
         });
         uploadedImages.front = {
@@ -346,7 +499,7 @@ class VaultService {
       }
       if (docImages.back?.fileData) {
         const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(docImages.back.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategory}/document/back`,
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/document/back`,
           resourceType: 'image'
         });
         uploadedImages.back = {
@@ -363,7 +516,7 @@ class VaultService {
           docImages.additional.map(async (img: any, index: number) => {
             if (img.fileData) {
               const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
-                folder: `vault/${profileId}/${category}/${subcategory}/document/additional`,
+                folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/document/additional`,
                 resourceType: 'image'
               });
               fileSize += uploadResult.bytes;
@@ -388,7 +541,7 @@ class VaultService {
       const idImages = item.identification.images;
       if (idImages.front?.fileData) {
         const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(idImages.front.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategory}/identification/front`,
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/front`,
           resourceType: 'image'
         });
         uploadedImages.front = {
@@ -402,7 +555,7 @@ class VaultService {
       }
       if (idImages.back?.fileData) {
         const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(idImages.back.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategory}/identification/back`,
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/back`,
           resourceType: 'image'
         });
         uploadedImages.back = {
@@ -419,7 +572,7 @@ class VaultService {
           idImages.additional.map(async (img: any, index: number) => {
             if (img.fileData) {
               const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
-                folder: `vault/${profileId}/${category}/${subcategory}/identification/additional`,
+                folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/additional`,
                 resourceType: 'image'
               });
               fileSize += uploadResult.bytes;
@@ -439,49 +592,9 @@ class VaultService {
       item.identification.images = uploadedImages;
     }
 
-    // Get or create vault
-    let vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
-    if (!vault) {
-      vault = await Vault.create({
-        userId: new Types.ObjectId(userId),
-        profileId: new Types.ObjectId(profileId),
-        storageUsed: fileSize
-      });
-    } else {
-      vault.storageUsed = (vault.storageUsed || 0) + fileSize;
-      await vault.save();
-    }
-
-    // Get or create category
-    let categoryDoc = await VaultCategory.findOne({ 
-      vaultId: vault._id,
-      name: category 
-    });
-    if (!categoryDoc) {
-      categoryDoc = await VaultCategory.create({
-        vaultId: vault._id,
-        name: category,
-        order: await VaultCategory.countDocuments({ vaultId: vault._id })
-      });
-    }
-
-    // Get or create subcategory
-    let subcategoryDoc = await VaultSubcategory.findOne({
-      vaultId: vault._id,
-      categoryId: categoryDoc._id,
-      name: subcategory
-    });
-    if (!subcategoryDoc) {
-      subcategoryDoc = await VaultSubcategory.create({
-        vaultId: vault._id,
-        categoryId: categoryDoc._id,
-        name: subcategory,
-        order: await VaultSubcategory.countDocuments({ 
-          vaultId: vault._id,
-          categoryId: categoryDoc._id 
-        })
-      });
-    }
+    // Update vault storage
+    vault.storageUsed = (vault.storageUsed || 0) + fileSize;
+    await vault.save();
 
     // Create the item
     const newItem = await VaultItem.create({
@@ -889,7 +1002,7 @@ class VaultService {
     };
   }
 
-  async createSubcategory(profileId: string, categoryName: string, subcategoryName: string) {
+  async createSubcategory(profileId: string, categoryName: string, subcategoryName: string, parentId?: string) {
     const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) {
       throw new Error('Vault not found');
@@ -903,29 +1016,45 @@ class VaultService {
       throw new Error('Category not found');
     }
 
+    // If parentId is provided, verify it exists
+    if (parentId) {
+      const parentSubcategory = await VaultSubcategory.findOne({
+        vaultId: vault._id,
+        categoryId: category._id,
+        _id: new Types.ObjectId(parentId)
+      });
+      if (!parentSubcategory) {
+        throw new Error('Parent subcategory not found');
+      }
+    }
+
     const existingSubcategory = await VaultSubcategory.findOne({
       vaultId: vault._id,
       categoryId: category._id,
+      parentId: parentId ? new Types.ObjectId(parentId) : { $exists: false },
       name: subcategoryName
     });
     if (existingSubcategory) {
-      throw new Error('Subcategory already exists');
+      throw new Error('Subcategory already exists in this location');
     }
 
     const subcategory = await VaultSubcategory.create({
       vaultId: vault._id,
       categoryId: category._id,
+      parentId: parentId ? new Types.ObjectId(parentId) : undefined,
       name: subcategoryName,
       order: await VaultSubcategory.countDocuments({
         vaultId: vault._id,
-        categoryId: category._id
+        categoryId: category._id,
+        parentId: parentId ? new Types.ObjectId(parentId) : { $exists: false }
       })
     });
 
     return {
       _id: subcategory._id,
       name: subcategory.name,
-      order: subcategory.order
+      order: subcategory.order,
+      parentId: subcategory.parentId
     };
   }
 
@@ -995,7 +1124,7 @@ class VaultService {
     return uploadResult;
   }
 
-  async getSubcategories(profileId: string, categoryIdentifier: string) {
+  async getSubcategories(profileId: string, categoryIdentifier: string, parentId?: string): Promise<ISubcategoryWithChildren[]> {
     const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) {
       throw new Error('Vault not found');
@@ -1003,13 +1132,11 @@ class VaultService {
 
     let category;
     if (Types.ObjectId.isValid(categoryIdentifier)) {
-      // If it's a valid ObjectId, search by ID
       category = await VaultCategory.findOne({
         vaultId: vault._id,
         _id: new Types.ObjectId(categoryIdentifier)
       });
     } else {
-      // Otherwise search by name (case-insensitive)
       const escapedIdentifier = categoryIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       category = await VaultCategory.findOne({
         vaultId: vault._id,
@@ -1021,16 +1148,209 @@ class VaultService {
       throw new Error('Category not found');
     }
 
+    // Query for immediate children only
+    const query: any = {
+      vaultId: vault._id,
+      categoryId: category._id,
+      status: { $ne: 'archived' }  // Exclude archived subcategories
+    };
+
+    if (parentId) {
+      query.parentId = new Types.ObjectId(parentId);
+    } else {
+      query.parentId = { $exists: false }; // Get only top-level subcategories
+    }
+
+    const subcategories = await VaultSubcategory.find(query).sort({ order: 1 });
+
+    // Get item counts and items for each subcategory
+    const subcategoriesWithChildren = await Promise.all(
+      subcategories.map(async (sub) => {
+        // Check if subcategory has children
+        const hasChildren = await VaultSubcategory.exists({
+          vaultId: vault._id,
+          categoryId: category._id,
+          parentId: sub._id,
+          status: { $ne: 'archived' }  // Exclude archived children
+        });
+
+        // Get item count and items for this subcategory
+        const [count, items] = await Promise.all([
+          VaultItem.countDocuments({
+            vaultId: vault._id,
+            subcategoryId: sub._id,
+            status: { $ne: 'archived' }  // Exclude archived items
+          }),
+          VaultItem.find({
+            vaultId: vault._id,
+            subcategoryId: sub._id,
+            status: { $ne: 'archived' }  // Exclude archived items
+          }).sort({ createdAt: -1 })
+        ]);
+
+        // Get child subcategories
+        const childSubcategories = await VaultSubcategory.find({
+          vaultId: vault._id,
+          categoryId: category._id,
+          parentId: sub._id,
+          status: { $ne: 'archived' }  // Exclude archived children
+        }).sort({ order: 1 });
+
+        // Get items for child subcategories
+        const childSubcategoriesWithItems = await Promise.all(
+          childSubcategories.map(async (childSub) => {
+            const [childCount, childItems] = await Promise.all([
+              VaultItem.countDocuments({
+                vaultId: vault._id,
+                subcategoryId: childSub._id
+              }),
+              VaultItem.find({
+                vaultId: vault._id,
+                subcategoryId: childSub._id
+              }).sort({ createdAt: -1 })
+            ]);
+
+            return {
+              _id: childSub._id,
+              name: childSub.name,
+              order: childSub.order,
+              hasChildren: false, // We're not loading deeper levels
+              count: childCount,
+              status: childSub.status,
+              items: childItems.map(item => ({
+                _id: item._id,
+                title: item.title,
+                type: item.type,
+                createdAt: item.createdAt
+              })),
+              subcategories: []
+            };
+          })
+        );
+
+        return {
+          _id: sub._id,
+          name: sub.name,
+          order: sub.order,
+          hasChildren: !!hasChildren,
+          count: count + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
+          status: sub.status,
+          items: items.map(item => ({
+            _id: item._id,
+            title: item.title,
+            type: item.type,
+            createdAt: item.createdAt
+          })),
+          subcategories: childSubcategoriesWithItems
+        };
+      })
+    );
+
+    return subcategoriesWithChildren;
+  }
+
+  async getNestedSubcategories(profileId: string, subcategoryId: string): Promise<ISubcategoryWithChildren[]> {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw new Error('Vault not found');
+    }
+
+    const parentSubcategory = await VaultSubcategory.findOne({
+      vaultId: vault._id,
+      _id: new Types.ObjectId(subcategoryId)
+    });
+
+    if (!parentSubcategory) {
+      throw new Error('Subcategory not found');
+    }
+
+    // Get immediate children
     const subcategories = await VaultSubcategory.find({
       vaultId: vault._id,
-      categoryId: category._id
+      categoryId: parentSubcategory.categoryId,
+      parentId: parentSubcategory._id
     }).sort({ order: 1 });
 
-    return subcategories.map(sub => ({
-      _id: sub._id,
-      name: sub.name,
-      order: sub.order
-    }));
+    // Get item counts and items for each subcategory
+    const subcategoriesWithChildren = await Promise.all(
+      subcategories.map(async (sub) => {
+        // Check if subcategory has children
+        const hasChildren = await VaultSubcategory.exists({
+          vaultId: vault._id,
+          categoryId: parentSubcategory.categoryId,
+          parentId: sub._id
+        });
+
+        // Get item count and items for this subcategory
+        const [count, items] = await Promise.all([
+          VaultItem.countDocuments({
+            vaultId: vault._id,
+            subcategoryId: sub._id
+          }),
+          VaultItem.find({
+            vaultId: vault._id,
+            subcategoryId: sub._id
+          }).sort({ createdAt: -1 })
+        ]);
+
+        // Get child subcategories
+        const childSubcategories = await VaultSubcategory.find({
+          vaultId: vault._id,
+          categoryId: parentSubcategory.categoryId,
+          parentId: sub._id
+        }).sort({ order: 1 });
+
+        // Get items for child subcategories
+        const childSubcategoriesWithItems = await Promise.all(
+          childSubcategories.map(async (childSub) => {
+            const [childCount, childItems] = await Promise.all([
+              VaultItem.countDocuments({
+                vaultId: vault._id,
+                subcategoryId: childSub._id
+              }),
+              VaultItem.find({
+                vaultId: vault._id,
+                subcategoryId: childSub._id
+              }).sort({ createdAt: -1 })
+            ]);
+
+            return {
+              _id: childSub._id,
+              name: childSub.name,
+              order: childSub.order,
+              hasChildren: false, // We're not loading deeper levels
+              count: childCount,
+              status: childSub.status,
+              items: childItems.map(item => ({
+                _id: item._id,
+                title: item.title,
+                type: item.type,
+                createdAt: item.createdAt
+              })),
+              subcategories: []
+            };
+          })
+        );
+
+        return {
+          _id: sub._id,
+          name: sub.name,
+          order: sub.order,
+          hasChildren: !!hasChildren,
+          count: count + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
+          status: sub.status,
+          items: items.map(item => ({
+            _id: item._id,
+            title: item.title,
+            type: item.type,
+            createdAt: item.createdAt
+          })),
+          subcategories: childSubcategoriesWithItems
+        };
+      })
+    );
+
+    return subcategoriesWithChildren;
   }
 
   async clearAllVaultItems(profileId: string) {
@@ -1115,6 +1435,167 @@ class VaultService {
     await vault.save();
 
     return { message: 'All vault items, categories, and subcategories cleared successfully' };
+  }
+
+  async moveSubcategory(profileId: string, subcategoryId: string, newParentId?: string) {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw new Error('Vault not found');
+    }
+
+    const subcategory = await VaultSubcategory.findOne({
+      vaultId: vault._id,
+      _id: new Types.ObjectId(subcategoryId)
+    });
+    if (!subcategory) {
+      throw new Error('Subcategory not found');
+    }
+
+    // Prevent circular references
+    if (newParentId) {
+      let currentParent = await VaultSubcategory.findById(newParentId);
+      while (currentParent) {
+        if (currentParent._id.toString() === subcategoryId) {
+          throw new Error('Cannot move subcategory to its own descendant');
+        }
+        currentParent = await VaultSubcategory.findById(currentParent.parentId);
+      }
+    }
+
+    // Update the subcategory
+    subcategory.parentId = newParentId ? new Types.ObjectId(newParentId) : undefined;
+    await subcategory.save();
+
+    return {
+      _id: subcategory._id,
+      name: subcategory.name,
+      order: subcategory.order,
+      parentId: subcategory.parentId
+    };
+  }
+
+  async deleteSubcategory(profileId: string, subcategoryId: string): Promise<void> {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw createHttpError(404, 'Vault not found');
+    }
+
+    // Find the subcategory
+    const subcategory = await VaultSubcategory.findOne({
+      vaultId: vault._id,
+      _id: new Types.ObjectId(subcategoryId)
+    });
+
+    if (!subcategory) {
+      throw createHttpError(404, 'Subcategory not found');
+    }
+
+    // Get all child subcategory IDs recursively
+    const childSubcategoryIds = await this.getAllChildSubcategoryIds(subcategory);
+
+    // Get all items to be archived
+    const items = await VaultItem.find({
+      vaultId: vault._id,
+      subcategoryId: { $in: [subcategoryId, ...childSubcategoryIds] }
+    });
+
+    // Archive items instead of deleting
+    for (const item of items) {
+      // Move files to archive folder in cloudinary if they exist
+      if (item.fileUrl) {
+        await this.cloudinaryService.moveToArchive(item.metadata?.publicId);
+      }
+
+      // Handle card images
+      if (item.card?.images) {
+        if (item.card.images.front?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.card.images.front.storageId);
+        }
+        if (item.card.images.back?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.card.images.back.storageId);
+        }
+        if (item.card.images.additional) {
+          for (const img of item.card.images.additional) {
+            if (img.storageId) {
+              await this.cloudinaryService.moveToArchive(img.storageId);
+            }
+          }
+        }
+      }
+
+      // Handle document images
+      if (item.document?.images) {
+        if (item.document.images.front?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.document.images.front.storageId);
+        }
+        if (item.document.images.back?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.document.images.back.storageId);
+        }
+        if (item.document.images.additional) {
+          for (const img of item.document.images.additional) {
+            if (img.storageId) {
+              await this.cloudinaryService.moveToArchive(img.storageId);
+            }
+          }
+        }
+      }
+
+      // Handle identification images
+      if (item.identification?.images) {
+        if (item.identification.images.front?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.identification.images.front.storageId);
+        }
+        if (item.identification.images.back?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.identification.images.back.storageId);
+        }
+        if (item.identification.images.additional) {
+          for (const img of item.identification.images.additional) {
+            if (img.storageId) {
+              await this.cloudinaryService.moveToArchive(img.storageId);
+            }
+          }
+        }
+      }
+
+      // Mark item as archived
+      await VaultItem.findByIdAndUpdate(item._id, {
+        $set: {
+          status: 'archived',
+          archivedAt: new Date(),
+          archivedBy: profileId
+        }
+      });
+    }
+
+    // Archive subcategories instead of deleting
+    await VaultSubcategory.updateMany(
+      {
+        vaultId: vault._id,
+        _id: { $in: [subcategoryId, ...childSubcategoryIds] }
+      },
+      {
+        $set: {
+          status: 'archived',
+          archivedAt: new Date(),
+          archivedBy: profileId
+        }
+      }
+    );
+  }
+
+  private async getAllChildSubcategoryIds(subcategory: IVaultSubcategory): Promise<string[]> {
+    const ids: string[] = [subcategory._id.toString()];
+    
+    const children = await VaultSubcategory.find({
+      vaultId: subcategory.vaultId,
+      parentId: subcategory._id
+    });
+
+    for (const child of children) {
+      ids.push(...await this.getAllChildSubcategoryIds(child));
+    }
+    
+    return ids;
   }
 }
 

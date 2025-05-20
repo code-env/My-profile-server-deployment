@@ -80,8 +80,8 @@ interface AddItemRequest {
 }
 
 // Get user's vault
-export const getUserVault = asyncHandler(async (req: Request, res: Response) => {
-  const { profileId } = req.body;
+const getUserVault = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.query as { profileId: string };
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
   }
@@ -103,8 +103,9 @@ export const getUserVault = asyncHandler(async (req: Request, res: Response) => 
 });
 
 // Get items with optional filters
-export const getItems = asyncHandler(async (req: Request, res: Response) => {
-  const { profileId } = req.query;
+const getItems = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, categoryId, subcategoryId, type, search } = req.query;
+  
   if (!profileId || typeof profileId !== 'string') {
     throw createHttpError(400, 'Profile ID is required as a query parameter');
   }
@@ -112,23 +113,23 @@ export const getItems = asyncHandler(async (req: Request, res: Response) => {
   // Validate and type check query parameters
   const filters: ItemFilters = {};
   
-  if (req.query.categoryId) {
-    filters.categoryId = req.query.categoryId as string;
+  if (categoryId) {
+    filters.categoryId = categoryId as string;
   }
 
-  if (req.query.subcategoryId) {
-    filters.subcategoryId = req.query.subcategoryId as string;
+  if (subcategoryId) {
+    filters.subcategoryId = subcategoryId as string;
   }
 
-  if (req.query.type) {
-    filters.type = req.query.type as string;
+  if (type) {
+    filters.type = type as string;
   }
 
-  if (req.query.search) {
-    if (typeof req.query.search !== 'string') {
+  if (search) {
+    if (typeof search !== 'string') {
       throw createHttpError(400, 'Search parameter must be a string');
     }
-    filters.search = req.query.search;
+    filters.search = search;
   }
 
   const result = await vaultService.getItems(profileId, filters);
@@ -137,24 +138,96 @@ export const getItems = asyncHandler(async (req: Request, res: Response) => {
   }
   res.json({
     message: 'Items fetched successfully',
-     ...result
+    ...result
   });
 });
 
-// Add item to vault
-export const addItem = asyncHandler(async (req: Request, res: Response) => {
-  const { profileId, ...itemData } = req.body;
+// Get items by category
+const getItemsByCategory = asyncHandler(async (req: Request, res: Response) => {
+  const { categoryId } = req.params;
+  const { profileId } = req.query;
+
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
   }
 
+  // if (!categoryId || !Types.ObjectId.isValid(categoryId)) {
+  //   throw createHttpError(400, 'Valid category ID is required');
+  // }
+
+  const filters: ItemFilters = {
+    categoryId,
+    type: req.query.type as string,
+    search: req.query.search as string
+  };
+
+  const result = await vaultService.getItems(profileId as string, filters);
+  if (!result) {
+    throw createHttpError(404, 'No items found for this category');
+  }
+
+  res.json({
+    message: 'Category items fetched successfully',
+    categoryId,
+    ...result
+  });
+});
+
+// Get items by subcategory
+const getItemsBySubcategory = asyncHandler(async (req: Request, res: Response) => {
+  const { subcategoryId } = req.params;
+  const { profileId } = req.query;
+
+  console.log(profileId, subcategoryId);
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!subcategoryId || !Types.ObjectId.isValid(subcategoryId)) {
+    throw createHttpError(400, 'Valid subcategory ID is required');
+  }
+
+  const filters: ItemFilters = {
+    subcategoryId,
+    type: req.query.type as string,
+    search: req.query.search as string
+  };
+
+  const result = await vaultService.getItems(profileId as string, filters);
+  if (!result) {
+    throw createHttpError(404, 'No items found for this subcategory');
+  }
+
+  res.json({
+    message: 'Subcategory items fetched successfully',
+    subcategoryId,
+    ...result
+  });
+});
+
+// Add item to vault
+const addItem = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, category, subcategoryId, ...itemData } = req.body;
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!category || !subcategoryId) {
+    throw createHttpError(400, 'Category and subcategory ID are required');
+  }
+
+  if (!Types.ObjectId.isValid(subcategoryId)) {
+    throw createHttpError(400, 'Invalid subcategory ID format');
+  }
+
   // Type check the item data
   const item = itemData as AddItemRequest;
-  const { category, subcategory, type, title } = item;
+  const { type, title } = item;
 
   // Validate required fields
-  if (!category || !subcategory || !title) {
-    throw createHttpError(400, 'Category, subcategory, and title are required');
+  if (!title) {
+    throw createHttpError(400, 'Title is required');
   }
 
   // Validate card data if present
@@ -185,7 +258,7 @@ export const addItem = asyncHandler(async (req: Request, res: Response) => {
     profileId,
     profileId,
     category,
-    subcategory,
+    subcategoryId,
     item
   );
 
@@ -196,7 +269,7 @@ export const addItem = asyncHandler(async (req: Request, res: Response) => {
 });
 
 // Update item
-export const updateItem = asyncHandler(async (req: Request, res: Response) => {
+const updateItem = asyncHandler(async (req: Request, res: Response) => {
   const { itemId } = req.params;
   const { profileId, ...updates } = req.body;
   
@@ -252,7 +325,7 @@ export const updateItem = asyncHandler(async (req: Request, res: Response) => {
 });
 
 // Delete item
-export const deleteItem = asyncHandler(async (req: Request, res: Response) => {
+const deleteItem = asyncHandler(async (req: Request, res: Response) => {
   const { itemId } = req.params;
   const { profileId } = req.query as { profileId: string };
 
@@ -265,15 +338,13 @@ export const deleteItem = asyncHandler(async (req: Request, res: Response) => {
   }
 
   await vaultService.deleteItem(profileId, itemId);
-  res.status(204).send(
-    {
-      message: 'Item deleted successfully'
-    }
-  );
+  res.json({
+    message: 'Item deleted successfully'
+  });
 });
 
 // Get all categories
-export const getCategories = asyncHandler(async (req: Request, res: Response) => {
+const getCategories = asyncHandler(async (req: Request, res: Response) => {
   const { profileId } = req.query;
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
@@ -287,7 +358,7 @@ export const getCategories = asyncHandler(async (req: Request, res: Response) =>
 });
 
 // Create new category
-export const createCategory = asyncHandler(async (req: Request, res: Response) => {
+const createCategory = asyncHandler(async (req: Request, res: Response) => {
   const { profileId, name, subcategories } = req.body;
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
@@ -318,14 +389,14 @@ export const createCategory = asyncHandler(async (req: Request, res: Response) =
 });
 
 // Create new subcategory
-export const createSubcategory = asyncHandler(async (req: Request, res: Response) => {
-  const { profileId, categoryName, subcategoryName } = req.body;
+const createSubcategory = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, categoryId, subcategoryName, parentId } = req.body;
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
   }
 
-  if (!categoryName || typeof categoryName !== 'string') {
-    throw createHttpError(400, 'Category name is required and must be a string');
+  if (!categoryId) {
+    throw createHttpError(400, 'Category ID is required');
   }
 
   if (!subcategoryName || typeof subcategoryName !== 'string') {
@@ -334,8 +405,9 @@ export const createSubcategory = asyncHandler(async (req: Request, res: Response
 
   const subcategory = await vaultService.createSubcategory(
     profileId,
-    categoryName,
-    subcategoryName
+    categoryId,
+    subcategoryName,
+    parentId
   );
 
   res.status(201).json(subcategory);
@@ -395,26 +467,56 @@ export const uploadAndAddToVault = asyncHandler(async (req: Request, res: Respon
   res.status(201).json(result);
 });
 
-export const getSubcategories = asyncHandler(async (req: Request, res: Response) => {
-  const { category } = req.query;
-  const { profileId } = req.query;
+// Get subcategories
+const getSubcategories = asyncHandler(async (req: Request, res: Response) => {
+  const { categoryId, profileId, parentId } = req.query;
 
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
   }
 
-  if (!category) {
-    throw createHttpError(400, 'Category ID or name is required');
+  if (!categoryId) {
+    throw createHttpError(400, 'Category ID is required');
   }
 
-  const subcategories = await vaultService.getSubcategories(profileId as string, category as string);
+  const subcategories = await vaultService.getSubcategories(
+    profileId as string,
+    categoryId as string,
+    parentId as string
+  );
+  
   res.json({
     message: 'Subcategories fetched successfully',
     subcategories
   });
 });
 
-export const clearAllVaultItems = asyncHandler(async (req: Request, res: Response) => {
+// Move subcategory
+const moveSubcategory = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, subcategoryId, newParentId } = req.body;
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!subcategoryId) {
+    throw createHttpError(400, 'Subcategory ID is required');
+  }
+
+  const subcategory = await vaultService.moveSubcategory(
+    profileId,
+    subcategoryId,
+    newParentId
+  );
+
+  res.json({
+    message: 'Subcategory moved successfully',
+    subcategory
+  });
+});
+
+// Clear all vault items
+const clearAllVaultItems = asyncHandler(async (req: Request, res: Response) => {
   const { profileId } = req.query;
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
@@ -425,4 +527,56 @@ export const clearAllVaultItems = asyncHandler(async (req: Request, res: Respons
     message: 'All vault items cleared successfully',
     result
   });
-}); 
+});
+
+// Get nested subcategories
+const getNestedSubcategories = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, subcategoryId } = req.query;
+
+  if (!profileId || !subcategoryId) {
+    throw createHttpError(400, 'Profile ID and Subcategory ID are required');
+  }
+
+  const subcategories = await vaultService.getNestedSubcategories(profileId as string, subcategoryId as string);
+  res.json({
+    message: 'Nested subcategories fetched successfully',
+    subcategories
+  });
+});
+
+// Delete subcategory and its items
+const deleteSubcategory = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, subcategoryId } = req.query;
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!subcategoryId) {
+    throw createHttpError(400, 'Subcategory ID is required');
+  }
+
+  await vaultService.deleteSubcategory(profileId as string, subcategoryId as string);
+  
+  res.json({
+    message: 'Subcategory and its items deleted successfully'
+  });
+});
+
+export {
+  getUserVault,
+  getItems,
+  getItemsByCategory,
+  getItemsBySubcategory,
+  addItem,
+  updateItem,
+  deleteItem,
+  getCategories,
+  createCategory,
+  createSubcategory,
+  getSubcategories,
+  getNestedSubcategories,
+  clearAllVaultItems,
+  moveSubcategory,
+  deleteSubcategory
+}; 

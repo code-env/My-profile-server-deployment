@@ -8,6 +8,7 @@ export interface IVaultItem extends Document {
   categoryId: Types.ObjectId;
   subcategoryId: Types.ObjectId;
   type?: string;
+  status?: string;
   category: string;
   title: string;
   description?: string;
@@ -16,7 +17,7 @@ export interface IVaultItem extends Document {
   createdAt: Date;
   updatedAt: Date;
   
-  // Card Information
+  // Card Information if type is card
   card?: {
     number?: string;
     cvv?: string;
@@ -28,7 +29,7 @@ export interface IVaultItem extends Document {
     images?: IImages;
   };
 
-  // Document Information
+  // Document Information if type is document
   document?: {
     type?: string;
     status?: string;
@@ -48,7 +49,7 @@ export interface IVaultItem extends Document {
     images?: IImages;
   };
 
-  // Location Information
+  // Location Information if type is location
   location?: {
     country?: string;
     state?: string;
@@ -57,7 +58,7 @@ export interface IVaultItem extends Document {
     postalCode?: string;
   };
 
-  // Identification Information
+  // Identification Information if type is identification
   identification?: {
     type?: string;
     number?: string;
@@ -74,6 +75,7 @@ export interface IVaultCategory extends Document {
   _id: Types.ObjectId;
   vaultId: Types.ObjectId;
   name: string;
+  status?: string;  // 'active' or 'archived' 
   order: number;
   createdAt: Date;
   updatedAt: Date;
@@ -84,8 +86,12 @@ export interface IVaultSubcategory extends Document {
   _id: Types.ObjectId;
   vaultId: Types.ObjectId;
   categoryId: Types.ObjectId;
+  parentId?: Types.ObjectId;  // Reference to parent subcategory for nesting
   name: string;
   order: number;
+  status?: string;  // 'active' or 'archived'
+  archivedAt?: Date;
+  archivedBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -158,6 +164,7 @@ const VaultItemSchema = new Schema<IVaultItem>({
   category: { type: String, required: true },
   title: { type: String, required: true },
   description: String,
+  status: { type: String, default: 'active' },
   fileUrl: String,
   metadata: Schema.Types.Mixed,
   createdAt: { type: Date, default: Date.now },
@@ -215,6 +222,7 @@ const VaultItemSchema = new Schema<IVaultItem>({
 const VaultCategorySchema = new Schema<IVaultCategory>({
   vaultId: { type: Schema.Types.ObjectId, ref: 'Vault', required: true },
   name: { type: String, required: true },
+  status: { type: String, default: 'active' },
   order: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
@@ -224,8 +232,12 @@ const VaultCategorySchema = new Schema<IVaultCategory>({
 const VaultSubcategorySchema = new Schema<IVaultSubcategory>({
   vaultId: { type: Schema.Types.ObjectId, ref: 'Vault', required: true },
   categoryId: { type: Schema.Types.ObjectId, ref: 'VaultCategory', required: true },
+  parentId: { type: Schema.Types.ObjectId, ref: 'VaultSubcategory' },  // Optional parent reference
   name: { type: String, required: true },
   order: { type: Number, default: 0 },
+  status: { type: String, default: 'active' },
+  archivedAt: { type: Date },
+  archivedBy: { type: Schema.Types.ObjectId },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
@@ -245,11 +257,11 @@ VaultSchema.index({ userId: 1 });
 VaultSchema.index({ profileId: 1 });
 
 VaultCategorySchema.index({ vaultId: 1 });
-VaultCategorySchema.index({ vaultId: 1, name: 1 }, { unique: true });
+VaultCategorySchema.index({ vaultId: 1, name: 1 });
 
 VaultSubcategorySchema.index({ vaultId: 1 });
 VaultSubcategorySchema.index({ categoryId: 1 });
-VaultSubcategorySchema.index({ vaultId: 1, categoryId: 1, name: 1 }, { unique: true });
+VaultSubcategorySchema.index({ vaultId: 1, categoryId: 1, parentId: 1, name: 1 });
 
 VaultItemSchema.index({ vaultId: 1 });
 VaultItemSchema.index({ categoryId: 1 });
