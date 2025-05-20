@@ -55,8 +55,9 @@ import { ProfileReferralService } from "./profile-referral.service";
 export class AuthService {
   public static readonly MAX_LOGIN_ATTEMPTS = 20000;
   private static readonly LOCK_TIME_MINUTES = 15;
-  private static readonly ACCESS_TOKEN_EXPIRY = "1h";    // Reduced for better security
-  private static readonly REFRESH_TOKEN_EXPIRY = "30d";   // Increased
+  private static readonly ACCESS_TOKEN_EXPIRY = "1h";    // Default expiry
+  private static readonly REFRESH_TOKEN_EXPIRY = "15d";   // Default expiry
+  private static readonly EXTENDED_REFRESH_TOKEN_EXPIRY = "30d"; // Extended expiry for rememberMe
   public static readonly OTP_EXPIRY_MINUTES = 10;
 
   static async register(
@@ -147,7 +148,7 @@ export class AuthService {
   }
 
   static async login(
-    input: LoginInput,
+    input: LoginInput & { rememberMe?: boolean },
     req: unknown
   ): Promise<{ success: boolean, userId?: string, message?: string, tokens?: AuthTokens }> {
     try {
@@ -210,7 +211,7 @@ export class AuthService {
       }
 
       // If no 2FA, login success
-      const tokens = this.generateTokens(user._id.toString(), user.email);
+      const tokens = this.generateTokens(user._id.toString(), user.email, input.rememberMe);
 
       // Clear old refresh tokens and add the new one
       // This ensures we don't accumulate tokens
@@ -268,15 +269,15 @@ export class AuthService {
     }
   }
 
-  public static generateTokens(userId: string, email: string): AuthTokens {
+  public static generateTokens(userId: string, email: string, rememberMe: boolean = false): AuthTokens {
     const accessToken = jwt.sign({ userId, email }, config.JWT_SECRET, {
       expiresIn: this.ACCESS_TOKEN_EXPIRY,
     });
 
     const refreshToken = jwt.sign(
-      { userId, email, type: "refresh" },
+      { userId, email, type: "refresh", rememberMe },
       config.JWT_REFRESH_SECRET,
-      { expiresIn: this.REFRESH_TOKEN_EXPIRY }
+      { expiresIn: rememberMe ? this.EXTENDED_REFRESH_TOKEN_EXPIRY : this.REFRESH_TOKEN_EXPIRY }
     );
 
     return { accessToken, refreshToken };

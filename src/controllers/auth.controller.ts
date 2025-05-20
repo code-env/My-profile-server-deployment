@@ -342,9 +342,9 @@ export class AuthController {
   static async login(req: Request, res: Response) {
     try {
       const validatedData = await loginSchema.parseAsync(req.body);
-      const { identifier, password } = validatedData;
+      const { identifier, password, rememberMe } = validatedData;
 
-      const result = await AuthService.login({ identifier, password }, req);
+      const result = await AuthService.login({ identifier, password, rememberMe }, req);
 
       console.log("🚀 ~ AuthController ~ login ~ result:", result);
       if (!result.success || !result.tokens) {

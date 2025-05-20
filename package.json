@@ -21,7 +21,7 @@
     "migrate-tokens": "ts-node src/scripts/migrate-refresh-tokens.ts",
     "update-secondary-ids": "ts-node src/scripts/update-profiles-with-secondary-id.ts",
     "update-secondary-ids:prod": "node dist/scripts/update-profiles-with-secondary-id.js",
-    "update-country-info": "ts-node src/scripts/update-profile-countries.ts",
+    "update-country-info:prod": "ts-node src/scripts/update-profile-countries.ts",
     "cleanup-tokens": "ts-node src/scripts/run-token-cleanup.ts",
     "cleanup-tokens:prod": "node dist/scripts/run-token-cleanup.js",
     "cleanup-tokens:scalable": "ts-node src/scripts/run-scalable-token-cleanup.ts",
