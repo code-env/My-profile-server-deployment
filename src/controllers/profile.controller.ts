@@ -339,7 +339,7 @@ export class ProfileController {
 
     // Check if user is authenticated and has admin role
     if (!user?._id) throw createHttpError(401, 'Unauthorized');
-    if (!user.role || !['admin', 'superadmin'].includes(user.role)) {
+    if (!user.role || !['user', 'admin', 'superadmin'].includes(user.role)) {
       throw createHttpError(403, 'Admin access required');
     }
 
@@ -465,4 +465,39 @@ export class ProfileController {
       message: 'Profile availability retrieved successfully'
     });
   });
+
+  /**
+   * Get community profiles with filters
+   * @param req Express request object
+   * @param res Express response object
+   * @param next Express next function
+   */
+  async getCommunityProfiles(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { town, city, country, ...otherFilters } = req.query;
+      const skip = parseInt(req.query.skip as string) || 0;
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      const filters = {
+        ...(town && { town: town as string }),
+        ...(city && { city: city as string }),
+        ...(country && { country: country as string }),
+        ...otherFilters
+      };
+
+      const profiles = await this.service.getCommunityProfiles(filters, skip, limit);
+      
+      res.json({
+        success: true,
+        data: profiles,
+        pagination: {
+          skip,
+          limit,
+          total: profiles.length
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

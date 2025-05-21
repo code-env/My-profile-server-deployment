@@ -6,6 +6,8 @@ import { User } from '../models/User';
 import { ProfileTemplate } from '../models/profiles/profile-template';
 import { generateUniqueConnectLink, generateReferralCode, generateSecondaryId } from '../utils/crypto';
 import mongoose from 'mongoose';
+import { ITemplateField } from '../models/profiles/profile-template';
+import { FieldWidget } from '../models/profiles/profile-template';
 
 // No custom interfaces needed - we'll use type assertions with 'any' where necessary
 
@@ -86,11 +88,13 @@ export class ProfileService {
    * Creates a new profile based on a template
    * @param userId The user ID creating the profile
    * @param templateId The template ID to base the profile on
+   * @param members Array of member IDs
    * @returns The created profile document
    */
   async createProfile(
     userId: string,
-    templateId: string
+    templateId: string,
+    members: string[] = []
   ): Promise<ProfileDocument> {
     logger.info(`Creating new profile for user ${userId} using template ${templateId}`);
 
@@ -110,9 +114,9 @@ export class ProfileService {
       'profileInformation.creator': userId,
       templatedId: templateId
     });
-    if (existingProfile) {
-      throw createHttpError(409, 'User already has a profile using this template');
-    }
+    // if (existingProfile) {
+    //   throw createHttpError(409, 'User already has a profile using this template');
+    // }
 
     // Generate unique links
     const [connectLink, profileLink] = await Promise.all([
@@ -149,7 +153,7 @@ export class ProfileService {
     const profile = new Profile({
       profileCategory: template.profileCategory,
       profileType: template.profileType,
-      secondaryId, // Add the secondary ID
+      secondaryId,
       templatedId: template._id,
       profileInformation: {
         username: profileUsername,
@@ -158,7 +162,8 @@ export class ProfileService {
         connectLink,
         followLink: profileLink,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        members: members
       },
       ProfileReferal: {
         referalLink: referralLink,
@@ -816,5 +821,106 @@ export class ProfileService {
     }
 
     return slots;
+  }
+
+  /**
+   * Fetches community profiles with filters for location and other criteria
+   * @param filters Object containing filter criteria (town, city, country, etc.)
+   * @param skip Number of documents to skip
+   * @param limit Maximum number of documents to return
+   * @returns Array of community profile documents with minimal sections
+   */
+  async getCommunityProfiles(filters: {
+    town?: string;
+    city?: string;
+    country?: string;
+    [key: string]: any;
+  }, skip = 0, limit = 20): Promise<ProfileDocument[]> {
+    logger.info(`Fetching community profiles with filters: ${JSON.stringify(filters)}, skip: ${skip}, limit: ${limit}`);
+
+    // Build the filter query
+    const query: any = {
+      profileCategory: 'group',
+      profileType: 'community'
+    };
+
+    // Add location filters if provided
+    if (filters.town || filters.city || filters.country) {
+      query['sections'] = {
+        $elemMatch: {
+          key: 'info',
+          fields: {
+            $elemMatch: {
+              $or: [
+                { key: 'town', value: filters.town },
+                { key: 'city', value: filters.city },
+                { key: 'country', value: filters.country }
+              ]
+            }
+          }
+        }
+      };
+    }
+
+    // Add any other filters
+    Object.entries(filters).forEach(([key, value]) => {
+      if (key !== 'town' && key !== 'city' && key !== 'country' && value) {
+        query[`sections.fields.${key}`] = value;
+      }
+    });
+
+    // Fetch profiles with all fields
+    const profiles = await Profile.find(query)
+      .select({
+        'profileInformation': 1,
+        'sections': 1
+      })
+      .sort({ 'profileInformation.createdAt': -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('profileInformation.creator', 'fullName email');
+
+    // Process profiles to ensure all required fields are present
+    const processedProfiles = await Promise.all(profiles.map(async profile => {
+      const infoSection = profile.sections.find(s => s.key === 'info');
+      if (infoSection) {
+        // Ensure community_name field exists and has a value
+        const communityNameField = infoSection.fields.find(f => f.key === 'community_name');
+        if (!communityNameField) {
+          const communityNameField = {
+            key: 'community_name',
+            label: 'Community Name',
+            widget: 'text' as FieldWidget,
+            enabled: true,
+            value: profile.profileInformation.title || profile.profileInformation.username
+          } as any;
+          infoSection.fields.push(communityNameField);
+        } else {
+          (communityNameField as any).value = profile.profileInformation.title || profile.profileInformation.username;
+          communityNameField.enabled = true;
+        }
+
+        // Process members and groups fields
+        for (const field of infoSection.fields) {
+          if (field.key === 'members' || field.key === 'groups') {
+            const memberIds = (field as any).value || [];
+            if (Array.isArray(memberIds)) {
+              const members = await Profile.find({ _id: { $in: memberIds } })
+                .select('profileInformation.username profileInformation.title _id');
+              
+              (field as any).value = members.map(member => ({
+                id: member._id,
+                name: member.profileInformation.title || member.profileInformation.username
+              }));
+            }
+          } else if ((field as any).value === null && field.default) {
+            (field as any).value = field.default;
+          }
+        }
+      }
+      return profile;
+    }));
+
+    return processedProfiles;
   }
 }

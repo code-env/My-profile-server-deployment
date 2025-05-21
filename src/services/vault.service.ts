@@ -96,48 +96,56 @@ class VaultService {
   }
 
   async getItems(profileId: string, filters: any) {
-    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) })
-      .lean()
-      .select('_id');
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) return null;
 
     const query: any = { 
       vaultId: vault._id,
-      status: { $ne: 'archived' }
+      status: { $ne: 'archived' }  // Exclude archived items
     };
     
     if (filters) {
       if (filters.categoryId) {
+        // Handle both category ID and name
         if (Types.ObjectId.isValid(filters.categoryId)) {
           query.categoryId = new Types.ObjectId(filters.categoryId);
         } else {
+          // If it's a name, find the category ID first
           const category = await VaultCategory.findOne({
             vaultId: vault._id,
             name: { $regex: new RegExp(`^${filters.categoryId}$`, 'i') }
-          })
-          .lean()
-          .select('_id');
-          
-          if (!category) return { items: [] };
+          });
+          if (!category) {
+            // If category not found, return empty result
+            return {
+              items: []
+            };
+          }
           query.categoryId = category._id;
         }
       }
       if (filters.subcategoryId) {
+        // Handle both subcategory ID and name
         if (Types.ObjectId.isValid(filters.subcategoryId)) {
           query.subcategoryId = new Types.ObjectId(filters.subcategoryId);
         } else {
+          // If it's a name, find the subcategory ID first
           const subcategory = await VaultSubcategory.findOne({
             vaultId: vault._id,
             name: { $regex: new RegExp(`^${filters.subcategoryId}$`, 'i') }
-          })
-          .lean()
-          .select('_id');
-          
-          if (!subcategory) return { items: [] };
+          });
+          if (!subcategory) {
+            // If subcategory not found, return empty result
+            return {
+              items: []
+            };
+          }
           query.subcategoryId = subcategory._id;
         }
       }
-      if (filters.type) query.type = filters.type;
+      if (filters.type) {
+        query.type = filters.type;
+      }
       if (filters.search) {
         query.$or = [
           { title: { $regex: filters.search, $options: 'i' } },
@@ -146,161 +154,220 @@ class VaultService {
       }
     }
 
-    // If filtering by subcategory, use aggregation pipeline for better performance
+    const items = await VaultItem.find(query)
+      .sort({ createdAt: -1 });
+
+    // If we're filtering by subcategory, we don't need to group by category
     if (filters?.subcategoryId) {
-      let subcategoryId: Types.ObjectId;
-      let subcategoryDoc: { _id: Types.ObjectId; name: string; categoryId: Types.ObjectId } | null = null;
+      const subcategory = await VaultSubcategory.findById(filters.subcategoryId);
+      const category = subcategory ? await VaultCategory.findById(subcategory.categoryId) : null;
       
-      if (Types.ObjectId.isValid(filters.subcategoryId)) {
-        subcategoryId = new Types.ObjectId(filters.subcategoryId);
-        subcategoryDoc = await VaultSubcategory.findById(subcategoryId)
-          .lean()
-          .select('name categoryId');
-      } else {
-        const foundSubcategory = await VaultSubcategory.findOne({
-          vaultId: vault._id,
-          name: { $regex: new RegExp(`^${filters.subcategoryId}$`, 'i') }
-        })
-        .lean()
-        .select('_id name categoryId');
-        
-        if (!foundSubcategory) return { items: [] };
-        subcategoryId = foundSubcategory._id;
-        subcategoryDoc = foundSubcategory;
-      }
-
-      if (!subcategoryDoc) return { items: [] };
-
-      const categoryDoc = await VaultCategory.findById(subcategoryDoc.categoryId)
-        .lean()
-        .select('name');
-
-      // Get all child subcategories in a single query
+      // Get child subcategories
       const childSubcategories = await VaultSubcategory.find({
         vaultId: vault._id,
-        categoryId: subcategoryDoc.categoryId,
-        parentId: subcategoryId,
+        categoryId: subcategory?.categoryId,
+        parentId: subcategory?._id,
         status: { $ne: 'archived' }
-      })
-      .lean()
-      .select('_id name order')
-      .sort({ order: 1 });
+      }).sort({ order: 1 });
 
-      // Get all items for the subcategory and its children in a single query
-      const [items, childItems] = await Promise.all([
-        VaultItem.find({
-          vaultId: vault._id,
-          subcategoryId,
-          status: { $ne: 'archived' }
+      // Get items for child subcategories
+      const childSubcategoriesWithItems = await Promise.all(
+        childSubcategories.map(async (childSub) => {
+          const [childCount, childItems] = await Promise.all([
+            VaultItem.countDocuments({
+              vaultId: vault._id,
+              subcategoryId: childSub._id,
+              status: { $ne: 'archived' }
+            }),
+            VaultItem.find({
+              vaultId: vault._id,
+              subcategoryId: childSub._id,
+              status: { $ne: 'archived' }
+            }).sort({ createdAt: -1 })
+          ]);
+
+          return {
+            _id: childSub._id,
+            name: childSub.name,
+            order: childSub.order,
+            hasChildren: false,
+            count: childCount,
+            status: childSub.status,
+            items: childItems.map(item => {
+              const itemObj = item.toObject() as Record<string, any>;
+              const typeData = itemObj[itemObj.type] || {};
+              delete itemObj[itemObj.type];
+
+              // Remove empty document field if it exists
+              if (itemObj.document && (!itemObj.document.tags || itemObj.document.tags.length === 0)) {
+                delete itemObj.document;
+              }
+
+              const finalItem = {
+                ...itemObj,
+                categoryName: category?.name,
+                subcategoryName: childSub.name,
+                status: itemObj.status || 'active'
+              };
+
+              // Only include type data if it's not empty
+              if (Object.keys(typeData).length > 0) {
+                Object.assign(finalItem, typeData);
+              }
+
+              return finalItem;
+            }),
+            subcategories: []
+          };
         })
-        .lean()
-        .select('_id title type createdAt')
-        .sort({ createdAt: -1 }),
-        VaultItem.find({
-          vaultId: vault._id,
-          subcategoryId: { $in: childSubcategories.map(sub => sub._id) },
-          status: { $ne: 'archived' }
-        })
-        .lean()
-        .select('_id title type createdAt')
-        .sort({ createdAt: -1 })
-      ]);
-
-      // Process child subcategories with their items
-      const childSubcategoriesWithItems = childSubcategories.map(childSub => {
-        const childSubItems = childItems.filter(item => 
-          item.subcategoryId.toString() === childSub._id.toString()
-        );
-
-        return {
-          _id: childSub._id,
-          name: childSub.name,
-          order: childSub.order,
-          hasChildren: false,
-          count: childSubItems.length,
-          status: 'active',
-          items: childSubItems,
-          subcategories: []
-        };
-      });
+      );
 
       return {
         items: [{
-          _id: categoryDoc?._id,
-          name: categoryDoc?.name,
+          _id: category?._id,
+          name: category?.name,
           count: items.length + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
           subcategories: [{
-            _id: subcategoryDoc._id,
-            name: subcategoryDoc.name,
+            _id: subcategory?._id,
+            name: subcategory?.name,
             count: items.length + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
-            status: 'active',
-            items,
+            status: subcategory?.status || 'active',
+            items: items.map(item => {
+              const itemObj = item.toObject() as Record<string, any>;
+              const typeData = itemObj[itemObj.type] || {};
+              delete itemObj[itemObj.type];
+
+              // Remove empty document field if it exists
+              if (itemObj.document && (!itemObj.document.tags || itemObj.document.tags.length === 0)) {
+                delete itemObj.document;
+              }
+
+              const finalItem = {
+                ...itemObj,
+                categoryName: category?.name,
+                subcategoryName: subcategory?.name,
+                status: itemObj.status || 'active'
+              };
+
+              // Only include type data if it's not empty
+              if (Object.keys(typeData).length > 0) {
+                Object.assign(finalItem, typeData);
+              }
+
+              return finalItem;
+            }),
             subcategories: childSubcategoriesWithItems
           }]
         }]
       };
     }
 
-    // For non-subcategory filtered queries, use aggregation pipeline
-    const pipeline = [
-      { $match: query },
-      {
-        $lookup: {
-          from: 'vaultcategories',
-          localField: 'categoryId',
-          foreignField: '_id',
-          as: 'category'
-        }
-      },
-      {
-        $lookup: {
-          from: 'vaultsubcategories',
-          localField: 'subcategoryId',
-          foreignField: '_id',
-          as: 'subcategory'
-        }
-      },
-      {
-        $group: {
-          _id: {
-            categoryId: '$categoryId',
-            categoryName: { $arrayElemAt: ['$category.name', 0] },
-            subcategoryId: '$subcategoryId',
-            subcategoryName: { $arrayElemAt: ['$subcategory.name', 0] }
-          },
-          items: { $push: '$$ROOT' },
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            categoryId: '$_id.categoryId',
-            categoryName: '$_id.categoryName'
-          },
-          subcategories: {
-            $push: {
-              _id: '$_id.subcategoryId',
-              name: '$_id.subcategoryName',
-              count: '$count',
-              items: '$items'
+    // Get categories and subcategories based on the query
+    let categories;
+    if (filters?.categoryId) {
+      // If category filter is provided, only get that category
+      const categoryId = Types.ObjectId.isValid(filters.categoryId) 
+        ? new Types.ObjectId(filters.categoryId)
+        : (await VaultCategory.findOne({
+            vaultId: vault._id,
+            name: { $regex: new RegExp(`^${filters.categoryId}$`, 'i') }
+          }))?._id;
+      
+      categories = categoryId ? [await VaultCategory.findById(categoryId)] : [];
+    } else {
+      // If no category filter, get all categories
+      categories = await VaultCategory.find({ vaultId: vault._id });
+    }
+
+    // Get subcategories for the selected categories
+    const subcategories = await VaultSubcategory.find({
+      vaultId: vault._id,
+      categoryId: { $in: categories.filter((cat): cat is NonNullable<typeof cat> => cat !== null).map(cat => cat._id) }
+    });
+
+    // Create lookup maps
+    const categoryMap = new Map(categories.filter((cat): cat is NonNullable<typeof cat> => cat !== null).map(cat => [cat._id.toString(), cat.name]));
+    const subcategoryMap = new Map(subcategories.map(sub => [sub._id.toString(), sub.name]));
+
+    // Group items by category and subcategory
+    const groupedItems = new Map();
+
+    // Initialize the structure only for the categories we have
+    categories.filter((cat): cat is NonNullable<typeof cat> => cat !== null).forEach(category => {
+      const categorySubcategories = subcategories.filter(sub => 
+        sub.categoryId.toString() === category._id.toString()
+      );
+      
+      groupedItems.set(category.name, {
+        _id: category._id,
+        name: category.name,
+        count: 0,
+        subcategories: new Map(
+          categorySubcategories.map(sub => [
+            sub.name,
+            {
+              _id: sub._id,
+              name: sub.name,
+              count: 0,
+              items: []
             }
-          },
-          count: { $sum: '$count' }
-        }
-      },
-      {
-        $project: {
-          _id: '$_id.categoryId',
-          name: '$_id.categoryName',
-          count: 1,
-          subcategories: 1
+          ])
+        )
+      });
+    });
+
+    // Add items to their respective groups
+    items.forEach(item => {
+      const itemObj = item.toObject() as Record<string, any>;
+      const typeData = itemObj[itemObj.type] || {};
+      delete itemObj[itemObj.type];
+
+      // Remove empty document field if it exists
+      if (itemObj.document && (!itemObj.document.tags || itemObj.document.tags.length === 0)) {
+        delete itemObj.document;
+      }
+
+      const categoryName = categoryMap.get(itemObj.categoryId.toString());
+      const subcategoryName = subcategoryMap.get(itemObj.subcategoryId.toString());
+
+      if (categoryName && subcategoryName) {
+        const categoryGroup = groupedItems.get(categoryName);
+        if (categoryGroup) {
+          categoryGroup.count++;
+          const subcategoryGroup = categoryGroup.subcategories.get(subcategoryName);
+          if (subcategoryGroup) {
+            subcategoryGroup.count++;
+            // Only include type data if it's not empty
+            const finalItem = {
+              ...itemObj,
+              categoryName,
+              subcategoryName
+            };
+            if (Object.keys(typeData).length > 0) {
+              Object.assign(finalItem, typeData);
+            }
+            subcategoryGroup.items.push(finalItem);
+          }
         }
       }
-    ];
+    });
 
-    const result = await VaultItem.aggregate(pipeline);
-    return { items: result };
+    // Convert the Map structure to the final response format
+    const groupedResponse = Array.from(groupedItems.values()).map(category => ({
+      _id: category._id,
+      name: category.name,
+      count: category.count,
+      subcategories: Array.from(category.subcategories.values() as unknown as Array<{ _id: Types.ObjectId; name: string; count: number; items: any[] }>).map(sub => ({
+        _id: sub._id,
+        name: sub.name,
+        count: sub.count,
+        items: sub.items
+      }))
+    }));
+
+    return {
+      items: groupedResponse
+    };
   }
 
   async addItem(userId: string, profileId: string, category: string, subcategoryId: string, item: any) {
@@ -1058,101 +1125,122 @@ class VaultService {
   }
 
   async getSubcategories(profileId: string, categoryIdentifier: string, parentId?: string): Promise<ISubcategoryWithChildren[]> {
-    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) })
-      .lean()
-      .select('_id');
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) {
       throw new Error('Vault not found');
     }
 
-    // Find category using aggregation for better performance
-    const categoryPipeline = [
-      {
-        $match: {
-          vaultId: vault._id,
-          ...(Types.ObjectId.isValid(categoryIdentifier)
-            ? { _id: new Types.ObjectId(categoryIdentifier) }
-            : { name: { $regex: new RegExp(`^${categoryIdentifier}$`, 'i') } })
-        }
-      }
-    ];
+    let category;
+    if (Types.ObjectId.isValid(categoryIdentifier)) {
+      category = await VaultCategory.findOne({
+        vaultId: vault._id,
+        _id: new Types.ObjectId(categoryIdentifier)
+      });
+    } else {
+      const escapedIdentifier = categoryIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      category = await VaultCategory.findOne({
+        vaultId: vault._id,
+        name: { $regex: new RegExp(`^${escapedIdentifier}$`, 'i') }
+      });
+    }
 
-    const [category] = await VaultCategory.aggregate(categoryPipeline);
     if (!category) {
       throw new Error('Category not found');
     }
 
-    // Get all subcategories and their items in parallel
-    const [subcategories, items] = await Promise.all([
-      VaultSubcategory.find({
-        vaultId: vault._id,
-        categoryId: category._id,
-        parentId: parentId ? new Types.ObjectId(parentId) : { $exists: false },
-        status: { $ne: 'archived' }
-      })
-      .lean()
-      .select('_id name order')
-      .sort({ order: 1 }),
-      VaultItem.find({
-        vaultId: vault._id,
-        categoryId: category._id,
-        status: { $ne: 'archived' }
-      })
-      .lean()
-      .select('_id subcategoryId title type createdAt')
-      .sort({ createdAt: -1 })
-    ]);
+    // Query for immediate children only
+    const query: any = {
+      vaultId: vault._id,
+      categoryId: category._id,
+      status: { $ne: 'archived' }  // Exclude archived subcategories
+    };
 
-    // Process subcategories with their items
+    if (parentId) {
+      query.parentId = new Types.ObjectId(parentId);
+    } else {
+      query.parentId = { $exists: false }; // Get only top-level subcategories
+    }
+
+    const subcategories = await VaultSubcategory.find(query).sort({ order: 1 });
+
+    // Get item counts and items for each subcategory
     const subcategoriesWithChildren = await Promise.all(
       subcategories.map(async (sub) => {
-        const subItems = items.filter(item => 
-          item.subcategoryId.toString() === sub._id.toString()
-        );
+        // Check if subcategory has children
+        const hasChildren = await VaultSubcategory.exists({
+          vaultId: vault._id,
+          categoryId: category._id,
+          parentId: sub._id,
+          status: { $ne: 'archived' }  // Exclude archived children
+        });
+
+        // Get item count and items for this subcategory
+        const [count, items] = await Promise.all([
+          VaultItem.countDocuments({
+            vaultId: vault._id,
+            subcategoryId: sub._id,
+            status: { $ne: 'archived' }  // Exclude archived items
+          }),
+          VaultItem.find({
+            vaultId: vault._id,
+            subcategoryId: sub._id,
+            status: { $ne: 'archived' }  // Exclude archived items
+          }).sort({ createdAt: -1 })
+        ]);
 
         // Get child subcategories
         const childSubcategories = await VaultSubcategory.find({
           vaultId: vault._id,
           categoryId: category._id,
           parentId: sub._id,
-          status: { $ne: 'archived' }
-        })
-        .lean()
-        .select('_id name order')
-        .sort({ order: 1 });
+          status: { $ne: 'archived' }  // Exclude archived children
+        }).sort({ order: 1 });
 
         // Get items for child subcategories
-        const childItems = items.filter(item =>
-          childSubcategories.some(child => 
-            child._id.toString() === item.subcategoryId.toString()
-          )
+        const childSubcategoriesWithItems = await Promise.all(
+          childSubcategories.map(async (childSub) => {
+            const [childCount, childItems] = await Promise.all([
+              VaultItem.countDocuments({
+                vaultId: vault._id,
+                subcategoryId: childSub._id
+              }),
+              VaultItem.find({
+                vaultId: vault._id,
+                subcategoryId: childSub._id
+              }).sort({ createdAt: -1 })
+            ]);
+
+            return {
+              _id: childSub._id,
+              name: childSub.name,
+              order: childSub.order,
+              hasChildren: false, // We're not loading deeper levels
+              count: childCount,
+              status: childSub.status,
+              items: childItems.map(item => ({
+                _id: item._id,
+                title: item.title,
+                type: item.type,
+                createdAt: item.createdAt
+              })),
+              subcategories: []
+            };
+          })
         );
-
-        const childSubcategoriesWithItems = childSubcategories.map(childSub => {
-          const childSubItems = childItems.filter(item =>
-            item.subcategoryId.toString() === childSub._id.toString()
-          );
-
-          return {
-            _id: childSub._id,
-            name: childSub.name,
-            order: childSub.order,
-            hasChildren: false,
-            count: childSubItems.length,
-            status: 'active',
-            items: childSubItems,
-            subcategories: []
-          };
-        });
 
         return {
           _id: sub._id,
           name: sub.name,
           order: sub.order,
-          hasChildren: childSubcategories.length > 0,
-          count: subItems.length + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
-          status: 'active',
-          items: subItems,
+          hasChildren: !!hasChildren,
+          count: count + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
+          status: sub.status,
+          items: items.map(item => ({
+            _id: item._id,
+            title: item.title,
+            type: item.type,
+            createdAt: item.createdAt
+          })),
           subcategories: childSubcategoriesWithItems
         };
       })
