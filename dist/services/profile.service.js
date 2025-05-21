@@ -11,6 +11,7 @@ const logger_1 = require("../utils/logger");
 const User_1 = require("../models/User");
 const profile_template_1 = require("../models/profiles/profile-template");
 const crypto_1 = require("../utils/crypto");
+const gradient_generator_1 = require("../utils/gradient-generator");
 const mongoose_2 = __importDefault(require("mongoose"));
 // No custom interfaces needed - we'll use type assertions with 'any' where necessary
 class ProfileService {
@@ -138,6 +139,8 @@ class ProfileService {
             'Cameroon': 'CM'
         };
         const countryCode = countryCodeMap[userCountry] || '';
+        // Generate a unique gradient background based on the username
+        const { gradient, primaryColor, secondaryColor } = (0, gradient_generator_1.generateProfileGradient)(profileUsername);
         const profile = new profile_model_1.ProfileModel({
             profileCategory: template.profileCategory,
             profileType: template.profileType,
@@ -150,6 +153,17 @@ class ProfileService {
                 connectLink,
                 followLink: profileLink,
                 createdAt: new Date(),
+                updatedAt: new Date()
+            },
+            ProfileFormat: {
+                profileImage: '', // Initialize with empty string
+                customization: {
+                    theme: {
+                        primaryColor: primaryColor,
+                        secondaryColor: secondaryColor,
+                        background: gradient,
+                    }
+                },
                 updatedAt: new Date()
             },
             profileLocation: {

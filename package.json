@@ -30,7 +30,8 @@
     "update-profile-usernames": "ts-node src/scripts/update-profile-usernames.ts",
     "update-profile-usernames:prod": "node dist/scripts/update-profile-usernames.js",
     "update-gradients": "ts-node src/scripts/update-profiles-with-gradients.ts",
-    "update-gradients:prod": "node dist/scripts/update-profiles-with-gradients.js"
+    "update-gradients:prod": "node dist/scripts/update-profiles-with-gradients.js",
+    "update-gradients:render": "NODE_ENV=production node dist/scripts/update-profiles-with-gradients.js"
   },
   "keywords": [
     "authentication",

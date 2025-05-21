@@ -1,12 +1,12 @@
 /**
  * Script to update all existing profiles with gradient backgrounds
- * 
+ *
  * This script:
  * 1. Connects to the MongoDB database
  * 2. Finds all profiles that don't have a ProfileFormat.profileImage field or have an empty one
  * 3. Generates a unique gradient background for each profile based on the username
  * 4. Updates the profile with the new ProfileFormat object
- * 
+ *
  * Run with: npm run update-gradients
  * or: npx ts-node src/scripts/update-profiles-with-gradients.ts
  */
@@ -19,8 +19,9 @@ import { logger } from '../utils/logger';
 
 /**
  * Updates all profiles with gradient backgrounds
+ * @returns Object containing counts of updated profiles and errors
  */
-async function updateProfilesWithGradients() {
+export async function updateProfilesWithGradients() {
   try {
     // Connect to MongoDB
     logger.info('Connecting to MongoDB...');
@@ -76,7 +77,7 @@ async function updateProfilesWithGradients() {
           } else {
             // Update existing ProfileFormat
             profile.ProfileFormat.profileImage = profile.ProfileFormat.profileImage || '';
-            
+
             // Initialize customization if it doesn't exist
             if (!profile.ProfileFormat.customization) {
               profile.ProfileFormat.customization = {
@@ -99,7 +100,7 @@ async function updateProfilesWithGradients() {
               profile.ProfileFormat.customization.theme.secondaryColor = secondaryColor;
               profile.ProfileFormat.customization.theme.background = gradient;
             }
-            
+
             profile.ProfileFormat.updatedAt = new Date();
           }
 
@@ -142,5 +143,7 @@ async function main() {
   }
 }
 
-// Run the script
-main();
+// Run the script only if this file is executed directly
+if (require.main === module) {
+  main();
+}
