@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { User } from '../models/User';
 import { ProfileTemplate } from '../models/profiles/profile-template';
 import { generateUniqueConnectLink, generateReferralCode, generateSecondaryId } from '../utils/crypto';
+import { generateProfileGradient } from '../utils/gradient-generator';
 import mongoose from 'mongoose';
 
 // No custom interfaces needed - we'll use type assertions with 'any' where necessary
@@ -169,6 +170,9 @@ export class ProfileService {
     };
     const countryCode = countryCodeMap[userCountry] || '';
 
+    // Generate a unique gradient background based on the username
+    const { gradient, primaryColor, secondaryColor } = generateProfileGradient(profileUsername);
+
     const profile = new Profile({
       profileCategory: template.profileCategory,
       profileType: template.profileType,
@@ -181,6 +185,17 @@ export class ProfileService {
         connectLink,
         followLink: profileLink,
         createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      ProfileFormat: {
+        profileImage: '', // Initialize with empty string
+        customization: {
+          theme: {
+            primaryColor: primaryColor,
+            secondaryColor: secondaryColor,
+            background: gradient,
+          }
+        },
         updatedAt: new Date()
       },
       profileLocation: {
