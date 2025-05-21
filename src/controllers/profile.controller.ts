@@ -124,8 +124,8 @@ export class ProfileController {
           lastTransaction: null, // Not available in new model
           value: valueInfo
         },
-        // Include the raw profile data for debugging
-        _rawProfile: process.env.NODE_ENV === 'development' ? profile : undefined
+        // Always include the raw profile data to ensure consistent access to ProfileFormat
+        _rawProfile: profile
       };
 
       // Final check to ensure name is never "Untitled Profile"
