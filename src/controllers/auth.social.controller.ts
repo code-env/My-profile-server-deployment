@@ -354,7 +354,7 @@ export class SocialAuthController {
           profileId: user.profileId || user.profiles?.[0]?.toString() // Include profile ID in token
         },
         process.env.JWT_SECRET || 'your-secret-key',
-        { expiresIn: '1h' }
+        { expiresIn: '4h' } // Extended from 1h to 4h for better user experience
       );
 
       const refreshToken = jwt.sign(
@@ -365,7 +365,7 @@ export class SocialAuthController {
           type: 'refresh'
         },
         process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
-        { expiresIn: '7d' }
+        { expiresIn: '30d' } // Extended from 7d to 30d for consistency with other refresh tokens
       );
 
       // Store refresh token
@@ -379,14 +379,14 @@ export class SocialAuthController {
       res.cookie('accessToken', accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 1000, // 1 hour
+        maxAge: 4 * 60 * 60 * 1000, // 4 hours (extended from 1 hour)
         path: '/',
       });
 
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (extended from 7 days)
         path: '/',
       });
 

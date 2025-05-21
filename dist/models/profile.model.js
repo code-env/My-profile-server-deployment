@@ -120,6 +120,7 @@ const ProfileSchema = new mongoose_1.Schema({
         city: String,
         stateOrProvince: String,
         country: String,
+        countryCode: String,
         coordinates: {
             latitude: { type: Number, default: 0 },
             longitude: { type: Number, default: 0 }

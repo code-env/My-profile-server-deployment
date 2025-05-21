@@ -28,9 +28,7 @@ class ProfileService {
         const profile = await this.createProfile(userId, templateId);
         // Update profile information
         if (profileInformation) {
-            // Get user data to ensure we use fullName for username
-            const user = await User_1.User.findById(userId);
-            profile.profileInformation.username = (user === null || user === void 0 ? void 0 : user.fullName) || profileInformation.username;
+            profile.profileInformation.username = profileInformation.username;
             if (profileInformation.title)
                 profile.profileInformation.title = profileInformation.title;
             if (profileInformation.accountHolder)
@@ -116,6 +114,30 @@ class ProfileService {
         // Get user data for profile username (using fullName instead of username)
         const user = await User_1.User.findById(userId);
         const profileUsername = (user === null || user === void 0 ? void 0 : user.fullName) || (user === null || user === void 0 ? void 0 : user.username) || '';
+        // Get country information from user
+        const userCountry = (user === null || user === void 0 ? void 0 : user.countryOfResidence) || '';
+        // Simple country code mapping for common countries (can be expanded)
+        const countryCodeMap = {
+            'United States': 'US',
+            'Canada': 'CA',
+            'United Kingdom': 'GB',
+            'Australia': 'AU',
+            'Germany': 'DE',
+            'France': 'FR',
+            'Italy': 'IT',
+            'Spain': 'ES',
+            'Japan': 'JP',
+            'China': 'CN',
+            'India': 'IN',
+            'Brazil': 'BR',
+            'Mexico': 'MX',
+            'South Africa': 'ZA',
+            'Nigeria': 'NG',
+            'Kenya': 'KE',
+            'Ghana': 'GH',
+            'Cameroon': 'CM'
+        };
+        const countryCode = countryCodeMap[userCountry] || '';
         const profile = new profile_model_1.ProfileModel({
             profileCategory: template.profileCategory,
             profileType: template.profileType,
@@ -129,6 +151,10 @@ class ProfileService {
                 followLink: profileLink,
                 createdAt: new Date(),
                 updatedAt: new Date()
+            },
+            profileLocation: {
+                country: userCountry,
+                countryCode: countryCode
             },
             ProfileReferal: {
                 referalLink: referralLink,
@@ -156,8 +182,11 @@ class ProfileService {
         if (!profile) {
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        // Verify user has permission to update
-        if (profile.profileInformation.creator.toString() !== userId) {
+        // Get user data to check if they're an admin
+        const user = await User_1.User.findById(userId);
+        // Verify user has permission to update (either creator or admin)
+        if (profile.profileInformation.creator.toString() !== userId &&
+            (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
             throw (0, http_errors_1.default)(403, 'You do not have permission to update this profile');
         }
         // Update field enabled status
@@ -191,8 +220,11 @@ class ProfileService {
         if (!profile) {
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        // Verify user has permission to update
-        if (profile.profileInformation.creator.toString() !== userId) {
+        // Get user data to check if they're an admin
+        const user = await User_1.User.findById(userId);
+        // Verify user has permission to update (either creator or admin)
+        if (profile.profileInformation.creator.toString() !== userId &&
+            (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
             throw (0, http_errors_1.default)(403, 'You do not have permission to update this profile');
         }
         // Get template for validation
@@ -290,7 +322,11 @@ class ProfileService {
         if (!profile) {
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        if (profile.profileInformation.creator.toString() !== userId) {
+        // Get user data to check if they're an admin
+        const user = await User_1.User.findById(userId);
+        // Verify user has permission to delete (either creator or admin)
+        if (profile.profileInformation.creator.toString() !== userId &&
+            (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
             throw (0, http_errors_1.default)(403, 'You do not have permission to delete this profile');
         }
         const result = await profile_model_1.ProfileModel.deleteOne({ _id: profileId });
@@ -339,17 +375,18 @@ class ProfileService {
         if (!profile) {
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        // Verify user has permission to update
-        if (profile.profileInformation.creator.toString() !== userId) {
-            throw (0, http_errors_1.default)(403, 'You do not have permission to update this profile');
-        }
-        // Get user data to ensure we're using the correct fullName
+        // Get user data to check if they're an admin and for fullName
         const user = await User_1.User.findById(userId);
         if (!user) {
             throw (0, http_errors_1.default)(404, 'User not found');
         }
-        // Update the profile username with the user's fullName
-        profile.profileInformation.username = user.fullName || username;
+        // Verify user has permission to update (either creator or admin)
+        if (profile.profileInformation.creator.toString() !== userId &&
+            (!user.role || !['admin', 'superadmin'].includes(user.role))) {
+            throw (0, http_errors_1.default)(403, 'You do not have permission to update this profile');
+        }
+        // Update the profile username with the provided username
+        profile.profileInformation.username = username;
         profile.profileInformation.updatedAt = new Date();
         // If description is provided, update it using the updateProfileContent method
         if (description !== undefined) {
@@ -507,31 +544,41 @@ class ProfileService {
             await ProfileReferralService.getProfileReferral(profile._id);
             logger_1.logger.info(`Created referral record for profile: ${profile._id}`);
             // Check if the user was referred (has a valid referral code)
-            if (user.referralCode && typeof user.referralCode === 'string' && user.referralCode.trim() !== '') {
+            // Always check for referral code, whether from normal registration or social auth
+            const referralCode = user.referralCode;
+            logger_1.logger.info(`Checking referral code for user ${userId}: ${referralCode}`);
+            if (referralCode && typeof referralCode === 'string' && referralCode.trim() !== '') {
                 try {
                     // Validate the referral code
-                    const referringProfileId = await ProfileReferralService.validateReferralCode(user.referralCode);
+                    const referringProfileId = await ProfileReferralService.validateReferralCode(referralCode);
                     if (referringProfileId) {
-                        // Process the referral
-                        const referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+                        // Process the referral and retry if it fails initially
+                        let referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+                        // If first attempt fails, wait briefly and retry once
+                        if (!referralProcessed) {
+                            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+                            referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+                        }
                         if (referralProcessed) {
-                            logger_1.logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${user.referralCode}`);
+                            logger_1.logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${referralCode}`);
+                            // Initialize referral record for the new profile
+                            await ProfileReferralService.initializeReferralCode(profile._id);
                         }
                         else {
-                            logger_1.logger.warn(`Failed to process referral for profile ${profile._id} with referral code ${user.referralCode}`);
+                            logger_1.logger.error(`Failed to process referral for profile ${profile._id} with referral code ${referralCode} after retry`);
                         }
                     }
                     else {
-                        logger_1.logger.info(`Referral code ${user.referralCode} is invalid or not found, skipping referral processing`);
+                        logger_1.logger.warn(`Invalid referral code provided: ${referralCode}`);
                     }
                 }
                 catch (referralError) {
                     logger_1.logger.error(`Error processing referral for profile ${profile._id}:`, referralError);
-                    // Don't throw the error to avoid disrupting the profile creation process
+                    // Continue profile creation even if referral processing fails
                 }
             }
             else {
-                logger_1.logger.info(`No valid referral code found for user ${userId}, skipping referral processing`);
+                logger_1.logger.info(`No referral code found for user ${userId}`);
             }
         }
         catch (error) {

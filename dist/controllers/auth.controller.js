@@ -217,8 +217,8 @@ class AuthController {
     static async login(req, res) {
         try {
             const validatedData = await auth_types_1.loginSchema.parseAsync(req.body);
-            const { identifier, password } = validatedData;
-            const result = await auth_service_1.AuthService.login({ identifier, password }, req);
+            const { identifier, password, rememberMe } = validatedData;
+            const result = await auth_service_1.AuthService.login({ identifier, password, rememberMe }, req);
             console.log("🚀 ~ AuthController ~ login ~ result:", result);
             if (!result.success || !result.tokens) {
                 res.status(401).json({

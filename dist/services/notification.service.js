@@ -708,6 +708,134 @@ class NotificationService {
         }
     }
     /**
+     * Create a notification for a badge suggestion approved
+     * @param profileId Profile ID that suggested the badge
+     * @param badgeName Name of the suggested badge
+     * @returns The created notification
+     */
+    async createBadgeSuggestionApprovedNotification(profileId, badgeName) {
+        var _a;
+        try {
+            // Get the profile to find the owner
+            const ProfileModel = mongoose_1.default.model('Profile');
+            const profile = await ProfileModel.findById(profileId).select('profileInformation.creator');
+            if (!profile || !((_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator)) {
+                logger_1.logger.error(`Could not find profile or profile owner for badge suggestion notification: ${profileId}`);
+                return null;
+            }
+            const ownerId = profile.profileInformation.creator;
+            return this.createNotification({
+                recipient: ownerId,
+                type: 'badge_suggestion_approved',
+                title: 'Badge Suggestion Approved',
+                message: `Your suggestion for the "${badgeName}" badge has been approved and is under review for implementation.`,
+                relatedTo: {
+                    model: 'Profile',
+                    id: profileId,
+                },
+                action: {
+                    text: 'View Suggestions',
+                    url: `/dashboard/badge-suggestions`,
+                },
+                priority: 'medium',
+                data: {
+                    badgeName,
+                    profileId
+                }
+            });
+        }
+        catch (error) {
+            logger_1.logger.error('Error creating badge suggestion approved notification:', error);
+            return null;
+        }
+    }
+    /**
+     * Create a notification for a badge suggestion rejected
+     * @param profileId Profile ID that suggested the badge
+     * @param badgeName Name of the suggested badge
+     * @param feedback Feedback from admin on why the suggestion was rejected
+     * @returns The created notification
+     */
+    async createBadgeSuggestionRejectedNotification(profileId, badgeName, feedback) {
+        var _a;
+        try {
+            // Get the profile to find the owner
+            const ProfileModel = mongoose_1.default.model('Profile');
+            const profile = await ProfileModel.findById(profileId).select('profileInformation.creator');
+            if (!profile || !((_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator)) {
+                logger_1.logger.error(`Could not find profile or profile owner for badge suggestion notification: ${profileId}`);
+                return null;
+            }
+            const ownerId = profile.profileInformation.creator;
+            return this.createNotification({
+                recipient: ownerId,
+                type: 'badge_suggestion_rejected',
+                title: 'Badge Suggestion Not Approved',
+                message: `Your suggestion for the "${badgeName}" badge was not approved. Admin feedback: ${feedback}`,
+                relatedTo: {
+                    model: 'Profile',
+                    id: profileId,
+                },
+                action: {
+                    text: 'View Suggestions',
+                    url: `/dashboard/badge-suggestions`,
+                },
+                priority: 'medium',
+                data: {
+                    badgeName,
+                    feedback,
+                    profileId
+                }
+            });
+        }
+        catch (error) {
+            logger_1.logger.error('Error creating badge suggestion rejected notification:', error);
+            return null;
+        }
+    }
+    /**
+     * Create a notification for a badge suggestion implemented
+     * @param profileId Profile ID that suggested the badge
+     * @param badgeName Name of the implemented badge
+     * @returns The created notification
+     */
+    async createBadgeSuggestionImplementedNotification(profileId, badgeName) {
+        var _a;
+        try {
+            // Get the profile to find the owner
+            const ProfileModel = mongoose_1.default.model('Profile');
+            const profile = await ProfileModel.findById(profileId).select('profileInformation.creator');
+            if (!profile || !((_a = profile.profileInformation) === null || _a === void 0 ? void 0 : _a.creator)) {
+                logger_1.logger.error(`Could not find profile or profile owner for badge suggestion notification: ${profileId}`);
+                return null;
+            }
+            const ownerId = profile.profileInformation.creator;
+            return this.createNotification({
+                recipient: ownerId,
+                type: 'badge_suggestion_implemented',
+                title: 'Badge Suggestion Implemented',
+                message: `Great news! Your suggestion for the "${badgeName}" badge has been implemented and is now available in the system.`,
+                relatedTo: {
+                    model: 'Profile',
+                    id: profileId,
+                },
+                action: {
+                    text: 'View Badges',
+                    url: `/dashboard/badges`,
+                },
+                priority: 'high',
+                data: {
+                    badgeName,
+                    profileId
+                }
+            });
+        }
+        catch (error) {
+            logger_1.logger.error('Error creating badge suggestion implemented notification:', error);
+            return null;
+        }
+    }
+    /**
      * Create a notification for a milestone achieved
      * @param profileId Profile ID that achieved the milestone
      * @param milestoneLevel Level of the milestone achieved

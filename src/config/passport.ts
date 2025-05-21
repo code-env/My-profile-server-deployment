@@ -17,7 +17,7 @@ const generateTokens = (userId: string, email: string) => {
 
   // Use string literals instead of config values to avoid type errors
   const accessTokenOptions: SignOptions = {
-    expiresIn: "1h" // Reduced for better security
+    expiresIn: "4h" // Extended from 1h to 4h for better user experience
   };
 
   const refreshTokenOptions: SignOptions = {

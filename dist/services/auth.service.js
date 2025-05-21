@@ -200,7 +200,7 @@ class AuthService {
                 // return { success: true }; // OTP required
             }
             // If no 2FA, login success
-            const tokens = this.generateTokens(user._id.toString(), user.email);
+            const tokens = this.generateTokens(user._id.toString(), user.email, input.rememberMe);
             // Clear old refresh tokens and add the new one
             // This ensures we don't accumulate tokens
             user.refreshTokens = [tokens.refreshToken];
@@ -245,11 +245,11 @@ class AuthService {
             throw new Error("Failed to send verification code. Please try again later.");
         }
     }
-    static generateTokens(userId, email) {
+    static generateTokens(userId, email, rememberMe = false) {
         const accessToken = jwt.sign({ userId, email }, config_1.config.JWT_SECRET, {
             expiresIn: this.ACCESS_TOKEN_EXPIRY,
         });
-        const refreshToken = jwt.sign({ userId, email, type: "refresh" }, config_1.config.JWT_REFRESH_SECRET, { expiresIn: this.REFRESH_TOKEN_EXPIRY });
+        const refreshToken = jwt.sign({ userId, email, type: "refresh", rememberMe }, config_1.config.JWT_REFRESH_SECRET, { expiresIn: rememberMe ? this.EXTENDED_REFRESH_TOKEN_EXPIRY : this.REFRESH_TOKEN_EXPIRY });
         return { accessToken, refreshToken };
     }
     static async refreshAccessToken(refreshToken, deviceInfo) {
@@ -839,6 +839,7 @@ class AuthService {
 exports.AuthService = AuthService;
 AuthService.MAX_LOGIN_ATTEMPTS = 20000;
 AuthService.LOCK_TIME_MINUTES = 15;
-AuthService.ACCESS_TOKEN_EXPIRY = "1h"; // Reduced for better security
-AuthService.REFRESH_TOKEN_EXPIRY = "30d"; // Increased
+AuthService.ACCESS_TOKEN_EXPIRY = "4h"; // Extended from 1h to 4h for better user experience
+AuthService.REFRESH_TOKEN_EXPIRY = "15d"; // Default expiry
+AuthService.EXTENDED_REFRESH_TOKEN_EXPIRY = "30d"; // Extended expiry for rememberMe
 AuthService.OTP_EXPIRY_MINUTES = 10;

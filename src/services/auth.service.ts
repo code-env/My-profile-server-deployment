@@ -55,7 +55,7 @@ import { ProfileReferralService } from "./profile-referral.service";
 export class AuthService {
   public static readonly MAX_LOGIN_ATTEMPTS = 20000;
   private static readonly LOCK_TIME_MINUTES = 15;
-  private static readonly ACCESS_TOKEN_EXPIRY = "1h";    // Default expiry
+  private static readonly ACCESS_TOKEN_EXPIRY = "4h";    // Extended from 1h to 4h for better user experience
   private static readonly REFRESH_TOKEN_EXPIRY = "15d";   // Default expiry
   private static readonly EXTENDED_REFRESH_TOKEN_EXPIRY = "30d"; // Extended expiry for rememberMe
   public static readonly OTP_EXPIRY_MINUTES = 10;
