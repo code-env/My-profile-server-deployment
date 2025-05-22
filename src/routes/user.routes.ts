@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Public routes
 router.get('/', UserControllers.GetAllUsers);
-router.post('/generate-username', UserControllers.GenerateUsername);
+router.get('/generate-username', UserControllers.GenerateUsername);
 
 // Protected routes
 router.get('/me', authenticateToken, UserControllers.GetCurrentUser);

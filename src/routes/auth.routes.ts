@@ -24,6 +24,22 @@ router.get("/healthcheck", (req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Verify authentication status
+router.get("/verify", authenticateToken, (req, res) => {
+  // If we get here, the user is authenticated
+  const user = req.user as any;
+  res.status(200).json({
+    success: true,
+    isAuthenticated: true,
+    user: {
+      _id: user._id,
+      email: user.email,
+      role: user.role || ((user as any)._doc ? (user as any)._doc.role : null),
+      isAdmin: user.role === 'admin' || ((user as any)._doc && (user as any)._doc.role === 'admin')
+    }
+  });
+});
+
 //Rate limiting configuration
 const authLimiter = rateLimit({
   windowMs: 240 * 60 * 1000, // 15 minutes: @Brilydal123 TODO: Change this to 15 minutes later
@@ -46,6 +62,8 @@ router.get("/sessions", authenticateToken, AuthController.getSessions);
 router.post("/forgot-password", AuthController.forgotPassword);
 router.post("/reset-password", AuthController.resetPassword);
 
+// Remove the broken reference to AuthController.verifyToken and implement /verify here
+router.post("/verify", AuthController.verifyToken);
 
 // User validation endpoints
 router.get("/check-email/:email", AuthController.checkEmail);

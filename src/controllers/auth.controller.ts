@@ -813,15 +813,27 @@ export class AuthController {
    */
   static async refreshToken(req: Request, res: Response) {
     try {
-      const { refreshToken } = req.body;
+      // Get refresh token from body or cookies
+      let refreshToken = req.body.refreshToken;
+
+      // If not in body, try to get from cookies
+      if (!refreshToken) {
+        refreshToken = req.cookies.refreshtoken || req.cookies.refreshToken ||
+                      req.cookies['better-auth.refresh-token'];
+      }
+
       const deviceInfo = await getClientInfo(req); // Get device info
 
       if (!refreshToken) {
+        logger.warn('Refresh token missing in request');
         return res
           .status(400)
           .json({ success: false, message: "Refresh token is required" });
       }
 
+      logger.debug(`Attempting to refresh token: ${refreshToken.substring(0, 10)}...`);
+
+      // Try to refresh the token
       const result = await AuthService.refreshAccessToken(
         refreshToken,
         deviceInfo
@@ -853,13 +865,34 @@ export class AuthController {
         tokens: result,
       });
     } catch (error: any) {
-      logger.error("Refresh token error:", error.message);
-      if (error.name === "CustomError" && error.message === "INVALID_TOKEN") {
+      logger.error("Refresh token error:", error);
+
+      // Handle different error types
+      if (error.name === "CustomError" && error.code === "INVALID_TOKEN") {
         return res.status(401).json({
           success: false,
           message: "Invalid or expired refresh token",
         });
       }
+
+      if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid or expired refresh token",
+        });
+      }
+
+      // For development mode, provide more details
+      if (process.env.NODE_ENV === 'development') {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to refresh token",
+          error: error.message,
+          stack: error.stack
+        });
+      }
+
+      // For production, just return a generic error
       res
         .status(500)
         .json({ success: false, message: "Failed to refresh token" });
@@ -1312,6 +1345,8 @@ export class AuthController {
       res.status(500).json({ message: "Internal Server Error" });
     }
   }
+
+
 
   /**
    * Resend OTP
@@ -1982,6 +2017,50 @@ export class AuthController {
       });
     }
   }
+  /**
+ * Verifies the validity of an access token (JWT) and returns user info if valid.
+ * Endpoint: POST /api/auth/verify
+ */
+static async  verifyToken(req: Request, res: Response) {
+  try {
+    // Accept token from Authorization header or cookie
+    let token = req.header('Authorization');
+    if (token && token.startsWith('Bearer ')) {
+      token = token.replace('Bearer ', '');
+    }
+    if (!token && req.cookies) {
+      token = req.cookies['accessToken'] || req.cookies['accesstoken'] || req.cookies['better-auth.access-token'];
+    }
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+    // Verify the token
+    const jsonwebtoken = require('jsonwebtoken');
+    const decoded = jsonwebtoken.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    // Find the user
+    const user = await User.findById(decoded.userId || decoded.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    // Return sanitized user data
+    return res.json({
+      success: true,
+      user: {
+        id: user._id,
+        email: user.email,
+        fullName: user.fullName,
+        username: user.username,
+        isAdmin:user.role === 'admin',
+        role: user.role,
+        profileImage: user.profileImage,
+      }
+    });
+  } catch (err: any) {
+    console.error('Token verification error:', err);
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+  }
+};
+
 }
 
 function generateOTP(length: number) {

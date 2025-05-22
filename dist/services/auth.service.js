@@ -98,8 +98,14 @@ class AuthService {
             }
             // Store referral code temporarily if provided
             // It will be processed when creating the profile
+            // We don't store it in the user model to avoid duplicate key errors
             if (referralCode) {
-                user.referralCode = referralCode;
+                // We'll pass the referral code to the profile creation process
+                // but we won't store it in the user model
+                logger_1.logger.info(`Referral code provided for registration: ${referralCode}`);
+                // Store it temporarily for profile creation, but don't save it to the database
+                // as a unique field to avoid conflicts with existing codes
+                // We need to add it to the createdUser object after creation
             }
             // Create new user with email verification token
             const otp = (0, crypto_1.generateOTP)(6);
@@ -114,6 +120,13 @@ class AuthService {
                     lastAttempt: new Date(),
                 },
             }));
+            // Add the referral code to the created user object and save it to DB
+            // This will be used during profile creation
+            if (referralCode) {
+                createdUser.tempReferralCode = referralCode;
+                await createdUser.save();
+                logger_1.logger.info(`Added temporary referral code to user object: ${referralCode}`);
+            }
             // Log OTP based on verification method
             if (user.verificationMethod === "EMAIL") {
                 logger_1.logger.info(`🟢 Registration OTP (Email): ${otp}`);
@@ -256,22 +269,41 @@ class AuthService {
         var _a, _b;
         try {
             // Verify the refresh token
-            const decoded = jwt.verify(refreshToken, config_1.config.JWT_REFRESH_SECRET);
+            let decoded;
+            try {
+                decoded = jwt.verify(refreshToken, config_1.config.JWT_REFRESH_SECRET);
+            }
+            catch (jwtError) {
+                logger_1.logger.error('JWT verification error during token refresh:', jwtError);
+                throw new errors_1.CustomError("INVALID_TOKEN", "Invalid or expired refresh token");
+            }
             if (decoded.type !== "refresh") {
+                logger_1.logger.warn(`Invalid token type during refresh: ${decoded.type}`);
                 throw new errors_1.CustomError("INVALID_TOKEN", "Invalid token type");
             }
             // Find user
             const user = (await User_1.User.findById(decoded.userId));
             if (!user) {
+                logger_1.logger.warn(`User not found during token refresh: ${decoded.userId}`);
                 throw new errors_1.CustomError("INVALID_TOKEN", "Invalid refresh token - user not found");
             }
+            // For debugging
+            logger_1.logger.debug(`Refresh token check for user ${user._id}:`);
+            logger_1.logger.debug(`- refreshTokens array: ${user.refreshTokens ? user.refreshTokens.length : 'none'}`);
+            logger_1.logger.debug(`- sessions array: ${user.sessions ? user.sessions.length : 'none'}`);
             // Check if token exists in refreshTokens array (legacy support)
             const tokenExists = (_a = user.refreshTokens) === null || _a === void 0 ? void 0 : _a.includes(refreshToken);
             // Check if token exists in sessions array
             const sessionIndex = (_b = user.sessions) === null || _b === void 0 ? void 0 : _b.findIndex((session) => session.refreshToken === refreshToken);
-            // If token doesn't exist in either place, it's invalid
+            // If token doesn't exist in either place, but we're in development, allow it
             if (!tokenExists && sessionIndex === -1) {
-                throw new errors_1.CustomError("INVALID_TOKEN", "Invalid refresh token - token not found");
+                if (process.env.NODE_ENV === 'development') {
+                    logger_1.logger.warn(`Token not found but allowing refresh in development mode for user ${user._id}`);
+                }
+                else {
+                    logger_1.logger.warn(`Invalid refresh token - token not found for user ${user._id}`);
+                    throw new errors_1.CustomError("INVALID_TOKEN", "Invalid refresh token - token not found");
+                }
             }
             // Generate new tokens
             const newRefreshToken = jwt.sign({ userId: user._id.toString(), email: user.email, type: "refresh" }, config_1.config.JWT_REFRESH_SECRET, { expiresIn: this.REFRESH_TOKEN_EXPIRY });
@@ -631,7 +663,7 @@ class AuthService {
             try {
                 // Create a default profile for the user
                 const profileService = new (require('../services/profile.service').ProfileService)();
-                const defaultProfile = await profileService.createDefaultProfile(userId);
+                await profileService.createDefaultProfile(userId);
                 logger_1.logger.info(`Default profile created for user ${userId} after successful verification`);
                 // Referral processing is now handled in the profile service
                 // when the default profile is created
@@ -670,10 +702,95 @@ class AuthService {
         }
         return user;
     }
+    /**
+     * Delete a user account and all associated profiles
+     * @param userId The ID of the user to delete
+     * @returns Promise<void>
+     */
     static async deleteUser(userId) {
-        const user = await User_1.User.findByIdAndDelete(userId);
+        logger_1.logger.info(`Deleting user account ${userId} and all associated profiles`);
+        // First, find the user to get their profiles
+        const user = await User_1.User.findById(userId);
         if (!user) {
             throw new errors_1.CustomError("USER_NOT_FOUND", "User not found");
+        }
+        try {
+            // Log user information for debugging
+            logger_1.logger.info(`User information: ${JSON.stringify({
+                id: user._id,
+                email: user.email,
+                profiles: user.profiles,
+                role: user.role
+            })}`);
+            // Delete all profiles associated with this user
+            const { Profile } = require('../models/profile.model');
+            // Delete all profiles where this user is the creator
+            const deleteResult = await Profile.deleteMany({
+                'profileInformation.creator': userId
+            });
+            logger_1.logger.info(`Deleted ${deleteResult.deletedCount} profiles for user ${userId}`);
+            // Also try to delete profiles where user is referenced in other fields
+            try {
+                // Try different query approaches to ensure all profiles are deleted
+                const deleteResult2 = await Profile.deleteMany({
+                    $or: [
+                        { 'user': userId },
+                        { 'owner': userId },
+                        { 'userId': userId },
+                        { 'ownerId': userId }
+                    ]
+                });
+                if (deleteResult2.deletedCount > 0) {
+                    logger_1.logger.info(`Deleted ${deleteResult2.deletedCount} additional profiles for user ${userId}`);
+                }
+            }
+            catch (error) {
+                logger_1.logger.warn(`Error deleting additional profiles: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+                // Continue with user deletion even if this fails
+            }
+            // Finally, delete the user - use deleteOne for more reliable deletion
+            logger_1.logger.info(`Attempting to delete user ${userId} with deleteOne`);
+            const deleteOneResult = await User_1.User.deleteOne({ _id: userId });
+            if (deleteOneResult.deletedCount > 0) {
+                logger_1.logger.info(`User account ${userId} successfully deleted with deleteOne (count: ${deleteOneResult.deletedCount})`);
+            }
+            else {
+                logger_1.logger.warn(`User account ${userId} not deleted with deleteOne (count: ${deleteOneResult.deletedCount})`);
+                // Try findByIdAndDelete as a fallback
+                logger_1.logger.info(`Attempting to delete user ${userId} with findByIdAndDelete as fallback`);
+                const deleteUserResult = await User_1.User.findByIdAndDelete(userId);
+                if (deleteUserResult) {
+                    logger_1.logger.info(`User account ${userId} successfully deleted with findByIdAndDelete`);
+                }
+                else {
+                    logger_1.logger.warn(`User account ${userId} not found during findByIdAndDelete`);
+                    // Last resort - try deleteMany
+                    logger_1.logger.info(`Attempting to delete user ${userId} with deleteMany as last resort`);
+                    const deleteManyResult = await User_1.User.deleteMany({ _id: userId });
+                    if (deleteManyResult.deletedCount > 0) {
+                        logger_1.logger.info(`User account ${userId} successfully deleted with deleteMany (count: ${deleteManyResult.deletedCount})`);
+                    }
+                    else {
+                        logger_1.logger.error(`Failed to delete user ${userId} with all methods`);
+                        throw new errors_1.CustomError("DELETE_FAILED", "Failed to delete user account after multiple attempts");
+                    }
+                }
+            }
+            // Verify the user is deleted
+            const verifyUser = await User_1.User.findById(userId);
+            if (verifyUser) {
+                logger_1.logger.error(`User ${userId} still exists after deletion attempts`);
+                throw new errors_1.CustomError("DELETE_FAILED", "User still exists after deletion attempts");
+            }
+            else {
+                logger_1.logger.info(`Verified user ${userId} no longer exists in database`);
+            }
+        }
+        catch (error) {
+            logger_1.logger.error(`Error deleting user ${userId} or their profiles:`, error);
+            logger_1.logger.error(`Error details: ${error instanceof Error ? error.message : JSON.stringify(error)}`);
+            logger_1.logger.error(`Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`);
+            throw new errors_1.CustomError("DELETE_FAILED", "Failed to delete user account");
         }
     }
     /**

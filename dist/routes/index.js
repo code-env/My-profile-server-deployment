@@ -69,11 +69,13 @@ const presence_routes_1 = __importDefault(require("./presence.routes"));
 const gamification_routes_1 = __importDefault(require("./gamification.routes"));
 const analytics_dashboard_routes_1 = __importDefault(require("./analytics-dashboard.routes"));
 const sessions_routes_1 = __importDefault(require("./sessions.routes"));
+const message_profile_routes_1 = __importDefault(require("./message-profile.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
 const express_session_1 = __importDefault(require("express-session"));
 const passport_1 = __importDefault(require("passport"));
 const auth_social_routes_1 = __importDefault(require("./auth.social.routes"));
+const profile_full_routes_1 = __importDefault(require("./profile-full.routes"));
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -119,6 +121,7 @@ const setupRoutes = (app) => {
     app.use('/api/auth', auth_routes_1.default);
     app.use('/api/users', user_routes_1.default);
     app.use('/api/auth/social', auth_social_routes_1.default);
+    app.use('/api/profile-full', profile_full_routes_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     // app.use('/api/connections', protect, connectionRoutes);
@@ -147,6 +150,7 @@ const setupRoutes = (app) => {
     app.use('/api/gamification', auth_middleware_1.protect, gamification_routes_1.default);
     app.use('/api/analytics', auth_middleware_1.protect, analytics_dashboard_routes_1.default);
     app.use('/api/sessions', auth_middleware_1.protect, sessions_routes_1.default);
+    app.use('/api/message-profile', auth_middleware_1.protect, message_profile_routes_1.default);
     // Test email route
     app.get('/api/test/email', async (req, res) => {
         try {

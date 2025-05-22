@@ -74,6 +74,7 @@ const env_validator_1 = require("./utils/env-validator");
 const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"));
 const initialize_my_pts_hub_1 = require("./startup/initialize-my-pts-hub");
 const initialize_profile_templates_1 = require("./startup/initialize-profile-templates");
+const initialize_gradient_updates_1 = require("./startup/initialize-gradient-updates");
 const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
 const cleanupTokens_1 = require("./jobs/cleanupTokens");
 const scalableTokenCleanup_1 = require("./jobs/scalableTokenCleanup");
@@ -444,6 +445,8 @@ class AppServer {
             await initWhatsApp();
             // Initialize MyPts Hub service
             await (0, initialize_my_pts_hub_1.initializeMyPtsHub)();
+            // Initialize gradient updates scheduler
+            await (0, initialize_gradient_updates_1.initializeGradientUpdates)();
             // Initialize admin settings
             const { initializeDefaultSettings } = require('./models/admin-settings.model');
             await initializeDefaultSettings();

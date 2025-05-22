@@ -65,12 +65,14 @@ import presenceRoutes from './presence.routes';
 import gamificationRoutes from './gamification.routes';
 import analyticsDashboardRoutes from './analytics-dashboard.routes';
 import sessionsRoutes from './sessions.routes';
+import messageProfileRoutes from './message-profile.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
 import session from 'express-session';
 import passport from 'passport';
 import socialAuthRoutes from './auth.social.routes';
+import profileFullRoutes from './profile-full.routes';
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -125,6 +127,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/auth/social', socialAuthRoutes);
+  app.use('/api/profile-full', profileFullRoutes);
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
@@ -154,6 +157,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/gamification', protect, gamificationRoutes);
   app.use('/api/analytics', protect, analyticsDashboardRoutes);
   app.use('/api/sessions', protect, sessionsRoutes);
+  app.use('/api/message-profile', protect, messageProfileRoutes);
 
   // Test email route
   app.get('/api/test/email', async (req, res) => {

@@ -322,6 +322,18 @@ class ProfileService {
         return await profile_model_1.ProfileModel.find({ 'profileInformation.creator': userId });
     }
     /**
+     * Gets the first profile for a user (typically used for referral processing)
+     * @param userId The user ID
+     * @returns The profile document or null if not found
+     */
+    async getProfileByUserId(userId) {
+        logger_1.logger.info(`Fetching first profile for user ${userId}`);
+        if (!(0, mongoose_1.isValidObjectId)(userId)) {
+            throw (0, http_errors_1.default)(400, 'Invalid user ID');
+        }
+        return await profile_model_1.ProfileModel.findOne({ 'profileInformation.creator': userId });
+    }
+    /**
      * Deletes a profile
      * @param profileId The profile ID
      * @param userId The user ID requesting deletion
@@ -559,8 +571,17 @@ class ProfileService {
             logger_1.logger.info(`Created referral record for profile: ${profile._id}`);
             // Check if the user was referred (has a valid referral code)
             // Always check for referral code, whether from normal registration or social auth
-            const referralCode = user.referralCode;
+            // First check for temporary referral code (from registration process)
+            // Important: We prioritize tempReferralCode over referralCode because referralCode might be the user's own code
+            const referralCode = user.tempReferralCode;
             logger_1.logger.info(`Checking referral code for user ${userId}: ${referralCode}`);
+            // Log the entire user object for debugging
+            logger_1.logger.info(`User object for debugging: ${JSON.stringify({
+                id: user._id,
+                email: user.email,
+                referralCode: user.referralCode,
+                tempReferralCode: user.tempReferralCode
+            })}`);
             if (referralCode && typeof referralCode === 'string' && referralCode.trim() !== '') {
                 try {
                     // Validate the referral code

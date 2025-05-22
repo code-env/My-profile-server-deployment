@@ -247,8 +247,13 @@ const userSchema = new mongoose_1.Schema({
     },
     referralCode: {
         type: String,
-        sparse: true,
-        unique: true
+        sparse: true
+        // Removed unique constraint to allow storing other users' referral codes
+    },
+    tempReferralCode: {
+        type: String,
+        sparse: true
+        // This field stores the referral code entered during registration
     },
     referredBy: {
         type: mongoose_1.Schema.Types.ObjectId,
@@ -299,8 +304,9 @@ userSchema.pre('save', async function (next) {
             const salt = await bcryptjs_1.default.genSalt(10);
             this.password = await bcryptjs_1.default.hash(this.password, salt);
         }
-        // Generate referral code if it doesn't exist
-        if (!this.referralCode) {
+        // Generate a personal referral code if this is a new user
+        // We only generate a code for new users, not when they're entering someone else's code
+        if (this.isNew && !this.referralCode) {
             let isUnique = false;
             let attempts = 0;
             const maxAttempts = 5;

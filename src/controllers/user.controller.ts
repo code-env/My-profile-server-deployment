@@ -246,14 +246,14 @@ export class UserControllers {
 
   /**
    * Generate a user name
-   * @route GET /auth/users/generate-username
+   * @route GET /users/generate-username
    * @param req - Express request object
    * @param res - Express response object
    */
   static async GenerateUsername(req: Request, res: Response) {
     console.log("Generating username...");
     try {
-      const { firstname } = req.body;
+      const firstname = req.query.firstname as string;
 
       if (!firstname) {
         return res.status(400).json({

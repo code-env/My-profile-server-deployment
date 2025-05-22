@@ -102,6 +102,48 @@ export class ProfileReferralService {
   }
 
   /**
+   * Check if a profile has already been referred by another profile
+   * @param referredProfileId The profile to check
+   * @param referrerProfileId The referring profile
+   * @returns True if the profile has already been referred, false otherwise
+   */
+  static async isAlreadyReferred(
+    referredProfileId: mongoose.Types.ObjectId | string,
+    referrerProfileId: mongoose.Types.ObjectId | string
+  ): Promise<boolean> {
+    try {
+      // Ensure we're working with valid ObjectIds
+      const referredObjId =
+        typeof referredProfileId === "string"
+          ? new mongoose.Types.ObjectId(referredProfileId)
+          : referredProfileId;
+      const referrerObjId =
+        typeof referrerProfileId === "string"
+          ? new mongoose.Types.ObjectId(referrerProfileId)
+          : referrerProfileId;
+
+      // Get the referrer's referral record
+      const referrerReferral = await ProfileReferralModel.findOne({
+        profileId: referrerObjId
+      });
+
+      if (!referrerReferral) {
+        return false;
+      }
+
+      // Check if the referred profile is in the referrer's referredProfiles array
+      const alreadyReferred = referrerReferral.referredProfiles.some(
+        (ref: any) => ref.profileId.toString() === referredObjId.toString()
+      );
+
+      return alreadyReferred;
+    } catch (error) {
+      logger.error("Error checking if profile is already referred:", error);
+      return false;
+    }
+  }
+
+  /**
    * Process a new referral
    * @param referredProfileId The profile being referred
    * @param referrerProfileId The profile doing the referring
@@ -153,6 +195,18 @@ export class ProfileReferralService {
       if (!referrerReferral || !referredReferral) {
         logger.error("Failed to find or create referral records");
         return false;
+      }
+
+      // Check if this profile has already been referred
+      const alreadyReferred = referrerReferral.referredProfiles.some(
+        (ref: any) => ref.profileId.toString() === referredObjId.toString()
+      );
+
+      if (alreadyReferred) {
+        logger.info(
+          `Profile ${referredObjId} has already been referred by ${referrerObjId}, skipping`
+        );
+        return true; // Return true since the referral relationship already exists
       }
 
       // Set the referredBy field for the referred profile

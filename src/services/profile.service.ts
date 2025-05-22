@@ -397,6 +397,21 @@ export class ProfileService {
   }
 
   /**
+   * Gets the first profile for a user (typically used for referral processing)
+   * @param userId The user ID
+   * @returns The profile document or null if not found
+   */
+  async getProfileByUserId(userId: string): Promise<ProfileDocument | null> {
+    logger.info(`Fetching first profile for user ${userId}`);
+
+    if (!isValidObjectId(userId)) {
+      throw createHttpError(400, 'Invalid user ID');
+    }
+
+    return await Profile.findOne({ 'profileInformation.creator': userId });
+  }
+
+  /**
    * Deletes a profile
    * @param profileId The profile ID
    * @param userId The user ID requesting deletion
@@ -674,8 +689,18 @@ export class ProfileService {
 
       // Check if the user was referred (has a valid referral code)
       // Always check for referral code, whether from normal registration or social auth
-      const referralCode = user.referralCode;
+      // First check for temporary referral code (from registration process)
+      // Important: We prioritize tempReferralCode over referralCode because referralCode might be the user's own code
+      const referralCode = user.tempReferralCode;
       logger.info(`Checking referral code for user ${userId}: ${referralCode}`);
+
+      // Log the entire user object for debugging
+      logger.info(`User object for debugging: ${JSON.stringify({
+        id: user._id,
+        email: user.email,
+        referralCode: user.referralCode,
+        tempReferralCode: user.tempReferralCode
+      })}`);
 
       if (referralCode && typeof referralCode === 'string' && referralCode.trim() !== '') {
         try {

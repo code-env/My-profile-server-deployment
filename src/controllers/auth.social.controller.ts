@@ -300,11 +300,21 @@ export class SocialAuthController {
             const url = new URL(req.url || '', `http://${req.headers.host}`);
             referralCode = url.searchParams.get('ref') || '';
             logger.info(`Found referral code in URL: ${referralCode}`);
+
+            // Also check for referral code in state parameter
+            if (!referralCode && state && state.includes('ref=')) {
+              const refMatch = state.match(/ref=([^&]+)/);
+              if (refMatch && refMatch[1]) {
+                referralCode = refMatch[1];
+                logger.info(`Found referral code in state parameter: ${referralCode}`);
+              }
+            }
           } catch (urlError) {
             logger.error('Error extracting referral code from URL:', urlError);
           }
 
           // Create a new user with required fields
+          logger.info(`Creating new user with referral code: ${referralCode}`);
           user = new User({
             googleId: profile.id,
             email: profile.email,
@@ -313,8 +323,9 @@ export class SocialAuthController {
             signupType: 'google',
             isEmailVerified: true,
             profileImage: profile.picture,
-            // Store referral code if present
-            referralCode: referralCode || undefined,
+            // Store referral code temporarily for profile creation
+            // We use tempReferralCode to avoid conflicts with existing codes
+            tempReferralCode: referralCode || undefined,
             // Set these fields to undefined to avoid validation errors
             // They will be collected in the complete-profile page
             dateOfBirth: undefined,
