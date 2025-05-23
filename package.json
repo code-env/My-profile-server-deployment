@@ -19,6 +19,7 @@
     "test:sockets": "ts-node src/scripts/test-socket-interactions.ts",
     "test:sockets:watch": "nodemon --exec ts-node src/scripts/test-socket-interactions.ts",
     "migrate-tokens": "ts-node src/scripts/migrate-refresh-tokens.ts",
+    "update-profile-country": "ts-node src/scripts/update-user-profile-country.ts",
     "update-secondary-ids": "ts-node src/scripts/update-profiles-with-secondary-id.ts",
     "update-secondary-ids:prod": "node dist/scripts/update-profiles-with-secondary-id.js",
     "update-country-info:prod": "ts-node src/scripts/update-profile-countries.ts",
