@@ -1,0 +1,262 @@
+[
+  {
+    "userId": "6821a76aaac149cb861c9f1b",
+    "templateId": "682f46612cc21f6f1016ab20",
+    "profileInformation": {
+      "username": "Douala Tech Hub",
+      "title": "Littoral Region's Innovation Center"
+    },
+    "profileLocation": {
+      "city": "Douala",
+      "stateOrProvince": "Littoral",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 4.0511,
+        "longitude": 9.7679
+      }
+    },
+    "sections": [
+      {
+        "key": "info",
+        "fields": [
+          {
+            "key": "group_name",
+            "value": "Douala Tech Hub",
+            "enabled": true
+          },
+          {
+            "key": "description",
+            "value": "A collaborative space for tech entrepreneurs, developers, and innovators in Douala, fostering digital innovation and startup growth.",
+            "enabled": true
+          },
+          {
+            "key": "members",
+            "value": [
+              "6821b32adb64100767efc906",
+              "682d5c35e699107bb257814f"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "fields": [
+          {
+            "key": "email",
+            "value": "contact@doualatech.org",
+            "enabled": true
+          },
+          {
+            "key": "phone",
+            "value": "+237 233 123 456",
+            "enabled": true
+          },
+          {
+            "key": "website",
+            "value": "https://doualatech.org",
+            "enabled": true
+          }
+        ]
+      }
+    ],
+    "members": [
+      "6821b32adb64100767efc906",
+      "682d5c35e699107bb257814f"
+    ]
+  },
+  {
+    "userId": "6821a76aaac149cb861c9f1b",
+    "templateId": "682f46612cc21f6f1016ab20",
+    "profileInformation": {
+      "username": "Yaoundé Innovation Lab",
+      "title": "Central Region's Tech Incubator"
+    },
+    "profileLocation": {
+      "city": "Yaoundé",
+      "stateOrProvince": "Centre",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 3.8480,
+        "longitude": 11.5021
+      }
+    },
+    "sections": [
+      {
+        "key": "info",
+        "fields": [
+          {
+            "key": "group_name",
+            "value": "Yaoundé Innovation Lab",
+            "enabled": true
+          },
+          {
+            "key": "description",
+            "value": "A state-of-the-art innovation lab in Yaoundé, supporting tech startups and digital transformation initiatives in the Central Region.",
+            "enabled": true
+          },
+          {
+            "key": "members",
+            "value": [
+              "68300a914ae002b788217fce",
+              "68300a874ae002b788217fb7"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "fields": [
+          {
+            "key": "email",
+            "value": "contact@yaoundelab.org",
+            "enabled": true
+          },
+          {
+            "key": "phone",
+            "value": "+237 222 234 567",
+            "enabled": true
+          },
+          {
+            "key": "website",
+            "value": "https://yaoundelab.org",
+            "enabled": true
+          }
+        ]
+      }
+    ],
+    "members": [
+      "68300a914ae002b788217fce",
+      "68300a874ae002b788217fb7"
+    ]
+  },
+  {
+    "userId": "6821a76aaac149cb861c9f1b",
+    "templateId": "682f46612cc21f6f1016ab20",
+    "profileInformation": {
+      "username": "Bamenda Tech Collective",
+      "title": "North-West Region's Digital Hub"
+    },
+    "profileLocation": {
+      "city": "Bamenda",
+      "stateOrProvince": "North-West",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 5.9597,
+        "longitude": 10.1460
+      }
+    },
+    "sections": [
+      {
+        "key": "info",
+        "fields": [
+          {
+            "key": "group_name",
+            "value": "Bamenda Tech Collective",
+            "enabled": true
+          },
+          {
+            "key": "description",
+            "value": "A collaborative tech community in Bamenda, bringing together developers, designers, and entrepreneurs to drive digital innovation in the North-West Region.",
+            "enabled": true
+          },
+          {
+            "key": "members",
+            "value": [
+              "68300a794ae002b788217fa0"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "fields": [
+          {
+            "key": "email",
+            "value": "contact@bamendatech.org",
+            "enabled": true
+          },
+          {
+            "key": "phone",
+            "value": "+237 233 345 678",
+            "enabled": true
+          },
+          {
+            "key": "website",
+            "value": "https://bamendatech.org",
+            "enabled": true
+          }
+        ]
+      }
+    ],
+    "members": [
+      "68300a794ae002b788217fa0"
+    ]
+  },
+  {
+    "userId": "6821a76aaac149cb861c9f1b",
+    "templateId": "682f46612cc21f6f1016ab20",
+    "profileInformation": {
+      "username": "Buea Tech Space",
+      "title": "South-West Region's Innovation Center"
+    },
+    "profileLocation": {
+      "city": "Buea",
+      "stateOrProvince": "South-West",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 4.1524,
+        "longitude": 9.2417
+      }
+    },
+    "sections": [
+      {
+        "key": "info",
+        "fields": [
+          {
+            "key": "group_name",
+            "value": "Buea Tech Space",
+            "enabled": true
+          },
+          {
+            "key": "description",
+            "value": "A vibrant tech space in Buea, fostering innovation and entrepreneurship in the South-West Region through technology and digital solutions.",
+            "enabled": true
+          },
+          {
+            "key": "members",
+            "value": [
+              "683008f120107ba3110bbeee"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "fields": [
+          {
+            "key": "email",
+            "value": "contact@bueatech.org",
+            "enabled": true
+          },
+          {
+            "key": "phone",
+            "value": "+237 233 456 789",
+            "enabled": true
+          },
+          {
+            "key": "website",
+            "value": "https://bueatech.org",
+            "enabled": true
+          }
+        ]
+      }
+    ],
+    "members": [
+      "683008f120107ba3110bbeee"
+    ]
+  }
+] 

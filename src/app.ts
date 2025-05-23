@@ -78,6 +78,7 @@ import { scheduleReminderProcessing } from "./jobs/reminderScheduler";
 // Import passport configuration
 import "./config/passport";
 import { configureCookiesMiddleware } from "./middleware/cookie-config.middleware";
+import communityRoutes from './routes/community.routes';
 
 /**
  * @class AppServer
@@ -314,6 +315,7 @@ export class AppServer {
    */
   private configureRoutes(): void {
     setupRoutes(this.app);
+    this.app.use('/api/communities', communityRoutes);
   }
 
   /**

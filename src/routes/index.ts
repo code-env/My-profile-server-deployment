@@ -70,7 +70,7 @@ import participantRoutes from './participant.routes';
 import reminderRoutes from './reminder.routes';
 import plansRoutes from './plans.routes';
 import vaultRoutes from './vault.routes';
-
+import communityRoutes from './community.routes';
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -152,7 +152,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/test/notifications', protect, notificationTestRoutes);
   app.use('/api/referrals', profileReferralRoutes);
   app.use('/api/presence', protect, presenceRoutes);
-
+  app.use('/api/community', protect, communityRoutes);
   // additional routes related to plans
   app.use('/api/participant', participantRoutes);
   app.use('/api/reminders', reminderRoutes);

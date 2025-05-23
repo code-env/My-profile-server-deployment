@@ -54,7 +54,19 @@ const notificationSchema = new Schema<INotification>(
         'sell_request',
         'sell_completed',
         'booking_request',
-        'reminder'
+        'reminder',
+        'community_invitation',
+        'community_group_invitation_response',
+        'community_group_invitation_request',
+        'community_group_invitation_accepted',
+        'community_group_invitation_cancelled',
+        'community_group_invitation_rejected',
+        'community_group_invitation_pending',
+        'community_group_invitation_accepted',
+        'community_group_invitation_rejected',
+        'community_group_invitation_pending',
+        'community_group_invitation_cancelled',
+        'community_announcement',
       ],
     },
     title: {
@@ -68,7 +80,7 @@ const notificationSchema = new Schema<INotification>(
     relatedTo: {
       model: {
         type: String,
-        enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction', 'Event'],
+        enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction', 'Event', 'CommunityGroupInvitation'],
       },
       id: {
         type: Schema.Types.ObjectId,

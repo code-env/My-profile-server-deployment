@@ -38,6 +38,15 @@ interface CreateProfileBody {
       enabled: boolean;
     }>;
   }>;
+  profileLocation?: {
+    city?: string;
+    stateOrProvince?: string;
+    country?: string;
+    coordinates?: {
+      latitude: number;
+      longitude: number;
+    };
+  };
 }
 
 export class ProfileController {
@@ -134,6 +143,7 @@ export class ProfileController {
         logger.warn(`Fixed "Untitled Profile" in final output to: ${formattedData.name}`);
       }
 
+
       logger.info(`Final formatted profile name: "${formattedData.name}"`);
       return formattedData;
     } catch (error) {
@@ -203,15 +213,19 @@ export class ProfileController {
     const userId = (req.user as any)?._id;
     if (!userId) throw createHttpError(401, 'Unauthorized');
 
-    const { templateId, profileInformation, sections } = req.body as CreateProfileBody;
+    const { templateId, profileInformation, sections, profileLocation } = req.body as CreateProfileBody;
     if (!templateId) throw createHttpError(400, 'templateId is required');
     if (!profileInformation?.username) throw createHttpError(400, 'username is required');
 
+    const ip = req.headers['x-forwarded-for'] as string;
     const profile = await this.service.createProfileWithContent(
       userId,
       templateId,
       profileInformation,
-      sections
+      sections,
+      undefined,
+      profileLocation,
+      ip
     );
 
     // Format the profile data for frontend consumption

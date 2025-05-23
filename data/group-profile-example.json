@@ -1,0 +1,613 @@
+[
+  {
+    "profileCategory": "group",
+    "profileType": "group",
+    "secondaryId": "G789xyz",
+    "templateId": "683004cd46ea973227bc5a9a",
+    "profileFormat": {
+      "profileImage": "https://storage.example.com/dbn-profile.jpg",
+      "coverImage": "https://storage.example.com/dbn-cover.jpg",
+      "profileLogo": "https://storage.example.com/dbn-logo.png",
+      "customization": {
+        "theme": {
+          "primaryColor": "#0056b3",
+          "secondaryColor": "#ffffff",
+          "accent": "#ffd700",
+          "background": "#f8f9fa",
+          "text": "#212529",
+          "font": "Arial"
+        },
+        "layout": {
+          "sections": [
+            {"id": "info", "type": "basic", "order": 1, "visible": true},
+            {"id": "about", "type": "detailed", "order": 2, "visible": true},
+            {"id": "contact", "type": "detailed", "order": 3, "visible": true}
+          ],
+          "gridStyle": "left-sided",
+          "animation": "slide"
+        }
+      },
+      "updatedAt": "2023-08-20T14:00:00Z"
+    },
+    "profileInformation": {
+      "username": "Douala Business Network",
+      "profileLink": "douala-business",
+      "title": "Connecting Douala's Business Community",
+      "accountHolder": "64d5f7a1b3b1a8a9f7d3e5f3",
+      "pid": "DBN-2021-001",
+      "relationshipToAccountHolder": "Founding Member",
+      "creator": "64d5f7a1b3b1a8a9f7d3e5f4",
+      "connectLink": "connect-dbn",
+      "followLink": "follow-dbn",
+      "createdAt": "2021-03-15T00:00:00Z",
+      "updatedAt": "2023-08-20T14:00:00Z"
+    },
+    "profileLocation": {
+      "city": "Douala",
+      "stateOrProvince": "Littoral",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 4.0511,
+        "longitude": 9.7679
+      }
+    },
+    "members": [
+      "682e9e24ee30578d37c44548",
+      "682e99230788aa74c41e4258"
+    ],
+    "sections": [
+      {
+        "key": "info",
+        "label": "Info",
+        "fields": [
+          {
+            "key": "group_profile",
+            "value": "Business Network Group",
+            "enabled": true
+          },
+          {
+            "key": "profile_title",
+            "value": "Douala Business Network",
+            "enabled": true
+          },
+          {
+            "key": "group_profile_holder",
+            "value": "64d5f7a1b3b1a8a9f7d3e5f5",
+            "enabled": true
+          },
+          {
+            "key": "relationship_to_account",
+            "value": "President",
+            "enabled": true
+          },
+          {
+            "key": "profile_identification_number",
+            "value": "DBN-001",
+            "enabled": true
+          },
+          {
+            "key": "members",
+            "value": [
+              "682e9e24ee30578d37c44548",
+              "682e99230788aa74c41e4258"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "about",
+        "label": "About",
+        "fields": [
+          {
+            "key": "group_name_identity",
+            "value": "Douala Business Network - The premier business association in Cameroon's economic capital",
+            "enabled": true
+          },
+          {
+            "key": "purpose_mission",
+            "value": "To foster business growth, networking, and collaboration among Douala's business community",
+            "enabled": true
+          },
+          {
+            "key": "membership_roles",
+            "value": "1. Executive Committee\n2. Sector Representatives\n3. General Members\n4. Associate Members",
+            "enabled": true
+          },
+          {
+            "key": "interests_activities",
+            "value": "Business networking, Market opportunities, Investment partnerships, Policy advocacy",
+            "enabled": true
+          },
+          {
+            "key": "group_meetings_events",
+            "value": "Monthly networking breakfasts\nQuarterly business forums\nAnnual business excellence awards",
+            "enabled": true
+          },
+          {
+            "key": "communication_coordination",
+            "value": "Private WhatsApp group\nMonthly newsletter\nMember directory",
+            "enabled": true
+          },
+          {
+            "key": "group_rules_guidelines",
+            "value": "1. Professional conduct at all times\n2. No solicitation without permission\n3. Respect confidentiality",
+            "enabled": true
+          },
+          {
+            "key": "achievements_recognition",
+            "value": "2022 Business Association of the Year\nFacilitated $2M in business deals\n100+ active members",
+            "enabled": true
+          },
+          {
+            "key": "growth_future_plans",
+            "value": "Expand to Yaoundé in 2024\nLaunch business incubator\nDevelop sector-specific subgroups",
+            "enabled": true
+          },
+          {
+            "key": "membership_opportunities",
+            "value": "Open to all registered businesses in Douala\nAnnual membership fee: 100,000 XAF",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "label": "Contact",
+        "fields": [
+          {
+            "key": "primary_contact_info",
+            "value": "Email: info@doualabusiness.net\nPhone: +237 6XX XXX XXX",
+            "enabled": true
+          },
+          {
+            "key": "preferred_mode_communication",
+            "value": "Email for formal communication\nWhatsApp for urgent matters",
+            "enabled": true
+          },
+          {
+            "key": "leadership_key_contacts",
+            "value": "President: Mr. Jean Kamga\nVP: Mrs. Amina Bello\nSecretary: Mr. Samuel Ndi",
+            "enabled": true
+          },
+          {
+            "key": "social_media_online_presence",
+            "value": "LinkedIn: Douala Business Network\nFacebook: @DoualaBizNet",
+            "enabled": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "profileCategory": "group",
+    "profileType": "group",
+    "secondaryId": "G456abc",
+    "templateId": "683004cd46ea973227bc5a9a",
+    "profileFormat": {
+      "profileImage": "https://storage.example.com/yaounde-tech.jpg",
+      "coverImage": "https://storage.example.com/yaounde-tech-cover.jpg",
+      "profileLogo": "https://storage.example.com/yaounde-tech-logo.png",
+      "customization": {
+        "theme": {
+          "primaryColor": "#2ecc71",
+          "secondaryColor": "#ffffff",
+          "accent": "#3498db",
+          "background": "#f8f9fa",
+          "text": "#2c3e50",
+          "font": "Roboto"
+        },
+        "layout": {
+          "sections": [
+            {"id": "info", "type": "basic", "order": 1, "visible": true},
+            {"id": "about", "type": "detailed", "order": 2, "visible": true},
+            {"id": "contact", "type": "detailed", "order": 3, "visible": true}
+          ],
+          "gridStyle": "left-sided",
+          "animation": "slide"
+        }
+      },
+      "updatedAt": "2023-08-20T14:00:00Z"
+    },
+    "profileInformation": {
+      "username": "Yaoundé Tech Hub",
+      "profileLink": "yaounde-tech",
+      "title": "Cameroon's Premier Tech Innovation Center",
+      "accountHolder": "64d5f7a1b3b1a8a9f7d3e5f6",
+      "pid": "YTH-2022-001",
+      "relationshipToAccountHolder": "Director",
+      "creator": "64d5f7a1b3b1a8a9f7d3e5f7",
+      "connectLink": "connect-yth",
+      "followLink": "follow-yth",
+      "createdAt": "2022-01-10T00:00:00Z",
+      "updatedAt": "2023-08-20T14:00:00Z"
+    },
+    "profileLocation": {
+      "city": "Yaoundé",
+      "stateOrProvince": "Centre",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 3.8480,
+        "longitude": 11.5021
+      }
+    },
+    "members": [
+      "682e98350788aa74c41e4223",
+      "682e9548cdb08228f378811c"
+    ],
+    "sections": [
+      {
+        "key": "info",
+        "label": "Info",
+        "fields": [
+          {
+            "key": "group_profile",
+            "value": "Technology Innovation Hub",
+            "enabled": true
+          },
+          {
+            "key": "profile_title",
+            "value": "Yaoundé Tech Hub",
+            "enabled": true
+          },
+          {
+            "key": "group_profile_holder",
+            "value": "64d5f7a1b3b1a8a9f7d3e5f8",
+            "enabled": true
+          },
+          {
+            "key": "relationship_to_account",
+            "value": "Technical Director",
+            "enabled": true
+          },
+          {
+            "key": "profile_identification_number",
+            "value": "YTH-001",
+            "enabled": true
+          },
+          {
+            "key": "members",
+            "value": [
+              "682e98350788aa74c41e4223",
+              "682e9548cdb08228f378811c"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "about",
+        "label": "About",
+        "fields": [
+          {
+            "key": "group_name_identity",
+            "value": "Yaoundé Tech Hub - Empowering Cameroon's tech ecosystem through innovation and collaboration",
+            "enabled": true
+          },
+          {
+            "key": "purpose_mission",
+            "value": "To nurture tech talent, support startups, and drive digital transformation in Cameroon",
+            "enabled": true
+          },
+          {
+            "key": "interests_activities",
+            "value": "Tech workshops, Hackathons, Startup incubation, Digital skills training",
+            "enabled": true
+          },
+          {
+            "key": "group_meetings_events",
+            "value": "Weekly coding workshops\nMonthly hackathons\nQuarterly tech conferences",
+            "enabled": true
+          },
+          {
+            "key": "achievements_recognition",
+            "value": "Launched 15 tech startups\nTrained 500+ developers\nHosted 3 national hackathons",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "label": "Contact",
+        "fields": [
+          {
+            "key": "primary_contact_info",
+            "value": "Email: contact@yaoundetech.org\nPhone: +237 6XX XXX XXX",
+            "enabled": true
+          },
+          {
+            "key": "leadership_key_contacts",
+            "value": "Director: Dr. Marie Tchokouani\nTech Lead: Mr. Pierre Nkodo\nCommunity Manager: Ms. Sarah Mvondo",
+            "enabled": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "profileCategory": "group",
+    "profileType": "group",
+    "secondaryId": "G123def",
+    "templateId": "683004cd46ea973227bc5a9a",
+    "profileFormat": {
+      "profileImage": "https://storage.example.com/bamenda-arts.jpg",
+      "coverImage": "https://storage.example.com/bamenda-arts-cover.jpg",
+      "profileLogo": "https://storage.example.com/bamenda-arts-logo.png",
+      "customization": {
+        "theme": {
+          "primaryColor": "#e74c3c",
+          "secondaryColor": "#ffffff",
+          "accent": "#f1c40f",
+          "background": "#f8f9fa",
+          "text": "#2c3e50",
+          "font": "Playfair Display"
+        },
+        "layout": {
+          "sections": [
+            {"id": "info", "type": "basic", "order": 1, "visible": true},
+            {"id": "about", "type": "detailed", "order": 2, "visible": true},
+            {"id": "contact", "type": "detailed", "order": 3, "visible": true}
+          ],
+          "gridStyle": "left-sided",
+          "animation": "slide"
+        }
+      },
+      "updatedAt": "2023-08-20T14:00:00Z"
+    },
+    "profileInformation": {
+      "username": "Bamenda Arts Collective",
+      "profileLink": "bamenda-arts",
+      "title": "Celebrating Northwest Cameroon's Cultural Heritage",
+      "accountHolder": "64d5f7a1b3b1a8a9f7d3e5f9",
+      "pid": "BAC-2020-001",
+      "relationshipToAccountHolder": "Artistic Director",
+      "creator": "64d5f7a1b3b1a8a9f7d3e5fa",
+      "connectLink": "connect-bac",
+      "followLink": "follow-bac",
+      "createdAt": "2020-06-20T00:00:00Z",
+      "updatedAt": "2023-08-20T14:00:00Z"
+    },
+    "profileLocation": {
+      "city": "Bamenda",
+      "stateOrProvince": "Northwest",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 5.9597,
+        "longitude": 10.1460
+      }
+    },
+    "members": [
+      "6826e998f4ee0091cf5d970f"
+    ],
+    "sections": [
+      {
+        "key": "info",
+        "label": "Info",
+        "fields": [
+          {
+            "key": "group_profile",
+            "value": "Arts and Culture Collective",
+            "enabled": true
+          },
+          {
+            "key": "profile_title",
+            "value": "Bamenda Arts Collective",
+            "enabled": true
+          },
+          {
+            "key": "group_profile_holder",
+            "value": "64d5f7a1b3b1a8a9f7d3e5fb",
+            "enabled": true
+          },
+          {
+            "key": "relationship_to_account",
+            "value": "Artistic Director",
+            "enabled": true
+          },
+          {
+            "key": "profile_identification_number",
+            "value": "BAC-001",
+            "enabled": true
+          },
+          {
+            "key": "members",
+            "value": [
+              "6826e998f4ee0091cf5d970f"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "about",
+        "label": "About",
+        "fields": [
+          {
+            "key": "group_name_identity",
+            "value": "Bamenda Arts Collective - Preserving and promoting Northwest Cameroon's rich cultural heritage",
+            "enabled": true
+          },
+          {
+            "key": "purpose_mission",
+            "value": "To showcase and preserve traditional arts while fostering contemporary cultural expression",
+            "enabled": true
+          },
+          {
+            "key": "interests_activities",
+            "value": "Traditional dance, Music, Visual arts, Cultural festivals, Workshops",
+            "enabled": true
+          },
+          {
+            "key": "group_meetings_events",
+            "value": "Weekly dance classes\nMonthly art exhibitions\nAnnual cultural festival",
+            "enabled": true
+          },
+          {
+            "key": "achievements_recognition",
+            "value": "Featured in National Arts Festival\nRepresented Cameroon at FESPACO\nTrained 200+ young artists",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "label": "Contact",
+        "fields": [
+          {
+            "key": "primary_contact_info",
+            "value": "Email: info@bamendaarts.org\nPhone: +237 6XX XXX XXX",
+            "enabled": true
+          },
+          {
+            "key": "leadership_key_contacts",
+            "value": "Director: Mrs. Grace Nkeng\nArtistic Lead: Mr. John Fon\nCultural Coordinator: Ms. Mary Ndi",
+            "enabled": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "profileCategory": "group",
+    "profileType": "group",
+    "secondaryId": "G789ghi",
+    "templateId": "683004cd46ea973227bc5a9a",
+    "profileFormat": {
+      "profileImage": "https://storage.example.com/kribi-sports.jpg",
+      "coverImage": "https://storage.example.com/kribi-sports-cover.jpg",
+      "profileLogo": "https://storage.example.com/kribi-sports-logo.png",
+      "customization": {
+        "theme": {
+          "primaryColor": "#1abc9c",
+          "secondaryColor": "#ffffff",
+          "accent": "#e67e22",
+          "background": "#f8f9fa",
+          "text": "#2c3e50",
+          "font": "Montserrat"
+        },
+        "layout": {
+          "sections": [
+            {"id": "info", "type": "basic", "order": 1, "visible": true},
+            {"id": "about", "type": "detailed", "order": 2, "visible": true},
+            {"id": "contact", "type": "detailed", "order": 3, "visible": true}
+          ],
+          "gridStyle": "left-sided",
+          "animation": "slide"
+        }
+      },
+      "updatedAt": "2023-08-20T14:00:00Z"
+    },
+    "profileInformation": {
+      "username": "Kribi Sports Club",
+      "profileLink": "kribi-sports",
+      "title": "Promoting Sports Excellence in Coastal Cameroon",
+      "accountHolder": "64d5f7a1b3b1a8a9f7d3e5fc",
+      "pid": "KSC-2021-001",
+      "relationshipToAccountHolder": "Club President",
+      "creator": "64d5f7a1b3b1a8a9f7d3e5fd",
+      "connectLink": "connect-ksc",
+      "followLink": "follow-ksc",
+      "createdAt": "2021-04-15T00:00:00Z",
+      "updatedAt": "2023-08-20T14:00:00Z"
+    },
+    "profileLocation": {
+      "city": "Kribi",
+      "stateOrProvince": "South",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 2.9480,
+        "longitude": 9.9121
+      }
+    },
+    "members": [
+      "6821b32adb64100767efc906"
+    ],
+    "sections": [
+      {
+        "key": "info",
+        "label": "Info",
+        "fields": [
+          {
+            "key": "group_profile",
+            "value": "Sports and Recreation Club",
+            "enabled": true
+          },
+          {
+            "key": "profile_title",
+            "value": "Kribi Sports Club",
+            "enabled": true
+          },
+          {
+            "key": "group_profile_holder",
+            "value": "64d5f7a1b3b1a8a9f7d3e5fe",
+            "enabled": true
+          },
+          {
+            "key": "relationship_to_account",
+            "value": "Club President",
+            "enabled": true
+          },
+          {
+            "key": "profile_identification_number",
+            "value": "KSC-001",
+            "enabled": true
+          },
+          {
+            "key": "members",
+            "value": [
+              "6821b32adb64100767efc906"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "about",
+        "label": "About",
+        "fields": [
+          {
+            "key": "group_name_identity",
+            "value": "Kribi Sports Club - Developing athletic talent and promoting healthy living in coastal Cameroon",
+            "enabled": true
+          },
+          {
+            "key": "purpose_mission",
+            "value": "To nurture sports talent and promote physical fitness in the Kribi community",
+            "enabled": true
+          },
+          {
+            "key": "interests_activities",
+            "value": "Football, Swimming, Beach volleyball, Athletics, Youth development",
+            "enabled": true
+          },
+          {
+            "key": "group_meetings_events",
+            "value": "Daily training sessions\nWeekly competitions\nMonthly beach sports festival",
+            "enabled": true
+          },
+          {
+            "key": "achievements_recognition",
+            "value": "National beach volleyball champions\nProduced 3 national team players\nOrganized 10 major tournaments",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "label": "Contact",
+        "fields": [
+          {
+            "key": "primary_contact_info",
+            "value": "Email: info@kribisports.org\nPhone: +237 6XX XXX XXX",
+            "enabled": true
+          },
+          {
+            "key": "leadership_key_contacts",
+            "value": "President: Mr. Paul Mvondo\nHead Coach: Mr. Joseph Ndi\nYouth Coordinator: Ms. Linda Ewane",
+            "enabled": true
+          }
+        ]
+      }
+    ]
+  }
+] 

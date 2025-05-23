@@ -1,0 +1,181 @@
+[
+  {
+    "profileCategory": "group",
+    "profileType": "group",
+    "name": "Group Profile",
+    "slug": "group-profile",
+    "categories": [
+      {
+        "name": "about",
+        "label": "About",
+        "icon": "info",
+        "collapsible": true,
+        "fields": [
+          { "name": "interests_activities", "label": "Interests & Activities", "widget": "textarea", "order": 1, "enabled": true, "required": false, "options": [] },
+          { "name": "group_meetings_events", "label": "Group Meetings & Events", "widget": "textarea", "order": 2, "enabled": true, "required": false, "options": [] },
+          { "name": "communication_coordination", "label": "Communication & Coordination", "widget": "textarea", "order": 3, "enabled": true, "required": false, "options": [] },
+          { "name": "achievements_recognition", "label": "Achievements & Recognition", "widget": "textarea", "order": 4, "enabled": true, "required": false, "options": [] },
+          { "name": "growth_future_plans", "label": "Growth & Future Plans", "widget": "textarea", "order": 5, "enabled": true, "required": false, "options": [] },
+          { "name": "membership_opportunities", "label": "Membership Opportunities", "widget": "textarea", "order": 6, "enabled": true, "required": false, "options": [] },
+          { "name": "gallery_media_showcase", "label": "Gallery & Media Showcase", "widget": "textarea", "order": 7, "enabled": true, "required": false, "options": [] }
+        ]
+      },
+      {
+        "name": "contact",
+        "label": "Contact",
+        "icon": "envelope",
+        "collapsible": true,
+        "fields": [
+          { "name": "preferred_mode_communication", "label": "Preferred Mode of Communication", "widget": "text", "order": 1, "enabled": true, "required": false, "options": [] },
+          { "name": "leadership_key_contacts", "label": "Leadership & Key Contacts", "widget": "text", "order": 2, "enabled": true, "required": false, "options": [] },
+          { "name": "meeting_event_coordination", "label": "Meeting & Event Coordination", "widget": "text", "order": 3, "enabled": true, "required": false, "options": [] },
+          { "name": "member_support_assistance", "label": "Member Support & Assistance", "widget": "text", "order": 4, "enabled": true, "required": false, "options": [] },
+          { "name": "donations_funding_support", "label": "Donations & Funding Support", "widget": "text", "order": 5, "enabled": true, "required": false, "options": [] },
+          { "name": "emergency_crisis_contacts", "label": "Emergency & Crisis Contacts", "widget": "text", "order": 6, "enabled": true, "required": false, "options": [] },
+          { "name": "membership_applications", "label": "Membership Applications", "widget": "text", "order": 7, "enabled": true, "required": false, "options": [] },
+          { "name": "feedback_suggestions", "label": "Feedback & Suggestions", "widget": "text", "order": 8, "enabled": true, "required": false, "options": [] }
+        ]
+      },
+      {
+        "name": "social",
+        "label": "Social",
+        "icon": "share-alt",
+        "collapsible": true,
+        "fields": [
+          { "name": "messaging_discussion_forums", "label": "Messaging & Discussion Forums", "widget": "text", "order": 1, "enabled": true, "required": false, "options": [] },
+          { "name": "event_live_streams", "label": "Event Live Streams & Broadcasts", "widget": "text", "order": 2, "enabled": true, "required": false, "options": [] },
+          { "name": "member_recognition_awards", "label": "Member Recognition & Awards", "widget": "text", "order": 3, "enabled": true, "required": false, "options": [] },
+          { "name": "collaboration_sponsorships", "label": "Collaboration & Sponsorships", "widget": "text", "order": 4, "enabled": true, "required": false, "options": [] },
+          { "name": "membership_growth_engagement", "label": "Membership Growth & Engagement", "widget": "text", "order": 5, "enabled": true, "required": false, "options": [] }
+        ]
+      }
+    ]
+  },
+  {
+    "templateId": "group_123",
+    "profileInformation": {
+      "username": "Tech Innovators Group",
+      "title": "Innovation Hub"
+    },
+    "sections": [
+      {
+        "key": "about",
+        "label": "About",
+        "fields": [
+          {
+            "key": "interests_activities",
+            "value": "Technology innovation, AI research, and digital transformation projects",
+            "enabled": true
+          },
+          {
+            "key": "group_meetings_events",
+            "value": "Weekly innovation workshops, monthly tech talks, quarterly hackathons",
+            "enabled": true
+          },
+          {
+            "key": "communication_coordination",
+            "value": "Slack for daily communication, Discord for community engagement, Zoom for meetings",
+            "enabled": true
+          },
+          {
+            "key": "achievements_recognition",
+            "value": "Winner of 2023 Innovation Award, Featured in Tech Magazine, 5 successful projects launched",
+            "enabled": true
+          },
+          {
+            "key": "growth_future_plans",
+            "value": "Expanding to new regions, launching mentorship program, developing new tech initiatives",
+            "enabled": true
+          },
+          {
+            "key": "membership_opportunities",
+            "value": "Open to tech professionals, students, and enthusiasts. Apply through our website.",
+            "enabled": true
+          },
+          {
+            "key": "gallery_media_showcase",
+            "value": "Project showcases, event photos, member achievements",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "label": "Contact",
+        "fields": [
+          {
+            "key": "preferred_mode_communication",
+            "value": "Email and Slack",
+            "enabled": true
+          },
+          {
+            "key": "leadership_key_contacts",
+            "value": "John Doe (Group Lead), Jane Smith (Tech Lead), Mike Johnson (Community Manager)",
+            "enabled": true
+          },
+          {
+            "key": "meeting_event_coordination",
+            "value": "events@techinnovators.org",
+            "enabled": true
+          },
+          {
+            "key": "member_support_assistance",
+            "value": "support@techinnovators.org",
+            "enabled": true
+          },
+          {
+            "key": "donations_funding_support",
+            "value": "donate@techinnovators.org",
+            "enabled": true
+          },
+          {
+            "key": "emergency_crisis_contacts",
+            "value": "emergency@techinnovators.org",
+            "enabled": true
+          },
+          {
+            "key": "membership_applications",
+            "value": "join@techinnovators.org",
+            "enabled": true
+          },
+          {
+            "key": "feedback_suggestions",
+            "value": "feedback@techinnovators.org",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "social",
+        "label": "Social",
+        "fields": [
+          {
+            "key": "messaging_discussion_forums",
+            "value": "https://discord.gg/techinnovators",
+            "enabled": true
+          },
+          {
+            "key": "event_live_streams",
+            "value": "https://youtube.com/techinnovators",
+            "enabled": true
+          },
+          {
+            "key": "member_recognition_awards",
+            "value": "Monthly spotlight on website, Annual awards ceremony",
+            "enabled": true
+          },
+          {
+            "key": "collaboration_sponsorships",
+            "value": "Open to partnerships with tech companies and educational institutions",
+            "enabled": true
+          },
+          {
+            "key": "membership_growth_engagement",
+            "value": "Regular community events, skill-building workshops, networking sessions",
+            "enabled": true
+          }
+        ]
+      }
+    ]
+  }
+] 
