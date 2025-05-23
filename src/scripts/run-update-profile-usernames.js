@@ -1,6 +1,6 @@
 /**
  * Runner script for the profile username update
- * 
+ *
  * This script compiles and runs the TypeScript update-profile-usernames.ts script
  */
 

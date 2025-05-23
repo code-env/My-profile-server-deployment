@@ -472,9 +472,11 @@ export class ProfileController {
     logger.info(`Admin user ${user._id} (${user.email}) requesting all profiles`);
 
     // Parse query parameters for pagination and filtering
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const skip = (page - 1) * limit;
+    let limit = parseInt(req.query.limit as string);
+    if (isNaN(limit) || limit < 0) limit = 0; // treat negative or invalid as no limit
+
+    let page = parseInt(req.query.page as string) || 1;
+    let skip = (page - 1) * (limit > 0 ? limit : 0);
 
     // Get filter parameters
     const nameFilter = req.query.name as string;
@@ -510,7 +512,13 @@ export class ProfileController {
     const formattedProfiles = profiles.map(profile => this.formatProfileData(profile));
 
     // Calculate pagination info
-    const totalPages = Math.ceil(totalCount / limit);
+    let totalPages = 1;
+    if (limit > 0) {
+      totalPages = Math.ceil(totalCount / limit);
+    } else {
+      page = 1;
+      skip = 0;
+    }
 
     // Return response with pagination info
     res.json({

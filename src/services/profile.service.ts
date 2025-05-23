@@ -452,10 +452,17 @@ export class ProfileService {
   async getAllProfiles(filter: any = {}, skip = 0, limit = 20): Promise<ProfileDocument[]> {
     logger.info(`Fetching all profiles with filter: ${JSON.stringify(filter)}, skip: ${skip}, limit: ${limit}`);
 
-    return await Profile.find(filter)
-      .sort({ 'profileInformation.createdAt': -1 })
-      .skip(skip)
-      .limit(limit);
+    let query = Profile.find(filter).sort({ 'profileInformation.createdAt': -1 });
+    if (limit > 0) {
+      query = query.skip(skip).limit(limit);
+    } else {
+      // If limit is 0 or negative, do not apply limit (return all)
+      if (skip > 0) {
+        query = query.skip(skip);
+      }
+      // No .limit() call, so all profiles are returned
+    }
+    return await query;
   }
 
   /**
