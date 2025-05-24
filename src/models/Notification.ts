@@ -67,6 +67,7 @@ const notificationSchema = new Schema<INotification>(
         'community_group_invitation_pending',
         'community_group_invitation_cancelled',
         'community_announcement',
+        'community_report',
       ],
     },
     title: {

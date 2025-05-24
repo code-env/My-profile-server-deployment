@@ -69,22 +69,20 @@ export class CommunityController {
   );
 
   static reportCommunity = asyncHandler(async (req: Request, res: Response) => {
-    const user: any = req.user;
-    if (!user || !user._id) throw createHttpError(401, "Not authenticated");
     const { id } = req.params;
-    const { reason, details } = req.body;
-    if (!isValidObjectId(id))
-      throw createHttpError(400, "Invalid community ID");
-    const result = await communityService.reportCommunity(id, reason, details);
+    const { reason, details, profileId } = req.body;
+    if (!profileId || !isValidObjectId(profileId)) throw createHttpError(400, "Invalid profileId");
+    if (!isValidObjectId(id)) throw createHttpError(400, "Invalid community ID");
+    const result = await communityService.reportCommunity(id, reason, details, profileId);
     res.json({ success: true, data: result });
   });
 
   static exitCommunity = asyncHandler(async (req: Request, res: Response) => {
-    const user: any = req.user;
-    if (!user || !user._id) throw createHttpError(401, "Not authenticated");
     const { id } = req.params;
-    if (!isValidObjectId(id)) throw createHttpError(400, "Invalid ID");
-    const updated = await communityService.exitCommunity(id, user._id);
+    const { profileId } = req.body;
+    if (!profileId || !isValidObjectId(profileId)) throw createHttpError(400, "Invalid profileId");
+    if (!isValidObjectId(id)) throw createHttpError(400, "Invalid community ID");
+    const updated = await communityService.exitCommunity(id, profileId);
     res.json({ success: true, data: updated });
   });
 
@@ -128,4 +126,36 @@ export class CommunityController {
       res.json({ success: true, data: updated });
     }
   );
+
+  static exportProfileList = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { format = 'csv' } = req.query;
+    if (!isValidObjectId(id)) throw createHttpError(400, "Invalid community ID");
+    const allowedFormats = ['docx', 'xlsx', 'pptx', 'csv', 'rtf'];
+    if (!allowedFormats.includes(format as string)) {
+      throw createHttpError(400, `Invalid format. Allowed: ${allowedFormats.join(', ')}`);
+    }
+    // Optionally: check if user is authorized (member/admin)
+    // const user: any = req.user;
+    // ...authorization logic...
+    const { fileBuffer, fileName, mimeType } = await communityService.exportProfileList(id, format as string);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', mimeType);
+    res.send(fileBuffer);
+  });
+
+  static exportAllCommunities = asyncHandler(async (req: Request, res: Response) => {
+    const { format = 'csv' } = req.query;
+    const allowedFormats = ['docx', 'xlsx', 'pptx', 'csv', 'rtf'];
+    if (!allowedFormats.includes(format as string)) {
+      throw createHttpError(400, `Invalid format. Allowed: ${allowedFormats.join(', ')}`);
+    }
+    // Optionally: check if user is admin
+    // const user: any = req.user;
+    // ...authorization logic...
+    const { fileBuffer, fileName, mimeType } = await communityService.exportAllCommunities(format as string);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', mimeType);
+    res.send(fileBuffer);
+  });
 }

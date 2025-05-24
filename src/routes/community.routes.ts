@@ -14,5 +14,9 @@ router.post('/:id/exit', protect, CommunityController.exitCommunity);
 router.get('/:id/settings', protect, CommunityController.getCommunitySettings);
 router.put('/:id/settings', protect, CommunityController.updateCommunitySettings);
 router.put('/:id/chat', protect, CommunityController.setCommunityChatId);
+router.get('/:id/export', protect, CommunityController.exportProfileList);
+router.get('/export', protect, CommunityController.exportAllCommunities);
 
 export default router; 
+
+//being a leader 

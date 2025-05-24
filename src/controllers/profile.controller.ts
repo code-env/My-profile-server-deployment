@@ -7,6 +7,7 @@ import { ProfileService } from '../services/profile.service';
 import { ProfileDocument } from '../models/profile.model';
 import { logger } from '../utils/logger';
 import { ProfileModel } from '../models/profile.model';
+import { ProfileFilter } from '../types/profiles';
 
 interface ProfileFieldToggle {
   sectionKey: string;
@@ -492,7 +493,7 @@ export class ProfileController {
       const skip = parseInt(req.query.skip as string) || 0;
       const limit = parseInt(req.query.limit as string) || 20;
 
-      const filters = {
+      const filters: ProfileFilter = {
         ...(town && { town: town as string }),
         ...(city && { city: city as string }),
         ...(country && { country: country as string }),

@@ -9,6 +9,7 @@ import mongoose from 'mongoose';
 import { ITemplateField } from '../models/profiles/profile-template';
 import { FieldWidget } from '../models/profiles/profile-template';
 import geoip from 'geoip-lite';
+import { ProfileFilter } from '../types/profiles';
 
 export class ProfileService {
 
@@ -1142,20 +1143,7 @@ export class ProfileService {
    * @param limit Maximum number of documents to return
    * @returns Array of community profile documents with minimal sections
    */
-  async getCommunityProfiles(filters: {
-    town?: string;
-    city?: string;
-    country?: string;
-    groupId?: string;
-    memberId?: string;
-    keyword?: string;
-    latitude?: number;
-    longitude?: number;
-    radius?: number; // in kilometers
-    sortBy?: 'name' | 'createdAt' | 'members' | 'groups';
-    sortOrder?: 'asc' | 'desc';
-    [key: string]: any;
-  }, skip = 0, limit = 20): Promise<ProfileDocument[]> {
+  async getCommunityProfiles(filters: ProfileFilter = {}, skip = 0, limit = 20): Promise<ProfileDocument[]> {
     logger.info(`Fetching community profiles with filters: ${JSON.stringify(filters)}, skip: ${skip}, limit: ${limit}`);
 
     // Build the filter query
@@ -1164,66 +1152,48 @@ export class ProfileService {
       profileType: 'community'
     };
 
-    // Add location filters if provided
-    if (filters.town || filters.city || filters.country) {
-      query['profileLocation'] = { $exists: true, $ne: null };
-      
-      if (filters.city) {
-        query['profileLocation.city'] = { 
-          $exists: true,
-          $ne: null,
-          $regex: new RegExp(filters.city, 'i') 
-        };
-      }
-      if (filters.country) {
-        query['profileLocation.country'] = { 
-          $exists: true,
-          $ne: null,
-          $regex: new RegExp(filters.country, 'i') 
-        };
-      }
-      if (filters.town) {
-        query['$or'] = [
-          { 'profileLocation.city': { 
-            $exists: true,
-            $ne: null,
-            $regex: new RegExp(filters.town, 'i') 
-          }},
-          { 'profileLocation.stateOrProvince': { 
-            $exists: true,
-            $ne: null,
-            $regex: new RegExp(filters.town, 'i') 
-          }}
-        ];
-      }
-
-      // Log the location query for debugging
-      logger.debug('Location query:', JSON.stringify(query['profileLocation']));
+    // Type filter
+    if (filters.profileType) {
+      query['profileType'] = filters.profileType;
     }
 
-    // Add group filter if provided
-    if (filters.groupId) {
-      query['groups'] = filters.groupId;
+    // Access filter (if present in schema)
+    if (filters.accessType) {
+      query['accessType'] = filters.accessType;
     }
 
-    // Add member filter if provided
-    if (filters.memberId) {
-      query['members'] = filters.memberId;
+    // Created by filter
+    if (filters.createdBy) {
+      query['profileInformation.creator'] = filters.createdBy;
     }
 
-    // Add keyword search if provided
-    if (filters.keyword) {
+    // Viewed/Not viewed filter (example: analytics.Networking.views or a views array)
+    if (filters.viewed === 'viewed') {
+      query['analytics.Networking.views'] = { $gt: 0 };
+    } else if (filters.viewed === 'not_viewed') {
       query['$or'] = [
-        { 'profileInformation.username': { $regex: new RegExp(filters.keyword, 'i') } },
-        { 'profileInformation.title': { $regex: new RegExp(filters.keyword, 'i') } },
-        { 'sections.fields.value': { $regex: new RegExp(filters.keyword, 'i') } },
-        { 'profileLocation.city': { $regex: new RegExp(filters.keyword, 'i') } },
-        { 'profileLocation.stateOrProvince': { $regex: new RegExp(filters.keyword, 'i') } },
-        { 'profileLocation.country': { $regex: new RegExp(filters.keyword, 'i') } }
+        { 'analytics.Networking.views': { $exists: false } },
+        { 'analytics.Networking.views': 0 }
       ];
     }
 
-    // Add geospatial query if coordinates and radius are provided
+    // Location filters
+    if (filters.city) {
+      query['profileLocation.city'] = { $regex: new RegExp(filters.city, 'i') };
+    }
+    if (filters.stateOrProvince) {
+      query['profileLocation.stateOrProvince'] = { $regex: new RegExp(filters.stateOrProvince, 'i') };
+    }
+    if (filters.country) {
+      query['profileLocation.country'] = { $regex: new RegExp(filters.country, 'i') };
+    }
+    if (filters.town) {
+      query['$or'] = [
+        { 'profileLocation.city': { $regex: new RegExp(filters.town, 'i') } },
+        { 'profileLocation.stateOrProvince': { $regex: new RegExp(filters.town, 'i') } }
+      ];
+    }
+    // Geospatial
     if (filters.latitude && filters.longitude && filters.radius) {
       query['profileLocation.coordinates'] = {
         $near: {
@@ -1236,10 +1206,67 @@ export class ProfileService {
       };
     }
 
-    // Log the final query for debugging
-    logger.debug('Final query:', JSON.stringify(query));
+    // Tag filter (if tags array or in sections.fields)
+    if (filters.tag) {
+      query['$or'] = [
+        { 'tags': filters.tag },
+        { 'sections.fields': { $elemMatch: { key: 'tag', value: filters.tag } } }
+      ];
+    }
 
-    // Determine sort options
+    // Verification status
+    if (filters.verificationStatus === 'verified') {
+      query['verificationStatus.isVerified'] = true;
+    } else if (filters.verificationStatus === 'not_verified') {
+      query['verificationStatus.isVerified'] = false;
+    }
+
+    // Creation date filter (e.g., 'last_24_hours', 'last_7_days', 'last_30_days', 'last_365_days')
+    if (filters.creationDate) {
+      const now = new Date();
+      let fromDate: Date | null = null;
+      switch (filters.creationDate) {
+        case 'last_24_hours':
+          fromDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case 'last_7_days':
+          fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'last_30_days':
+          fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'last_365_days':
+          fromDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          fromDate = null;
+      }
+      if (fromDate) {
+        query['profileInformation.createdAt'] = { $gte: fromDate };
+      }
+    }
+
+    // Group/member filter
+    if (filters.groupId) {
+      query['groups'] = filters.groupId;
+    }
+    if (filters.memberId) {
+      query['members'] = filters.memberId;
+    }
+
+    // Keyword search
+    if (filters.keyword) {
+      query['$or'] = [
+        { 'profileInformation.username': { $regex: new RegExp(filters.keyword, 'i') } },
+        { 'profileInformation.title': { $regex: new RegExp(filters.keyword, 'i') } },
+        { 'sections.fields.value': { $regex: new RegExp(filters.keyword, 'i') } },
+        { 'profileLocation.city': { $regex: new RegExp(filters.keyword, 'i') } },
+        { 'profileLocation.stateOrProvince': { $regex: new RegExp(filters.keyword, 'i') } },
+        { 'profileLocation.country': { $regex: new RegExp(filters.keyword, 'i') } }
+      ];
+    }
+
+    // Sorting
     const sort: any = {};
     if (filters.sortBy) {
       switch (filters.sortBy) {
@@ -1256,20 +1283,23 @@ export class ProfileService {
           sort['groups'] = filters.sortOrder === 'desc' ? -1 : 1;
           break;
         default:
-          sort['profileInformation.createdAt'] = -1; // Default sort by creation date
+          sort['profileInformation.createdAt'] = -1;
       }
     } else {
-      sort['profileInformation.createdAt'] = -1; // Default sort by creation date
+      sort['profileInformation.createdAt'] = -1;
     }
 
-    // Fetch profiles with all fields
+    // Fetch profiles
     const profiles = await Profile.find(query)
       .select({
         'profileInformation': 1,
         'sections': 1,
         'profileLocation': 1,
         'members': 1,
-        'groups': 1
+        'groups': 1,
+        'verificationStatus': 1,
+        'analytics': 1,
+        'tags': 1
       })
       .sort(sort)
       .skip(skip)
@@ -1277,9 +1307,6 @@ export class ProfileService {
       .populate('profileInformation.creator', 'fullName email')
       .populate('members', 'profileInformation.username profileInformation.title _id')
       .populate('groups', 'profileInformation.username profileInformation.title _id');
-
-    // Log the number of profiles found
-    logger.debug(`Found ${profiles.length} profiles matching the query`);
 
     // Process profiles to ensure all required fields are present
     const processedProfiles = await Promise.all(profiles.map(async profile => {

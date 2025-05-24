@@ -3,17 +3,13 @@ import mongoose from 'mongoose';
 import createHttpError from 'http-errors';
 import { NotificationService } from './notification.service';
 import { CommunityGroupInvitation, ICommunityGroupInvitation } from '../models/community-group-invitation.model';
+import ExcelJS from 'exceljs';
+import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { stringify } from 'csv-stringify/sync';
 
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || 'https://your-frontend.com';
 
 export class CommunityService {
-  async getCommunityProfile(id: string) {
-    const profile = await ProfileModel.findById(id);
-    if (!profile || profile.profileType !== 'community') {
-      throw createHttpError(404, 'Community not found');
-    }
-    return profile;
-  }
 
   async getShareLink(id: string) {
     const profile = await ProfileModel.findById(id);
@@ -177,38 +173,64 @@ export class CommunityService {
     return { broadcasted: true, recipients: profile.members.length };
   }
 
-  async reportCommunity(communityId: string, reason: string, details?: string) {
-    const profile = await ProfileModel.findById(communityId);
-    if (!profile) throw createHttpError(404, 'Community not found');
-    let section = profile.sections.find(s => s.key === 'reports');
+  async reportCommunity(communityId: string, reason: string, details?: string, profileId?: string) {
+    if (!profileId || !mongoose.Types.ObjectId.isValid(profileId)) {
+      throw createHttpError(400, 'Invalid profileId');
+    }
+    const community = await ProfileModel.findById(communityId);
+    if (!community) throw createHttpError(404, 'Community not found');
+    // Check if profileId is a member or group in the community
+    const isMember = community.members?.some((m: any) => m.toString() === profileId);
+    const isGroup = community.groups?.some((g: any) => g.toString() === profileId);
+    if (!isMember && !isGroup) {
+      throw createHttpError(403, 'Profile is not a member or group of this community');
+    }
+    let section = community.sections.find(s => s.key === 'reports');
     if (!section) {
       section = {
         key: 'reports',
         label: 'Reports',
-        order: profile.sections.length,
+        order: community.sections.length,
         fields: []
       };
-      profile.sections.push(section);
+      community.sections.push(section);
     }
     section.fields.push({
       key: `report_${Date.now()}`,
       label: 'Report',
       widget: 'textarea',
-      value: { reason, details, reportedAt: new Date() },
+      value: { reason, details, reportedAt: new Date(), reportedBy: profileId },
       enabled: true
     });
-    await profile.save();
-    // Optionally, notify admins here
+    await community.save();
+    // send notification to community admin
+    const notificationService = new NotificationService();
+    await notificationService.createNotification({
+      recipient: community.profileInformation.creator,
+      type: 'community_report',
+      title: 'Community Report',
+      message: `A report has been made on the community by profile ${profileId}.`,
+      relatedTo: { model: 'Profile', id: communityId },
+    });
     return { reported: true };
   }
 
-  async exitCommunity(communityId: string, userId: string) {
+  async exitCommunity(communityId: string, profileId: string) {
+    const community = await ProfileModel.findById(communityId);
+    if (!community) throw createHttpError(404, 'Community not found');
+    const isMember = community.members?.some((m: any) => m.toString() === profileId);
+    const isGroup = community.groups?.some((g: any) => g.toString() === profileId);
+    if (!isMember && !isGroup) {
+      throw createHttpError(400, 'Profile is not a member or group of this community');
+    }
+    const update: any = {};
+    if (isMember) update.$pull = { members: new mongoose.Types.ObjectId(profileId) };
+    if (isGroup) update.$pull = { groups: new mongoose.Types.ObjectId(profileId) };
     const updated = await ProfileModel.findByIdAndUpdate(
       communityId,
-      { $pull: { members: new mongoose.Types.ObjectId(userId) } },
+      update,
       { new: true }
     );
-    if (!updated) throw createHttpError(404, 'Community not found');
     return updated;
   }
 
@@ -451,5 +473,154 @@ export class CommunityService {
       }
     }
     return invitation;
+  }
+
+  async exportProfileList(communityId: string, format: string) {
+    const community = await ProfileModel.findById(communityId)
+      .populate('members', 'profileInformation.username profileInformation.title profileInformation.email')
+      .populate('groups', 'profileInformation.username profileInformation.title profileInformation.email');
+    if (!community) throw createHttpError(404, 'Community not found');
+    // Example: collect all member and group profiles
+    const profiles = [
+      ...(community.members || []),
+      ...(community.groups || [])
+    ].map((p: any) => ({
+      username: p.profileInformation?.username,
+      title: p.profileInformation?.title,
+      email: p.profileInformation?.email || '',
+      id: p._id?.toString()
+    }));
+    let fileBuffer: Buffer, fileName: string, mimeType: string;
+    switch (format) {
+      case 'xlsx': {
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Profiles');
+        sheet.addRow(['Username', 'Title', 'Email', 'ID']);
+        profiles.forEach(p => sheet.addRow([p.username, p.title, p.email, p.id]));
+        fileBuffer = await workbook.xlsx.writeBuffer() as Buffer;
+        fileName = 'profiles.xlsx';
+        mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        break;
+      }
+      case 'csv': {
+        const csv = stringify(profiles, { header: true, columns: ['username', 'title', 'email', 'id'] });
+        fileBuffer = Buffer.from(csv, 'utf-8');
+        fileName = 'profiles.csv';
+        mimeType = 'text/csv';
+        break;
+      }
+      case 'docx': {
+        const doc = new Document({
+          sections: [{
+            children: [
+              new Paragraph({
+                children: [new TextRun('Profile List')],
+              }),
+              ...profiles.map(p => new Paragraph(`${p.username} | ${p.title} | ${p.email} | ${p.id}`)),
+            ],
+          }],
+        });
+        fileBuffer = await Packer.toBuffer(doc);
+        fileName = 'profiles.docx';
+        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        break;
+      }
+      case 'pptx': {
+        // Placeholder: PPTXGenJS is browser-oriented, so use a placeholder buffer for now
+        fileBuffer = Buffer.from('PPTX export not implemented in Node.js', 'utf-8');
+        fileName = 'profiles.pptx';
+        mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+        break;
+      }
+      case 'rtf': {
+        // Placeholder: rtf.js is not for Node.js, so use a simple RTF string
+        const rtfContent = `{
+  \\rtf1\\ansi\\deff0
+  {\\fonttbl{\\f0 Courier;}}
+  \\f0\\fs20 Profile List\\par
+  ${profiles.map(p => `${p.username} | ${p.title} | ${p.email} | ${p.id}\\par`).join('\n  ')}
+}`;
+        fileBuffer = Buffer.from(rtfContent, 'utf-8');
+        fileName = 'profiles.rtf';
+        mimeType = 'application/rtf';
+        break;
+      }
+      default:
+        throw createHttpError(400, 'Unsupported export format');
+    }
+    return { fileBuffer, fileName, mimeType };
+  }
+
+  async exportAllCommunities(format: string) {
+    const communities = await ProfileModel.find({ profileType: 'community' })
+      .populate('profileInformation.creator', 'fullName email')
+      .populate('members', '_id')
+      .populate('groups', '_id');
+    const rows = communities.map((c: any) => ({
+      name: c.profileInformation?.title || c.profileInformation?.username,
+      id: c._id?.toString(),
+      creator: c.profileInformation?.creator?.fullName || '',
+      creatorEmail: c.profileInformation?.creator?.email || '',
+      createdAt: c.profileInformation?.createdAt?.toISOString() || '',
+      memberCount: c.members?.length || 0,
+      groupCount: c.groups?.length || 0
+    }));
+    let fileBuffer: Buffer, fileName: string, mimeType: string;
+    switch (format) {
+      case 'xlsx': {
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Communities');
+        sheet.addRow(['Name', 'ID', 'Creator', 'Creator Email', 'Created At', 'Member Count', 'Group Count']);
+        rows.forEach(r => sheet.addRow([r.name, r.id, r.creator, r.creatorEmail, r.createdAt, r.memberCount, r.groupCount]));
+        fileBuffer = await workbook.xlsx.writeBuffer() as Buffer;
+        fileName = 'communities.xlsx';
+        mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        break;
+      }
+      case 'csv': {
+        const csv = stringify(rows, { header: true, columns: ['name', 'id', 'creator', 'creatorEmail', 'createdAt', 'memberCount', 'groupCount'] });
+        fileBuffer = Buffer.from(csv, 'utf-8');
+        fileName = 'communities.csv';
+        mimeType = 'text/csv';
+        break;
+      }
+      case 'docx': {
+        const doc = new Document({
+          sections: [{
+            children: [
+              new Paragraph({
+                children: [new TextRun('Community List')],
+              }),
+              ...rows.map(r => new Paragraph(`${r.name} | ${r.id} | ${r.creator} | ${r.creatorEmail} | ${r.createdAt} | ${r.memberCount} | ${r.groupCount}`)),
+            ],
+          }],
+        });
+        fileBuffer = await Packer.toBuffer(doc);
+        fileName = 'communities.docx';
+        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        break;
+      }
+      case 'pptx': {
+        fileBuffer = Buffer.from('PPTX export not implemented in Node.js', 'utf-8');
+        fileName = 'communities.pptx';
+        mimeType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+        break;
+      }
+      case 'rtf': {
+        const rtfContent = `{
+  \rtf1\ansi\deff0
+  {\fonttbl{\f0 Courier;}}
+  \f0\fs20 Community List\par
+  ${rows.map(r => `${r.name} | ${r.id} | ${r.creator} | ${r.creatorEmail} | ${r.createdAt} | ${r.memberCount} | ${r.groupCount}\par`).join('\n  ')}
+}`;
+        fileBuffer = Buffer.from(rtfContent, 'utf-8');
+        fileName = 'communities.rtf';
+        mimeType = 'application/rtf';
+        break;
+      }
+      default:
+        throw createHttpError(400, 'Unsupported export format');
+    }
+    return { fileBuffer, fileName, mimeType };
   }
 } 
