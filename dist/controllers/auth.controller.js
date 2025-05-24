@@ -98,6 +98,44 @@ async function getClientInfo(req) {
         userAgent: uaString,
     };
 }
+/**
+ * Authentication Controller Class
+ *
+ * Implements comprehensive authentication and authorization functionality
+ * following security best practices and OAuth 2.0 principles.
+ *
+ * Core Features:
+ * - User registration with validation
+ * - Multi-factor authentication
+ * - Secure session management
+ * - Password reset flows
+ * - Social authentication
+ * - Token-based authentication
+ * - Security monitoring
+ *
+ * Security Measures:
+ * - Rate limiting on sensitive endpoints
+ * - IP and device tracking
+ * - Brute force prevention
+ * - Session invalidation
+ * - Token rotation
+ * - Activity logging
+ *
+ * Implementation Notes:
+ * 1. All passwords are hashed using bcrypt
+ * 2. Tokens are signed with RS256
+ * 3. Sessions tracked with device info
+ * 4. All operations are logged
+ * 5. Errors handled securely
+ *
+ * Example Usage:
+ * ```typescript
+ * // In routes/auth.routes.ts
+ * router.post('/register', AuthController.register);
+ * router.post('/login', AuthController.login);
+ * router.post('/logout', AuthController.logout);
+ * ```
+ */
 class AuthController {
     /**
      * Register a new user

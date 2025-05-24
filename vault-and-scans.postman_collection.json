@@ -1,0 +1,810 @@
+{
+  "info": {
+    "_postman_id": "b1e1c2d3-4f5a-6789-0123-abcdefabcdef",
+    "name": "Vault, Scans & NFC API Test Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Test collection for Vault, Scan, and NFC endpoints in MyProfile Server."
+  },
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/verify-otp",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "verify-otp"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_id\": \"{{user_id}}\",\n  \"otp\": \"{{otp_code}}\",\n  \"verificationMethod\": \"EMAIL\"\n}"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Vault System",
+      "item": [
+        {
+          "name": "2.1 Wallet Items",
+          "item": [
+            {
+              "name": "Create Wallet Item",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/wallet",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "wallet"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Test Card\",\n  \"subcategory\": \"credit_card\",\n  \"cardType\": \"credit\",\n  \"cardNumber\": \"1234567890123456\",\n  \"expiryDate\": \"2025-12-31\",\n  \"issuer\": \"Bank of Example\",\n  \"isEncrypted\": true\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Wallet Items",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/wallet",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "wallet"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Upload Wallet Item Image",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/wallet/:itemId/image/:side",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "wallet", ":itemId", "image", ":side"],
+                  "variable": [
+                    {"key": "itemId", "value": "{{wallet_item_id}}"},
+                    {"key": "side", "value": "front"}
+                  ]
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "2.2 Document Items",
+          "item": [
+            {
+              "name": "Create Document Item",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/documents",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "documents"]
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "name",
+                      "value": "Insurance Policy",
+                      "type": "text"
+                    },
+                    {
+                      "key": "subcategory",
+                      "value": "insurance",
+                      "type": "text"
+                    },
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Document Items",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/documents",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "documents"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "2.3 Media Items",
+          "item": [
+            {
+              "name": "Create Media Item",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/media",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "media"]
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "name",
+                      "value": "Vacation Photo",
+                      "type": "text"
+                    },
+                    {
+                      "key": "albumId",
+                      "value": "{{album_id}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "2.4 Albums",
+          "item": [
+            {
+              "name": "Create Album",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/albums",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "albums"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Vacation Photos 2025\",\n  \"description\": \"Summer vacation memories\",\n  \"isPrivate\": false\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Albums",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/albums",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "albums"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "2.5 General Vault Operations",
+          "item": [
+            {
+              "name": "Get All Vault Items",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/items",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "items"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Search Vault",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/search",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "search"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"query\": \"insurance\",\n  \"filters\": {\n    \"categories\": [\"documents\"],\n    \"dateFrom\": \"2025-01-01\",\n    \"dateTo\": \"2025-12-31\"\n  }\n}"
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Vault Statistics",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/vault/stats",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "vault", "stats"]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Create Scan (QR Code)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/profiles/{{profile_id}}/scans",
+          "host": ["{{base_url}}"],
+          "path": ["api", "profiles", "{{profile_id}}", "scans"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"qrcode\",\n  \"text\": \"https://myprofile.app/connect/test\",\n  \"metadata\": {\n    \"source\": \"postman\",\n    \"location\": \"office\"\n  }\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Scan (Badge/Document)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/profiles/{{profile_id}}/scans",
+          "host": ["{{base_url}}"],
+          "path": ["api", "profiles", "{{profile_id}}", "scans"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"badge\",\n  \"fileData\": \"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=\",\n  \"fileName\": \"test_badge.jpg\",\n  \"fileType\": \"image/jpeg\",\n  \"fileSize\": 1024,\n  \"metadata\": {\n    \"source\": \"postman\",\n    \"scanLocation\": \"entrance\"\n  }\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create NFC Read Scan",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/profiles/{{profile_id}}/scans",
+          "host": ["{{base_url}}"],
+          "path": ["api", "profiles", "{{profile_id}}", "scans"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"nfc-read\",\n  \"data\": {\n    \"nfcData\": {\n      \"operation\": \"read\",\n      \"cardId\": \"NFC_12345\",\n      \"tagInfo\": {\n        \"uid\": \"04:A1:B2:C3:D4:E5:F6\",\n        \"type\": \"NTAG213\",\n        \"capacity\": 180\n      },\n      \"profileData\": {\n        \"profileLink\": \"https://myprofile.app/p/johndoe\",\n        \"connectLink\": \"https://myprofile.app/connect/johndoe\",\n        \"basicInfo\": {\n          \"name\": \"John Doe\",\n          \"title\": \"Software Engineer\",\n          \"email\": \"john@example.com\",\n          \"phone\": \"+1234567890\",\n          \"company\": \"Tech Corp\"\n        }\n      },\n      \"accessControl\": {\n        \"isEncrypted\": false,\n        \"accessLevel\": \"public\"\n      }\n    },\n    \"metadata\": {\n      \"readTime\": \"2024-01-15T10:30:00Z\",\n      \"readerDevice\": \"iPhone 15\"\n    }\n  }\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create NFC Write Scan",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/profiles/{{profile_id}}/scans",
+          "host": ["{{base_url}}"],
+          "path": ["api", "profiles", "{{profile_id}}", "scans"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"nfc-write\",\n  \"data\": {\n    \"nfcData\": {\n      \"operation\": \"write\",\n      \"cardId\": \"NFC_67890\",\n      \"tagInfo\": {\n        \"uid\": \"04:F1:E2:D3:C4:B5:A6\",\n        \"type\": \"NTAG216\",\n        \"capacity\": 924,\n        \"writtenSize\": 156\n      },\n      \"profileData\": {\n        \"profileLink\": \"https://myprofile.app/p/janedoe\",\n        \"connectLink\": \"https://myprofile.app/connect/janedoe\",\n        \"basicInfo\": {\n          \"name\": \"Jane Doe\",\n          \"title\": \"Product Manager\",\n          \"email\": \"jane@example.com\",\n          \"phone\": \"+0987654321\",\n          \"company\": \"Innovation Inc\"\n        }\n      },\n      \"accessControl\": {\n        \"isEncrypted\": true,\n        \"accessLevel\": \"protected\"\n      }\n    },\n    \"metadata\": {\n      \"writeTime\": \"2024-01-15T11:00:00Z\",\n      \"writerDevice\": \"NFC Writer Pro\"\n    }\n  }\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get All Scans for Profile",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/profiles/{{profile_id}}/scans?limit=20&skip=0&sort=-createdAt",
+          "host": ["{{base_url}}"],
+          "path": ["api", "profiles", "{{profile_id}}", "scans"],
+          "query": [
+            { "key": "limit", "value": "20" },
+            { "key": "skip", "value": "0" },
+            { "key": "sort", "value": "-createdAt" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Scans by Type",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/profiles/{{profile_id}}/scans?type=nfc-read&limit=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "profiles", "{{profile_id}}", "scans"],
+          "query": [
+            { "key": "type", "value": "nfc-read" },
+            { "key": "limit", "value": "10" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Scan Statistics",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/profiles/{{profile_id}}/scans/stats",
+          "host": ["{{base_url}}"],
+          "path": ["api", "profiles", "{{profile_id}}", "scans", "stats"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Specific Scan by ID",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/scans/{{scan_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "scans", "{{scan_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update Scan Metadata",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/scans/{{scan_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "scans", "{{scan_id}}"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"metadata\": {\n    \"updated\": true,\n    \"notes\": \"Updated scan metadata\",\n    \"tags\": [\"important\", \"verified\"]\n  }\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete Scan",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/scans/{{scan_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "scans", "{{scan_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create NFC Card",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cardType\": \"basic\",\n  \"configuration\": {\n    \"template\": \"full\",\n    \"fields\": [\"name\", \"email\", \"phone\"]\n  },\n  \"accessControl\": {\n    \"isPublic\": true,\n    \"accessLevel\": \"public\"\n  }\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List NFC Cards",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get NFC Card Details",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards/{{card_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards", "{{card_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update NFC Card Configuration",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards/{{card_id}}/configuration",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards", "{{card_id}}", "configuration"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"configuration\": {\n    \"template\": \"custom\",\n    \"fields\": [\"name\", \"email\", \"website\"]\n  }\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Deactivate NFC Card",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards/{{card_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards", "{{card_id}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Program NFC Card (Server-Side)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards/{{card_id}}/program",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards", "{{card_id}}", "program"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"profileId\": \"{{profile_id}}\",\n  \"readerName\": \"NFC Reader 1\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Batch Program NFC Cards",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards/batch/program",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards", "batch", "program"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cards\": [\n    { \"cardId\": \"{{card_id}}\", \"profileId\": \"{{profile_id}}\" }\n  ],\n  \"readerName\": \"NFC Reader 1\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Verify NFC Card Programming",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards/{{card_id}}/verify",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards", "{{card_id}}", "verify"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"profileId\": \"{{profile_id}}\",\n  \"readerName\": \"NFC Reader 1\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Reprogram NFC Card",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards/{{card_id}}/reprogram",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards", "{{card_id}}", "reprogram"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"profileId\": \"{{profile_id}}\",\n  \"readerName\": \"NFC Reader 1\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Format/Eraser NFC Card",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards/{{card_id}}/format",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards", "{{card_id}}", "format"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"profileId\": \"{{profile_id}}\",\n  \"readerName\": \"NFC Reader 1\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Read NFC Card Data",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards/read",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards", "read"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"readerName\": \"NFC Reader 1\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get NFC Hardware Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/hardware/status",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "hardware", "status"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Initialize NFC Hardware",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/hardware/initialize",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "hardware", "initialize"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get NFC Programming Analytics",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/analytics/programming",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "analytics", "programming"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get NFC Card Analytics",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/cards/{{card_id}}/analytics",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "cards", "{{card_id}}", "analytics"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List NFC Data Templates",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/templates",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "templates"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get NFC Data Template Details",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{auth_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/nfc/templates/full",
+          "host": ["{{base_url}}"],
+          "path": ["api", "nfc", "templates", "full"]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "auth_token", "value": "" },
+    { "key": "user_email", "value": "" },
+    { "key": "user_password", "value": "" },
+    { "key": "user_id", "value": "" },
+    { "key": "otp_code", "value": "" },
+    { "key": "profile_id", "value": "" },
+    { "key": "wallet_item_id", "value": "" },
+    { "key": "album_id", "value": "" },
+    { "key": "card_id", "value": "" },
+    { "key": "scan_id", "value": "" }
+  ]
+}

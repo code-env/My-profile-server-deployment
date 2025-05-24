@@ -70,6 +70,9 @@ const gamification_routes_1 = __importDefault(require("./gamification.routes"));
 const analytics_dashboard_routes_1 = __importDefault(require("./analytics-dashboard.routes"));
 const sessions_routes_1 = __importDefault(require("./sessions.routes"));
 const message_profile_routes_1 = __importDefault(require("./message-profile.routes"));
+const scans_routes_1 = __importDefault(require("./scans.routes"));
+const nfc_routes_1 = __importDefault(require("./nfc.routes"));
+const vault_routes_1 = __importDefault(require("./vault.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
 const express_session_1 = __importDefault(require("express-session"));
@@ -124,6 +127,9 @@ const setupRoutes = (app) => {
     app.use('/api/profile-full', profile_full_routes_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
+    app.use('/api/profiles', auth_middleware_1.protect, scans_routes_1.default);
+    app.use('/api/nfc', auth_middleware_1.protect, nfc_routes_1.default);
+    app.use('/api/vault', auth_middleware_1.protect, vault_routes_1.default);
     // app.use('/api/connections', protect, connectionRoutes);
     app.use('/api/profile-connections', auth_middleware_1.protect, profile_connection_routes_1.default);
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);

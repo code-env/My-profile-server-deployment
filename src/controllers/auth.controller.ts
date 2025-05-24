@@ -110,33 +110,7 @@ async function getClientInfo(req: Request): Promise<{
   };
 }
 
-/**
- * Core user interface defining essential user properties.
- * Used throughout the authentication flow for type safety and
- * data consistency.
- *
- * @interface User
- * @property {string} id - Unique user identifier
- * @property {string} email - User's email address
- * @property {string} fullName - User's full name
- * @property {string} username - User's chosen username
- *
- * Usage:
- * ```typescript
- * const user: User = {
- *   id: '123',
- *   email: 'user@example.com',
- *   fullName: 'John Doe',
- *   username: 'johndoe'
- * };
- * ```
- */
-interface User {
-  id: string;
-  email: string;
-  fullName: string;
-  username: string;
-}
+
 
 /**
  * Extends Express Request to include authenticated user data.
@@ -201,22 +175,7 @@ declare global {
  * ```
  */
 
-// Define a User type with the required properties
-interface User {
-  id: string;
-  email: string;
-  fullName: string;
-  username: string;
-}
 
-// Extend the Express Request interface to include the user property
-declare global {
-  namespace Express {
-    interface Request {
-      user?: User;
-    }
-  }
-}
 
 export class AuthController {
   /**

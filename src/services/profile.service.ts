@@ -578,13 +578,14 @@ export class ProfileService {
   /**
    * Creates a default personal profile for a new user
    * @param userId The user ID
+   * @param userObject Optional user object to avoid additional database query
    * @returns The created profile document
    */
-  async createDefaultProfile(userId: string): Promise<ProfileDocument> {
+  async createDefaultProfile(userId: string, userObject?: any): Promise<ProfileDocument> {
     logger.info(`Creating default personal profile for user ${userId}`);
 
-    // Get user data
-    const user = await User.findById(userId);
+    // Get user data - use provided user object if available to avoid race conditions
+    const user = userObject || await User.findById(userId);
     if (!user) {
       throw createHttpError(404, 'User not found');
     }

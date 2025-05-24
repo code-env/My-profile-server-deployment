@@ -344,7 +344,7 @@ export class SocialAuthController {
           try {
             const { ProfileService } = require('../services/profile.service');
             const profileService = new ProfileService();
-            const profile = await profileService.createDefaultProfile(user._id.toString());
+            const profile = await profileService.createDefaultProfile(user._id.toString(), user);
             logger.info(`Default profile created for new Google user ${user._id}: ${profile._id}`);
 
             // Update user with profile ID

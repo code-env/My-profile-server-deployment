@@ -66,6 +66,9 @@ import gamificationRoutes from './gamification.routes';
 import analyticsDashboardRoutes from './analytics-dashboard.routes';
 import sessionsRoutes from './sessions.routes';
 import messageProfileRoutes from './message-profile.routes';
+import scansRoutes from './scans.routes';
+import nfcRoutes from './nfc.routes';
+import vaultRoutes from './vault.routes';
 import { protect } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
@@ -131,6 +134,9 @@ export const setupRoutes = (app: Application): void => {
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
+  app.use('/api/profiles', protect, scansRoutes);
+  app.use('/api/nfc', protect, nfcRoutes);
+  app.use('/api/vault', protect, vaultRoutes);
   // app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/profile-connections', protect, profileConnectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
