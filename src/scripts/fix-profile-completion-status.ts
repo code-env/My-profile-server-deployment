@@ -49,7 +49,7 @@ async function fixProfileCompletionStatus() {
                                    user.phoneNumber.trim() !== '';
 
         const currentStatus = user.isProfileComplete;
-        
+
         console.log(`\nChecking user: ${user.email} (${user._id})`);
         console.log(`  dateOfBirth: ${user.dateOfBirth || 'missing'}`);
         console.log(`  countryOfResidence: "${user.countryOfResidence || 'missing'}"`);
@@ -73,7 +73,7 @@ async function fixProfileCompletionStatus() {
           console.log(`  ⚠️ Updated user to INCOMPLETE (missing required fields)`);
           incompleteProfilesCount++;
         }
-        
+
         updatedCount++;
       } catch (error) {
         console.error(`  ❌ Error processing user ${user.email}:`, error);

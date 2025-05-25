@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
+import { IUser } from '../models/User';
 
 /**
  * Middleware to check if user has completed their profile
@@ -32,8 +33,8 @@ export const requireProfileCompletion = (req: Request, res: Response, next: Next
     }
 
     // Check if user has completed their profile
-    const isProfileIncomplete = user.isProfileComplete === false || 
-                               !user.countryOfResidence || 
+    const isProfileIncomplete = user.isProfileComplete === false ||
+                               !user.countryOfResidence ||
                                !user.dateOfBirth;
 
     // Only enforce for social auth users
@@ -41,7 +42,7 @@ export const requireProfileCompletion = (req: Request, res: Response, next: Next
 
     if (isSocialAuth && isProfileIncomplete) {
       logger.info(`User ${user._id} (${user.email}) has incomplete profile, requiring completion`);
-      
+
       return res.status(403).json({
         success: false,
         message: 'Profile completion required',
@@ -75,15 +76,15 @@ export const requireProfileCompletionAPI = (req: Request, res: Response, next: N
       return next();
     }
 
-    const isProfileIncomplete = user.isProfileComplete === false || 
-                               !user.countryOfResidence || 
+    const isProfileIncomplete = user.isProfileComplete === false ||
+                               !user.countryOfResidence ||
                                !user.dateOfBirth;
 
     const isSocialAuth = user.signupType && user.signupType !== 'email';
 
     if (isSocialAuth && isProfileIncomplete) {
       logger.info(`API request blocked for incomplete profile: ${user._id} (${user.email})`);
-      
+
       return res.status(403).json({
         success: false,
         message: 'Please complete your profile to access this feature',

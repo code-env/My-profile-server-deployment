@@ -78,6 +78,10 @@ const userSchema = new mongoose_1.Schema({
     },
     phoneNumber: {
         type: String,
+        required: function () {
+            // Only required if not a social login or if social login is complete
+            return !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
+        },
         sparse: true,
     },
     accountType: {
@@ -290,7 +294,15 @@ const userSchema = new mongoose_1.Schema({
     },
     verificationToken: String,
     verificationTokenExpiry: Date,
-    formattedPhoneNumber: String
+    formattedPhoneNumber: String,
+    isProfileComplete: {
+        type: Boolean,
+        default: function () {
+            // Regular email users complete profile during registration
+            // Social auth users need to complete it separately
+            return this.signupType === 'email';
+        }
+    }
 }, {
     timestamps: true,
 });
@@ -330,6 +342,29 @@ userSchema.pre('save', async function (next) {
             logger_1.logger.warn(`Account locked for user ${this.email} due to multiple failed login attempts`);
             this.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
         }
+        // Auto-update profile completion status when profile fields change
+        if (this.isModified('dateOfBirth') || this.isModified('countryOfResidence') || this.isModified('phoneNumber') || this.isNew) {
+            // Log phone number changes for debugging
+            if (this.isModified('phoneNumber')) {
+                logger_1.logger.debug(`Phone number modified for user ${this.email || this._id} - new: ${this.phoneNumber}`);
+            }
+            const hasAllRequiredFields = !!this.dateOfBirth &&
+                !!this.countryOfResidence &&
+                !!this.phoneNumber &&
+                this.countryOfResidence.trim() !== '' &&
+                (this.phoneNumber ? this.phoneNumber.trim() !== '' : false);
+            const previousCompletionStatus = this.isProfileComplete;
+            this.isProfileComplete = hasAllRequiredFields;
+            if (previousCompletionStatus !== this.isProfileComplete) {
+                logger_1.logger.info(`Auto-updated profile completion status for user ${this.email}: ${previousCompletionStatus} -> ${this.isProfileComplete}`);
+                if (this.isProfileComplete) {
+                    logger_1.logger.info(`Profile completion criteria met - dateOfBirth: ${!!this.dateOfBirth}, countryOfResidence: ${!!this.countryOfResidence}, phoneNumber: ${!!this.phoneNumber}`);
+                }
+                else {
+                    logger_1.logger.info(`Profile incomplete - missing fields: ${!this.dateOfBirth ? 'dateOfBirth ' : ''}${!this.countryOfResidence || this.countryOfResidence.trim() === '' ? 'countryOfResidence ' : ''}${!this.phoneNumber || this.phoneNumber.trim() === '' ? 'phoneNumber ' : ''}`);
+                }
+            }
+        }
         // Removed automatic role elevation based on profile count
         // This was a security issue that automatically made users admins if they had multiple profiles
         next();
@@ -361,7 +396,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
     }
 };
 // Create indexes
-// userSchema.index({ phoneNumber: 1 }, { sparse: true });
+userSchema.index({ phoneNumber: 1 }, { sparse: true });
 userSchema.index({ googleId: 1 }, { sparse: true });
 userSchema.index({ facebookId: 1 }, { sparse: true });
 userSchema.index({ linkedinId: 1 }, { sparse: true });

@@ -1,6 +1,6 @@
 /**
  * Script to add the missing isProfileComplete field to users who don't have it
- * 
+ *
  * Run with: npm run add-missing-profile-complete
  */
 
@@ -27,8 +27,8 @@ async function addMissingProfileCompleteField() {
     console.log('Starting to add missing isProfileComplete field...');
 
     // Find all users who don't have the isProfileComplete field
-    const usersWithoutField = await User.find({ 
-      isProfileComplete: { $exists: false } 
+    const usersWithoutField = await User.find({
+      isProfileComplete: { $exists: false }
     });
 
     console.log(`Found ${usersWithoutField.length} users without isProfileComplete field`);

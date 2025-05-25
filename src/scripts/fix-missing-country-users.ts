@@ -181,11 +181,11 @@ async function fixMissingCountryUsers() {
 
     // Generate a summary report
     const summary = {
-      totalUsersFound: usersWithoutCountry.length,
+      totalUsersFound: usersToUpdate.length,
       usersUpdated: updatedUsers,
       profilesUpdated: updatedProfiles,
-      socialAuthUsers: usersWithoutCountry.filter(u => u.signupType !== 'email').length,
-      emailUsers: usersWithoutCountry.filter(u => u.signupType === 'email').length
+      socialAuthUsers: usersToUpdate.filter(u => u.signupType !== 'email').length,
+      emailUsers: usersToUpdate.filter(u => u.signupType === 'email').length
     };
 
     logger.info('Summary Report:', summary);

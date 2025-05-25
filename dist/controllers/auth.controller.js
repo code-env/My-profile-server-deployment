@@ -1771,6 +1771,10 @@ class AuthController {
                     isAdmin: user.role === 'admin',
                     role: user.role,
                     profileImage: user.profileImage,
+                    phoneNumber: user.phoneNumber,
+                    countryOfResidence: user.countryOfResidence,
+                    dateOfBirth: user.dateOfBirth,
+                    isProfileComplete: user.isProfileComplete
                 }
             });
         }

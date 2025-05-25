@@ -14,8 +14,8 @@ const logger_1 = require("../utils/logger");
 const email_service_1 = __importDefault(require("../services/email.service"));
 const whatsapp_service_1 = __importDefault(require("../services/whatsapp.service"));
 const User_1 = require("../models/User");
-// Import the JavaScript version of the controller
-const { AuthUpdateController } = require("../controllers/auth.update.controller");
+// Import the TypeScript version of the controller
+const auth_update_controller_1 = require("../controllers/auth.update.controller");
 const router = express_1.default.Router();
 // API Documentation endpoint
 router.get("/", (req, res) => {
@@ -116,7 +116,11 @@ router.get("/user/info", (req, res) => {
                     linkedinId: user.linkedinId,
                     signupType: user.signupType,
                     isEmailVerified: user.isEmailVerified,
-                    profileImage: user.profileImage
+                    profileImage: user.profileImage,
+                    phoneNumber: user.phoneNumber,
+                    countryOfResidence: user.countryOfResidence,
+                    dateOfBirth: user.dateOfBirth,
+                    isProfileComplete: user.isProfileComplete
                 }
             });
         })
@@ -378,5 +382,5 @@ router.post("/change-email", auth_controller_1.AuthController.changeEmail);
 router.post("/change-phone", auth_controller_1.AuthController.changePhoneNumber);
 router.post("/change-username", auth_controller_1.AuthController.changeUsername);
 // Update profile information
-router.post("/update-profile", authMiddleware_1.authenticateToken, AuthUpdateController.updateProfile);
+router.post("/update-profile", authMiddleware_1.authenticateToken, auth_update_controller_1.AuthUpdateController.updateProfile);
 exports.default = router;
