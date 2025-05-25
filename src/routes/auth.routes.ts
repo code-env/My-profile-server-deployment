@@ -9,8 +9,8 @@ import { logger } from "../utils/logger";
 import EmailService from "../services/email.service";
 import WhatsAppService from "../services/whatsapp.service";
 import { User } from "../models/User";
-// Import the JavaScript version of the controller
-const { AuthUpdateController } = require("../controllers/auth.update.controller");
+// Import the TypeScript version of the controller
+import { AuthUpdateController } from "../controllers/auth.update.controller";
 
 const router = express.Router();
 
@@ -127,7 +127,11 @@ router.get("/user/info", (req, res) => {
             linkedinId: user.linkedinId,
             signupType: user.signupType,
             isEmailVerified: user.isEmailVerified,
-            profileImage: user.profileImage
+            profileImage: user.profileImage,
+            phoneNumber: user.phoneNumber,
+            countryOfResidence: user.countryOfResidence,
+            dateOfBirth: user.dateOfBirth,
+            isProfileComplete: user.isProfileComplete
           }
         });
       })

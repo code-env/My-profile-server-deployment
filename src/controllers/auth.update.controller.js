@@ -19,10 +19,12 @@ class AuthUpdateController {
         });
       }
 
-      const { dateOfBirth, countryOfResidence, referralCode, wasReferred } = req.body;
+      const { dateOfBirth, countryOfResidence, phoneNumber, referralCode, wasReferred } = req.body;
+
+      console.log('Update profile request body:', { dateOfBirth, countryOfResidence, phoneNumber, referralCode, wasReferred });
 
       // Validate that at least one field is provided
-      if (!dateOfBirth && !countryOfResidence && !referralCode) {
+      if (!dateOfBirth && !countryOfResidence && !phoneNumber && !referralCode) {
         return res.status(400).json({
           success: false,
           message: 'No fields to update'
@@ -51,6 +53,25 @@ class AuthUpdateController {
 
       if (countryOfResidence) {
         userToUpdate.countryOfResidence = countryOfResidence;
+      }
+
+      // Handle phone number update
+      if (phoneNumber) {
+        // Validate phone number (minimum 8 characters)
+        if (phoneNumber.length < 8) {
+          return res.status(400).json({
+            success: false,
+            message: 'Phone number must be at least 8 characters long'
+          });
+        }
+
+        // Normalize phone number (remove all non-numeric characters except +)
+        const normalizedPhoneNumber = phoneNumber.replace(/[^\d+]/g, '');
+
+        console.log('Setting phone number:', { original: phoneNumber, normalized: normalizedPhoneNumber });
+
+        userToUpdate.phoneNumber = normalizedPhoneNumber;
+        userToUpdate.formattedPhoneNumber = phoneNumber; // Keep original formatting
       }
 
       // Store the referral code in the tempReferralCode field
@@ -135,6 +156,8 @@ class AuthUpdateController {
           username: userToUpdate.username,
           dateOfBirth: userToUpdate.dateOfBirth,
           countryOfResidence: userToUpdate.countryOfResidence,
+          phoneNumber: userToUpdate.phoneNumber,
+          formattedPhoneNumber: userToUpdate.formattedPhoneNumber,
           profileImage: userToUpdate.profileImage,
           referralCode: userToUpdate.referralCode
         }

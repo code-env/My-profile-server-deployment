@@ -271,22 +271,43 @@ export async function updateUserProfileCountries(userId: string, connectToDb = t
     // Update each profile's country information
     for (const profile of profiles) {
       try {
-        const result = await ProfileModel.updateOne(
-          { _id: profile._id },
-          {
-            $set: {
-              'profileLocation.country': userCountry,
-              'profileLocation.countryCode': countryCode,
-              // Set default coordinates if they don't exist
-              'profileLocation.coordinates.latitude': profile.profileLocation?.coordinates?.latitude || 0,
-              'profileLocation.coordinates.longitude': profile.profileLocation?.coordinates?.longitude || 0
+        // Handle users without country information
+        if (!userCountry || userCountry === 'Unknown') {
+          const result = await ProfileModel.updateOne(
+            { _id: profile._id },
+            {
+              $set: {
+                'profileLocation.country': 'Not Specified',
+                'profileLocation.countryCode': '',
+                // Set default coordinates if they don't exist
+                'profileLocation.coordinates.latitude': profile.profileLocation?.coordinates?.latitude || 0,
+                'profileLocation.coordinates.longitude': profile.profileLocation?.coordinates?.longitude || 0
+              }
             }
-          }
-        );
+          );
 
-        if (result.modifiedCount > 0) {
-          updatedCount++;
-          logger.info(`Updated profile ${profile._id} for user ${userId} with country: ${userCountry}, code: ${countryCode}`);
+          if (result.modifiedCount > 0) {
+            updatedCount++;
+            logger.info(`Updated profile ${profile._id} for user ${userId} with placeholder country (user has no country info)`);
+          }
+        } else {
+          const result = await ProfileModel.updateOne(
+            { _id: profile._id },
+            {
+              $set: {
+                'profileLocation.country': userCountry,
+                'profileLocation.countryCode': countryCode,
+                // Set default coordinates if they don't exist
+                'profileLocation.coordinates.latitude': profile.profileLocation?.coordinates?.latitude || 0,
+                'profileLocation.coordinates.longitude': profile.profileLocation?.coordinates?.longitude || 0
+              }
+            }
+          );
+
+          if (result.modifiedCount > 0) {
+            updatedCount++;
+            logger.info(`Updated profile ${profile._id} for user ${userId} with country: ${userCountry}, code: ${countryCode}`);
+          }
         }
       } catch (error) {
         logger.error(`Error updating profile ${profile._id} for user ${userId}:`, error);

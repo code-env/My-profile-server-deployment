@@ -249,7 +249,7 @@ async function updateProfileCountries() {
         const countryCode = countryCodeMap[userCountry] || '';
 
         // Update profile with country information using direct MongoDB update
-        if (userCountry) {
+        if (userCountry && userCountry !== 'Unknown') {
           // Use updateOne with $set to update only the specific fields
           const result = await ProfileModel.updateOne(
             { _id: profile._id },
@@ -271,6 +271,26 @@ async function updateProfileCountries() {
             logger.warn(`No changes made to profile ${profile._id}`);
           }
         } else {
+          // For users without country information, set a default placeholder
+          // This prevents the profile from being skipped entirely
+          const result = await ProfileModel.updateOne(
+            { _id: profile._id },
+            {
+              $set: {
+                'profileLocation.country': 'Not Specified',
+                'profileLocation.countryCode': '',
+                // Set default coordinates
+                'profileLocation.coordinates.latitude': 0,
+                'profileLocation.coordinates.longitude': 0
+              }
+            }
+          );
+
+          if (result.modifiedCount > 0) {
+            updatedCount++;
+            logger.info(`Updated profile ${profile._id} with placeholder country (user has no country info)`);
+          }
+
           logger.warn(`User ${user._id} has no country information, skipping profile ${profile._id}`);
         }
       } catch (error) {

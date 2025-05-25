@@ -330,10 +330,11 @@ export class SocialAuthController {
             // They will be collected in the complete-profile page
             dateOfBirth: undefined,
             countryOfResidence: undefined,
-            phoneNumber: '', // Empty phone number
+            phoneNumber: undefined, // Will be collected in profile completion
             accountType: 'MYSELF', // Default account type
             accountCategory: 'PRIMARY_ACCOUNT', // Default account category
             verificationMethod: 'EMAIL', // Default verification method
+            isProfileComplete: false, // Social auth users need to complete their profile
             password: await SocialAuthController.generateRandomPassword() // Generate a random password
           });
 
@@ -537,8 +538,10 @@ export class SocialAuthController {
           signupType: user.signupType,
           isEmailVerified: user.isEmailVerified,
           profileImage: user.profileImage,
+          phoneNumber: user.phoneNumber, // Include phone number
           dateOfBirth: user.dateOfBirth, // Include date of birth
           countryOfResidence: user.countryOfResidence, // Include country of residence
+          isProfileComplete: user.isProfileComplete, // Include profile completion status
           profileId: profileId, // Include profile ID in response
           profiles: user.profiles ? user.profiles.map(p => p.toString()) : [] // Include all profiles
         }

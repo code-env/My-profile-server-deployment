@@ -85,8 +85,11 @@ passport.use(
               signupType: 'google',
               isEmailVerified: true,
               password: 'oauth2-user-no-password', // This will be hashed by the User model
-              dateOfBirth: new Date(),
-              countryOfResidence: 'Unknown',
+              // Set these fields to undefined to avoid validation errors
+              // They will be collected in the complete-profile page
+              dateOfBirth: undefined,
+              countryOfResidence: undefined,
+              phoneNumber: undefined, // Will be collected in profile completion,
               accountType: 'MYSELF',
               accountCategory: 'PRIMARY_ACCOUNT',
               verificationMethod: 'EMAIL',
