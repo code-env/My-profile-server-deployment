@@ -8,7 +8,7 @@ import { IUser } from '../models/User';
  */
 export const requireProfileCompletion = (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = req.user;
+    const user = req.user as IUser;
 
     // Skip check if no user (will be handled by auth middleware)
     if (!user) {
@@ -70,7 +70,7 @@ export const requireProfileCompletion = (req: Request, res: Response, next: Next
  */
 export const requireProfileCompletionAPI = (req: Request, res: Response, next: NextFunction) => {
   try {
-    const user = req.user;
+    const user = req.user as IUser;
 
     if (!user) {
       return next();
