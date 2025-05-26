@@ -57,6 +57,7 @@ const admin_notification_routes_1 = __importDefault(require("./admin-notificatio
 const index_1 = __importDefault(require("./admin/index"));
 const stripe_routes_1 = __importDefault(require("./stripe.routes"));
 const task_routes_1 = __importDefault(require("./task.routes"));
+const settings_routes_1 = __importDefault(require("./settings.routes"));
 const list_routes_1 = __importDefault(require("./list.routes"));
 const event_routes_1 = __importDefault(require("./event.routes"));
 const interaction_routes_1 = __importDefault(require("./interaction.routes"));
@@ -125,6 +126,8 @@ const setupRoutes = (app) => {
     app.use('/api/users', user_routes_1.default);
     app.use('/api/auth/social', auth_social_routes_1.default);
     app.use('/api/profile-full', profile_full_routes_1.default);
+    // settings routes
+    app.use('/api/settings', auth_middleware_1.protect, settings_routes_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     app.use('/api/profiles', auth_middleware_1.protect, scans_routes_1.default);

@@ -53,6 +53,7 @@ import adminNotificationRoutes from './admin-notification.routes';
 import adminModuleRoutes from './admin/index';
 import stripeRoutes from './stripe.routes';
 import taskRoutes from './task.routes';
+import settingsRoutes from './settings.routes';
 import listRoutes from './list.routes';
 import eventRoutes from './event.routes';
 import interactionRoutes from './interaction.routes';
@@ -131,6 +132,9 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/users', userRoutes);
   app.use('/api/auth/social', socialAuthRoutes);
   app.use('/api/profile-full', profileFullRoutes);
+
+    // settings routes
+  app.use('/api/settings', protect, settingsRoutes);
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
