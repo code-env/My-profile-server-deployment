@@ -1,5 +1,6 @@
 import { SettingsModel, SettingsDocument } from "../models/settings";
 import { FilterQuery, UpdateQuery } from "mongoose";
+import {User} from '../models/User'
 
 export class SettingsService {
   /**
@@ -82,6 +83,34 @@ return  await defaultSettings.save()
 
   }
 
+   /**
+   * Generate default settings for all users who don't have settings yet
+   */
+   async generateDefaultsForAllUsers(): Promise<void> {
+    const users = await User.find({}, "_id").lean();
+    const userIds = users.map((u: any) => u._id.toString());
+
+    const settings = await SettingsModel.find(
+      { userId: { $in: userIds } },
+      "userId"
+    ).lean();
+
+    const usersWithSettings = new Set(
+      settings.map((s: any) => s.userId.toString())
+    );
+
+    const usersWithoutSettings = userIds.filter(
+      (id) => !usersWithSettings.has(id)
+    );
+
+    for (const userId of usersWithoutSettings) {
+      await this.createDefault(userId);
+    }
+  }
+
+
+
+
   /**
    * Get user settings
    * @param userId - User ID
@@ -111,6 +140,8 @@ return  await defaultSettings.save()
     ).lean();
   }
 }
+
+
 
 /**
  * Utility to deeply flatten an object into dot notation
