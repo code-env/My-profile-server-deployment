@@ -41,6 +41,11 @@ const connectionSchema = new mongoose_1.Schema({
         ref: 'Users',
         required: true,
     },
+    fromProfile: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'Profile',
+        required: true,
+    },
     toProfile: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: 'Profile',
@@ -48,59 +53,32 @@ const connectionSchema = new mongoose_1.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'accepted', 'rejected', 'blocked'],
+        enum: ['pending', 'accepted', 'rejected'],
         default: 'pending',
     },
     connectionType: {
         type: String,
-        enum: ['follow', 'connect', 'business', 'donation'],
+        enum: ['follow', 'connect'],
         required: true,
     },
-    message: {
+    connectionCategory: {
         type: String,
-        trim: true,
-    },
-    amount: {
-        type: Number,
-        min: 0,
-    },
-    employmentDetails: {
-        position: String,
-        company: String,
-        salary: String,
-        startDate: Date,
+        enum: ['connection', 'affiliation'],
+        required: true,
     },
     metadata: {
         type: Map,
         of: mongoose_1.Schema.Types.Mixed,
     },
-    lastInteractionAt: {
-        type: Date,
-        default: Date.now,
+    source: {
+        type: String,
+        enum: ['link', 'qrcode', 'direct'],
+        default: 'direct',
     },
-    interactionStats: {
-        views: { type: Number, default: 0 },
-        messages: { type: Number, default: 0 },
-        engagements: { type: Number, default: 0 },
-        endorsements: { type: Number, default: 0 },
-        shares: { type: Number, default: 0 },
-    },
-    strengthScores: [{
-            score: Number,
-            timestamp: { type: Date, default: Date.now },
-            factors: {
-                interactionFrequency: Number,
-                mutualConnections: Number,
-                engagementDuration: Number,
-                sharedInterests: Number,
-                messageFrequency: Number,
-            },
-        }],
 }, {
     timestamps: true,
 });
 // Indexes
-connectionSchema.index({ fromUser: 1, toProfile: 1 }, { unique: true });
+connectionSchema.index({ fromProfile: 1, toProfile: 1 }, { unique: true });
 connectionSchema.index({ status: 1 });
-connectionSchema.index({ lastInteractionAt: 1 });
 exports.Connection = mongoose_1.default.model('Connections', connectionSchema);
