@@ -23,12 +23,23 @@ export class SettingsController {
     }
   };
 
+  public generatesettings = async (req:Request, res:Response): Promise<void> => {
+    try {
+
+      await this.settingsService.generateDefaultsForAllUsers()
+      res.status(200).json("settings generated for all users that did not have. ")
+      
+    } catch (error:any) {
+      res.status(500).json({message:"failed to generate settings",error:error.message})
+      
+    }
+  }
+
   // GET /settings/:userId
   public getSettings = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { userId } = req.params;
-
-      if (!userId) throw createHttpError(400, 'userId is required');
+      const userId = (req.user as any)?._id;
+      if (!userId) throw createHttpError(401, 'Unauthorized');
 
       const settings = await this.settingsService.getSettings(userId);
       if (!settings) throw createHttpError(404, 'Settings not found');
