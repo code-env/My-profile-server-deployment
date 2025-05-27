@@ -2,37 +2,17 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IConnection extends Document {
   fromUser: mongoose.Types.ObjectId;
+  fromProfile: mongoose.Types.ObjectId;
   toProfile: mongoose.Types.ObjectId;
-  status: 'pending' | 'accepted' | 'rejected' | 'blocked';
-  connectionType: 'follow' | 'connect' | 'business' | 'donation';
-  message?: string;
-  amount?: number; 
-  employmentDetails?: {
-    position?: string;
-    company?: string;
-    salary?: string;
-    startDate?: Date;
-  };
+  status: 'pending' | 'accepted' | 'rejected' | 'disconnect' | 'unfollow' | 'unaffiliate';
+  connectionType: 'follow' | 'connect';
+  connectionCategory: 'connection' | 'affiliation'
+  coonectionReason?: string;
+  exchangeInformationfor?: string;
+
   metadata?: Record<string, any>;
+  source?: 'link' | 'qrcode' | 'direct'
   lastInteractionAt?: Date;
-  interactionStats?: {
-    views: number;
-    messages: number;
-    engagements: number;
-    endorsements: number;
-    shares: number;
-  };
-  strengthScores?: {
-    score: number;
-    timestamp: Date;
-    factors: {
-      interactionFrequency: number;
-      mutualConnections: number;
-      engagementDuration: number;
-      sharedInterests: number;
-      messageFrequency: number;
-    };
-  }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +24,11 @@ const connectionSchema = new Schema<IConnection>(
       ref: 'Users',
       required: true,
     },
+    fromProfile: {
+      type: Schema.Types.ObjectId,
+      ref: 'Profile',
+      required: true,
+    },
     toProfile: {
       type: Schema.Types.ObjectId,
       ref: 'Profile',
@@ -51,54 +36,31 @@ const connectionSchema = new Schema<IConnection>(
     },
     status: {
       type: String,
-      enum: ['pending', 'accepted', 'rejected', 'blocked'],
+      enum: ['pending', 'accepted', 'rejected'],
       default: 'pending',
     },
     connectionType: {
       type: String,
-      enum: ['follow', 'connect', 'business', 'donation'],
+      enum: ['follow', 'connect'],
       required: true,
     },
-    message: {
+    connectionCategory: {
       type: String,
-      trim: true,
+      enum: ['connection', 'affiliation'],
+      required: true,
     },
-    amount: {
-      type: Number,
-      min: 0,
-    },
-    employmentDetails: {
-      position: String,
-      company: String,
-      salary: String,
-      startDate: Date,
-    },
+    
+   
     metadata: {
       type: Map,
       of: Schema.Types.Mixed,
     },
-    lastInteractionAt: {
-      type: Date,
-      default: Date.now,
+
+    source: {
+      type: String,
+      enum: ['link', 'qrcode', 'direct'],
+      default: 'direct',
     },
-    interactionStats: {
-      views: { type: Number, default: 0 },
-      messages: { type: Number, default: 0 },
-      engagements: { type: Number, default: 0 },
-      endorsements: { type: Number, default: 0 },
-      shares: { type: Number, default: 0 },
-    },
-    strengthScores: [{
-      score: Number,
-      timestamp: { type: Date, default: Date.now },
-      factors: {
-        interactionFrequency: Number,
-        mutualConnections: Number,
-        engagementDuration: Number,
-        sharedInterests: Number,
-        messageFrequency: Number,
-      },
-    }],
   },
   {
     timestamps: true,
@@ -106,8 +68,8 @@ const connectionSchema = new Schema<IConnection>(
 );
 
 // Indexes
-connectionSchema.index({ fromUser: 1, toProfile: 1 }, { unique: true });
+connectionSchema.index({ fromProfile:1, toProfile: 1 }, { unique: true });
 connectionSchema.index({ status: 1 });
-connectionSchema.index({ lastInteractionAt: 1 });
+
 
 export const Connection = mongoose.model<IConnection>('Connections', connectionSchema);
