@@ -2,6 +2,8 @@ import { SettingsModel, SettingsDocument } from "../models/settings";
 import { FilterQuery, UpdateQuery } from "mongoose";
 import {User} from '../models/User'
 import { ProfileModel } from "../models/profile.model";
+import { getDefaultProfileSettings } from "../models/profile-types/default-settings";
+import { ProfileDocument } from "../models/profile.model";
 
 export class SettingsService {
   /**
@@ -84,6 +86,8 @@ return  await defaultSettings.save()
 
   }
 
+  
+
    /**
    * Generate default settings for all users who don't have settings yet
    */
@@ -153,6 +157,26 @@ return  await defaultSettings.save()
       { new: true }
     ).lean();
   }
+
+
+  
+async generateProfileSpecificSettingsforAllProfiles(profiles: ProfileDocument[]) {
+    
+  for (const profile of profiles) {
+    const defaultProfileSettings = getDefaultProfileSettings(profile.profileType);
+    if(profile.specificSettings && Object.keys(profile.specificSettings).length > 0) {
+      profile.specificSettings = { ...profile.specificSettings, ...defaultProfileSettings };
+    } else {
+      profile.specificSettings = defaultProfileSettings;
+      await profile.save();
+    }
+  }
+
+
+}
+
+
+
 }
 
 

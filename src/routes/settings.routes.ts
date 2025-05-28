@@ -15,4 +15,6 @@ router.patch("/", settingsController.updateSettings);
 
 router.get("/g/new", settingsController.generatesettings.bind(settingsController));
 
+router.get("/g/profilesettings/all", settingsController.generateProfileSpecificSettingsforAllProfiles.bind(settingsController));
+
 export default router;

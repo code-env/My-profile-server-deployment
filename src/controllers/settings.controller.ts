@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { SettingsService } from "../services/settings.service"
 import createHttpError from 'http-errors';
+import { ProfileModel } from "src/models/profile.model";
 export class SettingsController {
   public settingsService: SettingsService;
 
@@ -75,4 +76,24 @@ export class SettingsController {
       res.status(500).json({ message: "Failed to update settings", error: error.message });
     }
   };
+
+
+
+
+
+
+public generateProfileSpecificSettingsforAllProfiles = async (req:Request, res:Response): Promise<void> => {
+  try {
+    const profiles = await ProfileModel.find({})
+    await this.settingsService.generateProfileSpecificSettingsforAllProfiles(profiles)
+
+    res.status(200).json({message:"profile specific settings generated for all profiles"})
+  } catch (error:any) {
+    res.status(500).json({message:"failed to generate profile specific settings",error:error.message})
+  }
+}
+
+
+
+
 }
