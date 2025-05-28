@@ -1,12 +1,10 @@
 import { Router } from 'express';
 import { OrganizationController } from '../controllers/organization.controller';
 import { protect } from '../middleware/auth.middleware';
-import multer from 'multer';
-import { uploadToCloudinary } from '../middleware/upload.middleware';
+import { uploadSingle } from '../middleware/upload.middleware';
 
 const router = Router();
 const organizationController = new OrganizationController();
-const upload = multer({ storage: multer.memoryStorage() });
 
 // Create organization
 router.post('/', protect, organizationController.createOrganization);
@@ -24,8 +22,7 @@ router.delete('/:id', protect, organizationController.deleteOrganization);
 router.post(
   '/:id/logo',
   protect,
-  upload.single('logo'),
-  uploadToCloudinary,
+  uploadSingle('logo'),
   organizationController.uploadLogo
 );
 
@@ -33,8 +30,7 @@ router.post(
 router.post(
   '/:id/cover',
   protect,
-  upload.single('cover'),
-  uploadToCloudinary,
+  uploadSingle('cover'),
   organizationController.uploadCoverImage
 );
 

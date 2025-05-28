@@ -6,17 +6,18 @@ import {
     TaskType
 } from '../models/plans-shared';
 import asyncHandler from 'express-async-handler';
-import { Attachment, EndCondition, PriorityLevel, ReminderType, ReminderUnit, RepeatFrequency, TaskCategory, VisibilityType } from '../models/plans-shared';
+import { Attachment, EndCondition, PriorityLevel, ReminderType, ReminderUnit, RepeatFrequency, TaskCategory } from '../models/plans-shared';
 import { emitSocialInteraction } from '../utils/socketEmitter';
 import { vaultService } from '../services/vault.service';
 import createHttpError from 'http-errors';
+import { mapTaskEventDataToInternal, mapTaskEventDataToExternal } from '../utils/visibilityMapper';
 
 
 // Helper function to validate task data
 const validateTaskData = (data: any) => {
     const errors: string[] = [];
 
-    if (!data.name) errors.push('name is required');
+    if (!data.title && !data.name) errors.push('title is required');
 
     // Validate enums
     if (data.priority && !Object.keys(PriorityLevel).includes(data.priority)) {
@@ -28,8 +29,9 @@ const validateTaskData = (data: any) => {
     if (data.status && !Object.keys(TaskStatus).includes(data.status)) {
         errors.push(`status must be one of: ${Object.keys(TaskStatus).join(', ')}`);
     }
-    if (data.visibility && !Object.keys(VisibilityType).includes(data.visibility)) {
-        errors.push(`visibility must be one of: ${Object.keys(VisibilityType).join(', ')}`);
+    // Accept both external (Public, Private, Hidden, Custom) and internal (Public, ConnectionsOnly, OnlyMe, Custom) visibility formats
+    if (data.visibility && !['Public', 'Private', 'Hidden', 'Custom', 'ConnectionsOnly', 'OnlyMe'].includes(data.visibility)) {
+        errors.push(`visibility must be one of: Public, Private, Hidden, Custom`);
     }
 
     if (!data.profile) {
@@ -132,13 +134,13 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
         );
     }
 
-    // Create the task data object
-    const taskData = {
+    // Create the task data object and map visibility from external to internal format
+    const taskData = mapTaskEventDataToInternal({
         ...req.body,
         attachments: uploadedFiles,
         createdBy: user._id,
-        name: req.body.name,
-    };
+        title: req.body.title || req.body.name,
+    });
 
     // Remove any undefined values that might cause validation issues
     Object.keys(taskData).forEach(key => taskData[key] === undefined && delete taskData[key]);
@@ -146,9 +148,13 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
     console.log('Final task data being sent to service:', JSON.stringify(taskData, null, 2));
 
     const task = await taskService.createTask(taskData); // Pass just the taskData
+    
+    // Map the response back to external format
+    const responseTask = mapTaskEventDataToExternal(task);
+    
     res.status(201).json({
         success: true,
-        data: task,
+        data: responseTask,
         message: 'Task created successfully',
     });
 });
@@ -170,10 +176,12 @@ export const getTaskById = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Task has no associated profile');
     }
 
+    // Map the response back to external format
+    const responseTask = mapTaskEventDataToExternal(task);
 
     res.json({
         success: true,
-        data: task,
+        data: responseTask,
         message: 'Task fetched successfully'
     });
 });
@@ -184,6 +192,24 @@ export const getTaskById = asyncHandler(async (req: Request, res: Response) => {
 export const getUserTasks = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
     const filters: any = {};
+
+    // Extract profileId from query parameters
+    const profileId = req.query.profileId as string;
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
+
+    // Extract pagination parameters
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    // Validate pagination parameters
+    if (page < 1) {
+        throw createHttpError(400, 'Page must be greater than 0');
+    }
+    if (limit < 1 || limit > 100) {
+        throw createHttpError(400, 'Limit must be between 1 and 100');
+    }
 
     // Apply filters from query params
     if (req.query.status) filters.status = req.query.status;
@@ -201,10 +227,15 @@ export const getUserTasks = asyncHandler(async (req: Request, res: Response) => 
         filters.toDate = new Date(req.query.toDate as string);
     }
 
-    const tasks = await taskService.getUserTasks(user._id, filters);
+    const result = await taskService.getUserTasks(user._id, profileId, filters, page, limit);
+    
+    // Map the response tasks back to external format
+    const responseTasks = result.tasks.map(task => mapTaskEventDataToExternal(task));
+    
     res.json({
         success: true,
-        data: tasks,
+        data: responseTasks,
+        pagination: result.pagination,
         message: 'Tasks fetched successfully'
     });
 });
@@ -291,16 +322,20 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
 
     }
 
-    const taskData = {
+    const taskData = mapTaskEventDataToInternal({
         ...req.body,
         attachments: uploadedFiles,
         updatedBy: user._id,
-    };
+    });
 
     const task = await taskService.updateTask(req.params.id, user._id, taskData);
+    
+    // Map the response back to external format
+    const responseTask = mapTaskEventDataToExternal(task);
+    
     res.json({
         success: true,
-        data: task,
+        data: responseTask,
         message: 'Task updated successfully'
     });
 });
@@ -436,7 +471,6 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
 
     const updatedTask = await taskService.addComment(
         req.params.id,
-        user._id,
         profileId,
         req.body.text
     );
@@ -484,7 +518,6 @@ export const likeComment = asyncHandler(async (req: Request, res: Response) => {
     const task = await taskService.likeComment(
         req.params.id,
         commentIndex,
-        user._id,
         profileId
     );
 
@@ -519,7 +552,6 @@ export const unlikeComment = asyncHandler(async (req: Request, res: Response) =>
     const task = await taskService.unlikeComment(
         req.params.id,
         commentIndex,
-        user._id,
         profileId
     );
 
@@ -556,6 +588,7 @@ export const addAttachment = asyncHandler(async (req: Request, res: Response) =>
     const task = await taskService.addAttachment(
         req.params.id,
         user._id,
+        req.body.profileId || user.activeProfile,
         attachmentData
     );
 
@@ -583,7 +616,7 @@ export const removeAttachment = asyncHandler(async (req: Request, res: Response)
     const attachmentIndex = parseInt(req.params.attachmentIndex);
     const task = await taskService.removeAttachment(
         req.params.id,
-        user._id,
+        req.body.profileId || user.activeProfile,
         attachmentIndex
     );
 
@@ -634,6 +667,104 @@ export const likeTask = asyncHandler(async (req: Request, res: Response) => {
         success: true,
         data: task,
         message: 'Task liked successfully'
+    });
+});
+
+// @desc    Update task settings
+// @route   PUT /tasks/:id/settings
+// @access  Private
+export const updateTaskSettings = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+    const taskId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(taskId)) {
+        throw createHttpError(400, 'Invalid task ID');
+    }
+
+    const settingsUpdate = req.body;
+
+    // Validate settings structure
+    if (settingsUpdate.visibility && settingsUpdate.visibility.level) {
+        const validLevels = ['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom'];
+        if (!validLevels.includes(settingsUpdate.visibility.level)) {
+            throw createHttpError(400, `visibility.level must be one of: ${validLevels.join(', ')}`);
+        }
+    }
+
+    const updatedTask = await taskService.updateTaskSettings(taskId, user._id, settingsUpdate);
+
+    res.json({
+        success: true,
+        data: updatedTask,
+        message: 'Task settings updated successfully'
+    });
+});
+
+// @desc    Get tasks visible to a user
+// @route   GET /tasks/visible/:userId
+// @access  Private
+export const getVisibleTasks = asyncHandler(async (req: Request, res: Response) => {
+    const viewer: any = req.user!;
+    const targetUserId = req.params.userId;
+
+    if (!mongoose.Types.ObjectId.isValid(targetUserId)) {
+        throw createHttpError(400, 'Invalid user ID');
+    }
+
+    const filters: any = {};
+
+    // Apply filters from query params
+    if (req.query.status) filters.status = req.query.status;
+    if (req.query.priority) filters.priority = req.query.priority;
+    if (req.query.category) filters.category = req.query.category;
+
+    // Date filters
+    if (req.query.fromDate) {
+        filters.fromDate = new Date(req.query.fromDate as string);
+    }
+    if (req.query.toDate) {
+        filters.toDate = new Date(req.query.toDate as string);
+    }
+
+    const tasks = await taskService.getVisibleTasks(viewer._id, targetUserId, filters);
+
+    res.json({
+        success: true,
+        data: tasks,
+        message: 'Visible tasks fetched successfully'
+    });
+});
+
+// @desc    Get task settings
+// @route   GET /tasks/:id/settings
+// @access  Private
+export const getTaskSettings = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+    const taskId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(taskId)) {
+        throw createHttpError(400, 'Invalid task ID');
+    }
+
+    const task = await taskService.getTaskById(taskId);
+    
+    if (!task) {
+        throw createHttpError(404, 'Task not found');
+    }
+
+    // Check if user owns the task or has permission to view settings
+    if (task.createdBy.toString() !== user._id.toString()) {
+        throw createHttpError(403, 'Unauthorized to view task settings');
+    }
+
+    res.json({
+        success: true,
+        data: {
+            settings: task.settings || {},
+            taskId: task._id,
+            title: task.title
+        },
+        message: 'Task settings fetched successfully'
     });
 });
 

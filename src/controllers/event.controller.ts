@@ -8,7 +8,6 @@ import {
     EndCondition,
     ReminderType,
     ReminderUnit,
-    VisibilityType,
     Attachment,
     EventType,
     BookingStatus,
@@ -21,6 +20,7 @@ import { MyPtsModel } from '../models/my-pts.model';
 import { TransactionType } from '../interfaces/my-pts.interface';
 import { User } from '../models/User';
 import { vaultService } from '../services/vault.service';
+import { mapTaskEventDataToInternal, mapTaskEventDataToExternal } from '../utils/visibilityMapper';
 
 const notificationService = new NotificationService();
 
@@ -37,8 +37,8 @@ const validateEventData = (data: any) => {
     if (data.priority && !Object.values(PriorityLevel).includes(data.priority)) {
         errors.push(`priority must be one of: ${Object.values(PriorityLevel).join(', ')}`);
     }
-    if (data.visibility && !Object.values(VisibilityType).includes(data.visibility)) {
-        errors.push(`visibility must be one of: ${Object.values(VisibilityType).join(', ')}`);
+    if (data.visibility && !['Public', 'Private', 'Hidden', 'Custom', 'ConnectionsOnly', 'OnlyMe'].includes(data.visibility)) {
+        errors.push(`visibility must be one of: Public, Private, Hidden, Custom`);
     }
     if (data.eventType && !Object.values(EventType).includes(data.eventType)) {
         errors.push(`eventType must be one of: ${Object.values(EventType).join(', ')}`);
@@ -149,13 +149,13 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
         );
     }
 
-    const eventData = {
+    const eventData = mapTaskEventDataToInternal({
         ...req.body,
         attachments: uploadedFiles,
         createdBy: user._id,
         startTime: new Date(req.body.startTime),
         endTime: new Date(req.body.endTime)
-    };
+    });
 
     const event = await eventService.createEvent(eventData);
 
@@ -189,9 +189,13 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
             });
         }
     }
+    
+    // Map the response back to external format
+    const responseEvent = mapTaskEventDataToExternal(event);
+    
     res.status(201).json({
         success: true,
-        data: event,
+        data: responseEvent,
         message: 'Event created successfully',
     });
 });
@@ -209,18 +213,39 @@ export const getEventById = asyncHandler(async (req: Request, res: Response) => 
         throw createHttpError(404, 'Event not found');
     }
 
+    // Map the response back to external format
+    const responseEvent = mapTaskEventDataToExternal(event);
+
     res.json({
         success: true,
-        data: event,
+        data: responseEvent,
         message: 'Event fetched successfully'
     });
 });
 
-// @desc    Get all events for user
+// @desc    Get user events
 // @route   GET /events
 // @access  Private
 export const getUserEvents = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
+    const profileId = req.body.profileId || user.activeProfile || req.query.profileId;
+    
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
+
+    // Extract pagination parameters
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    // Validate pagination parameters
+    if (page < 1) {
+        throw createHttpError(400, 'Page must be greater than 0');
+    }
+    if (limit < 1 || limit > 100) {
+        throw createHttpError(400, 'Limit must be between 1 and 100');
+    }
+    
     const filters: any = {};
 
     // Apply filters from query params
@@ -240,10 +265,15 @@ export const getUserEvents = asyncHandler(async (req: Request, res: Response) =>
         filters.toDate = new Date(req.query.toDate as string);
     }
 
-    const events = await eventService.getUserEvents(user._id, filters);
+    const result = await eventService.getUserEvents(user._id, profileId, filters, page, limit);
+    
+    // Map each event to external format
+    const mappedEvents = result.events.map(event => mapTaskEventDataToExternal(event));
+    
     res.json({
         success: true,
-        data: events,
+        data: mappedEvents,
+        pagination: result.pagination,
         message: 'Events fetched successfully'
     });
 });
@@ -253,6 +283,11 @@ export const getUserEvents = asyncHandler(async (req: Request, res: Response) =>
 // @access  Private
 export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
+    const profileId = req.body.profileId || user.activeProfile;
+    
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
         throw createHttpError(400, 'Invalid event ID');
@@ -284,7 +319,7 @@ export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
 
                     const uploadResult = await vaultService.uploadAndAddToVault(
                         user._id,
-                        req.body.profileId,
+                        profileId,
                         base64String,
                         type === "Photo" ? "Media" : type === "File" ? "Documents" : "Other",
                         // let the sub category be either Photo, Video, or Audio
@@ -316,17 +351,21 @@ export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
         );
     }
 
-    const eventData = {
+    const eventData = mapTaskEventDataToInternal({
         ...req.body,
         attachments: uploadedFiles,
         startTime: req.body.startTime ? new Date(req.body.startTime) : undefined,
         endTime: req.body.endTime ? new Date(req.body.endTime) : undefined
-    };
+    });
 
-    const event = await eventService.updateEvent(req.params.id, user._id, eventData);
+    const event = await eventService.updateEvent(req.params.id, user._id, profileId, eventData);
+    
+    // Map the response back to external format
+    const responseEvent = mapTaskEventDataToExternal(event);
+    
     res.json({
         success: true,
-        data: event,
+        data: responseEvent,
         message: 'Event updated successfully'
     });
 });
@@ -336,12 +375,17 @@ export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
 // @access  Private
 export const deleteEvent = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
+    const profileId = req.body.profileId || user.activeProfile;
+    
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
         throw createHttpError(400, 'Invalid event ID');
     }
 
-    await eventService.deleteEvent(req.params.id, user._id);
+    await eventService.deleteEvent(req.params.id, user._id, profileId);
     res.json({
         success: true,
         data: null,
@@ -443,6 +487,11 @@ export const deleteAgendaItem = asyncHandler(async (req: Request, res: Response)
 // @access  Private
 export const addAttachment = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
+    const profileId = req.body.profileId || user.activeProfile;
+    
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
         throw createHttpError(400, 'Invalid event ID');
@@ -464,6 +513,7 @@ export const addAttachment = asyncHandler(async (req: Request, res: Response) =>
     const event = await eventService.addAttachment(
         req.params.id,
         user._id,
+        profileId,
         attachmentData
     );
 
@@ -479,6 +529,11 @@ export const addAttachment = asyncHandler(async (req: Request, res: Response) =>
 // @access  Private
 export const removeAttachment = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
+    const profileId = req.body.profileId || user.activeProfile;
+    
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
         throw createHttpError(400, 'Invalid event ID');
@@ -492,6 +547,7 @@ export const removeAttachment = asyncHandler(async (req: Request, res: Response)
     const event = await eventService.removeAttachment(
         req.params.id,
         user._id,
+        profileId,
         attachmentIndex
     );
 

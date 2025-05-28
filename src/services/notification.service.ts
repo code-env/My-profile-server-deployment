@@ -282,12 +282,56 @@ export class NotificationService {
         message: notification.message,
         actionUrl: notification.action?.url || '',
         actionText: notification.action?.text || '',
+        action: notification.action || {},
+        metadata: notification.metadata || {},
         appName: 'MyPts',
-        year: new Date().getFullYear()
+        year: new Date().getFullYear(),
+        baseUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+        unsubscribeToken: user.unsubscribeToken || ''
       };
 
+      // For reminder notifications, use specific templates
+      if (notification.type === 'reminder') {
+        const reminderType = notification.metadata?.reminderType;
+        const relatedModel = notification.relatedTo?.model;
+        
+        if (relatedModel === 'Task') {
+          emailTemplate = 'task-reminder';
+          emailSubject = `Task Reminder: ${notification.metadata?.itemTitle || notification.title}`;
+        } else if (relatedModel === 'Event') {
+          // Check if this is a booking event
+          if (notification.metadata?.eventType === 'booking' || notification.metadata?.eventType === 'Booking') {
+            emailTemplate = 'booking-reminder';
+            emailSubject = `Booking Reminder: ${notification.metadata?.itemTitle || notification.title}`;
+          } else {
+            emailTemplate = 'event-reminder';
+            emailSubject = `Event Reminder: ${notification.metadata?.itemTitle || notification.title}`;
+          }
+        } else if (relatedModel === 'Booking') {
+          emailTemplate = 'booking-reminder';
+          emailSubject = `Booking Reminder: ${notification.metadata?.itemTitle || notification.title}`;
+        } else {
+          // Fallback to general reminder template
+          emailTemplate = 'general-reminder';
+          emailSubject = `Reminder: ${notification.metadata?.itemTitle || notification.title}`;
+        }
+        
+        // Add helper function for date formatting
+        templateData.formatDateTime = (dateString: string) => {
+          if (!dateString) return '';
+          const date = new Date(dateString);
+          return date.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        };
+      }
       // For transaction notifications, use specific templates based on transaction type
-      if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
+      else if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {
         templateData.transactionId = notification.relatedTo.id;
         templateData.metadata = notification.metadata || {};
 

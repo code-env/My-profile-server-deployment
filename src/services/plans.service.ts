@@ -54,7 +54,7 @@ class PlansService {
     /**
      * Get all plans (tasks and events) with filters
      */
-    async getPlans(userId: string, filters: PlansFilter = {}): Promise<PlanItem[]> {
+    async getPlans(userId: string, profileId: string, filters: PlansFilter = {}): Promise<PlanItem[]> {
         const query: any = { createdBy: userId };
 
         // Apply common filters
@@ -98,19 +98,34 @@ class PlansService {
         }
 
         // Fetch tasks, events, and lists based on type filter
-        const [tasks, events, lists] = await Promise.all([
-            filters.type !== 'Event' && filters.type !== 'List' ? taskService.getUserTasks(userId, filters as TaskFilter) : [],
-            filters.type !== 'Task' && filters.type !== 'List' ? eventService.getUserEvents(userId, filters) : [],
-            filters.type !== 'Task' && filters.type !== 'Event' ? listService.getUserLists(userId, {
+        const tasksPromise = filters.type !== 'Event' && filters.type !== 'List' 
+            ? taskService.getUserTasks(userId, profileId, filters as TaskFilter)
+            : Promise.resolve({ tasks: [], pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false } });
+        
+        const eventsPromise = filters.type !== 'Task' && filters.type !== 'List' 
+            ? eventService.getUserEvents(userId, profileId, filters).then(result => result.events)
+            : Promise.resolve([]);
+        
+        const listsPromise = filters.type !== 'Task' && filters.type !== 'Event' 
+            ? listService.getUserLists(userId, {
                 type: filters.listType,
                 importance: filters.importance,
                 search: filters.search
-            }) : []
+            }) 
+            : Promise.resolve([]);
+
+        const [tasksResult, events, lists] = await Promise.all([
+            tasksPromise,
+            eventsPromise,
+            listsPromise
         ]);
+
+        // Extract tasks array from the result
+        const tasks = tasksResult.tasks || [];
 
         // Combine and sort results
         const allPlans = [
-            ...tasks.map(task => ({
+            ...tasks.map((task: any) => ({
                 _id: task._id as Types.ObjectId,
                 type: 'Task' as const,
                 title: task.title,
@@ -165,8 +180,10 @@ class PlansService {
         // Sort by priority, then start time
         return allPlans.sort((a, b) => {
             // First by priority
-            const priorityOrder = { High: 0, Medium: 1, Low: 2 };
-            const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+            const priorityOrder: { [key: string]: number } = { High: 0, Medium: 1, Low: 2 };
+            const aPriority = a.priority as string;
+            const bPriority = b.priority as string;
+            const priorityDiff = priorityOrder[aPriority] - priorityOrder[bPriority];
             if (priorityDiff !== 0) return priorityDiff;
 
             // Then by start time
