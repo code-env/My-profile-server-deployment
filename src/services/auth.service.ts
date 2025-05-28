@@ -14,6 +14,10 @@ import WhatsAppService from "./whatsapp.service";
 import { CustomError } from "../utils/errors";
 import { sanitizeFilter } from "mongoose";
 import { ProfileReferralService } from "./profile-referral.service";
+import { SettingsService } from "./settings.service";
+
+
+const settingsService = new SettingsService();
 
 /**
  * Advanced Authentication & Authorization Service
@@ -111,6 +115,8 @@ export class AuthService {
         },
       })) as any;
 
+      await settingsService.createDefault(createdUser._id);
+
       // Add the referral code to the created user object and save it to DB
       // This will be used during profile creation
       if (referralCode) {
@@ -118,6 +124,8 @@ export class AuthService {
         await createdUser.save();
         logger.info(`Added temporary referral code to user object: ${referralCode}`);
       }
+
+      
 
       // Log OTP based on verification method
       if (user.verificationMethod === "EMAIL") {

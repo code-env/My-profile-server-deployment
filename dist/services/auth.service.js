@@ -45,6 +45,8 @@ const crypto_1 = require("../utils/crypto");
 const email_service_1 = __importDefault(require("./email.service"));
 const whatsapp_service_1 = __importDefault(require("./whatsapp.service"));
 const errors_1 = require("../utils/errors");
+const settings_service_1 = require("./settings.service");
+const settingsService = new settings_service_1.SettingsService();
 /**
  * Advanced Authentication & Authorization Service
  * ============================================
@@ -120,6 +122,7 @@ class AuthService {
                     lastAttempt: new Date(),
                 },
             }));
+            await settingsService.createDefault(createdUser._id);
             // Add the referral code to the created user object and save it to DB
             // This will be used during profile creation
             if (referralCode) {
