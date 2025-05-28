@@ -217,7 +217,7 @@ class NotificationService {
         }
     }
     async sendEmailNotification(notification, user) {
-        var _a, _b, _c;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
         try {
             if (!user.email) {
                 logger_1.logger.info(`No email found for user ${user._id}`);
@@ -236,11 +236,58 @@ class NotificationService {
                 message: notification.message,
                 actionUrl: ((_a = notification.action) === null || _a === void 0 ? void 0 : _a.url) || '',
                 actionText: ((_b = notification.action) === null || _b === void 0 ? void 0 : _b.text) || '',
+                action: notification.action || {},
+                metadata: notification.metadata || {},
                 appName: 'MyPts',
-                year: new Date().getFullYear()
+                year: new Date().getFullYear(),
+                baseUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+                unsubscribeToken: user.unsubscribeToken || ''
             };
+            // For reminder notifications, use specific templates
+            if (notification.type === 'reminder') {
+                const reminderType = (_c = notification.metadata) === null || _c === void 0 ? void 0 : _c.reminderType;
+                const relatedModel = (_d = notification.relatedTo) === null || _d === void 0 ? void 0 : _d.model;
+                if (relatedModel === 'Task') {
+                    emailTemplate = 'task-reminder';
+                    emailSubject = `Task Reminder: ${((_e = notification.metadata) === null || _e === void 0 ? void 0 : _e.itemTitle) || notification.title}`;
+                }
+                else if (relatedModel === 'Event') {
+                    // Check if this is a booking event
+                    if (((_f = notification.metadata) === null || _f === void 0 ? void 0 : _f.eventType) === 'booking' || ((_g = notification.metadata) === null || _g === void 0 ? void 0 : _g.eventType) === 'Booking') {
+                        emailTemplate = 'booking-reminder';
+                        emailSubject = `Booking Reminder: ${((_h = notification.metadata) === null || _h === void 0 ? void 0 : _h.itemTitle) || notification.title}`;
+                    }
+                    else {
+                        emailTemplate = 'event-reminder';
+                        emailSubject = `Event Reminder: ${((_j = notification.metadata) === null || _j === void 0 ? void 0 : _j.itemTitle) || notification.title}`;
+                    }
+                }
+                else if (relatedModel === 'Booking') {
+                    emailTemplate = 'booking-reminder';
+                    emailSubject = `Booking Reminder: ${((_k = notification.metadata) === null || _k === void 0 ? void 0 : _k.itemTitle) || notification.title}`;
+                }
+                else {
+                    // Fallback to general reminder template
+                    emailTemplate = 'general-reminder';
+                    emailSubject = `Reminder: ${((_l = notification.metadata) === null || _l === void 0 ? void 0 : _l.itemTitle) || notification.title}`;
+                }
+                // Add helper function for date formatting
+                templateData.formatDateTime = (dateString) => {
+                    if (!dateString)
+                        return '';
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                };
+            }
             // For transaction notifications, use specific templates based on transaction type
-            if (notification.type === 'system_notification' && ((_c = notification.relatedTo) === null || _c === void 0 ? void 0 : _c.model) === 'Transaction') {
+            else if (notification.type === 'system_notification' && ((_m = notification.relatedTo) === null || _m === void 0 ? void 0 : _m.model) === 'Transaction') {
                 templateData.transactionId = notification.relatedTo.id;
                 templateData.metadata = notification.metadata || {};
                 // Add timestamp if not present
