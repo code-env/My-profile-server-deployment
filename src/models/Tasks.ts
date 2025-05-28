@@ -11,7 +11,6 @@ import {
   Reward,
   Attachment,
   Location,
-  VisibilityType,
   TaskCategory,
   PriorityLevel,
   TaskStatus,
@@ -25,6 +24,7 @@ import {
   locationSchema
 } from './plans-shared';
 import { commentSchema } from './plans-shared/comment.schema';
+import { VisibilitySetting, NotificationChannelSettings } from './settings';
 
 export interface ITask extends Document {
   title: string;
@@ -42,7 +42,7 @@ export interface ITask extends Document {
   };
   repeat: RepeatSettings;
   reminders: Reminder[];
-  visibility: VisibilityType;
+  visibility: 'Public' | 'ConnectionsOnly' | 'OnlyMe' | 'Custom';
   participants: mongoose.Types.ObjectId[] | IProfile[];
   reward?: Reward;
   color: string;
@@ -54,11 +54,35 @@ export interface ITask extends Document {
   comments: Comment[];
   location?: Location;
   createdBy: mongoose.Types.ObjectId | IUser;
-  profile?: mongoose.Types.ObjectId | IProfile;
+  profile: mongoose.Types.ObjectId | IProfile;
   updatedAt: Date;
   createdAt: Date;
   relatedList?: mongoose.Types.ObjectId | IList;
   likes: mongoose.Types.ObjectId[];
+  
+  // Settings integration fields
+  settings?: {
+    visibility?: VisibilitySetting;
+    notifications?: {
+      enabled: boolean;
+      channels: NotificationChannelSettings;
+      reminderSettings?: {
+        defaultReminders: number[]; // minutes before task
+        allowCustomReminders: boolean;
+      };
+    };
+    timeSettings?: {
+      useUserTimezone: boolean;
+      bufferTime: number; // minutes
+      defaultDuration: number; // minutes
+    };
+    privacy?: {
+      allowComments: boolean;
+      allowLikes: boolean;
+      allowParticipants: boolean;
+      shareWithConnections: boolean;
+    };
+  };
 }
 
 const subTaskSchema = new Schema<ISubTask>({
@@ -85,8 +109,8 @@ const taskSchema = new Schema<ITask>(
     reminders: [reminderSchema],
     visibility: { 
       type: String, 
-      enum: Object.values(VisibilityType),
-      default: VisibilityType.Public
+      enum: ['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom'],
+      default: 'Public'
     },
     participants: [{
       type: Schema.Types.ObjectId,
@@ -125,7 +149,8 @@ const taskSchema = new Schema<ITask>(
     location: locationSchema,
     profile: { 
       type: Schema.Types.ObjectId, 
-      ref: 'Profile'
+      ref: 'Profile',
+      required: true
     },
     createdBy: { 
       type: Schema.Types.ObjectId,
@@ -136,7 +161,41 @@ const taskSchema = new Schema<ITask>(
       type: Schema.Types.ObjectId,
       ref: 'List'
     },
-    likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }]
+    likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
+    settings: {
+      visibility: {
+        level: { 
+          type: String, 
+          enum: ['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom'], 
+          default: 'ConnectionsOnly' 
+        },
+        customUsers: [{ type: Schema.Types.ObjectId, ref: 'Profile' }]
+      },
+      notifications: {
+        enabled: { type: Boolean, default: true },
+        channels: {
+          push: { type: Boolean, default: true },
+          text: { type: Boolean, default: false },
+          inApp: { type: Boolean, default: true },
+          email: { type: Boolean, default: false }
+        },
+        reminderSettings: {
+          defaultReminders: { type: [Number], default: [15, 60] }, // 15 min and 1 hour before
+          allowCustomReminders: { type: Boolean, default: true }
+        }
+      },
+      timeSettings: {
+        useUserTimezone: { type: Boolean, default: true },
+        bufferTime: { type: Number, default: 0 }, // minutes
+        defaultDuration: { type: Number, default: 60 } // 1 hour default
+      },
+      privacy: {
+        allowComments: { type: Boolean, default: true },
+        allowLikes: { type: Boolean, default: true },
+        allowParticipants: { type: Boolean, default: true },
+        shareWithConnections: { type: Boolean, default: false }
+      }
+    }
   },
   {
     timestamps: true,

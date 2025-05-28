@@ -28,6 +28,7 @@ class CloudinaryService {
             api_key: process.env.CLOUDINARY_API_KEY,
             api_secret: process.env.CLOUDINARY_API_SECRET,
             secure: true,
+            timeout: 120000, // 2 minutes timeout
         });
     }
 
@@ -47,6 +48,7 @@ class CloudinaryService {
                 transformation: options.transformation,
                 overwrite: options.overwrite,
                 tags: options.tags,
+                timeout: 120000, // 2 minutes timeout
             };
 
             const file = Buffer.isBuffer(fileData) ? `data:application/octet-stream;base64,${fileData.toString('base64')}` : fileData;
@@ -59,10 +61,12 @@ class CloudinaryService {
 
     public async uploadAndReturnAllInfo(
         fileData: string | Buffer,
-        options: UploadOptions = {}
+        options: UploadOptions = {},
+        retryCount: number = 0
     ): Promise<UploadApiResponse> {
+        const maxRetries = 3;
+        
         try {
-
             console.log('Uploading file with options:', options);
             const uploadOptions = {
                 folder: options.folder,
@@ -70,13 +74,23 @@ class CloudinaryService {
                 transformation: options.transformation,
                 overwrite: options.overwrite,
                 tags: options.tags,
+                timeout: 120000, // 2 minutes timeout
             };
 
             console.log('Uploading file with options:', uploadOptions);
             const file = Buffer.isBuffer(fileData) ? `data:application/octet-stream;base64,${fileData.toString('base64')}` : fileData;
             return await cloudinary.uploader.upload(file, uploadOptions);
         } catch (error) {
-            this.handleUploadError(error as UploadApiErrorResponse);
+            const uploadError = error as UploadApiErrorResponse;
+            
+            // Retry on timeout errors
+            if ((uploadError.error?.name === 'TimeoutError' || uploadError.error?.http_code === 499) && retryCount < maxRetries) {
+                console.log(`Upload timeout, retrying... (attempt ${retryCount + 1}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Progressive delay
+                return this.uploadAndReturnAllInfo(fileData, options, retryCount + 1);
+            }
+            
+            this.handleUploadError(uploadError);
         }
     }
 
@@ -131,15 +145,27 @@ class CloudinaryService {
      * Upload image (supports JPG, PNG, WebP, GIF, etc.)
      */
     public async uploadImage(
-        base64Data: string,
+        fileData: string | Express.Multer.File,
         options: UploadOptions = {}
-    ): Promise<string> {
-        this.validateBase64Data(base64Data, 'image');
-        const { data, extension } = this.extractBase64Data(base64Data);
-        return this.upload(`data:image/${extension};base64,${data}`, {
-            ...options,
-            resourceType: 'image'
-        });
+    ): Promise<UploadApiResponse> {
+        if (typeof fileData === 'string') {
+            this.validateBase64Data(fileData, 'image');
+            const { data, extension } = this.extractBase64Data(fileData);
+            const result = await this.uploadAndReturnAllInfo(`data:image/${extension};base64,${data}`, {
+                ...options,
+                resourceType: 'image'
+            });
+            return result;
+        } else {
+            // Handle Express.Multer.File
+            const base64Data = fileData.buffer.toString('base64');
+            const mimeType = fileData.mimetype;
+            const result = await this.uploadAndReturnAllInfo(`data:${mimeType};base64,${base64Data}`, {
+                ...options,
+                resourceType: 'image'
+            });
+            return result;
+        }
     }
 
     /**
@@ -200,6 +226,13 @@ class CloudinaryService {
             ...options,
             resourceType: 'raw'
         });
+    }
+
+    /**
+     * Delete image by public ID
+     */
+    public async deleteImage(publicId: string): Promise<DeleteApiResponse> {
+        return this.delete(publicId, { resourceType: 'image' });
     }
 
     // ==================== UTILITY METHODS ====================
@@ -285,7 +318,25 @@ class CloudinaryService {
 
     private handleUploadError(error: UploadApiErrorResponse): never {
         console.error('Cloudinary upload error:', error);
-        throw new Error(`Upload failed: ${error.message || 'Unknown error'}`);
+        
+        // Handle specific error types
+        if (error.error?.name === 'TimeoutError' || error.error?.http_code === 499) {
+            throw new Error('Upload failed: Request timeout. The file may be too large or the connection is slow. Please try again.');
+        }
+        
+        if (error.error?.http_code === 400) {
+            throw new Error('Upload failed: Invalid file format or corrupted file.');
+        }
+        
+        if (error.error?.http_code === 401) {
+            throw new Error('Upload failed: Authentication error. Please check Cloudinary credentials.');
+        }
+        
+        if (error.error?.http_code === 413) {
+            throw new Error('Upload failed: File too large. Please reduce file size and try again.');
+        }
+        
+        throw new Error(`Upload failed: ${error.error?.message || error.message || 'Unknown error'}`);
     }
 
     async moveToArchive(publicId: string): Promise<void> {

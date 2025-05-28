@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { IList, List, ListItem } from '../models/List';
-import { VisibilityType } from '../models/plans-shared';
+import { mapExternalToInternal } from '../utils/visibilityMapper';
 
 class ListService {
   /**
@@ -10,11 +10,11 @@ class ListService {
     const list = new List({
       ...listData,
       createdBy: userId,
-      visibility: listData.visibility || VisibilityType.Public,
+      visibility: listData.visibility ? mapExternalToInternal(listData.visibility as any) : 'Public',
     });
 
     await list.save();
-    return list;
+    return list.toObject();
   }
 
   /**
@@ -88,6 +88,11 @@ class ListService {
    * Update a list
    */
   async updateList(listId: string, userId: string, updateData: Partial<IList>) {
+    // Map visibility if provided
+    if (updateData.visibility) {
+      updateData.visibility = mapExternalToInternal(updateData.visibility as any);
+    }
+
     const list = await List.findOneAndUpdate(
       { _id: listId, createdBy: userId },
       updateData,
@@ -98,7 +103,7 @@ class ListService {
       throw new Error('List not found or access denied');
     }
 
-    return list;
+    return list.toObject();
   }
 
   /**
@@ -123,7 +128,7 @@ class ListService {
     
     list.items.push(itemData);
     await list.save();
-    return list;
+    return list.toObject();
   }
 
   /**
@@ -141,7 +146,7 @@ class ListService {
     if (!item) throw new Error('Item not found');
     Object.assign(item, updateData);
     await list.save();
-    return list;
+    return list.toObject();
   }
 
   /**
@@ -156,7 +161,7 @@ class ListService {
     const itemIndex = list.items.indexOf(item);
     list.items.splice(itemIndex, 1);
     await list.save();
-    return list;
+    return list.toObject();
   }
 
   /**
@@ -174,7 +179,7 @@ class ListService {
       item.completedAt = undefined;
     }
     await list.save();
-    return list;
+    return list.toObject();
   }
 
   /**
@@ -202,107 +207,82 @@ class ListService {
     list.comments.push(comment);
     await list.save();
 
-    return list;
+    return list.toObject() as IList;
   }
 
   /**
    * Like a comment on a list
    */
   async likeComment(listId: string, commentIndex: number, userId: string, profileId: string) {
-    const list = await List.findOne({ _id: listId });
-    if (!list) {
-      throw new Error('List not found');
-    }
-
+    const list = await List.findById(listId);
+    if (!list) throw new Error('List not found');
     if (commentIndex < 0 || commentIndex >= list.comments.length) {
-      throw new Error('Invalid comment index');
+      throw new Error('Comment not found');
     }
-
     const comment = list.comments[commentIndex];
     const profileIdObj = new mongoose.Types.ObjectId(profileId);
-
-    // Add the like if not already present
-    if (!comment.likes.some(id => id.equals(profileIdObj))) {
-      comment.likes.push(profileIdObj);
+    if (comment.likes.some(id => id.toString() === profileId)) {
+      throw new Error('Comment already liked');
     }
-
+    comment.likes.push(profileIdObj);
     await list.save();
-    return list;
+    return list.toObject();
   }
 
   /**
    * Unlike a comment on a list
    */
   async unlikeComment(listId: string, commentIndex: number, userId: string, profileId: string) {
-    const list = await List.findOne({ _id: listId });
-    if (!list) {
-      throw new Error('List not found');
-    }
-
+    const list = await List.findById(listId);
+    if (!list) throw new Error('List not found');
     if (commentIndex < 0 || commentIndex >= list.comments.length) {
-      throw new Error('Invalid comment index');
+      throw new Error('Comment not found');
     }
-
     const comment = list.comments[commentIndex];
-    const profileIdObj = new mongoose.Types.ObjectId(profileId);
-
-    // Remove the like if present
-    comment.likes = comment.likes.filter(id => !id.equals(profileIdObj));
-
+    const likeIndex = comment.likes.findIndex(id => id.toString() === profileId);
+    if (likeIndex === -1) {
+      throw new Error('Comment not liked');
+    }
+    comment.likes.splice(likeIndex, 1);
     await list.save();
-    return list;
+    return list.toObject();
   }
 
   /**
    * Like a list
    */
   async likeList(listId: string, userId: string, profileId: string) {
-    const list = await List.findOneAndUpdate(
-      { 
-        _id: listId,
-        'likes.profile': { $ne: new mongoose.Types.ObjectId(profileId) }
-      },
-      {
-        $push: {
-          likes: {
-            profile: new mongoose.Types.ObjectId(profileId),
-            createdAt: new Date()
-          }
-        }
-      },
-      { new: true }
-    );
-
-    if (!list) {
-      throw new Error('List not found or already liked');
+    const list = await List.findById(listId);
+    if (!list) throw new Error('List not found');
+    const existingLike = list.likes.find(like => like.profile.toString() === profileId);
+    if (existingLike) {
+      throw new Error('List already liked');
     }
-
-    return list;
+    list.likes.push({
+      profile: new mongoose.Types.ObjectId(profileId),
+      createdAt: new Date()
+    });
+    await list.save();
+    return list.toObject();
   }
 
   /**
    * Unlike a list
    */
   async unlikeList(listId: string, userId: string, profileId: string) {
-    const list = await List.findOneAndUpdate(
-      { _id: listId },
-      {
-        $pull: {
-          likes: { profile: new mongoose.Types.ObjectId(profileId) }
-        }
-      },
-      { new: true }
-    );
-
-    if (!list) {
-      throw new Error('List not found');
+    const list = await List.findById(listId);
+    if (!list) throw new Error('List not found');
+    const likeIndex = list.likes.findIndex(like => like.profile.toString() === profileId);
+    if (likeIndex === -1) {
+      throw new Error('List not liked');
     }
-
-    return list;
+    list.likes.splice(likeIndex, 1);
+    await list.save();
+    return list.toObject();
   }
 
   /**
-   * Assign a list item to a profile
+   * Assign an item to a profile
    */
   async assignItemToProfile(listId: string, userId: string, itemId: string, profileId: string) {
     const list = await List.findOne({ _id: listId, createdBy: userId });
@@ -311,7 +291,7 @@ class ListService {
     if (!item) throw new Error('Item not found');
     item.assignedTo = new mongoose.Types.ObjectId(profileId);
     await list.save();
-    return list;
+    return list.toObject();
   }
 
   /**
@@ -320,11 +300,11 @@ class ListService {
   async addParticipant(listId: string, userId: string, profileId: string) {
     const list = await List.findOne({ _id: listId, createdBy: userId });
     if (!list) throw new Error('List not found or access denied');
-    if (!list.participants.some(pid => pid.toString() === profileId)) {
+    if (!list.participants.includes(new mongoose.Types.ObjectId(profileId))) {
       list.participants.push(new mongoose.Types.ObjectId(profileId));
-      await list.save();
     }
-    return list;
+    await list.save();
+    return list.toObject();
   }
 
   /**
@@ -333,9 +313,9 @@ class ListService {
   async removeParticipant(listId: string, userId: string, profileId: string) {
     const list = await List.findOne({ _id: listId, createdBy: userId });
     if (!list) throw new Error('List not found or access denied');
-    list.participants = list.participants.filter(pid => pid.toString() !== profileId);
+    list.participants = list.participants.filter(p => p.toString() !== profileId);
     await list.save();
-    return list;
+    return list.toObject();
   }
 
   /**

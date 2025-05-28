@@ -2,13 +2,13 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
 import { ITask } from './Tasks';
 import { IProfile } from '../interfaces/profile.interface';
 import { IUser } from './User';
-import { VisibilityType, Comment, repeatSettingsSchema, reminderSchema, RepeatSettings, Reminder } from './plans-shared';
+import { Comment, repeatSettingsSchema, reminderSchema, RepeatSettings, Reminder } from './plans-shared';
 import { commentSchema } from './plans-shared/comment.schema';
 
 export interface IList extends Document {
   name: string;
   items: ListItem[];
-  visibility: VisibilityType;
+  visibility: 'Public' | 'ConnectionsOnly' | 'OnlyMe' | 'Custom';
   reward?: Reward;
   color: string;
   type: ListType;
@@ -124,8 +124,8 @@ const listSchema = new Schema<IList>(
     items: [listItemSchema],
     visibility: { 
       type: String, 
-      enum: Object.values(VisibilityType),
-      default: VisibilityType.Public
+      enum: ['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom'],
+      default: 'Public'
     },
     reward: rewardSchema,
     color: { type: String, default: '#1DA1F2' },

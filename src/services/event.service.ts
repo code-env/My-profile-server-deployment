@@ -19,6 +19,7 @@ import { MyPtsModel } from '../models/my-pts.model';
 import { TransactionType } from '../interfaces/my-pts.interface';
 import { NotificationService } from '../services/notification.service';
 import participantService from './participant.service';
+import eventSettingsIntegration from '../utils/eventSettingsIntegration';
 
 class EventService {
     private notificationService: NotificationService;
@@ -94,6 +95,14 @@ class EventService {
             throw new Error('Service provider is required for appointments');
         }
 
+        // Apply user's default settings to the event
+        if (eventData.createdBy) {
+            eventData = await eventSettingsIntegration.applyUserDefaultsToEvent(
+                eventData.createdBy.toString(),
+                eventData
+            );
+        }
+
         // Check for time overlap if the event has a time range
         if (eventData.startTime && eventData.endTime) {
             const overlapCheck = await checkTimeOverlap(
@@ -161,7 +170,7 @@ class EventService {
         }
 
         await event.save();
-        return event;
+        return event.toObject();
     }
 
     private adjustAllDayEvent(event: IEvent): void {
@@ -210,10 +219,11 @@ class EventService {
     }
 
     /**
-     * Get all events for a user with filters
+     * Get all events for a user with filters and pagination
      */
     async getUserEvents(
         userId: string,
+        profileId: string,
         filters: {
             status?: string;
             priority?: PriorityLevel;
@@ -224,9 +234,27 @@ class EventService {
             fromDate?: Date;
             toDate?: Date;
             isGroupEvent?: boolean;
-        } = {}
-    ): Promise<IEvent[]> {
-        const query: any = { createdBy: userId };
+        } = {},
+        page: number = 1,
+        limit: number = 20
+    ): Promise<{
+        events: IEvent[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            pages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }> {
+        // Use $or to find events created by the user OR associated with their profile
+        const query: any = {
+            $or: [
+                { createdBy: userId },
+                { profile: profileId }
+            ]
+        };
 
         // Apply filters
         if (filters.status) query.status = filters.status;
@@ -238,7 +266,7 @@ class EventService {
 
         // Date range filtering
         if (filters.fromDate || filters.toDate) {
-            query.$and = [];
+            if (!query.$and) query.$and = [];
             if (filters.fromDate) {
                 query.$and.push({
                     $or: [
@@ -262,23 +290,57 @@ class EventService {
         // Search across multiple fields
         if (filters.search) {
             const searchRegex = new RegExp(filters.search, 'i');
-            query.$or = [
-                { title: searchRegex },
-                { description: searchRegex },
-                { notes: searchRegex },
-                { 'agendaItems.description': searchRegex }
-            ];
+            if (!query.$and) query.$and = [];
+            query.$and.push({
+                $or: [
+                    { title: searchRegex },
+                    { description: searchRegex },
+                    { notes: searchRegex },
+                    { 'agendaItems.description': searchRegex }
+                ]
+            });
         }
 
-        return Event.find(query)
+        // Get total count for pagination
+        const total = await Event.countDocuments(query);
+
+        // Calculate pagination values
+        const skip = (page - 1) * limit;
+        const pages = Math.ceil(total / limit);
+        const hasNext = page < pages;
+        const hasPrev = page > 1;
+
+        const rawEvents = await Event.find(query)
             .sort({
                 startTime: 1,
                 priority: -1,
                 createdAt: -1
             })
+            .skip(skip)
+            .limit(limit)
             .populate('createdBy', 'name email')
             .populate('participants', 'name email')
-            .populate('serviceProvider.profileId', 'name avatar');
+            .populate('serviceProvider.profileId', 'name avatar')
+            .lean();
+
+        // Apply privacy filtering
+        const filteredEvents = await eventSettingsIntegration.applyPrivacyFiltering(
+            rawEvents,
+            profileId,
+            userId
+        );
+
+        return {
+            events: filteredEvents,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages,
+                hasNext,
+                hasPrev
+            }
+        };
     }
 
     /**
@@ -287,6 +349,7 @@ class EventService {
     async updateEvent(
         eventId: string,
         userId: string,
+        profileId: string,
         updateData: Partial<IEvent>
     ): Promise<IEvent> {
         // Validate meeting-specific requirements
@@ -300,7 +363,7 @@ class EventService {
         }
 
         const event = await Event.findOneAndUpdate(
-            { _id: eventId, createdBy: userId },
+            { _id: eventId, profile: profileId },
             updateData,
             { new: true, runValidators: true }
         );
@@ -309,14 +372,14 @@ class EventService {
             throw new Error('Event not found or access denied');
         }
 
-        return event;
+        return event.toObject();
     }
 
     /**
      * Delete an event
      */
-    async deleteEvent(eventId: string, userId: string): Promise<boolean> {
-        const result = await Event.deleteOne({ _id: eventId, createdBy: userId });
+    async deleteEvent(eventId: string, userId: string, profileId: string): Promise<boolean> {
+        const result = await Event.deleteOne({ _id: eventId, profile: profileId });
         if (result.deletedCount === 0) {
             throw new Error('Event not found or access denied');
         }
@@ -427,16 +490,17 @@ class EventService {
     async addAttachment(
         eventId: string,
         userId: string,
+        profileId: string,
         attachmentData: Omit<Attachment, 'uploadedAt' | 'uploadedBy'>
     ): Promise<IEvent> {
-        const attachment: Attachment = {
+        const attachment = {
             ...attachmentData,
             uploadedAt: new Date(),
-            uploadedBy: new mongoose.Types.ObjectId(userId)
+            uploadedBy: new Types.ObjectId(userId)
         };
 
         const event = await Event.findOneAndUpdate(
-            { _id: eventId, createdBy: userId },
+            { _id: eventId, profile: profileId },
             { $push: { attachments: attachment } },
             { new: true }
         );
@@ -454,19 +518,21 @@ class EventService {
     async removeAttachment(
         eventId: string,
         userId: string,
+        profileId: string,
         attachmentIndex: number
     ): Promise<IEvent> {
-        const event = await Event.findOne({ _id: eventId, createdBy: userId });
+        const event = await Event.findOne({ _id: eventId, profile: profileId });
         if (!event) {
             throw new Error('Event not found or access denied');
         }
 
-        if (attachmentIndex < 0 || attachmentIndex >= event.attachments.length) {
+        if (attachmentIndex < 0 || attachmentIndex >= (event.attachments?.length ?? 0)) {
             throw new Error('Invalid attachment index');
         }
 
-        event.attachments.splice(attachmentIndex, 1);
+        event.attachments?.splice(attachmentIndex, 1);
         await event.save();
+
         return event;
     }
 
@@ -718,7 +784,8 @@ class EventService {
             .sort({ startTime: 1 })
             .populate('createdBy', 'name email')
             .populate('profile', 'profileInformation.username profileType')
-            .populate('booking.serviceProvider.profileId', 'profileInformation.username profileType');
+            .populate('booking.serviceProvider.profileId', 'profileInformation.username profileType')
+            .lean();
     }
 
     /**
@@ -738,6 +805,16 @@ class EventService {
         if (eventData.booking?.service?.name && !eventData.booking?.service?.duration) {
             throw new Error('Service duration is required when service name is provided');
         }
+
+        // Apply user's default settings to the booking event
+        eventData.createdBy = new mongoose.Types.ObjectId(userId);
+        eventData.profile = new mongoose.Types.ObjectId(profileId);
+        eventData.eventType = EventType.Booking;
+        
+        eventData = await eventSettingsIntegration.applyUserDefaultsToEvent(
+            userId,
+            eventData
+        );
 
         // Check for time overlap
         if (eventData.startTime && eventData.endTime) {
@@ -772,14 +849,8 @@ class EventService {
             }
         }
 
-        const event = new Event({
-            ...eventData,
-            eventType: EventType.Booking,
-            createdBy: new mongoose.Types.ObjectId(userId),
-            profile: new mongoose.Types.ObjectId(profileId)
-        });
-
-        return event.save();
+        const event = new Event(eventData);
+        return (await event.save()).toObject();
     }
 
     /**
@@ -806,8 +877,14 @@ class EventService {
             category: eventData.category || 'birthday'
         };
 
-        const event = new Event(celebrationData);
-        return event.save();
+        // Apply user's default settings to the celebration event
+        const enhancedCelebrationData = await eventSettingsIntegration.applyUserDefaultsToEvent(
+            userId,
+            celebrationData
+        );
+
+        const event = new Event(enhancedCelebrationData);
+        return (await event.save()).toObject();
     }
 
     /**
@@ -847,7 +924,7 @@ class EventService {
         });
 
         await event.save();
-        return event;
+        return event.toObject();
     }
 
     /**
@@ -872,7 +949,7 @@ class EventService {
 
         event.celebration.gifts[giftIndex].received = true;
         await event.save();
-        return event;
+        return event.toObject();
     }
 
     /**
@@ -911,7 +988,7 @@ class EventService {
         });
 
         await event.save();
-        return event;
+        return event.toObject();
     }
 
     /**
@@ -932,7 +1009,7 @@ class EventService {
 
         event.celebration.status = status;
         await event.save();
-        return event;
+        return event.toObject();
     }
 
     /**
@@ -973,7 +1050,7 @@ class EventService {
         await this.handleStatusChange(event, status);
 
         await event.save();
-        return event;
+        return event.toObject();
     }
 
     /**

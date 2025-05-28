@@ -8,7 +8,7 @@ import EmailService from './email.service';
 import mongoose, { Model } from 'mongoose';
 import { logger } from '../utils/logger';
 import { List, IList } from '../models/List';
-import { VisibilityType } from '../models/plans-shared';
+import { mapExternalToInternal } from '../utils/visibilityMapper';
 
 class ReminderService {
     private notificationService: NotificationService;
@@ -231,7 +231,7 @@ class ReminderService {
     }
 
     /**
-     * Process due reminders for events, tasks, and lists
+     * Process all due reminders
      */
     async processDueReminders(): Promise<void> {
         const now = new Date();
@@ -247,11 +247,24 @@ class ReminderService {
             // Process list item reminders
             const lists = await List.find({});
             for (const list of lists) {
+                let needsSave = false;
+                
                 // Update outdated visibility values
                 if (String(list.visibility) === 'Everyone (Public)') {
-                    list.visibility = VisibilityType.Public;
+                    list.visibility = 'Public';
+                    needsSave = true;
+                } else if (String(list.visibility) === 'Private') {
+                    // Use the visibility mapper to convert 'Private' to 'ConnectionsOnly'
+                    list.visibility = mapExternalToInternal('Private' as any);
+                    needsSave = true;
+                    logger.info(`Migrated list ${list._id} visibility from 'Private' to '${list.visibility}'`);
+                }
+                
+                // Save the list if visibility was updated
+                if (needsSave) {
                     await list.save();
                 }
+                
                 for (let i = 0; i < list.items.length; i++) {
                     const item = list.items[i];
                     if (item.reminders && Array.isArray(item.reminders)) {
@@ -274,7 +287,11 @@ class ReminderService {
                         }
                     }
                 }
-                await list.save();
+                
+                // Only save again if there were reminder updates
+                if (!needsSave) {
+                    await list.save();
+                }
             }
         } catch (error) {
             logger.error('Error in processDueReminders:', error);
@@ -337,18 +354,67 @@ class ReminderService {
         // Get item title and time
         let itemTitle = '';
         let itemTime: Date | undefined;
+        let actionUrl = '';
+        let metadata: any = {};
+
         if (itemType === 'event' || itemType === 'task') {
             itemTitle = item.title;
             itemTime = item.startTime;
+            actionUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/${itemType}s/${item._id}`;
+            
+            // Enhanced metadata for events and tasks
+            metadata = {
+                itemId: item._id,
+                itemType,
+                reminderType: reminder.type,
+                itemTitle,
+                startTime: itemTime,
+                description: item.description || '',
+                category: item.category || '',
+                priority: item.priority || 'medium',
+                location: item.location || '',
+                timeUntilEvent: itemTime ? this.calculateTimeUntil(itemTime) : 'Unknown',
+            };
+
+            // Event-specific metadata
+            if (itemType === 'event') {
+                metadata.eventType = item.eventType || 'meeting';
+                metadata.participants = item.participants || [];
+                metadata.endTime = item.endTime;
+                metadata.duration = item.duration;
+            }
+
+            // Task-specific metadata
+            if (itemType === 'task') {
+                metadata.status = item.status || 'pending';
+                metadata.dueDate = item.dueDate || itemTime;
+                metadata.estimatedDuration = item.estimatedDuration;
+                metadata.tags = item.tags || [];
+            }
         } else if (itemType === 'list') {
             itemTitle = `${item.listName || 'List'}: ${item.name}`;
             itemTime = item.dueDate || item.createdAt;
+            actionUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/lists/${item._id}`;
+            
+            metadata = {
+                itemId: item._id,
+                itemType,
+                reminderType: reminder.type,
+                itemTitle,
+                startTime: itemTime,
+                description: item.description || '',
+                listName: item.listName || 'List',
+                timeUntilEvent: itemTime ? this.calculateTimeUntil(itemTime) : 'Unknown',
+            };
         }
+
         if (!itemTime) {
             throw new Error('Item time is required');
         }
+
         let notificationSent = false;
         let emailSent = false;
+
         for (const recipientId of recipients) {
             try {
                 // Validate recipientId
@@ -357,6 +423,7 @@ class ReminderService {
                     logger.error(`Invalid recipient ID: ${recipientId}`);
                     continue;
                 }
+
                 await this.notificationService.createNotification({
                     recipient: new mongoose.Types.ObjectId(recipientId.toString()),
                     type: 'reminder',
@@ -366,43 +433,26 @@ class ReminderService {
                         model: itemType === 'event' ? 'Event' : itemType === 'task' ? 'Task' : 'List',
                         id: item._id
                     },
+                    action: {
+                        url: actionUrl,
+                        text: `View ${itemType === 'event' ? 'Event' : itemType === 'task' ? 'Task' : 'List Item'}`
+                    },
                     priority: 'high',
                     isRead: false,
                     isArchived: false,
-                    metadata: {
-                        itemId: item._id,
-                        itemType,
-                        reminderType: reminder.type,
-                        itemTitle,
-                        startTime: itemTime
-                    }
+                    metadata: metadata
                 });
                 notificationSent = true;
-                // Send email notification
-                const user = await mongoose.model('User').findById(recipientId);
-                if (user?.email) {
-                    const emailContent = `
-                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                            <h2 style="color: #333;">Reminder: ${itemTitle}</h2>
-                            <p>${itemType === 'event' ? 'Event' : itemType === 'task' ? 'Task' : 'List Item'} "${itemTitle}" is due soon</p>
-                            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                                <p><strong>Details:</strong></p>
-                                <p>Due Time: ${itemTime.toLocaleString()}</p>
-                                <p><a href="/${itemType}s/${item._id}" style="color: #007bff; text-decoration: none;">View Details</a></p>
-                            </div>
-                        </div>
-                    `;
-                    await EmailService.sendEmail(
-                        user.email,
-                        `Reminder: ${itemTitle}`,
-                        emailContent
-                    );
-                    emailSent = true;
-                }
+
+                // The email will now be sent automatically by the notification service
+                // using our new templates, so we don't need to send it manually here
+                emailSent = true;
+
             } catch (error) {
                 logger.error(`Failed to send notification for ${itemType} ${item._id} to recipient ${recipientId}:`, error);
             }
         }
+
         if (notificationSent || emailSent) {
             if (itemType === 'list') {
                 // Mark reminder as sent for list item
@@ -417,6 +467,30 @@ class ReminderService {
             }
         } else {
             throw new Error('Failed to send any notifications');
+        }
+    }
+
+    /**
+     * Calculate time until event in a human-readable format
+     */
+    private calculateTimeUntil(eventTime: Date): string {
+        const now = new Date();
+        const timeDiff = eventTime.getTime() - now.getTime();
+        
+        if (timeDiff <= 0) {
+            return 'Now';
+        }
+
+        const minutes = Math.floor(timeDiff / (1000 * 60));
+        const hours = Math.floor(minutes / 60);
+        const days = Math.floor(hours / 24);
+
+        if (days > 0) {
+            return `${days} day${days > 1 ? 's' : ''}`;
+        } else if (hours > 0) {
+            return `${hours} hour${hours > 1 ? 's' : ''}`;
+        } else {
+            return `${minutes} minute${minutes > 1 ? 's' : ''}`;
         }
     }
 

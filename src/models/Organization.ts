@@ -48,6 +48,14 @@ export interface IOrganization extends Document {
   updatedBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
+  
+  // Method declarations
+  addMember(profileId: Types.ObjectId, role?: 'owner' | 'admin' | 'member'): Promise<void>;
+  removeMember(profileId: Types.ObjectId): Promise<void>;
+  updateMemberRole(profileId: Types.ObjectId, newRole: 'owner' | 'admin' | 'member'): Promise<void>;
+  isMember(profileId: Types.ObjectId): boolean;
+  isAdmin(profileId: Types.ObjectId): boolean;
+  isOwner(profileId: Types.ObjectId): boolean;
 }
 
 const OrganizationSchema = new Schema<IOrganization>({

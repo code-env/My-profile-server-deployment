@@ -210,8 +210,6 @@ class ProfileService {
             }
         }
         // Create the profile with appropriate group/member handling
-        // Get user data for profile username (using fullName instead of username
-        // Generate a unique gradient background based on the username
         const profile = new profile_model_1.ProfileModel({
             profileCategory: template.profileCategory,
             profileType: template.profileType,

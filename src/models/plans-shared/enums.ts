@@ -1,8 +1,3 @@
-export enum VisibilityType {
-  Public = 'Public',
-  Private = 'Private',
-  Hidden = 'Hidden'
-}
 
 export enum PriorityLevel {
   Low = 'Low',

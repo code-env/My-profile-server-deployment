@@ -1104,7 +1104,44 @@ class VaultService {
 
     const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(fileData, uploadOptions);
     
-    // Add to vault
+    // Find or create subcategory by name
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw new Error('Vault not found');
+    }
+
+    // Find category by name
+    const categoryDoc = await VaultCategory.findOne({
+      vaultId: vault._id,
+      name: { $regex: new RegExp(`^${category}$`, 'i') }
+    });
+
+    if (!categoryDoc) {
+      throw new Error(`Category '${category}' not found`);
+    }
+
+    // Find or create subcategory by name
+    let subcategoryDoc = await VaultSubcategory.findOne({
+      vaultId: vault._id,
+      categoryId: categoryDoc._id,
+      name: { $regex: new RegExp(`^${subcategory}$`, 'i') }
+    });
+
+    if (!subcategoryDoc) {
+      // Create the subcategory if it doesn't exist
+      subcategoryDoc = new VaultSubcategory({
+        vaultId: vault._id,
+        categoryId: categoryDoc._id,
+        name: subcategory,
+        order: await VaultSubcategory.countDocuments({
+          vaultId: vault._id,
+          categoryId: categoryDoc._id
+        })
+      });
+      await subcategoryDoc.save();
+    }
+    
+    // Add to vault using subcategory ID
     const item = {
       type: 'document',
       category,
@@ -1120,7 +1157,7 @@ class VaultService {
       }
     };
 
-    await this.addItem(userId, profileId, category, subcategory, item);
+    await this.addItem(userId, profileId, category, subcategoryDoc._id.toString(), item);
     return uploadResult;
   }
 

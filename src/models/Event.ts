@@ -6,12 +6,12 @@ import {
   EventType, 
   EventStatus, 
   BookingStatus, 
-  PriorityLevel, 
-  VisibilityType,
+  PriorityLevel,
   RepeatSettings,
   Reminder,
   Reward
 } from './plans-shared';
+import { NotificationChannelSettings } from './settings';
 
 export interface IParticipant {
   profile: Types.ObjectId;
@@ -29,7 +29,7 @@ export interface IEvent extends Document {
   eventType: EventType;
   status: EventStatus;
   priority: PriorityLevel;
-  visibility: VisibilityType;
+  visibility: 'Public' | 'ConnectionsOnly' | 'OnlyMe' | 'Custom';
   color: string;
   category: string;
   location?: Location;
@@ -108,6 +108,45 @@ export interface IEvent extends Document {
     updatedBy?: Types.ObjectId;
     notes?: string;
   }>;
+  // Settings integration fields
+  settings?: {
+    visibility?: {
+      level: 'Public' | 'ConnectionsOnly' | 'OnlyMe' | 'Custom';
+      customUsers?: Types.ObjectId[];
+    };
+    notifications?: {
+      enabled: boolean;
+      channels: NotificationChannelSettings;
+      reminderSettings?: {
+        defaultReminders: number[]; // minutes before event
+        allowCustomReminders: boolean;
+      };
+    };
+    timeSettings?: {
+      useUserTimezone: boolean;
+      bufferTime: number; // minutes
+      defaultDuration: number; // minutes
+    };
+    privacy?: {
+      allowComments: boolean;
+      allowLikes: boolean;
+      allowParticipants: boolean;
+      shareWithConnections: boolean;
+      requireApprovalToJoin: boolean;
+    };
+    booking?: {
+      allowRescheduling: boolean;
+      maxReschedules: number;
+      cancellationWindow: number; // hours before event
+      requireApproval: boolean;
+      autoConfirm: boolean;
+    };
+    celebration?: {
+      allowGiftRequests: boolean;
+      allowSocialSharing: boolean;
+      autoCreatePhotoAlbum: boolean;
+    };
+  };
   [key: string]: any; // For additional fields specific to tasks or events
 }
 
@@ -134,8 +173,8 @@ const EventSchema = new Schema<IEvent>({
   },
   visibility: {
     type: String,
-    enum: Object.values(VisibilityType),
-    default: VisibilityType.Public
+    enum: ['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom'],
+    default: 'Public'
   },
   color: { type: String, default: '#1DA1F2' },
   category: { type: String, default: 'Personal' },
@@ -384,7 +423,58 @@ const EventSchema = new Schema<IEvent>({
     notes: String
   }],
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+  updatedAt: { type: Date, default: Date.now },
+  // Settings integration fields
+  settings: {
+    visibility: {
+      level: {
+        type: String,
+        enum: ['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom'],
+        default: 'Public'
+      },
+      customUsers: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Profile'
+      }]
+    },
+    notifications: {
+      enabled: { type: Boolean, default: true },
+      channels: {
+        push: { type: Boolean, default: true },
+        text: { type: Boolean, default: false },
+        inApp: { type: Boolean, default: true },
+        email: { type: Boolean, default: false }
+      },
+      reminderSettings: {
+        defaultReminders: { type: [Number], default: [15, 60] }, // 15 min and 1 hour before
+        allowCustomReminders: { type: Boolean, default: true }
+      }
+    },
+    timeSettings: {
+      useUserTimezone: { type: Boolean, default: true },
+      bufferTime: { type: Number, min: 0, max: 60, default: 15 },
+      defaultDuration: { type: Number, min: 0, max: 120, default: 60 }
+    },
+    privacy: {
+      allowComments: { type: Boolean, default: true },
+      allowLikes: { type: Boolean, default: true },
+      allowParticipants: { type: Boolean, default: true },
+      shareWithConnections: { type: Boolean, default: true },
+      requireApprovalToJoin: { type: Boolean, default: false }
+    },
+    booking: {
+      allowRescheduling: { type: Boolean, default: true },
+      maxReschedules: { type: Number, min: 0, max: 10, default: 3 },
+      cancellationWindow: { type: Number, min: 0, max: 24, default: 24 },
+      requireApproval: { type: Boolean, default: false },
+      autoConfirm: { type: Boolean, default: false }
+    },
+    celebration: {
+      allowGiftRequests: { type: Boolean, default: true },
+      allowSocialSharing: { type: Boolean, default: true },
+      autoCreatePhotoAlbum: { type: Boolean, default: true }
+    }
+  }
 }, {
   timestamps: true
 });

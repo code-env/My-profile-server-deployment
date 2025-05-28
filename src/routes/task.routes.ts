@@ -13,7 +13,10 @@ import {
     unlikeComment,
     addAttachment,
     removeAttachment,
-    likeTask
+    likeTask,
+    updateTaskSettings,
+    getVisibleTasks,
+    getTaskSettings
 } from '../controllers/task.controller';
 import { authenticateToken } from '../middleware/authMiddleware';
 
@@ -25,6 +28,13 @@ router.get('/:id', authenticateToken, getTaskById);
 router.get('/', authenticateToken, getUserTasks);
 router.put('/:id', authenticateToken, updateTask);
 router.delete('/:id', authenticateToken, deleteTask);
+
+// Settings routes
+router.get('/:id/settings', authenticateToken, getTaskSettings);
+router.put('/:id/settings', authenticateToken, updateTaskSettings);
+
+// Visibility routes
+router.get('/visible/:userId', authenticateToken, getVisibleTasks);
 
 // Subtask routes
 router.post('/:id/subtasks', authenticateToken, addSubTask);

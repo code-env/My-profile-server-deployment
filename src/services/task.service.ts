@@ -1,27 +1,37 @@
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { ISubTask, RepeatSettings, Reminder, Reward, Attachment, Comment, Location, PriorityLevel, TaskCategory } from '../models/plans-shared';
 import { IUser, User } from '../models/User';
 import { IProfile } from '../interfaces/profile.interface';
 import { TaskStatus } from 'twilio/lib/rest/taskrouter/v1/workspace/task';
 import { List } from '../models/List';
 import { ITask, Task } from '../models/Tasks';
-import { Types } from 'mongoose';
 import { checkTimeOverlap } from '../utils/timeUtils';
+import { SettingsService } from './settings.service';
+import { taskSettingsIntegration } from '../utils/taskSettingsIntegration';
+import { mapExternalToInternal } from '../utils/visibilityMapper';
 
 class TaskService {
+    private settingsService = new SettingsService();
+
     /**
-     * Create a new task with all fields
+     * Create a new task with all fields and apply user settings
      */
     async createTask(taskData: Partial<ITask>): Promise<ITask> {
+        // Apply user settings defaults using the integration utility
+        const enhancedTaskData = await taskSettingsIntegration.applyUserDefaultsToTask(
+            taskData.createdBy?.toString() || '', 
+            taskData
+        );
+
         // Check for time overlap if the task has a time range
-        if (taskData.startTime && taskData.endTime) {
+        if (enhancedTaskData.startTime && enhancedTaskData.endTime) {
             const overlapCheck = await checkTimeOverlap(
-                taskData.createdBy?.toString() || '',
-                taskData.profile?.toString() || '',
+                enhancedTaskData.createdBy?.toString() || '',
+                enhancedTaskData.profile?.toString() || '',
                 {
-                    startTime: taskData.startTime,
-                    endTime: taskData.endTime,
-                    isAllDay: taskData.isAllDay || false
+                    startTime: enhancedTaskData.startTime,
+                    endTime: enhancedTaskData.endTime,
+                    isAllDay: enhancedTaskData.isAllDay || false
                 }
             );
 
@@ -31,26 +41,26 @@ class TaskService {
         }
 
         const task = new Task({
-            ...taskData,
-            type: taskData.type || 'Todo',
-            createdBy: taskData.createdBy || null,
-            profile: taskData.profile|| null,
-            subTasks: taskData.subTasks || [],
-            isAllDay: taskData.isAllDay || false,
-            repeat: taskData.repeat || {
+            ...enhancedTaskData,
+            type: enhancedTaskData.type || 'Todo',
+            createdBy: enhancedTaskData.createdBy || null,
+            profile: enhancedTaskData.profile|| null,
+            subTasks: enhancedTaskData.subTasks || [],
+            isAllDay: enhancedTaskData.isAllDay || false,
+            repeat: enhancedTaskData.repeat || {
                 isRepeating: false,
                 frequency: 'None',
                 endCondition: 'Never'
             },
-            reminders: taskData.reminders || [],
-            visibility: taskData.visibility || 'Public',
-            participants: taskData.participants || [],
-            color: taskData.color || '#1DA1F2',
-            category: taskData.category || 'Personal',
-            priority: taskData.priority || 'Low',
-            status: taskData.status || 'Upcoming',
-            attachments: taskData.attachments || [],
-            comments: taskData.comments || [],
+            reminders: enhancedTaskData.reminders || [],
+            visibility: enhancedTaskData.visibility || 'Public',
+            participants: enhancedTaskData.participants || [],
+            color: enhancedTaskData.color || '#1DA1F2',
+            category: enhancedTaskData.category || 'Personal',
+            priority: enhancedTaskData.priority || 'Low',
+            status: enhancedTaskData.status || 'Upcoming',
+            attachments: enhancedTaskData.attachments || [],
+            comments: enhancedTaskData.comments || [],
         });
 
         // Handle all-day event adjustments
@@ -65,7 +75,7 @@ class TaskService {
             await this.createListsFromSubtasks(task);
         }
 
-        return task;
+        return task.toObject();
     }
 
     private async createListsFromSubtasks(task: ITask): Promise<void> {
@@ -81,7 +91,7 @@ class TaskService {
                 createdAt: subTask.createdAt || new Date()
             })),
             // Copy relevant properties from the task
-            visibility: task.visibility,
+            visibility: mapExternalToInternal(task.visibility as any),
             color: task.color,
             priority: task.priority,
             category: task.category
@@ -116,7 +126,8 @@ class TaskService {
             .populate('createdBy', 'name email')
             .populate('profile', 'profileInformation.username')
             .populate('participants', 'profileInformation.username')
-            .populate('comments.postedBy', 'profileInformation.username');
+            .populate('comments.postedBy', 'profileInformation.username')
+            .lean();
 
         if (!task) {
             throw new Error('Task not found');
@@ -126,10 +137,11 @@ class TaskService {
     }
 
     /**
-     * Get all tasks for a user with filters
+     * Get all tasks for a user with filters and apply privacy settings
      */
     async getUserTasks(
         userId: string,
+        profileId: string,
         filters: {
             status?: TaskStatus;
             priority?: PriorityLevel;
@@ -139,9 +151,27 @@ class TaskService {
             profile?: string;
             fromDate?: Date;
             toDate?: Date;
-        } = {}
-    ): Promise<ITask[]> {
-        const query: any = { createdBy: userId };
+        } = {},
+        page: number = 1,
+        limit: number = 20
+    ): Promise<{
+        tasks: ITask[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            pages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }> {
+        // Query for tasks created by the user OR associated with the profile
+        const query: any = {
+            $or: [
+                { createdBy: userId },
+                { profile: profileId }
+            ]
+        };
 
         // Apply filters
         if (filters.status) query.status = filters.status;
@@ -152,7 +182,7 @@ class TaskService {
 
         // Date range filtering
         if (filters.fromDate || filters.toDate) {
-            query.$and = [];
+            if (!query.$and) query.$and = [];
             if (filters.fromDate) {
                 query.$and.push({
                     $or: [
@@ -176,22 +206,79 @@ class TaskService {
         // Search across multiple fields
         if (filters.search) {
             const searchRegex = new RegExp(filters.search, 'i');
-            query.$or = [
-                { name: searchRegex },
-                { description: searchRegex },
-                { notes: searchRegex },
-            ];
+            if (!query.$and) query.$and = [];
+            query.$and.push({
+                $or: [
+                    { title: searchRegex },
+                    { description: searchRegex },
+                    { notes: searchRegex },
+                ]
+            });
         }
 
-        return Task.find(query)
+        // Get total count for pagination
+        const total = await Task.countDocuments(query);
+
+        // Calculate pagination values
+        const skip = (page - 1) * limit;
+        const pages = Math.ceil(total / limit);
+        const hasNext = page < pages;
+        const hasPrev = page > 1;
+
+        const tasks = await Task.find(query)
             .sort({
                 priority: -1,
                 startTime: 1,
                 createdAt: -1
             })
+            .skip(skip)
+            .limit(limit)
             .populate('createdBy', 'Information.username')
             .populate('participants', 'profileInformation.username')
-            .populate('profile', 'profileInformation.username');
+            .populate('profile', 'profileInformation.username')
+            .lean();
+
+        // Apply privacy filtering based on user settings
+        const filteredTasks = await this.applyPrivacyFiltering(tasks, userId, profileId);
+
+        return {
+            tasks: filteredTasks,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages,
+                hasNext,
+                hasPrev
+            }
+        };
+    }
+
+    /**
+     * Apply privacy filtering to tasks based on user settings
+     */
+    private async applyPrivacyFiltering(tasks: ITask[], requestingUserId: string, requestingProfileId: string): Promise<ITask[]> {
+        const filteredTasks: ITask[] = [];
+
+        for (const task of tasks) {
+            // Extract the actual ID from createdBy (it might be populated)
+            const taskCreatedById = task.createdBy?._id?.toString() || task.createdBy?.toString();
+            const taskProfileId = task.profile?._id?.toString() || task.profile?.toString();
+            
+            // If it's the user's own task OR associated with their profile, always show it
+            if (taskCreatedById === requestingUserId || taskProfileId === requestingProfileId) {
+                filteredTasks.push(task);
+                continue;
+            }
+
+            // Check visibility for the requesting user's profile
+            const visible = await taskSettingsIntegration.isTaskVisibleToProfile(task, requestingProfileId);
+            if (visible) {
+                filteredTasks.push(task);
+            }
+        }
+        
+        return filteredTasks;
     }
 
     /**
@@ -229,7 +316,7 @@ class TaskService {
             throw new Error('Task not found or access denied');
         }
 
-        return task;
+        return task.toObject();
     }
 
     /**
@@ -330,7 +417,6 @@ class TaskService {
      */
     async addComment(
         taskId: string,
-        userId: string,
         profileId: string,
         text: string
     ): Promise<ITask> {
@@ -361,7 +447,6 @@ class TaskService {
     async likeComment(
         taskId: string,
         commentIndex: number,
-        userId: string,
         profileId: string
     ): Promise<ITask> {
         const task = await Task.findOne({ _id: taskId });
@@ -390,7 +475,6 @@ class TaskService {
     async unlikeComment(
         taskId: string,
         commentIndex: number,
-        userId: string,
         profileId: string
     ): Promise<ITask> {
         const task = await Task.findOne({ _id: taskId });
@@ -417,12 +501,13 @@ class TaskService {
     async addAttachment(
         taskId: string,
         userId: string,
+        profileId: string,
         attachmentData: Omit<Attachment, 'uploadedAt' | 'uploadedBy'>
     ): Promise<ITask> {
         const attachment: Attachment = {
             ...attachmentData,
             uploadedAt: new Date(),
-            uploadedBy: new mongoose.Types.ObjectId(userId)
+            uploadedBy: new mongoose.Types.ObjectId(profileId)
         };
 
         const task = await Task.findOneAndUpdate(
@@ -443,10 +528,10 @@ class TaskService {
      */
     async removeAttachment(
         taskId: string,
-        userId: string,
+        profileId: string,
         attachmentIndex: number
     ): Promise<ITask> {
-        const task = await Task.findOne({ _id: taskId, createdBy: userId });
+        const task = await Task.findOne({ _id: taskId, profile: profileId });
         if (!task) {
             throw new Error('Task not found or access denied');
         }
@@ -486,6 +571,111 @@ class TaskService {
         }
 
         return task;
+    }
+
+    /**
+     * Update task settings
+     */
+    async updateTaskSettings(
+        taskId: string,
+        userId: string,
+        settingsUpdate: Partial<ITask['settings']>
+    ): Promise<ITask> {
+        const task = await Task.findOne({ _id: taskId, createdBy: userId });
+        
+        if (!task) {
+            throw new Error('Task not found or unauthorized');
+        }
+
+        // Check if settingsUpdate is provided
+        if (!settingsUpdate) {
+            return task;
+        }
+
+        // Merge settings
+        if (!task.settings) {
+            task.settings = {};
+        }
+
+        if (settingsUpdate.visibility) {
+            task.settings.visibility = { ...task.settings.visibility, ...settingsUpdate.visibility };
+        }
+        
+        if (settingsUpdate.notifications) {
+            task.settings.notifications = { ...task.settings.notifications, ...settingsUpdate.notifications };
+        }
+        
+        if (settingsUpdate.timeSettings) {
+            task.settings.timeSettings = { ...task.settings.timeSettings, ...settingsUpdate.timeSettings };
+        }
+        
+        if (settingsUpdate.privacy) {
+            task.settings.privacy = { ...task.settings.privacy, ...settingsUpdate.privacy };
+        }
+
+        await task.save();
+        return task;
+    }
+
+    /**
+     * Get tasks visible to a specific user (for sharing/viewing)
+     */
+    async getVisibleTasks(
+        viewerUserId: string,
+        viewerProfileId: string,
+        targetUserId: string,
+        filters: {
+            status?: TaskStatus;
+            priority?: PriorityLevel;
+            category?: TaskCategory;
+            fromDate?: Date;
+            toDate?: Date;
+        } = {}
+    ): Promise<ITask[]> {
+        const query: any = { createdBy: targetUserId };
+
+        // Apply filters
+        if (filters.status) query.status = filters.status;
+        if (filters.priority) query.priority = filters.priority;
+        if (filters.category) query.category = filters.category;
+
+        // Date range filtering
+        if (filters.fromDate || filters.toDate) {
+            query.$and = [];
+            if (filters.fromDate) {
+                query.$and.push({
+                    $or: [
+                        { startTime: { $gte: filters.fromDate } },
+                        { endTime: { $gte: filters.fromDate } }
+                    ]
+                });
+            }
+            if (filters.toDate) {
+                query.$and.push({
+                    $or: [
+                        { startTime: { $lte: filters.toDate } },
+                        { endTime: { $lte: filters.toDate } }
+                    ]
+                });
+            }
+        }
+
+        // Only get tasks that are visible to the viewer's profile
+        query.$or = [
+            { visibility: 'Public' },
+            { 'settings.visibility.level': 'Public' },
+            { 
+                'settings.visibility.level': 'Custom',
+                'settings.visibility.customUsers': viewerProfileId
+            }
+        ];
+
+        return Task.find(query)
+            .sort({ startTime: 1, createdAt: -1 })
+            .populate('createdBy', 'Information.username')
+            .populate('participants', 'profileInformation.username')
+            .populate('profile', 'profileInformation.username')
+            .lean();
     }
 }
 
