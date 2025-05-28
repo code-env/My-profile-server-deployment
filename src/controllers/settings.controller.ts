@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { SettingsService } from "../services/settings.service"
 import createHttpError from 'http-errors';
+import { ProfileModel } from "../models/profile.model";
 export class SettingsController {
   public settingsService: SettingsService;
 
@@ -38,11 +39,24 @@ export class SettingsController {
   // GET /settings/:userId
   public getSettings = async (req: Request, res: Response): Promise<void> => {
     try {
+
       const userId = (req.user as any)?._id;
+      const currentProfileId = (req.params as any).pId;
+
+      console.log("current Profile Id", currentProfileId)
+
+      const currentProfile = await ProfileModel.findById(currentProfileId)
+
+
       if (!userId) throw createHttpError(401, 'Unauthorized');
 
-      const settings = await this.settingsService.getSettings(userId);
+      const settings = await this.settingsService.getSettings(userId, currentProfileId);
       if (!settings) throw createHttpError(404, 'Settings not found');
+
+      // const newSettings = {
+      //   ...settings,
+      //   ...currentProfile?.specificSettings
+      // }
 
       res.status(200).json(settings);
     } catch (error: any) {
@@ -73,4 +87,24 @@ export class SettingsController {
       res.status(500).json({ message: "Failed to update settings", error: error.message });
     }
   };
+
+
+
+
+
+
+public generateProfileSpecificSettingsforAllProfiles = async (req:Request, res:Response): Promise<void> => {
+  try {
+    const profiles = await ProfileModel.find({})
+    await this.settingsService.generateProfileSpecificSettingsforAllProfiles(profiles)
+
+    res.status(200).json({message:"profile specific settings generated for all profiles"})
+  } catch (error:any) {
+    res.status(500).json({message:"failed to generate profile specific settings",error:error.message})
+  }
+}
+
+
+
+
 }

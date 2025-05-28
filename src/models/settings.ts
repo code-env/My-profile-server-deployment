@@ -151,6 +151,9 @@ export interface SettingsDocument extends Document {
       showGridOverlay: boolean;
     };
   };
+  specificSettings: {
+    [key: string]: any;
+  };
 
   notifications: {
     channels: NotificationChannelSettings;
@@ -590,6 +593,13 @@ const SettingsSchema = new Schema<SettingsDocument>({
       showGridOverlay: { type: Boolean, default: true },
     },
   },
+  specificSettings: {
+    type: Map,
+    of: {
+      type: Schema.Types.Mixed,
+      default: {}
+    }
+  },
   notifications: {
     channels: { type: ChannelSettingsSchema, required: true },
     general: {
@@ -679,4 +689,4 @@ const SettingsSchema = new Schema<SettingsDocument>({
   timestamps: true
 });
 
-export const SettingsModel = mongoose.model<SettingsDocument>('Settings', SettingsSchema);
+export const SettingsModel = mongoose.model<SettingsDocument>('Settings', SettingsSchema) 

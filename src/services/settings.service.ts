@@ -1,6 +1,9 @@
 import { SettingsModel, SettingsDocument } from "../models/settings";
 import { FilterQuery, UpdateQuery } from "mongoose";
 import {User} from '../models/User'
+import { ProfileModel } from "../models/profile.model";
+import { getDefaultProfileSettings } from "../models/profile-types/default-settings";
+import { ProfileDocument } from "../models/profile.model";
 
 export class SettingsService {
   /**
@@ -83,6 +86,8 @@ return  await defaultSettings.save()
 
   }
 
+  
+
    /**
    * Generate default settings for all users who don't have settings yet
    */
@@ -114,10 +119,24 @@ return  await defaultSettings.save()
   /**
    * Get user settings
    * @param userId - User ID
+   * @param currentProfileId - Current profile ID
    * @returns Settings document
    */
-  async getSettings(userId: string): Promise<SettingsDocument | null> {
-    return await SettingsModel.findOne({ userId }).lean();
+  async getSettings(userId: string, currentProfileId?: string): Promise<SettingsDocument | null> {
+    const settings = await SettingsModel.findOne({ userId }).lean();
+
+    if (currentProfileId && settings) {
+      const profilesettings = await ProfileModel.findOne({ _id: currentProfileId }).lean();
+      
+      if (profilesettings?.specificSettings) {
+        settings.specificSettings = profilesettings.specificSettings;
+        console.log("entered the settings") 
+        return settings;
+      }
+      return settings;
+    } else {
+      return settings;
+    }
   }
 
   /**
@@ -139,6 +158,27 @@ return  await defaultSettings.save()
       { new: true }
     ).lean();
   }
+
+
+  
+async generateProfileSpecificSettingsforAllProfiles(profiles: ProfileDocument[]) {
+    
+  for (const profile of profiles) {
+    const defaultProfileSettings = getDefaultProfileSettings(profile.profileType);
+    console.log("generating profile specific settings for profile", profile.profileType)
+    if(profile.specificSettings && Object.keys(profile.specificSettings).length > 0) {
+      profile.specificSettings = { ...profile.specificSettings, ...defaultProfileSettings };
+    } else {
+      profile.specificSettings = defaultProfileSettings;
+      await profile.save();
+    }
+  }
+
+
+}
+
+
+
 }
 
 
