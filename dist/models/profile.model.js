@@ -254,6 +254,13 @@ const ProfileSchema = new mongoose_1.Schema({
                 days: [{ type: String, enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] }]
             }]
     },
+    specificSettings: {
+        type: Map,
+        of: {
+            type: mongoose_1.Schema.Types.Mixed,
+            default: {}
+        }
+    }
 }, { timestamps: true });
 // Add profile methods for MyPts
 ProfileSchema.methods.getMyPts = async function () {
@@ -421,5 +428,10 @@ ProfileSchema.methods.getAvailableSlots = async function (date) {
         currentTime = new Date(currentTime.getTime() + (duration + buffer) * 60000);
     }
     return slots;
+};
+// Add the addSettings method
+ProfileSchema.methods.addSettings = async function (settings) {
+    this.settings = { ...this.settings || {}, ...settings };
+    await this.save();
 };
 exports.ProfileModel = mongoose_1.default.model('Profile', ProfileSchema);

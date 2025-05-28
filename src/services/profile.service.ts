@@ -11,6 +11,7 @@ import { ITemplateField } from '../models/profiles/profile-template';
 import { FieldWidget } from '../models/profiles/profile-template';
 import geoip from 'geoip-lite';
 import { ProfileFilter } from '../types/profiles';
+import { getDefaultProfileSettings, UpdateDefaultProfileSettings } from '../models/profile-types/default-settings';
 
 export class ProfileService {
 
@@ -96,7 +97,12 @@ export class ProfileService {
 
     // Save the updated profile
     await profile.save();
-    logger.info(`Profile with content created successfully: ${profile._id}`);
+
+    const defaultProfileSettings = getDefaultProfileSettings(profile.profileType);
+    // Use type assertion to access _id since we know it exists after save
+    await UpdateDefaultProfileSettings((profile as any)._id.toString(), defaultProfileSettings);
+
+    logger.info(`Profile with content created successfully: ${(profile as any)._id}`);
     return profile;
   }
 
@@ -311,6 +317,8 @@ export class ProfileService {
       members: [], // Initialize empty members array
       groups: [] // Initialize empty groups array
     }) as ProfileDocument & { members: mongoose.Types.ObjectId[]; groups: mongoose.Types.ObjectId[] };
+
+
 
     // Handle group profiles and members
     if (template.profileCategory === 'group' || template.profileType === 'group') {

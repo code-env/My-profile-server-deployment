@@ -4,8 +4,9 @@ import { MyPtsValueModel } from './my-pts-value.model';
 import { IMyPts } from '../interfaces/my-pts.interface';
 import { IProfileMethods } from '../interfaces/profile.interface';
 
-export type ProfileDocument = IProfile & Document;
-
+export type ProfileDocument = IProfile & Document & {
+  _id: mongoose.Types.ObjectId;
+};
 
 export type ProfileCategory = 'individual' | 'accessory' | 'group';
 export type ProfileType =
@@ -208,6 +209,10 @@ interface IProfile {
       days: string[];
     }>;
   };
+
+  specificSettings: {
+    [key: string]: any;
+  };
 }
 
 interface ITemplateSection {
@@ -302,7 +307,6 @@ const ProfileSchema = new Schema<IProfile>(
     sections: [{ type: Schema.Types.Mixed }],
     members: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
     groups: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
-
 
     ProfileFormat: {
       profileImage: { type: String, trim: true },
@@ -468,6 +472,14 @@ const ProfileSchema = new Schema<IProfile>(
         days: [{ type: String, enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] }]
       }]
     },
+
+    specificSettings: {
+      type: Map,
+      of: {
+        type: Schema.Types.Mixed,
+        default: {}
+      }
+    }
   },
   { timestamps: true }
 );
@@ -663,6 +675,12 @@ ProfileSchema.methods.getAvailableSlots = async function(date: Date): Promise<Ar
   }
 
   return slots;
+};
+
+// Add the addSettings method
+ProfileSchema.methods.addSettings = async function(settings: Record<string, any>): Promise<void> {
+  this.settings = { ...this.settings || {}, ...settings };
+  await this.save();
 };
 
 // Define interface for model type with methods

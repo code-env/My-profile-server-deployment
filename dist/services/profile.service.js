@@ -14,6 +14,7 @@ const crypto_1 = require("../utils/crypto");
 const gradient_generator_1 = require("../utils/gradient-generator");
 const mongoose_2 = __importDefault(require("mongoose"));
 const geoip_lite_1 = __importDefault(require("geoip-lite"));
+const default_settings_1 = require("../models/profile-types/default-settings");
 class ProfileService {
     /**
      * Creates a profile with content in one step
@@ -64,6 +65,9 @@ class ProfileService {
         }
         // Save the updated profile
         await profile.save();
+        const defaultProfileSettings = (0, default_settings_1.getDefaultProfileSettings)(profile.profileType);
+        // Use type assertion to access _id since we know it exists after save
+        await (0, default_settings_1.UpdateDefaultProfileSettings)(profile._id.toString(), defaultProfileSettings);
         logger_1.logger.info(`Profile with content created successfully: ${profile._id}`);
         return profile;
     }

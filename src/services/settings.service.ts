@@ -1,6 +1,7 @@
 import { SettingsModel, SettingsDocument } from "../models/settings";
 import { FilterQuery, UpdateQuery } from "mongoose";
 import {User} from '../models/User'
+import { ProfileModel } from "../models/profile.model";
 
 export class SettingsService {
   /**
@@ -114,9 +115,28 @@ return  await defaultSettings.save()
   /**
    * Get user settings
    * @param userId - User ID
+   * @param currentProfileId - Current profile ID
    * @returns Settings document
    */
-  async getSettings(userId: string): Promise<SettingsDocument | null> {
+  async getSettings(userId: string, currentProfileId?: string): Promise<SettingsDocument | null> {
+
+    if (currentProfileId) {
+      const profilesettings = await ProfileModel.findOne({ userId }).lean();
+      const settings = await SettingsModel.findOne({ userId }).lean();
+
+      if (profilesettings?.specificSettings) {
+
+        const mergedSettings = { ...settings, ...profilesettings.specificSettings };
+        return settings
+
+      }
+    } else {
+      return await SettingsModel.findOne({ userId }).lean();
+    }
+
+
+
+
     return await SettingsModel.findOne({ userId }).lean();
   }
 

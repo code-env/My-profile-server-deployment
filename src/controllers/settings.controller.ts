@@ -38,10 +38,12 @@ export class SettingsController {
   // GET /settings/:userId
   public getSettings = async (req: Request, res: Response): Promise<void> => {
     try {
+
       const userId = (req.user as any)?._id;
+      const currentProfileId = (req.params as any).currentProfileId;
       if (!userId) throw createHttpError(401, 'Unauthorized');
 
-      const settings = await this.settingsService.getSettings(userId);
+      const settings = await this.settingsService.getSettings(userId, currentProfileId);
       if (!settings) throw createHttpError(404, 'Settings not found');
 
       res.status(200).json(settings);
