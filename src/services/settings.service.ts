@@ -119,25 +119,19 @@ return  await defaultSettings.save()
    * @returns Settings document
    */
   async getSettings(userId: string, currentProfileId?: string): Promise<SettingsDocument | null> {
+    const settings = await SettingsModel.findOne({ userId }).lean();
 
-    if (currentProfileId) {
-      const profilesettings = await ProfileModel.findOne({ userId }).lean();
-      const settings = await SettingsModel.findOne({ userId }).lean();
-
+    if (currentProfileId && settings) {
+      const profilesettings = await ProfileModel.findOne({ _id: currentProfileId }).lean();
+      
       if (profilesettings?.specificSettings) {
-
-        const mergedSettings = { ...settings, ...profilesettings.specificSettings };
-        return settings
-
+        settings.specificSettings = profilesettings.specificSettings;
+        return settings;
       }
+      return settings;
     } else {
-      return await SettingsModel.findOne({ userId }).lean();
+      return settings;
     }
-
-
-
-
-    return await SettingsModel.findOne({ userId }).lean();
   }
 
   /**
