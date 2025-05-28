@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { SettingsService } from "../services/settings.service"
 import createHttpError from 'http-errors';
-import { ProfileModel } from "src/models/profile.model";
+import { ProfileModel } from "../models/profile.model";
 export class SettingsController {
   public settingsService: SettingsService;
 
@@ -41,11 +41,22 @@ export class SettingsController {
     try {
 
       const userId = (req.user as any)?._id;
-      const currentProfileId = (req.params as any).currentProfileId;
+      const currentProfileId = (req.params as any).pId;
+
+      console.log("current Profile Id", currentProfileId)
+
+      const currentProfile = await ProfileModel.findById(currentProfileId)
+
+
       if (!userId) throw createHttpError(401, 'Unauthorized');
 
       const settings = await this.settingsService.getSettings(userId, currentProfileId);
       if (!settings) throw createHttpError(404, 'Settings not found');
+
+      // const newSettings = {
+      //   ...settings,
+      //   ...currentProfile?.specificSettings
+      // }
 
       res.status(200).json(settings);
     } catch (error: any) {

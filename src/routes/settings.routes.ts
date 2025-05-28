@@ -9,7 +9,7 @@ const settingsService = new SettingsService()
 
 router.post("/", settingsController.createDefault);
 
-router.get("/", settingsController.getSettings);
+router.get("/:pId", settingsController.getSettings);
 
 router.patch("/", settingsController.updateSettings);
 

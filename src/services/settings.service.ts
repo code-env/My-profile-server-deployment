@@ -130,6 +130,7 @@ return  await defaultSettings.save()
       
       if (profilesettings?.specificSettings) {
         settings.specificSettings = profilesettings.specificSettings;
+        console.log("entered the settings") 
         return settings;
       }
       return settings;
@@ -164,6 +165,7 @@ async generateProfileSpecificSettingsforAllProfiles(profiles: ProfileDocument[])
     
   for (const profile of profiles) {
     const defaultProfileSettings = getDefaultProfileSettings(profile.profileType);
+    console.log("generating profile specific settings for profile", profile.profileType)
     if(profile.specificSettings && Object.keys(profile.specificSettings).length > 0) {
       profile.specificSettings = { ...profile.specificSettings, ...defaultProfileSettings };
     } else {
