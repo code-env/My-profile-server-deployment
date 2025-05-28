@@ -1,3 +1,29 @@
+import express from 'express';
+import { body, param, query } from 'express-validator';
+import { protect } from '../middleware/auth.middleware';
+import { upload } from '../middleware/upload.middleware';
+import { validate } from '../middleware/requestValidator';
+import rateLimit from 'express-rate-limit';
+
+import {
+  getItems,
+  addItem,
+  updateItem,
+  deleteItem,
+  getCategories,
+  createCategory,
+  createSubcategory,
+  getUserVault,
+  getSubcategories,
+  clearAllVaultItems,
+  moveSubcategory,
+  getNestedSubcategories,
+  getItemsBySubcategory,
+  getItemsByCategory,
+  deleteSubcategory
+} from '../controllers/vault.controller';
+import { authenticateToken } from '../middleware/authMiddleware';
+
 /**
  * @file vault.routes.ts
  * @description Vault Routes for Digital Asset Management
@@ -10,14 +36,6 @@
  * @author My Profile Server
  */
 
-import express from 'express';
-import { body, param, query } from 'express-validator';
-import { vaultController } from '../controllers/vault.controller';
-import { protect } from '../middleware/auth.middleware';
-import { upload } from '../middleware/upload.middleware';
-import { validate } from '../middleware/requestValidator';
-import rateLimit from 'express-rate-limit';
-
 const router = express.Router();
 
 // Rate limiting for file uploads
@@ -29,16 +47,122 @@ const uploadRateLimit = rateLimit({
 
 // General validation schemas
 const objectIdValidation = param('itemId').isMongoId().withMessage('Valid item ID is required');
-const albumIdValidation = param('albumId').isMongoId().withMessage('Valid album ID is required');
+const categoryIdValidation = param('categoryId').isMongoId().withMessage('Valid category ID is required');
+const subcategoryIdValidation = param('subcategoryId').isMongoId().withMessage('Valid subcategory ID is required');
 
 const paginationValidation = [
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
   query('offset').optional().isInt({ min: 0 }).withMessage('Offset must be a non-negative integer')
 ];
 
+// Profile ID validation for query parameters
+const profileIdQueryValidation = [
+  query('profileId').notEmpty().isMongoId().withMessage('Valid profile ID is required')
+];
+
+// Category validation schema
+const categoryValidation = [
+  body('name').notEmpty().trim().isLength({ min: 1, max: 100 }).withMessage('Category name is required and must be under 100 characters'),
+  body('description').optional().isString().isLength({ max: 500 }).withMessage('Description must be under 500 characters'),
+  body('icon').optional().isString().trim().isLength({ max: 50 }).withMessage('Icon must be under 50 characters'),
+  body('color').optional().isString().trim().matches(/^#[0-9A-F]{6}$/i).withMessage('Color must be a valid hex color'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+  body('sortOrder').optional().isInt({ min: 0 }).withMessage('Sort order must be a non-negative integer')
+];
+
+// Subcategory validation schema
+const subcategoryValidation = [
+  body('name').notEmpty().trim().isLength({ min: 1, max: 100 }).withMessage('Subcategory name is required and must be under 100 characters'),
+  body('categoryId').notEmpty().isMongoId().withMessage('Valid category ID is required'),
+  body('description').optional().isString().isLength({ max: 500 }).withMessage('Description must be under 500 characters'),
+  body('icon').optional().isString().trim().isLength({ max: 50 }).withMessage('Icon must be under 50 characters'),
+  body('color').optional().isString().trim().matches(/^#[0-9A-F]{6}$/i).withMessage('Color must be a valid hex color'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
+  body('sortOrder').optional().isInt({ min: 0 }).withMessage('Sort order must be a non-negative integer'),
+  body('parentSubcategoryId').optional().isMongoId().withMessage('Parent subcategory ID must be valid')
+];
+
+// Item validation schema
+const itemValidation = [
+  body('category').notEmpty().trim().isLength({ min: 1, max: 100 }).withMessage('Category is required and must be under 100 characters'),
+  body('subcategory').notEmpty().trim().isLength({ min: 1, max: 100 }).withMessage('Subcategory is required and must be under 100 characters'),
+  body('type').optional().isString().trim().isLength({ max: 50 }).withMessage('Type must be under 50 characters'),
+  body('title').notEmpty().trim().isLength({ min: 1, max: 200 }).withMessage('Title is required and must be under 200 characters'),
+  body('description').optional().isString().isLength({ max: 1000 }).withMessage('Description must be under 1000 characters'),
+  body('fileData').optional().isString(),
+  body('metadata').optional().isObject().withMessage('Metadata must be an object'),
+  
+  // Card validation
+  body('card.number').optional().isString().isLength({ min: 8, max: 20 }).withMessage('Card number must be between 8-20 characters'),
+  body('card.cvv').optional().isString().isLength({ min: 3, max: 4 }).withMessage('CVV must be 3-4 characters'),
+  body('card.pin').optional().isString().isLength({ min: 4, max: 8 }).withMessage('PIN must be 4-8 characters'),
+  body('card.expiryDate').optional().isISO8601().withMessage('Expiry date must be valid ISO date'),
+  body('card.issueDate').optional().isISO8601().withMessage('Issue date must be valid ISO date'),
+  body('card.issuer').optional().isString().trim().isLength({ max: 100 }).withMessage('Issuer must be under 100 characters'),
+  body('card.holderName').optional().isString().trim().isLength({ max: 100 }).withMessage('Holder name must be under 100 characters'),
+  
+  // Document validation
+  body('document.type').optional().isString().trim().isLength({ max: 100 }).withMessage('Document type must be under 100 characters'),
+  body('document.status').optional().isString().trim().isLength({ max: 50 }).withMessage('Document status must be under 50 characters'),
+  body('document.class').optional().isString().trim().isLength({ max: 50 }).withMessage('Document class must be under 50 characters'),
+  body('document.category').optional().isString().trim().isLength({ max: 100 }).withMessage('Document category must be under 100 characters'),
+  body('document.subcategory').optional().isString().trim().isLength({ max: 100 }).withMessage('Document subcategory must be under 100 characters'),
+  body('document.version').optional().isString().trim().isLength({ max: 20 }).withMessage('Document version must be under 20 characters'),
+  body('document.authority').optional().isString().trim().isLength({ max: 100 }).withMessage('Authority must be under 100 characters'),
+  body('document.number').optional().isString().trim().isLength({ max: 50 }).withMessage('Document number must be under 50 characters'),
+  body('document.issueDate').optional().isISO8601().withMessage('Issue date must be valid ISO date'),
+  body('document.expiryDate').optional().isISO8601().withMessage('Expiry date must be valid ISO date'),
+  body('document.location').optional().isString().trim().isLength({ max: 200 }).withMessage('Location must be under 200 characters'),
+  body('document.notes').optional().isString().isLength({ max: 1000 }).withMessage('Notes must be under 1000 characters'),
+  body('document.tags').optional().isArray().withMessage('Tags must be an array'),
+  body('document.tags.*').optional().isString().trim().isLength({ max: 50 }).withMessage('Each tag must be under 50 characters'),
+  body('document.customFields').optional().isObject().withMessage('Custom fields must be an object'),
+  
+  // Location validation
+  body('location.country').optional().isString().trim().isLength({ min: 2, max: 2 }).withMessage('Country must be 2-character code'),
+  body('location.state').optional().isString().trim().isLength({ max: 100 }).withMessage('State must be under 100 characters'),
+  body('location.city').optional().isString().trim().isLength({ max: 100 }).withMessage('City must be under 100 characters'),
+  body('location.address').optional().isString().trim().isLength({ max: 200 }).withMessage('Address must be under 200 characters'),
+  body('location.postalCode').optional().isString().trim().isLength({ max: 20 }).withMessage('Postal code must be under 20 characters'),
+  
+  // Identification validation
+  body('identification.type').optional().isString().trim().isLength({ max: 50 }).withMessage('Identification type must be under 50 characters'),
+  body('identification.number').optional().isString().trim().isLength({ max: 50 }).withMessage('Identification number must be under 50 characters'),
+  body('identification.issueDate').optional().isISO8601().withMessage('Issue date must be valid ISO date'),
+  body('identification.expiryDate').optional().isISO8601().withMessage('Expiry date must be valid ISO date'),
+  body('identification.issuingCountry').optional().isString().trim().isLength({ min: 2, max: 2 }).withMessage('Issuing country must be 2-character code'),
+  body('identification.issuingAuthority').optional().isString().trim().isLength({ max: 100 }).withMessage('Issuing authority must be under 100 characters')
+];
+
+// Move subcategory validation
+const moveSubcategoryValidation = [
+  body('subcategoryId').notEmpty().isMongoId().withMessage('Valid subcategory ID is required'),
+  body('newCategoryId').notEmpty().isMongoId().withMessage('Valid new category ID is required'),
+  body('newParentSubcategoryId').optional().isMongoId().withMessage('New parent subcategory ID must be valid')
+];
+
+// Search validation
+const searchValidation = [
+  query('category').optional().isString().trim(),
+  query('subcategory').optional().isString().trim(),
+  query('type').optional().isString().trim(),
+  query('search').optional().isString().isLength({ min: 1, max: 100 }).withMessage('Search query must be 1-100 characters')
+];
+
 // ===========================
 // GENERAL VAULT ROUTES
 // ===========================
+
+/**
+ * @route GET /api/vault
+ * @desc Get user's vault
+ * @access Private
+ */
+router.get('/',
+  authenticateToken,
+  validate(profileIdQueryValidation),
+  getUserVault
+);
 
 /**
  * @route GET /api/vault/items
@@ -48,27 +172,40 @@ const paginationValidation = [
 router.get('/items',
   protect,
   validate([
-    query('category').optional().isIn(['wallet', 'documents', 'media']).withMessage('Invalid category'),
-    query('subcategory').optional().isString().trim(),
-    query('tags').optional(),
-    query('search').optional().isString().isLength({ max: 100 }).withMessage('Search query too long'),
-    query('isFavorite').optional().isBoolean().withMessage('isFavorite must be boolean'),
-    query('sortBy').optional().isIn(['name', 'createdAt', 'updatedAt', 'fileSize']).withMessage('Invalid sort field'),
-    query('sortOrder').optional().isIn(['asc', 'desc']).withMessage('Sort order must be asc or desc'),
+    ...profileIdQueryValidation,
+    ...searchValidation,
     ...paginationValidation
   ]),
-  vaultController.getVaultItems
+  getItems
 );
 
 /**
- * @route GET /api/vault/items/:itemId
- * @desc Get a specific vault item
+ * @route POST /api/vault/items
+ * @desc Add a new vault item
  * @access Private
  */
-router.get('/items/:itemId',
+router.post('/items',
+  authenticateToken,
+  uploadRateLimit,
+  upload.single('file'),
+  validate(itemValidation),
+  addItem
+);
+
+/**
+ * @route PUT /api/vault/items/:itemId
+ * @desc Update a vault item
+ * @access Private
+ */
+router.put('/items/:itemId',
   protect,
-  validate([objectIdValidation]),
-  vaultController.getVaultItem
+  uploadRateLimit,
+  upload.single('file'),
+  validate([
+    objectIdValidation,
+    ...itemValidation.map(validation => validation.optional())
+  ]),
+  updateItem
 );
 
 /**
@@ -79,322 +216,144 @@ router.get('/items/:itemId',
 router.delete('/items/:itemId',
   protect,
   validate([objectIdValidation]),
-  vaultController.deleteVaultItem
+  deleteItem
 );
 
 // ===========================
-// WALLET ROUTES
-// ===========================
-
-const walletValidation = [
-  body('name').notEmpty().trim().isLength({ max: 100 }).withMessage('Name is required and must be under 100 characters'),
-  body('subcategory').isIn([
-    'identity-card', 'residency-medical', 'financial-cards',
-    'myprofile-cards', 'membership-loyalty', 'passes-tickets',
-    'discount-receipts', 'other'
-  ]).withMessage('Invalid wallet subcategory'),
-  body('cardType').notEmpty().withMessage('Card type is required'),
-  body('description').optional().isString().isLength({ max: 500 }).withMessage('Description too long'),
-  body('tags').optional().isArray().withMessage('Tags must be an array'),
-  body('tags.*').optional().isString().trim().isLength({ max: 50 }).withMessage('Tag too long'),
-  body('isEncrypted').optional().isBoolean().withMessage('isEncrypted must be boolean'),
-  body('isFavorite').optional().isBoolean().withMessage('isFavorite must be boolean'),
-  body('accessLevel').optional().isIn(['private', 'shared', 'public']).withMessage('Invalid access level'),
-  body('cardNumber').optional().isString().isLength({ min: 8, max: 20 }).withMessage('Invalid card number length'),
-  body('expiryDate').optional().isISO8601().withMessage('Invalid expiry date format'),
-  body('issuer').optional().isString().trim().isLength({ max: 100 }).withMessage('Issuer name too long'),
-  body('holderName').optional().isString().trim().isLength({ max: 100 }).withMessage('Holder name too long'),
-  body('cardNetwork').optional().isIn(['visa', 'mastercard', 'amex', 'discover', 'other']).withMessage('Invalid card network'),
-  body('documentNumber').optional().isString().isLength({ max: 50 }).withMessage('Document number too long'),
-  body('issuingCountry').optional().isLength({ min: 2, max: 2 }).withMessage('Country code must be 2 characters'),
-  body('issuingAuthority').optional().isString().trim().isLength({ max: 100 }).withMessage('Issuing authority too long'),
-  body('isActive').optional().isBoolean().withMessage('isActive must be boolean'),
-  body('pinRequired').optional().isBoolean().withMessage('pinRequired must be boolean'),
-  body('biometricRequired').optional().isBoolean().withMessage('biometricRequired must be boolean')
-];
-
-/**
- * @route POST /api/vault/wallet
- * @desc Create a new wallet item
- * @access Private
- */
-router.post('/wallet',
-  protect,
-  validate(walletValidation),
-  vaultController.createWalletItem
-);
-
-/**
- * @route PUT /api/vault/wallet/:itemId
- * @desc Update a wallet item
- * @access Private
- */
-router.put('/wallet/:itemId',
-  protect,
-  objectIdValidation,
-  walletValidation.map(validation => validation.optional()),
-  vaultController.updateWalletItem
-);
-
-/**
- * @route POST /api/vault/wallet/:itemId/image
- * @desc Upload card image (front or back)
- * @access Private
- */
-router.post('/wallet/:itemId/image',
-  protect,
-  uploadRateLimit,
-  upload.single('image'),
-  [
-    objectIdValidation,
-    body('side').isIn(['front', 'back']).withMessage('Side must be either front or back')
-  ],
-  vaultController.uploadCardImage
-);
-
-// ===========================
-// DOCUMENT ROUTES
-// ===========================
-
-const documentValidation = [
-  body('name').notEmpty().trim().isLength({ max: 100 }).withMessage('Name is required and must be under 100 characters'),
-  body('subcategory').isIn(['documents', 'receipts', 'forms', 'vouchers', 'other']).withMessage('Invalid document subcategory'),
-  body('description').optional().isString().isLength({ max: 500 }).withMessage('Description too long'),
-  body('tags').optional().isArray().withMessage('Tags must be an array'),
-  body('tags.*').optional().isString().trim().isLength({ max: 50 }).withMessage('Tag too long'),
-  body('isEncrypted').optional().isBoolean().withMessage('isEncrypted must be boolean'),
-  body('isFavorite').optional().isBoolean().withMessage('isFavorite must be boolean'),
-  body('accessLevel').optional().isIn(['private', 'shared', 'public']).withMessage('Invalid access level'),
-  body('documentType').optional().isString().trim().isLength({ max: 100 }).withMessage('Document type too long'),
-  body('issuedBy').optional().isString().trim().isLength({ max: 100 }).withMessage('Issued by too long'),
-  body('issuedDate').optional().isISO8601().withMessage('Invalid issued date format'),
-  body('expiryDate').optional().isISO8601().withMessage('Invalid expiry date format'),
-  body('promoCode').optional().isString().trim().isLength({ max: 50 }).withMessage('Promo code too long'),
-  body('discountValue').optional().isString().trim().isLength({ max: 20 }).withMessage('Discount value too long'),
-  body('discountType').optional().isIn(['percentage', 'fixed', 'other']).withMessage('Invalid discount type'),
-  body('validUntil').optional().isISO8601().withMessage('Invalid valid until date format')
-];
-
-/**
- * @route POST /api/vault/documents
- * @desc Create a new document item
- * @access Private
- */
-router.post('/documents',
-  protect,
-  uploadRateLimit,
-  upload.single('file'),
-  validate(documentValidation),
-  vaultController.createDocumentItem
-);
-
-/**
- * @route PUT /api/vault/documents/:itemId
- * @desc Update a document item
- * @access Private
- */
-router.put('/documents/:itemId',
-  protect,
-  objectIdValidation,
-  documentValidation.map(validation => validation.optional()),
-  vaultController.updateDocumentItem
-);
-
-/**
- * @route POST /api/vault/documents/:itemId/link-scan
- * @desc Link document to existing scan
- * @access Private
- */
-router.post('/documents/:itemId/link-scan',
-  protect,
-  [
-    objectIdValidation,
-    body('scanId').isMongoId().withMessage('Valid scan ID is required')
-  ],
-  vaultController.linkDocumentToScan
-);
-
-// ===========================
-// MEDIA ROUTES
-// ===========================
-
-const mediaValidation = [
-  body('name').notEmpty().trim().isLength({ max: 100 }).withMessage('Name is required and must be under 100 characters'),
-  body('subcategory').isIn(['gallery', 'videos', 'audio', 'other']).withMessage('Invalid media subcategory'),
-  body('mediaType').isIn(['image', 'video', 'audio']).withMessage('Invalid media type'),
-  body('description').optional().isString().isLength({ max: 500 }).withMessage('Description too long'),
-  body('tags').optional().isArray().withMessage('Tags must be an array'),
-  body('tags.*').optional().isString().trim().isLength({ max: 50 }).withMessage('Tag too long'),
-  body('isEncrypted').optional().isBoolean().withMessage('isEncrypted must be boolean'),
-  body('isFavorite').optional().isBoolean().withMessage('isFavorite must be boolean'),
-  body('accessLevel').optional().isIn(['private', 'shared', 'public']).withMessage('Invalid access level'),
-  body('capturedAt').optional().isISO8601().withMessage('Invalid captured date format'),
-  body('location.latitude').optional().isFloat({ min: -90, max: 90 }).withMessage('Invalid latitude'),
-  body('location.longitude').optional().isFloat({ min: -180, max: 180 }).withMessage('Invalid longitude'),
-  body('location.address').optional().isString().trim().isLength({ max: 200 }).withMessage('Address too long'),
-  body('albumId').optional().isMongoId().withMessage('Invalid album ID'),
-  body('isProfilePicture').optional().isBoolean().withMessage('isProfilePicture must be boolean'),
-  body('isCoverPhoto').optional().isBoolean().withMessage('isCoverPhoto must be boolean')
-];
-
-/**
- * @route POST /api/vault/media
- * @desc Create a new media item
- * @access Private
- */
-router.post('/media',
-  protect,
-  uploadRateLimit,
-  upload.single('file'),
-  mediaValidation,
-  vaultController.createMediaItem
-);
-
-/**
- * @route PUT /api/vault/media/:itemId
- * @desc Update a media item
- * @access Private
- */
-router.put('/media/:itemId',
-  protect,
-  objectIdValidation,
-  mediaValidation.map(validation => validation.optional()),
-  vaultController.updateMediaItem
-);
-
-// ===========================
-// ALBUM ROUTES
-// ===========================
-
-const albumValidation = [
-  body('name').notEmpty().trim().isLength({ max: 100 }).withMessage('Album name is required and must be under 100 characters'),
-  body('description').optional().isString().isLength({ max: 500 }).withMessage('Description too long'),
-  body('isPrivate').optional().isBoolean().withMessage('isPrivate must be boolean'),
-  body('sortOrder').optional().isInt({ min: 0 }).withMessage('Sort order must be non-negative')
-];
-
-/**
- * @route POST /api/vault/albums
- * @desc Create a new album
- * @access Private
- */
-router.post('/albums',
-  protect,
-  albumValidation,
-  vaultController.createAlbum
-);
-
-/**
- * @route GET /api/vault/albums
- * @desc Get all albums for current profile
- * @access Private
- */
-router.get('/albums',
-  protect,
-  vaultController.getAlbums
-);
-
-/**
- * @route PUT /api/vault/albums/:albumId
- * @desc Update an album
- * @access Private
- */
-router.put('/albums/:albumId',
-  protect,
-  validate([albumIdValidation]),
-  albumValidation.map(validation => validation.optional()),
-  vaultController.updateAlbum
-);
-
-/**
- * @route DELETE /api/vault/albums/:albumId
- * @desc Delete an album
- * @access Private
- */
-router.delete('/albums/:albumId',
-  protect,
-  validate([albumIdValidation]),
-  vaultController.deleteAlbum
-);
-
-// ===========================
-// ANALYTICS & STATISTICS ROUTES
+// CATEGORY ROUTES
 // ===========================
 
 /**
- * @route GET /api/vault/stats
- * @desc Get vault statistics for current profile
+ * @route GET /api/vault/categories
+ * @desc Get all categories
  * @access Private
  */
-router.get('/stats',
-  protect,
-  vaultController.getVaultStats
+router.get('/categories',
+  authenticateToken,
+  validate(profileIdQueryValidation),
+  getCategories
 );
 
 /**
- * @route GET /api/vault/activity
- * @desc Get vault activity log
+ * @route POST /api/vault/categories
+ * @desc Create a new category
  * @access Private
  */
-router.get('/activity',
-  protect,
-  [
-    query('itemId').optional().isMongoId().withMessage('Invalid item ID'),
-    query('action').optional().isIn(['created', 'updated', 'deleted', 'viewed', 'shared', 'downloaded']).withMessage('Invalid action'),
+router.post('/categories',
+  authenticateToken,
+  validate(categoryValidation),
+  createCategory
+);
+
+/**
+ * @route GET /api/vault/categories/:categoryId/items
+ * @desc Get items by category
+ * @access Private
+ */
+router.get('/categories/:categoryId/items',
+  authenticateToken,
+  validate([
+    categoryIdValidation,
+    ...profileIdQueryValidation,
+    ...searchValidation,
     ...paginationValidation
-  ],
-  vaultController.getVaultActivity
+  ]),
+  getItemsByCategory
 );
 
 // ===========================
-// SHARING & ACCESS CONTROL ROUTES
+// SUBCATEGORY ROUTES
 // ===========================
 
 /**
- * @route POST /api/vault/items/:itemId/share
- * @desc Share a vault item with other profiles
+ * @route GET /api/vault/subcategories
+ * @desc Get all subcategories
  * @access Private
  */
-router.post('/items/:itemId/share',
-  protect,
-  [
-    objectIdValidation,
-    body('shareWithProfileIds').isArray({ min: 1 }).withMessage('Must share with at least one profile'),
-    body('shareWithProfileIds.*').isMongoId().withMessage('Invalid profile ID'),
-    body('accessLevel').optional().isIn(['shared', 'public']).withMessage('Invalid access level')
-  ],
-  vaultController.shareVaultItem
+router.get('/subcategories',
+  authenticateToken,
+  validate(profileIdQueryValidation),
+  getSubcategories
 );
 
 /**
- * @route GET /api/vault/shared
- * @desc Get items shared with current profile
+ * @route POST /api/vault/subcategories
+ * @desc Create a new subcategory
  * @access Private
  */
-router.get('/shared',
-  protect,
-  vaultController.getSharedItems
+router.post('/subcategories',
+  authenticateToken,
+  validate(subcategoryValidation),
+  createSubcategory
+);
+
+/**
+ * @route GET /api/vault/subcategories/nested
+ * @desc Get nested subcategories
+ * @access Private
+ */
+router.get('/subcategories/nested',
+  authenticateToken,
+  validate(profileIdQueryValidation),
+  getNestedSubcategories
+);
+
+/**
+ * @route POST /api/vault/subcategories/move
+ * @desc Move a subcategory
+ * @access Private
+ */
+router.post('/subcategories/move',
+  authenticateToken,
+  validate(moveSubcategoryValidation),
+  moveSubcategory
+);
+
+/**
+ * @route DELETE /api/vault/subcategories
+ * @desc Delete a subcategory
+ * @access Private
+ */
+router.delete('/subcategories',
+  authenticateToken,
+  validate([
+    body('subcategoryId').notEmpty().isMongoId().withMessage('Valid subcategory ID is required')
+  ]),
+  deleteSubcategory
+);
+
+/**
+ * @route GET /api/vault/subcategories/:subcategoryId/items
+ * @desc Get items by subcategory
+ * @access Private
+ */
+router.get('/subcategories/:subcategoryId/items',
+  authenticateToken,
+  validate([
+    subcategoryIdValidation,
+    ...profileIdQueryValidation,
+    ...searchValidation,
+    ...paginationValidation
+  ]),
+  getItemsBySubcategory
 );
 
 // ===========================
-// SEARCH ROUTES
+// UTILITY ROUTES
 // ===========================
 
 /**
- * @route GET /api/vault/search
- * @desc Search vault items
+ * @route DELETE /api/vault/clear
+ * @desc Clear all vault items
  * @access Private
  */
-router.get('/search',
-  protect,
-  [
-    query('q').notEmpty().isString().isLength({ min: 1, max: 100 }).withMessage('Search query is required and must be under 100 characters'),
-    query('categories').optional(),
-    query('tags').optional(),
-    query('dateFrom').optional().isISO8601().withMessage('Invalid date format'),
-    query('dateTo').optional().isISO8601().withMessage('Invalid date format')
-  ],
-  vaultController.searchVault
+router.delete('/clear',
+  authenticateToken,
+  validate([
+    body('confirmClear').equals('true').withMessage('Must confirm clear operation'),
+    ...profileIdQueryValidation
+  ]),
+  clearAllVaultItems
 );
 
 export default router;

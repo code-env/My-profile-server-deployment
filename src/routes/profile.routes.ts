@@ -10,8 +10,6 @@ import {
   deleteTemplate
 } from '../controllers/admin-profile-template.controller';
 
-
-
 const router = express.Router();
 
 // Initialize ProfileController
@@ -21,11 +19,11 @@ const profileController = new ProfileController();
 // router.use(authenticateToken);
 
 // Admin routes for managing profile templates
-router.post('/t/create', authenticateToken, requireRole(['admin', 'superadmin']), createTemplate);
+router.post('/t/create', authenticateToken, requireRole(['user', 'admin', 'superadmin']), createTemplate);
 router.get('/t/list', authenticateToken, listTemplates);
 router.get('/t/:id', authenticateToken, getTemplateById);
-router.put('/t/:id', authenticateToken, requireRole(['admin', 'superadmin']), updateTemplate);
-router.delete('/t/:id', authenticateToken, requireRole(['admin', 'superadmin']), deleteTemplate);
+router.put('/t/:id', authenticateToken, requireRole(['user','admin', 'superadmin']), updateTemplate);
+router.delete('/t/:id', authenticateToken, requireRole(['user','admin', 'superadmin']), deleteTemplate);
 
 // Template-based profile routes
 router.post('/p', authenticateToken, requireRole(['user', 'admin', 'superadmin']), profileController.createProfile.bind(profileController));
@@ -47,5 +45,11 @@ router.post('/:profileId/availability', profileController.setAvailability);
 router.patch('/:profileId/availability', profileController.updateAvailability);
 router.get('/:profileId/availability', profileController.getAvailability);
 router.get('/:profileId/availability/slots', profileController.getAvailableSlots);
+
+// Get community profiles with filters
+router.get(
+  '/communities',
+  profileController.getCommunityProfiles.bind(profileController)
+);
 
 export default router;

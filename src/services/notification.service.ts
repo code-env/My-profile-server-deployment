@@ -71,7 +71,7 @@ export class NotificationService {
       }
 
       // Get the user to check notification preferences - explicitly select telegramNotifications and notifications
-      const user = await User.findById(notification.recipient).select('notifications telegramNotifications devices');
+      const user = await User.findById(notification.recipient).select('notifications telegramNotifications devices email fullName');
       if (!user) {
         logger.warn(`User not found for notification: ${notification.recipient}`);
         return;

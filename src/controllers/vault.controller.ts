@@ -1,769 +1,581 @@
-/**
- * @file vault.controller.ts
- * @description Vault Controller for Digital Asset Management
- * ========================================================
- *
- * This controller handles all HTTP requests for the Vault system,
- * including wallet items, documents, media, and albums.
- *
- * @version 1.0.0
- * @author My Profile Server
- */
 
+import { Types } from 'mongoose';
+import asyncHandler from 'express-async-handler';
 import { Request, Response } from 'express';
+import createHttpError from 'http-errors';
 import { vaultService } from '../services/vault.service';
-import { ProfileModel } from '../models/profile.model';
 
-export class VaultController {
-  // ===========================
-  // HELPER METHODS
-  // ===========================
 
-  /**
-   * Get user's primary profile ID
-   */
-  private async getUserProfileId(user: any): Promise<string> {
-    // First check if user has a profileId field (legacy)
-    if (user.profileId) {
-      return user.profileId;
-    }
-
-    // Check if user has profiles array and get the first one
-    if (user.profiles && user.profiles.length > 0) {
-      return user.profiles[0].toString();
-    }
-
-    // If no profiles found, look for profiles created by this user
-    const userProfile = await ProfileModel.findOne({
-      'profileInformation.creator': user._id
-    }).sort({ createdAt: 1 }); // Get the oldest/first profile
-
-    if (userProfile) {
-      return userProfile._id.toString();
-    }
-
-    throw new Error('No profile found for user');
-  }
-
-  // ===========================
-  // GENERAL VAULT OPERATIONS
-  // ===========================
-
-  /**
-   * Get all vault items for a profile with filtering and pagination
-   */
-  async getVaultItems(req: Request, res: Response) {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-
-      const profileId = await this.getUserProfileId(req.user);
-
-      const {
-        category,
-        subcategory,
-        tags,
-        search,
-        isFavorite,
-        limit = 50,
-        offset = 0,
-        sortBy = 'createdAt',
-        sortOrder = 'desc'
-      } = req.query;
-
-      const options = {
-        category: category as 'wallet' | 'documents' | 'media' | undefined,
-        subcategory: subcategory as string | undefined,
-        tags: tags ? (Array.isArray(tags) ? tags as string[] : [tags as string]) : undefined,
-        search: search as string | undefined,
-        isFavorite: isFavorite === 'true' ? true : isFavorite === 'false' ? false : undefined,
-        limit: Math.min(parseInt(limit as string) || 50, 100),
-        offset: parseInt(offset as string) || 0,
-        sortBy: sortBy as string,
-        sortOrder: sortOrder as 'asc' | 'desc'
-      };
-
-      const items = await vaultService.getVaultItems(profileId, options);
-
-      res.json({
-        success: true,
-        data: items,
-        pagination: {
-          limit: options.limit,
-          offset: options.offset,
-          total: items.length
-        }
-      });
-    } catch (error) {
-      console.error('Error getting vault items:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to retrieve vault items'
-      });
-    }
-  }
-
-  /**
-   * Get a specific vault item by ID
-   */
-  async getVaultItem(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-      const { itemId } = req.params;
-
-      const item = await vaultService.getVaultItem(profileId, itemId);
-
-      res.json({
-        success: true,
-        data: item
-      });
-    } catch (error) {
-      console.error('Error getting vault item:', error);
-      if (error instanceof Error && error.message === 'Vault item not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Vault item not found'
-        });
-      }
-      res.status(500).json({
-        success: false,
-        error: 'Failed to retrieve vault item'
-      });
-    }
-  }
-
-  /**
-   * Delete a vault item
-   */
-  async deleteVaultItem(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-      const { itemId } = req.params;
-
-      const result = await vaultService.deleteVaultItem(profileId, itemId);
-
-      res.json({
-        success: true,
-        message: result.message
-      });
-    } catch (error) {
-      console.error('Error deleting vault item:', error);
-      if (error instanceof Error && error.message === 'Vault item not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Vault item not found'
-        });
-      }
-      res.status(500).json({
-        success: false,
-        error: 'Failed to delete vault item'
-      });
-    }
-  }
-
-  // ===========================
-  // WALLET OPERATIONS
-  // ===========================
-
-  /**
-   * Create a new wallet item
-   */
-  async createWalletItem(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-
-      const walletData = req.body;
-      const item = await vaultService.createWalletItem(profileId, walletData);
-
-      res.status(201).json({
-        success: true,
-        message: 'Wallet item created successfully',
-        data: item
-      });
-    } catch (error) {
-      console.error('Error creating wallet item:', error);
-      res.status(400).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to create wallet item'
-      });
-    }
-  }
-
-  /**
-   * Update a wallet item
-   */
-  async updateWalletItem(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-      const { itemId } = req.params;
-
-      const updates = req.body;
-      const item = await vaultService.updateWalletItem(profileId, itemId, updates);
-
-      res.json({
-        success: true,
-        message: 'Wallet item updated successfully',
-        data: item
-      });
-    } catch (error) {
-      console.error('Error updating wallet item:', error);
-      if (error instanceof Error && error.message === 'Wallet item not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Wallet item not found'
-        });
-      }
-      res.status(400).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to update wallet item'
-      });
-    }
-  }
-
-  /**
-   * Upload card image (front or back)
-   */
-  async uploadCardImage(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-      const { itemId } = req.params;
-      const { side } = req.body;
-
-      if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          error: 'Image file is required'
-        });
-      }
-
-      if (!side || !['front', 'back'].includes(side)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Side must be either "front" or "back"'
-        });
-      }
-
-      const result = await vaultService.uploadCardImage(profileId, itemId, req.file, side);
-
-      res.json({
-        success: true,
-        message: `Card ${side} image uploaded successfully`,
-        data: result
-      });
-    } catch (error) {
-      console.error('Error uploading card image:', error);
-      if (error instanceof Error && error.message === 'Wallet item not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Wallet item not found'
-        });
-      }
-      res.status(500).json({
-        success: false,
-        error: 'Failed to upload card image'
-      });
-    }
-  }
-
-  // ===========================
-  // DOCUMENT OPERATIONS
-  // ===========================
-
-  /**
-   * Create a new document item
-   */
-  async createDocumentItem(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-
-      const documentData = req.body;
-      const file = req.file;
-
-      const item = await vaultService.createDocumentItem(profileId, documentData, file);
-
-      res.status(201).json({
-        success: true,
-        message: 'Document item created successfully',
-        data: item
-      });
-    } catch (error) {
-      console.error('Error creating document item:', error);
-      res.status(400).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to create document item'
-      });
-    }
-  }
-
-  /**
-   * Update a document item
-   */
-  async updateDocumentItem(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-      const { itemId } = req.params;
-
-      const updates = req.body;
-      const item = await vaultService.updateDocumentItem(profileId, itemId, updates);
-
-      res.json({
-        success: true,
-        message: 'Document item updated successfully',
-        data: item
-      });
-    } catch (error) {
-      console.error('Error updating document item:', error);
-      if (error instanceof Error && error.message === 'Document item not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Document item not found'
-        });
-      }
-      res.status(400).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to update document item'
-      });
-    }
-  }
-
-  /**
-   * Link document to existing scan
-   */
-  async linkDocumentToScan(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-      const { itemId } = req.params;
-      const { scanId } = req.body;
-
-      if (!scanId) {
-        return res.status(400).json({
-          success: false,
-          error: 'Scan ID is required'
-        });
-      }
-
-      const item = await vaultService.linkDocumentToScan(profileId, itemId, scanId);
-
-      res.json({
-        success: true,
-        message: 'Document linked to scan successfully',
-        data: item
-      });
-    } catch (error) {
-      console.error('Error linking document to scan:', error);
-      if (error instanceof Error && error.message === 'Document item not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Document item not found'
-        });
-      }
-      res.status(400).json({
-        success: false,
-        error: 'Failed to link document to scan'
-      });
-    }
-  }
-
-  // ===========================
-  // MEDIA OPERATIONS
-  // ===========================
-
-  /**
-   * Create a new media item
-   */
-  async createMediaItem(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-
-      if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          error: 'Media file is required'
-        });
-      }
-
-      const mediaData = req.body;
-      const item = await vaultService.createMediaItem(profileId, mediaData, req.file);
-
-      res.status(201).json({
-        success: true,
-        message: 'Media item created successfully',
-        data: item
-      });
-    } catch (error) {
-      console.error('Error creating media item:', error);
-      res.status(400).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to create media item'
-      });
-    }
-  }
-
-  /**
-   * Update a media item
-   */
-  async updateMediaItem(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-      const { itemId } = req.params;
-
-      const updates = req.body;
-      const item = await vaultService.updateMediaItem(profileId, itemId, updates);
-
-      res.json({
-        success: true,
-        message: 'Media item updated successfully',
-        data: item
-      });
-    } catch (error) {
-      console.error('Error updating media item:', error);
-      if (error instanceof Error && error.message === 'Media item not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Media item not found'
-        });
-      }
-      res.status(400).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to update media item'
-      });
-    }
-  }
-
-  // ===========================
-  // ALBUM OPERATIONS
-  // ===========================
-
-  /**
-   * Create a new album
-   */
-  async createAlbum(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-
-      const albumData = req.body;
-      const album = await vaultService.createAlbum(profileId, albumData);
-
-      res.status(201).json({
-        success: true,
-        message: 'Album created successfully',
-        data: album
-      });
-    } catch (error) {
-      console.error('Error creating album:', error);
-      res.status(400).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to create album'
-      });
-    }
-  }
-
-  /**
-   * Get all albums for a profile
-   */
-  async getAlbums(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-
-      const albums = await vaultService.getAlbums(profileId);
-
-      res.json({
-        success: true,
-        data: albums
-      });
-    } catch (error) {
-      console.error('Error getting albums:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to retrieve albums'
-      });
-    }
-  }
-
-  /**
-   * Update an album
-   */
-  async updateAlbum(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-      const { albumId } = req.params;
-
-      const updates = req.body;
-      const album = await vaultService.updateAlbum(profileId, albumId, updates);
-
-      res.json({
-        success: true,
-        message: 'Album updated successfully',
-        data: album
-      });
-    } catch (error) {
-      console.error('Error updating album:', error);
-      if (error instanceof Error && error.message === 'Album not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Album not found'
-        });
-      }
-      res.status(400).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to update album'
-      });
-    }
-  }
-
-  /**
-   * Delete an album
-   */
-  async deleteAlbum(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-      const { albumId } = req.params;
-
-      const result = await vaultService.deleteAlbum(profileId, albumId);
-
-      res.json({
-        success: true,
-        message: result.message
-      });
-    } catch (error) {
-      console.error('Error deleting album:', error);
-      if (error instanceof Error && error.message === 'Album not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Album not found'
-        });
-      }
-      res.status(500).json({
-        success: false,
-        error: 'Failed to delete album'
-      });
-    }
-  }
-
-  // ===========================
-  // ANALYTICS & STATISTICS
-  // ===========================
-
-  /**
-   * Get vault statistics for a profile
-   */
-  async getVaultStats(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-
-      const stats = await vaultService.getVaultStats(profileId);
-
-      res.json({
-        success: true,
-        data: stats
-      });
-    } catch (error) {
-      console.error('Error getting vault stats:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to retrieve vault statistics'
-      });
-    }
-  }
-
-  /**
-   * Get vault activity log
-   */
-  async getVaultActivity(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-
-      const {
-        itemId,
-        action,
-        limit = 50,
-        offset = 0
-      } = req.query;
-
-      const options = {
-        itemId: itemId as string | undefined,
-        action: action as string | undefined,
-        limit: Math.min(parseInt(limit as string) || 50, 100),
-        offset: parseInt(offset as string) || 0
-      };
-
-      const activities = await vaultService.getVaultActivity(profileId, options);
-
-      res.json({
-        success: true,
-        data: activities,
-        pagination: {
-          limit: options.limit,
-          offset: options.offset,
-          total: activities.length
-        }
-      });
-    } catch (error) {
-      console.error('Error getting vault activity:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to retrieve vault activity'
-      });
-    }
-  }
-
-  // ===========================
-  // SHARING & ACCESS CONTROL
-  // ===========================
-
-  /**
-   * Share a vault item with other profiles
-   */
-  async shareVaultItem(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-      const { itemId } = req.params;
-      const { shareWithProfileIds, accessLevel = 'shared' } = req.body;
-
-      if (!shareWithProfileIds || !Array.isArray(shareWithProfileIds)) {
-        return res.status(400).json({
-          success: false,
-          error: 'shareWithProfileIds must be an array'
-        });
-      }
-
-      const item = await vaultService.shareVaultItem(
-        profileId,
-        itemId,
-        shareWithProfileIds,
-        accessLevel
-      );
-
-      res.json({
-        success: true,
-        message: 'Item shared successfully',
-        data: item
-      });
-    } catch (error) {
-      console.error('Error sharing vault item:', error);
-      if (error instanceof Error && error.message === 'Vault item not found') {
-        return res.status(404).json({
-          success: false,
-          error: 'Vault item not found'
-        });
-      }
-      res.status(400).json({
-        success: false,
-        error: 'Failed to share vault item'
-      });
-    }
-  }
-
-  /**
-   * Get items shared with current profile
-   */
-  async getSharedItems(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-
-      const items = await vaultService.getSharedItems(profileId);
-
-      res.json({
-        success: true,
-        data: items
-      });
-    } catch (error) {
-      console.error('Error getting shared items:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to retrieve shared items'
-      });
-    }
-  }
-
-  // ===========================
-  // SEARCH FUNCTIONALITY
-  // ===========================
-
-  /**
-   * Search vault items
-   */
-  async searchVault(req: Request, res: Response) {
-    try {
-      const profileId = await this.getUserProfileId(req.user!);
-
-      const {
-        q: query,
-        categories,
-        tags,
-        dateFrom,
-        dateTo
-      } = req.query;
-
-      if (!query || typeof query !== 'string') {
-        return res.status(400).json({
-          success: false,
-          error: 'Search query is required'
-        });
-      }
-
-      const filters = {
-        categories: categories ? (Array.isArray(categories) ? categories as string[] : [categories as string]) : undefined,
-        tags: tags ? (Array.isArray(tags) ? tags as string[] : [tags as string]) : undefined,
-        dateFrom: dateFrom ? new Date(dateFrom as string) : undefined,
-        dateTo: dateTo ? new Date(dateTo as string) : undefined
-      };
-
-      const results = await vaultService.searchVault(profileId, query, filters);
-
-      res.json({
-        success: true,
-        data: results,
-        count: results.length
-      });
-    } catch (error) {
-      console.error('Error searching vault:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to search vault'
-      });
-    }
-  }
+interface ItemFilters {
+  categoryId?: string;
+  subcategoryId?: string;
+  type?: string;
+  search?: string;
 }
 
-// Export wrapped controller for consistent interface
-export const vaultController = {
-  // General operations
-  getVaultItems: new VaultController().getVaultItems.bind(new VaultController()),
-  getVaultItem: new VaultController().getVaultItem.bind(new VaultController()),
-  deleteVaultItem: new VaultController().deleteVaultItem.bind(new VaultController()),
+interface AddItemRequest {
+  category: string;
+  subcategory: string;
+  type?: string;
+  title: string;
+  description?: string;
+  fileData?: string;
+  metadata?: Record<string, any>;
+  card?: {
+    number?: string;
+    cvv?: string;
+    pin?: string;
+    expiryDate?: Date;
+    issueDate?: Date;
+    issuer?: string;
+    holderName?: string;
+    images?: {
+      front?: { fileData?: string };
+      back?: { fileData?: string };
+      additional?: Array<{ fileData?: string; description?: string }>;
+    };
+  };
+  document?: {
+    type?: string;
+    status?: string;
+    class?: string;
+    category?: string;
+    subcategory?: string;
+    version?: string;
+    authority?: string;
+    number?: string;
+    issueDate?: Date;
+    expiryDate?: Date;
+    location?: string;
+    notes?: string;
+    tags?: string[];
+    customFields?: Record<string, any>;
+    images?: {
+      front?: { fileData?: string };
+      back?: { fileData?: string };
+      additional?: Array<{ fileData?: string; description?: string }>;
+    };
+  };
+  location?: {
+    country?: string;
+    state?: string;
+    city?: string;
+    address?: string;
+    postalCode?: string;
+  };
+  identification?: {
+    type?: string;
+    number?: string;
+    issueDate?: Date;
+    expiryDate?: Date;
+    issuingCountry?: string;
+    issuingAuthority?: string;
+    images?: {
+      front?: { fileData?: string };
+      back?: { fileData?: string };
+      additional?: Array<{ fileData?: string; description?: string }>;
+    };
+  };
+}
 
-  // Wallet operations
-  createWalletItem: new VaultController().createWalletItem.bind(new VaultController()),
-  updateWalletItem: new VaultController().updateWalletItem.bind(new VaultController()),
-  uploadCardImage: new VaultController().uploadCardImage.bind(new VaultController()),
+// Get user's vault
+const getUserVault = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.query as { profileId: string };
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
 
-  // Document operations
-  createDocumentItem: new VaultController().createDocumentItem.bind(new VaultController()),
-  updateDocumentItem: new VaultController().updateDocumentItem.bind(new VaultController()),
-  linkDocumentToScan: new VaultController().linkDocumentToScan.bind(new VaultController()),
+  const vault = await vaultService.getUserVault(profileId);
+  if (!vault) {
+    // Create default vault structure if it doesn't exist
+    const defaultCategories = await vaultService.getCategories(profileId);
+    res.json({
+      message: 'Vault created successfully',
+      vault: defaultCategories
+    });
+    return;
+  }
+  res.json({
+    message: 'Vault fetched successfully',
+    vault
+  });
+});
 
-  // Media operations
-  createMediaItem: new VaultController().createMediaItem.bind(new VaultController()),
-  updateMediaItem: new VaultController().updateMediaItem.bind(new VaultController()),
+// Get items with optional filters
+const getItems = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, categoryId, subcategoryId, type, search } = req.query;
+  
+  if (!profileId || typeof profileId !== 'string') {
+    throw createHttpError(400, 'Profile ID is required as a query parameter');
+  }
 
-  // Album operations
-  createAlbum: new VaultController().createAlbum.bind(new VaultController()),
-  getAlbums: new VaultController().getAlbums.bind(new VaultController()),
-  updateAlbum: new VaultController().updateAlbum.bind(new VaultController()),
-  deleteAlbum: new VaultController().deleteAlbum.bind(new VaultController()),
+  // Validate and type check query parameters
+  const filters: ItemFilters = {};
+  
+  if (categoryId) {
+    filters.categoryId = categoryId as string;
+  }
 
-  // Analytics
-  getVaultStats: new VaultController().getVaultStats.bind(new VaultController()),
-  getVaultActivity: new VaultController().getVaultActivity.bind(new VaultController()),
+  if (subcategoryId) {
+    filters.subcategoryId = subcategoryId as string;
+  }
 
-  // Sharing
-  shareVaultItem: new VaultController().shareVaultItem.bind(new VaultController()),
-  getSharedItems: new VaultController().getSharedItems.bind(new VaultController()),
+  if (type) {
+    filters.type = type as string;
+  }
 
-  // Search
-  searchVault: new VaultController().searchVault.bind(new VaultController())
-};
+  if (search) {
+    if (typeof search !== 'string') {
+      throw createHttpError(400, 'Search parameter must be a string');
+    }
+    filters.search = search;
+  }
 
-export default vaultController;
+  const result = await vaultService.getItems(profileId, filters);
+  if (!result) {
+    throw createHttpError(404, 'Vault not found');
+  }
+  res.json({
+    message: 'Items fetched successfully',
+    ...result
+  });
+});
+
+// Get items by category
+const getItemsByCategory = asyncHandler(async (req: Request, res: Response) => {
+  const { categoryId } = req.params;
+  const { profileId } = req.query;
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  // if (!categoryId || !Types.ObjectId.isValid(categoryId)) {
+  //   throw createHttpError(400, 'Valid category ID is required');
+  // }
+
+  const filters: ItemFilters = {
+    categoryId,
+    type: req.query.type as string,
+    search: req.query.search as string
+  };
+
+  const result = await vaultService.getItems(profileId as string, filters);
+  if (!result) {
+    throw createHttpError(404, 'No items found for this category');
+  }
+
+  res.json({
+    message: 'Category items fetched successfully',
+    categoryId,
+    ...result
+  });
+});
+
+// Get items by subcategory
+const getItemsBySubcategory = asyncHandler(async (req: Request, res: Response) => {
+  const { subcategoryId } = req.params;
+  const { profileId } = req.query;
+
+  console.log(profileId, subcategoryId);
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!subcategoryId || !Types.ObjectId.isValid(subcategoryId)) {
+    throw createHttpError(400, 'Valid subcategory ID is required');
+  }
+
+  const filters: ItemFilters = {
+    subcategoryId,
+    type: req.query.type as string,
+    search: req.query.search as string
+  };
+
+  const result = await vaultService.getItems(profileId as string, filters);
+  if (!result) {
+    throw createHttpError(404, 'No items found for this subcategory');
+  }
+
+  res.json({
+    message: 'Subcategory items fetched successfully',
+    subcategoryId,
+    ...result
+  });
+});
+
+// Add item to vault
+const addItem = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, category, subcategoryId, ...itemData } = req.body;
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!category || !subcategoryId) {
+    throw createHttpError(400, 'Category and subcategory ID are required');
+  }
+
+  if (!Types.ObjectId.isValid(subcategoryId)) {
+    throw createHttpError(400, 'Invalid subcategory ID format');
+  }
+
+  // Type check the item data
+  const item = itemData as AddItemRequest;
+  const { type, title } = item;
+
+  // Validate required fields
+  if (!title) {
+    throw createHttpError(400, 'Title is required');
+  }
+
+  // Validate card data if present
+  if (type === 'card' && item.card) {
+    if (item.card.number && !/^\d{13,19}$/.test(item.card.number)) {
+      throw createHttpError(400, 'Invalid card number format');
+    }
+    if (item.card.cvv && !/^\d{3,4}$/.test(item.card.cvv)) {
+      throw createHttpError(400, 'Invalid CVV format');
+    }
+  }
+
+  // Validate document data if present
+  if (type === 'document' && item.document) {
+    if (item.document.expiryDate && new Date(item.document.expiryDate) < new Date()) {
+      throw createHttpError(400, 'Document expiry date cannot be in the past');
+    }
+  }
+
+  // Validate identification data if present
+  if (type === 'identification' && item.identification) {
+    if (item.identification.expiryDate && new Date(item.identification.expiryDate) < new Date()) {
+      throw createHttpError(400, 'Identification expiry date cannot be in the past');
+    }
+  }
+
+  const result = await vaultService.addItem(
+    profileId,
+    profileId,
+    category,
+    subcategoryId,
+    item
+  );
+
+  res.status(201).json({
+    message: 'Item added successfully',
+    item: result
+  });
+});
+
+// Update item
+const updateItem = asyncHandler(async (req: Request, res: Response) => {
+  const { itemId } = req.params;
+  const { profileId, ...updates } = req.body;
+  
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!itemId || !Types.ObjectId.isValid(itemId)) {
+    throw createHttpError(400, 'Invalid item ID');
+  }
+
+  // Validate type if present
+  if (updates.type) {
+    const validTypes = ['document', 'card', 'identification'];
+    if (!validTypes.includes(updates.type)) {
+      throw createHttpError(400, `Invalid type. Must be one of: ${validTypes.join(', ')}`);
+    }
+  }
+
+  // Validate card data if present
+  if (updates.card) {
+    if (updates.card.number && !/^\d{13,19}$/.test(updates.card.number)) {
+      throw createHttpError(400, 'Invalid card number format');
+    }
+    if (updates.card.cvv && !/^\d{3,4}$/.test(updates.card.cvv)) {
+      throw createHttpError(400, 'Invalid CVV format');
+    }
+  }
+
+  // Validate document data if present
+  if (updates.document) {
+    if (updates.document.expiryDate && new Date(updates.document.expiryDate) < new Date()) {
+      throw createHttpError(400, 'Document expiry date cannot be in the past');
+    }
+  }
+
+  // Validate identification data if present
+  if (updates.identification) {
+    if (updates.identification.expiryDate && new Date(updates.identification.expiryDate) < new Date()) {
+      throw createHttpError(400, 'Identification expiry date cannot be in the past');
+    }
+  }
+
+  const item = await vaultService.updateItem(profileId, itemId, updates);
+  if (!item) {
+    throw createHttpError(404, 'Item not found');
+  }
+
+  res.json({
+    message: 'Item updated successfully',
+    item
+  });
+});
+
+// Delete item
+const deleteItem = asyncHandler(async (req: Request, res: Response) => {
+  const { itemId } = req.params;
+  const { profileId } = req.query as { profileId: string };
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!itemId || !Types.ObjectId.isValid(itemId)) {
+    throw createHttpError(400, 'Invalid item ID');
+  }
+
+  await vaultService.deleteItem(profileId, itemId);
+  res.json({
+    message: 'Item deleted successfully'
+  });
+});
+
+// Get all categories
+const getCategories = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.query;
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  const categories = await vaultService.getCategories(profileId as string);
+  res.json({
+    message: 'Categories fetched successfully',
+    categories
+  });
+});
+
+// Create new category
+const createCategory = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, name, subcategories } = req.body;
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!name || typeof name !== 'string') {
+    throw createHttpError(400, 'Category name is required and must be a string');
+  }
+
+  if (!subcategories || !Array.isArray(subcategories)) {
+    throw createHttpError(400, 'Subcategories must be an array');
+  }
+
+  if (subcategories.some(sub => typeof sub !== 'string')) {
+    throw createHttpError(400, 'All subcategories must be strings');
+  }
+
+  const category = await vaultService.createCategory(
+    profileId,
+    name,
+    subcategories
+  );
+
+  res.status(201).json({
+    message: 'Category created successfully',
+    category
+  });
+});
+
+// Create new subcategory
+const createSubcategory = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, categoryId, subcategoryName, parentId } = req.body;
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!categoryId) {
+    throw createHttpError(400, 'Category ID is required');
+  }
+
+  if (!subcategoryName || typeof subcategoryName !== 'string') {
+    throw createHttpError(400, 'Subcategory name is required and must be a string');
+  }
+
+  const subcategory = await vaultService.createSubcategory(
+    profileId,
+    categoryId,
+    subcategoryName,
+    parentId
+  );
+
+  res.status(201).json(subcategory);
+});
+
+// Get item by ID
+export const getItemById = asyncHandler(async (req: Request, res: Response) => {
+  const { itemId } = req.params;
+  const { profileId } = req.query as { profileId: string };
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!itemId || !Types.ObjectId.isValid(itemId)) {
+    throw createHttpError(400, 'Invalid item ID');
+  }
+
+  const item = await vaultService.getItemById(profileId, itemId);
+  if (!item) {
+    throw createHttpError(404, 'Item not found');
+  }
+
+  res.json({
+    message: 'Item fetched successfully',
+    item
+  });
+});
+
+// Upload and add to vault
+export const uploadAndAddToVault = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, fileData, category, subcategory, metadata } = req.body;
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!fileData || typeof fileData !== 'string') {
+    throw createHttpError(400, 'File data is required and must be a base64 string');
+  }
+
+  if (!category || typeof category !== 'string') {
+    throw createHttpError(400, 'Category is required and must be a string');
+  }
+
+  if (!subcategory || typeof subcategory !== 'string') {
+    throw createHttpError(400, 'Subcategory is required and must be a string');
+  }
+
+  const result = await vaultService.uploadAndAddToVault(
+    profileId,
+    profileId,
+    fileData,
+    category,
+    subcategory,
+    metadata
+  );
+
+  res.status(201).json(result);
+});
+
+// Get subcategories
+const getSubcategories = asyncHandler(async (req: Request, res: Response) => {
+  const { categoryId, profileId, parentId } = req.query;
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!categoryId) {
+    throw createHttpError(400, 'Category ID is required');
+  }
+
+  const subcategories = await vaultService.getSubcategories(
+    profileId as string,
+    categoryId as string,
+    parentId as string
+  );
+  
+  res.json({
+    message: 'Subcategories fetched successfully',
+    subcategories
+  });
+});
+
+// Move subcategory
+const moveSubcategory = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, subcategoryId, newParentId } = req.body;
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!subcategoryId) {
+    throw createHttpError(400, 'Subcategory ID is required');
+  }
+
+  const subcategory = await vaultService.moveSubcategory(
+    profileId,
+    subcategoryId,
+    newParentId
+  );
+
+  res.json({
+    message: 'Subcategory moved successfully',
+    subcategory
+  });
+});
+
+// Clear all vault items
+const clearAllVaultItems = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.query;
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  const result = await vaultService.clearAllVaultItems(profileId as string);
+  res.json({
+    message: 'All vault items cleared successfully',
+    result
+  });
+});
+
+// Get nested subcategories
+const getNestedSubcategories = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, subcategoryId } = req.query;
+
+  if (!profileId || !subcategoryId) {
+    throw createHttpError(400, 'Profile ID and Subcategory ID are required');
+  }
+
+  const subcategories = await vaultService.getNestedSubcategories(profileId as string, subcategoryId as string);
+  res.json({
+    message: 'Nested subcategories fetched successfully',
+    subcategories
+  });
+});
+
+// Delete subcategory and its items
+const deleteSubcategory = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId, subcategoryId } = req.query;
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!subcategoryId) {
+    throw createHttpError(400, 'Subcategory ID is required');
+  }
+
+  await vaultService.deleteSubcategory(profileId as string, subcategoryId as string);
+  
+  res.json({
+    message: 'Subcategory and its items deleted successfully'
+  });
+});
+
+export {
+  getUserVault,
+  getItems,
+  getItemsByCategory,
+  getItemsBySubcategory,
+  addItem,
+  updateItem,
+  deleteItem,
+  getCategories,
+  createCategory,
+  createSubcategory,
+  getSubcategories,
+  getNestedSubcategories,
+  clearAllVaultItems,
+  moveSubcategory,
+  deleteSubcategory
+}; 

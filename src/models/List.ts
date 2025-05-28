@@ -2,7 +2,8 @@ import mongoose, { Document, Schema, Model } from 'mongoose';
 import { ITask } from './Tasks';
 import { IProfile } from '../interfaces/profile.interface';
 import { IUser } from './User';
-import { VisibilityType } from './plans-shared';
+import { VisibilityType, Comment, repeatSettingsSchema, reminderSchema, RepeatSettings, Reminder } from './plans-shared';
+import { commentSchema } from './plans-shared/comment.schema';
 
 export interface IList extends Document {
   name: string;
@@ -15,30 +16,42 @@ export interface IList extends Document {
   notes?: string;
   createdBy: mongoose.Types.ObjectId | IUser;
   profile?: mongoose.Types.ObjectId | IProfile;
+  participants: (mongoose.Types.ObjectId | IProfile)[];
+  category?: string;
   createdAt: Date;
   updatedAt: Date;
   relatedTask?: mongoose.Types.ObjectId | ITask;
   likes: Like[];
-  comments: ListComment[];
+  comments: Comment[];
 }
 
 export interface ListItem {
+  _id: mongoose.Types.ObjectId;
   name: string;
   isCompleted: boolean;
   createdAt: Date;
   completedAt?: Date;
+  assignedTo?: mongoose.Types.ObjectId | IProfile;
+  repeat?: RepeatSettings;
+  reminders?: Reminder[];
+  duration?: number; // in minutes
+  status?: 'upcoming' | 'in_progress' | 'completed' | 'overdue';
+  subTasks?: ListItem[];
+  attachments?: Attachment[];
+  category?: string;
+  notes?: string;
+}
+
+export interface Attachment {
+  url: string;
+  type: string; // e.g. 'image', 'pdf', etc.
+  name?: string;
+  uploadedAt?: Date;
 }
 
 export interface Like {
   profile: mongoose.Types.ObjectId | IProfile;
   createdAt: Date;
-}
-
-export interface ListComment {
-  text: string;
-  createdBy: mongoose.Types.ObjectId | IProfile;
-  createdAt: Date;
-  updatedAt?: Date;
 }
 
 export enum ListType {
@@ -61,12 +74,31 @@ export interface Reward {
   points: number;
 }
 
+const attachmentSchema = new Schema<Attachment>({
+  url: { type: String, required: true },
+  type: { type: String, required: true },
+  name: { type: String },
+  uploadedAt: { type: Date, default: Date.now }
+}, { _id: false });
+
 const listItemSchema = new Schema<ListItem>({
+  _id: { type: Schema.Types.ObjectId, auto: true },
   name: { type: String, required: true },
   isCompleted: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
-  completedAt: { type: Date }
+  completedAt: { type: Date },
+  assignedTo: { type: Schema.Types.ObjectId, ref: 'Profile' },
+  repeat: repeatSettingsSchema,
+  reminders: [reminderSchema],
+  duration: { type: Number },
+  status: { type: String, enum: ['upcoming', 'in_progress', 'completed', 'overdue'], default: 'upcoming' },
+  subTasks: [/* recursive, see below */],
+  attachments: [attachmentSchema],
+  category: { type: String },
+  notes: { type: String }
 });
+// For recursive subTasks, set after schema definition
+listItemSchema.add({ subTasks: [listItemSchema] });
 
 const likeSchema = new Schema<Like>({
   profile: { 
@@ -75,16 +107,6 @@ const likeSchema = new Schema<Like>({
     required: true
   },
   createdAt: { type: Date, default: Date.now }
-});
-
-const listCommentSchema = new Schema<ListComment>({
-  text: { type: String, required: true },
-  createdBy: { 
-    type: Schema.Types.ObjectId,
-    ref: 'Users'
-  },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date }
 });
 
 const rewardSchema = new Schema<Reward>({
@@ -122,6 +144,8 @@ const listSchema = new Schema<IList>(
       type: Schema.Types.ObjectId, 
       ref: 'Profile'
     },
+    participants: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
+    category: { type: String },
     createdBy: { 
       type: Schema.Types.ObjectId,
       ref: 'Users',
@@ -131,7 +155,7 @@ const listSchema = new Schema<IList>(
       ref: 'Task'
     },
     likes: [likeSchema],
-    comments: [listCommentSchema]
+    comments: [commentSchema]
   },
   {
     timestamps: true,

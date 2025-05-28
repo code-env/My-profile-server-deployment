@@ -32,11 +32,11 @@ const initializeWebSocket = (server, app) => {
         path: '/socket.io' // Different path from WS
     });
     // Initialize interaction service and set up socket server
-    console.log('Initializing interaction service...');
+    console.info('Initializing interaction service...');
     interactionService = new interaction_service_1.InteractionService(Interaction_1.Interaction);
     interactionService.setSocketServer(io);
     // Initialize presence service for online/offline status
-    console.log('Initializing presence service...');
+    console.info('Initializing presence service...');
     presenceService = new presence_service_1.PresenceService();
     presenceService.setSocketServer(io);
     // Set up Socket.IO connection handler for presence

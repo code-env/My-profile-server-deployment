@@ -71,7 +71,7 @@ class TaskService {
     private async createListsFromSubtasks(task: ITask): Promise<void> {
         console.log(task);
         const listPromise = new List({
-            name: task.name || 'New List',
+            name: task.title || 'New List',
             type: 'Todo',
             createdBy: task.createdBy,
             relatedTask: task._id,
@@ -111,34 +111,18 @@ class TaskService {
     /**
      * Get task by ID with populated fields
      */
-    async getTaskById(taskId: string): Promise<ITask | null> {
-        if (!mongoose.Types.ObjectId.isValid(taskId)) {
-            throw new Error('Invalid task ID');
+    async getTaskById(taskId: string) {
+        const task = await Task.findById(taskId)
+            .populate('createdBy', 'name email')
+            .populate('profile', 'profileInformation.username')
+            .populate('participants', 'profileInformation.username')
+            .populate('comments.postedBy', 'profileInformation.username');
+
+        if (!task) {
+            throw new Error('Task not found');
         }
 
-        return Task.findById(taskId)
-            .populate('createdBy', 'fullName email')
-            .populate('participants', 'profileInformation.username profileType')
-            .populate('profile', 'profileInformation.username profileType')
-            .populate('relatedList', 'name type items')
-            .populate('attachments.uploadedBy', 'profileInformation.username profileType')
-            .populate({
-                path: 'comments',
-                populate: [
-                    { path: 'profile', select: 'profileInformation.username profileType' },
-                    { path: 'likes', select: 'profileInformation.username profileType' }
-                ]
-            })
-            .lean()
-            .exec()
-            .then(task => {
-                if (!task) return null;
-                return {
-                    ...task,
-                    likesCount: task.likes?.length || 0,
-                    commentsCount: task.comments?.length || 0
-                };
-            });
+        return task;
     }
 
     /**
@@ -205,9 +189,9 @@ class TaskService {
                 startTime: 1,
                 createdAt: -1
             })
-            .populate('createdBy', 'fullName email')
-            .populate('participants', 'fullName email')
-            .populate('profile', 'fullName avatar');
+            .populate('createdBy', 'Information.username')
+            .populate('participants', 'profileInformation.username')
+            .populate('profile', 'profileInformation.username');
     }
 
     /**
@@ -350,18 +334,18 @@ class TaskService {
         profileId: string,
         text: string
     ): Promise<ITask> {
-        const comment: Comment = {
+        const comment = {
             text,
-            profile: new mongoose.Types.ObjectId(profileId),
-            createdBy: new mongoose.Types.ObjectId(userId),
+            postedBy: new mongoose.Types.ObjectId(profileId),
             createdAt: new Date(),
+            updatedAt: new Date(),
             likes: []
         };
 
         const task = await Task.findOneAndUpdate(
             { _id: taskId },
             { $push: { comments: comment } },
-            { new: true }
+            { new: true, runValidators: false }
         );
 
         if (!task) {
@@ -390,15 +374,12 @@ class TaskService {
         }
 
         const comment = task.comments[commentIndex];
-        const userIdObj = new mongoose.Types.ObjectId(userId);
         const profileIdObj = new mongoose.Types.ObjectId(profileId);
 
-        // Check if already liked
-        if (comment.likes.some(like => like.toString() === userIdObj.toString())) {
-            throw new Error('Comment already liked by this user');
+        if (!comment.likes.includes(profileIdObj)) {
+            comment.likes.push(profileIdObj);
         }
 
-        comment.likes.push(userIdObj as unknown as IProfile & mongoose.Types.ObjectId);
         await task.save();
         return task;
     }
@@ -409,7 +390,8 @@ class TaskService {
     async unlikeComment(
         taskId: string,
         commentIndex: number,
-        userId: string
+        userId: string,
+        profileId: string
     ): Promise<ITask> {
         const task = await Task.findOne({ _id: taskId });
         if (!task) {
@@ -421,11 +403,11 @@ class TaskService {
         }
 
         const comment = task.comments[commentIndex];
-        const userIdObj = new mongoose.Types.ObjectId(userId);
+        const profileIdObj = new mongoose.Types.ObjectId(profileId);
 
-        // Remove like
-        comment.likes = comment.likes.filter(like => like.toString() !== userIdObj.toString()) as mongoose.Types.ObjectId[];
+        comment.likes = comment.likes.filter(id => !id.equals(profileIdObj));
         await task.save();
+
         return task;
     }
 
@@ -478,33 +460,29 @@ class TaskService {
         return task;
     }
 
-    async likeTask(taskId: string, userId: Types.ObjectId) {
-        const task = await Task.findById(taskId);
+    async likeTask(taskId: string, profileId: Types.ObjectId) {
+        const task = await Task.findOneAndUpdate(
+            { _id: taskId },
+            { $addToSet: { likes: profileId } },
+            { new: true, runValidators: false }
+        );
+
         if (!task) {
             throw new Error('Task not found');
-        }
-
-        if (!task.likes) {
-            task.likes = [];
-        }
-
-        if (!task.likes.includes(userId)) {
-            task.likes.push(userId);
-            await task.save();
         }
 
         return task;
     }
 
-    async unlikeTask(taskId: string, userId: Types.ObjectId) {
-        const task = await Task.findById(taskId);
+    async unlikeTask(taskId: string, profileId: Types.ObjectId) {
+        const task = await Task.findOneAndUpdate(
+            { _id: taskId },
+            { $pull: { likes: profileId } },
+            { new: true, runValidators: false }
+        );
+
         if (!task) {
             throw new Error('Task not found');
-        }
-
-        if (task.likes) {
-            task.likes = task.likes.filter(id => !id.equals(userId));
-            await task.save();
         }
 
         return task;

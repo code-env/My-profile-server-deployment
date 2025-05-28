@@ -3,20 +3,27 @@ import { isValidObjectId } from 'mongoose';
 import createHttpError from 'http-errors';
 import { logger } from '../utils/logger';
 import { User } from '../models/User';
-import { ProfileTemplate } from '../models/profiles/profile-template';
+import { ProfileTemplate, ProfileType, ProfileCategory } from '../models/profiles/profile-template';
 import { generateUniqueConnectLink, generateReferralCode, generateSecondaryId } from '../utils/crypto';
 import { generateProfileGradient } from '../utils/gradient-generator';
 import mongoose from 'mongoose';
-
-// No custom interfaces needed - we'll use type assertions with 'any' where necessary
+import { ITemplateField } from '../models/profiles/profile-template';
+import { FieldWidget } from '../models/profiles/profile-template';
+import geoip from 'geoip-lite';
+import { ProfileFilter } from '../types/profiles';
 
 export class ProfileService {
+
   /**
    * Creates a profile with content in one step
    * @param userId The user ID creating the profile
    * @param templateId The template ID to base the profile on
    * @param profileInformation Basic profile information
    * @param sections Optional sections with field values and enabled status
+   * @param members Optional array of member IDs for group profiles
+   * @param location Optional location information for the profile
+   * @param ip Optional IP address for geolocation
+   * @param groups Optional array of group IDs for group profiles
    * @returns The created profile document
    */
   async createProfileWithContent(
@@ -37,12 +44,24 @@ export class ProfileService {
         value: any;
         enabled: boolean;
       }>;
-    }>
+    }>,
+    members?: string[],
+    location?: {
+      city?: string;
+      stateOrProvince?: string;
+      country?: string;
+      coordinates?: {
+        latitude: number;
+        longitude: number;
+      };
+    },
+    ip?: string,
+    groups?: string[]
   ): Promise<ProfileDocument> {
     logger.info(`Creating profile with content for user ${userId} using template ${templateId}`);
 
-    // Create the base profile
-    const profile = await this.createProfile(userId, templateId);
+    // Create the base profile with all parameters
+    const profile = await this.createProfile(userId, templateId, members, location, ip, groups);
 
     // Update profile information
     if (profileInformation) {
@@ -85,11 +104,27 @@ export class ProfileService {
    * Creates a new profile based on a template
    * @param userId The user ID creating the profile
    * @param templateId The template ID to base the profile on
+   * @param members Optional array of member IDs for group profiles
+   * @param location Optional location information for the profile
+   * @param ip Optional IP address for geolocation
+   * @param groups Optional array of group IDs for group profiles
    * @returns The created profile document
    */
   async createProfile(
     userId: string,
-    templateId: string
+    templateId: string,
+    members: string[] = [],
+    location?: {
+      city?: string;
+      stateOrProvince?: string;
+      country?: string;
+      coordinates?: {
+        latitude: number;
+        longitude: number;
+      };
+    },
+    ip?: string,
+    groups?: string[]
   ): Promise<ProfileDocument> {
     logger.info(`Creating new profile for user ${userId} using template ${templateId}`);
 
@@ -104,15 +139,6 @@ export class ProfileService {
       throw createHttpError(404, 'Template not found');
     }
 
-    // Check if user already has a profile of this type
-    const existingProfile = await Profile.findOne({
-      'profileInformation.creator': userId,
-      templatedId: templateId
-    });
-    if (existingProfile) {
-      throw createHttpError(409, 'User already has a profile using this template');
-    }
-
     // Generate unique links
     const [connectLink, profileLink] = await Promise.all([
       generateUniqueConnectLink(),
@@ -125,24 +151,42 @@ export class ProfileService {
 
     // Generate a unique secondary ID
     const secondaryId = await generateSecondaryId(async (id: string) => {
-      // Check if the ID is unique
       const existingProfile = await Profile.findOne({ secondaryId: id });
-      return !existingProfile; // Return true if no profile with this ID exists
+      return !existingProfile;
     });
 
-    // Create initial profile sections with all fields disabled by default
-    const initialSections = template.categories.map(category => ({
-      key: category.name,
-      label: category.label,
-      fields: category.fields.map(field => ({
-        key: field.name,
-        value: field.default || null,
-        enabled: false // Fields are disabled by default
-      }))
-    }));
-
-    // Get user data for profile username (using fullName instead of username)
+    // Get user data
     const user = await User.findById(userId);
+    if (!user) {
+      throw createHttpError(404, 'User not found');
+    }
+
+    // Get user's location if not provided
+    let profileLocation = location;
+    if (!profileLocation) {
+      profileLocation = {
+        country: user.countryOfResidence
+      };
+
+      // Try to get coordinates from IP if available
+      if (ip) {
+        const geo = geoip.lookup(ip);
+        if (geo) {
+          profileLocation = {
+            ...profileLocation,
+            city: geo.city,
+            stateOrProvince: geo.region,
+            country: geo.country,
+            coordinates: {
+              latitude: geo.ll[0],
+              longitude: geo.ll[1]
+            }
+          };
+        }
+      }
+    }
+
+    // Get user data for profile username
     const profileUsername = user?.fullName || user?.username || '';
 
     // Get country information from user
@@ -173,13 +217,69 @@ export class ProfileService {
     // Generate a unique gradient background based on the username
     const { gradient, primaryColor, secondaryColor } = generateProfileGradient(profileUsername);
 
+    // Create initial sections from template with all fields disabled by default
+    const initialSections = template.categories.map(category => ({
+      key: category.name,
+      label: category.label || category.name,
+      icon: category.icon || '',
+      collapsible: category.collapsible !== false,
+      fields: category.fields.map(field => ({
+        key: field.name,
+        label: field.label || field.name,
+        widget: field.widget || 'text',
+        required: field.required || false,
+        placeholder: field.placeholder || '',
+        enabled: field.enabled !== false,
+        value: field.default || null,
+        options: field.options || [],
+        validation: field.validation || {}
+      }))
+    }));
+
+    // Add members and groups fields to info section for group profiles
+    if (template.profileCategory === 'group' || template.profileType === 'group') {
+      const infoSection = initialSections.find(s => s.key === 'info');
+      if (infoSection) {
+        // Add members field if it doesn't exist
+        if (!infoSection.fields.some(f => f.key === 'members')) {
+          infoSection.fields.push({
+            key: 'members',
+            label: 'Members',
+            widget: 'multiselect',
+            required: false,
+            placeholder: '',
+            enabled: true,
+            value: [],
+            options: [],
+            validation: {}
+          });
+        }
+        // Add groups field if it doesn't exist
+        if (!infoSection.fields.some(f => f.key === 'groups')) {
+          infoSection.fields.push({
+            key: 'groups',
+            label: 'Groups',
+            widget: 'multiselect',
+            required: false,
+            placeholder: '',
+            enabled: true,
+            value: [],
+            options: [],
+            validation: {}
+          });
+        }
+      }
+    }
+
+    // Create the profile with appropriate group/member handling
     const profile = new Profile({
       profileCategory: template.profileCategory,
       profileType: template.profileType,
-      secondaryId, // Add the secondary ID
+      secondaryId,
       templatedId: template._id,
       profileInformation: {
         username: profileUsername,
+        title: '',
         profileLink: profileLink,
         creator: new mongoose.Types.ObjectId(userId),
         connectLink,
@@ -199,6 +299,7 @@ export class ProfileService {
         updatedAt: new Date()
       },
       profileLocation: {
+        ...profileLocation,
         country: userCountry,
         countryCode: countryCode
       },
@@ -206,8 +307,46 @@ export class ProfileService {
         referalLink: referralLink,
         referals: 0
       },
-      sections: initialSections
-    });
+      sections: initialSections,
+      members: [], // Initialize empty members array
+      groups: [] // Initialize empty groups array
+    }) as ProfileDocument & { members: mongoose.Types.ObjectId[]; groups: mongoose.Types.ObjectId[] };
+
+    // Handle group profiles and members
+    if (template.profileCategory === 'group' || template.profileType === 'group') {
+      // Add the creator as a member by default
+      profile.members = [new mongoose.Types.ObjectId(userId)];
+      
+      // Add any provided members from the members parameter
+      if (members && members.length > 0) {
+        const validMemberIds = members.filter(id => isValidObjectId(id));
+        profile.members = [...profile.members, ...validMemberIds.map(id => new mongoose.Types.ObjectId(id))];
+        
+        // Also add to the members field in info section if it exists
+        const infoSection = profile.sections.find(s => s.key === 'info');
+        if (infoSection) {
+          const membersField = infoSection.fields.find(f => f.key === 'members');
+          if (membersField) {
+            (membersField as any).value = profile.members;
+          }
+        }
+      }
+
+      // Add any provided groups from the groups parameter
+      if (groups && groups.length > 0) {
+        const validGroupIds = groups.filter(id => isValidObjectId(id));
+        profile.groups = validGroupIds.map(id => new mongoose.Types.ObjectId(id));
+        
+        // Also add to the groups field in info section if it exists
+        const infoSection = profile.sections.find(s => s.key === 'info');
+        if (infoSection) {
+          const groupsField = infoSection.fields.find(f => f.key === 'groups');
+          if (groupsField) {
+            (groupsField as any).value = profile.groups;
+          }
+        }
+      }
+    }
 
     await profile.save();
     logger.info(`Profile created successfully: ${profile._id}`);
@@ -373,9 +512,51 @@ export class ProfileService {
       throw createHttpError(400, 'Invalid profile ID');
     }
 
-    const profile = await Profile.findById(profileId);
+    const profile = await Profile.findById(profileId)
+      .populate('profileInformation.creator', 'fullName email')
+      .populate('members', 'profileInformation.username profileInformation.title _id')
+      .populate('groups', 'profileInformation.username profileInformation.title _id');
+
     if (!profile) {
       throw createHttpError(404, 'Profile not found');
+    }
+
+    // Process sections to ensure all fields are properly enabled and have values
+    profile.sections.forEach(section => {
+      section.fields.forEach(field => {
+        if (field.value === null && field.default) {
+          field.value = field.default;
+        }
+      });
+    });
+
+    // Process members and groups if they exist
+    if (profile.members && profile.members.length > 0) {
+      const membersSection = profile.sections.find(s => s.key === 'info');
+      if (membersSection) {
+        const membersField = membersSection.fields.find(f => f.key === 'members');
+        if (membersField) {
+          membersField.value = profile.members.map(member => ({
+            id: member._id,
+            name: (member as any).profileInformation?.title || (member as any).profileInformation?.username
+          }));
+          membersField.enabled = true;
+        }
+      }
+    }
+
+    if (profile.groups && profile.groups.length > 0) {
+      const groupsSection = profile.sections.find(s => s.key === 'info');
+      if (groupsSection) {
+        const groupsField = groupsSection.fields.find(f => f.key === 'groups');
+        if (groupsField) {
+          groupsField.value = profile.groups.map(group => ({
+            id: group._id,
+            name: (group as any).profileInformation?.title || (group as any).profileInformation?.username
+          }));
+          groupsField.enabled = true;
+        }
+      }
     }
 
     return profile;
@@ -455,7 +636,7 @@ export class ProfileService {
     let query = Profile.find(filter).sort({ 'profileInformation.createdAt': -1 });
     if (limit > 0) {
       query = query.skip(skip).limit(limit);
-    } else {
+          } else {
       // If limit is 0 or negative, do not apply limit (return all)
       if (skip > 0) {
         query = query.skip(skip);
@@ -846,13 +1027,13 @@ export class ProfileService {
 
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = dayNames[date.getDay()];
-
+    
     // Handle both Map and object formats for workingHours
-    const workingHours = profile.availability.workingHours instanceof Map
+    const workingHours = profile.availability.workingHours instanceof Map 
       ? profile.availability.workingHours.get(dayOfWeek)
       : profile.availability.workingHours[dayOfWeek];
     console.log('Debug - Working hours:', workingHours);
-
+    
     if (!workingHours?.isWorking) {
       console.log('Debug - Not a working day');
       return [];
@@ -862,7 +1043,7 @@ export class ProfileService {
     const slots: Array<{start: Date, end: Date}> = [];
 
     // Check for exceptions
-    const exception = profile.availability.exceptions?.find(e =>
+    const exception = profile.availability.exceptions?.find(e => 
       e.date.toISOString().split('T')[0] === dateStr
     );
     console.log('Debug - Exception found:', exception);
@@ -903,7 +1084,7 @@ export class ProfileService {
           if (!breakTime.days.includes(dayOfWeek)) return false;
           const breakStart = new Date(`${dateStr}T${breakTime.start}`);
           const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
-          return (currentTime >= breakStart && currentTime < breakEnd) ||
+          return (currentTime >= breakStart && currentTime < breakEnd) || 
                  (slotEnd > breakStart && slotEnd <= breakEnd);
         });
 
@@ -918,5 +1099,224 @@ export class ProfileService {
     }
 
     return slots;
+  }
+
+  /**
+   * Fetches community profiles with filters for location and other criteria
+   * @param filters Object containing filter criteria (town, city, country, etc.)
+   * @param skip Number of documents to skip
+   * @param limit Maximum number of documents to return
+   * @returns Array of community profile documents with minimal sections
+   */
+  async getCommunityProfiles(filters: ProfileFilter = {}, skip = 0, limit = 20): Promise<ProfileDocument[]> {
+    logger.info(`Fetching community profiles with filters: ${JSON.stringify(filters)}, skip: ${skip}, limit: ${limit}`);
+
+    // Build the filter query
+    const query: any = {
+      profileCategory: 'group',
+      profileType: 'community'
+    };
+
+    // Type filter
+    if (filters.profileType) {
+      query['profileType'] = filters.profileType;
+    }
+
+    // Access filter (if present in schema)
+    if (filters.accessType) {
+      query['accessType'] = filters.accessType;
+    }
+
+    // Created by filter
+    if (filters.createdBy) {
+      query['profileInformation.creator'] = filters.createdBy;
+    }
+
+    // Viewed/Not viewed filter (example: analytics.Networking.views or a views array)
+    if (filters.viewed === 'viewed') {
+      query['analytics.Networking.views'] = { $gt: 0 };
+    } else if (filters.viewed === 'not_viewed') {
+      query['$or'] = [
+        { 'analytics.Networking.views': { $exists: false } },
+        { 'analytics.Networking.views': 0 }
+      ];
+    }
+
+    // Location filters
+    if (filters.city) {
+      query['profileLocation.city'] = { $regex: new RegExp(filters.city, 'i') };
+    }
+    if (filters.stateOrProvince) {
+      query['profileLocation.stateOrProvince'] = { $regex: new RegExp(filters.stateOrProvince, 'i') };
+    }
+    if (filters.country) {
+      query['profileLocation.country'] = { $regex: new RegExp(filters.country, 'i') };
+    }
+    if (filters.town) {
+      query['$or'] = [
+        { 'profileLocation.city': { $regex: new RegExp(filters.town, 'i') } },
+        { 'profileLocation.stateOrProvince': { $regex: new RegExp(filters.town, 'i') } }
+      ];
+    }
+    // Geospatial
+    if (filters.latitude && filters.longitude && filters.radius) {
+      query['profileLocation.coordinates'] = {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [filters.longitude, filters.latitude]
+          },
+          $maxDistance: filters.radius * 1000 // Convert km to meters
+        }
+      };
+    }
+
+    // Tag filter (if tags array or in sections.fields)
+    if (filters.tag) {
+      query['$or'] = [
+        { 'tags': filters.tag },
+        { 'sections.fields': { $elemMatch: { key: 'tag', value: filters.tag } } }
+      ];
+    }
+
+    // Verification status
+    if (filters.verificationStatus === 'verified') {
+      query['verificationStatus.isVerified'] = true;
+    } else if (filters.verificationStatus === 'not_verified') {
+      query['verificationStatus.isVerified'] = false;
+    }
+
+    // Creation date filter (e.g., 'last_24_hours', 'last_7_days', 'last_30_days', 'last_365_days')
+    if (filters.creationDate) {
+      const now = new Date();
+      let fromDate: Date | null = null;
+      switch (filters.creationDate) {
+        case 'last_24_hours':
+          fromDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case 'last_7_days':
+          fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'last_30_days':
+          fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'last_365_days':
+          fromDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          fromDate = null;
+      }
+      if (fromDate) {
+        query['profileInformation.createdAt'] = { $gte: fromDate };
+      }
+    }
+
+    // Group/member filter
+    if (filters.groupId) {
+      query['groups'] = filters.groupId;
+    }
+    if (filters.memberId) {
+      query['members'] = filters.memberId;
+    }
+
+    // Keyword search
+    if (filters.keyword) {
+      query['$or'] = [
+        { 'profileInformation.username': { $regex: new RegExp(filters.keyword, 'i') } },
+        { 'profileInformation.title': { $regex: new RegExp(filters.keyword, 'i') } },
+        { 'sections.fields.value': { $regex: new RegExp(filters.keyword, 'i') } },
+        { 'profileLocation.city': { $regex: new RegExp(filters.keyword, 'i') } },
+        { 'profileLocation.stateOrProvince': { $regex: new RegExp(filters.keyword, 'i') } },
+        { 'profileLocation.country': { $regex: new RegExp(filters.keyword, 'i') } }
+      ];
+    }
+
+    // Sorting
+    const sort: any = {};
+    if (filters.sortBy) {
+      switch (filters.sortBy) {
+        case 'name':
+          sort['profileInformation.username'] = filters.sortOrder === 'desc' ? -1 : 1;
+          break;
+        case 'createdAt':
+          sort['profileInformation.createdAt'] = filters.sortOrder === 'desc' ? -1 : 1;
+          break;
+        case 'members':
+          sort['members'] = filters.sortOrder === 'desc' ? -1 : 1;
+          break;
+        case 'groups':
+          sort['groups'] = filters.sortOrder === 'desc' ? -1 : 1;
+          break;
+        default:
+          sort['profileInformation.createdAt'] = -1;
+      }
+    } else {
+      sort['profileInformation.createdAt'] = -1;
+    }
+
+    // Fetch profiles
+    const profiles = await Profile.find(query)
+      .select({
+        'profileInformation': 1,
+        'sections': 1,
+        'profileLocation': 1,
+        'members': 1,
+        'groups': 1,
+        'verificationStatus': 1,
+        'analytics': 1,
+        'tags': 1
+      })
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .populate('profileInformation.creator', 'fullName email')
+      .populate('members', 'profileInformation.username profileInformation.title _id')
+      .populate('groups', 'profileInformation.username profileInformation.title _id');
+
+    // Process profiles to ensure all required fields are present
+    const processedProfiles = await Promise.all(profiles.map(async profile => {
+      // Log profile location for debugging
+      logger.debug(`Profile ${profile._id} location:`, JSON.stringify(profile.profileLocation));
+
+      const infoSection = profile.sections.find(s => s.key === 'info');
+      if (infoSection) {
+        // Ensure community_name field exists and has a value
+        const communityNameField = infoSection.fields.find(f => f.key === 'community_name');
+        if (!communityNameField) {
+          const communityNameField = {
+            key: 'community_name',
+            label: 'Community Name',
+            widget: 'text' as FieldWidget,
+            enabled: true,
+            value: profile.profileInformation.title || profile.profileInformation.username
+          } as any;
+          infoSection.fields.push(communityNameField);
+        } else {
+          (communityNameField as any).value = profile.profileInformation.title || profile.profileInformation.username;
+          communityNameField.enabled = true;
+        }
+
+        // Process members and groups fields
+        for (const field of infoSection.fields) {
+          if (field.key === 'members' || field.key === 'groups') {
+            const memberIds = (field as any).value || [];
+            if (Array.isArray(memberIds)) {
+              const members = await Profile.find({ _id: { $in: memberIds } })
+                .select('profileInformation.username profileInformation.title _id');
+              
+              (field as any).value = members.map(member => ({
+                id: member._id,
+                name: (member as any).profileInformation?.title || (member as any).profileInformation?.username
+              }));
+            }
+          } else if ((field as any).value === null && field.default) {
+            (field as any).value = field.default;
+          }
+        }
+      }
+      return profile;
+    }));
+
+    return processedProfiles;
   }
 }

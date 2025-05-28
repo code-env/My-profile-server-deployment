@@ -1,20 +1,16 @@
 import { Request, Response } from 'express';
 import mongoose, { Types } from 'mongoose';
 import taskService from '../services/task.service';
-import { ITask } from '../models/Tasks';
 import {
     TaskStatus,
     TaskType
 } from '../models/plans-shared';
-import createHttpError from 'http-errors';
 import asyncHandler from 'express-async-handler';
-import CloudinaryService from '../services/cloudinary.service';
-import { request } from 'http';
-import { InteractionService } from '../services/interaction.service';
-import { Interaction } from '../models/Interaction';
 import { Attachment, EndCondition, PriorityLevel, ReminderType, ReminderUnit, RepeatFrequency, TaskCategory, VisibilityType } from '../models/plans-shared';
-import Client from 'socket.io-client';
 import { emitSocialInteraction } from '../utils/socketEmitter';
+import { vaultService } from '../services/vault.service';
+import createHttpError from 'http-errors';
+
 
 // Helper function to validate task data
 const validateTaskData = (data: any) => {
@@ -85,8 +81,6 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
     let uploadedFiles: Attachment[] = [];
 
     if (req.body.attachments && Array.isArray(req.body.attachments)) {
-        const cloudinaryService = new CloudinaryService();
-
         // Process each attachment object
         uploadedFiles = await Promise.all(
             req.body.attachments.map(async (attachment: { data: string; type: string }) => {
@@ -102,25 +96,19 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
                         throw new Error(`Invalid attachment type: ${type}`);
                     }
 
-                    // Determine Cloudinary resource type based on attachment type
-                    let resourceType: 'image' | 'raw' = 'image';
-                    if (type === 'File') {
-                        resourceType = 'raw';
-                    }
-
-                    // Extract file extension from base64 string
-                    const fileTypeMatch = base64String.match(/^data:(image\/\w+|application\/\w+);base64,/);
-                    const extension = fileTypeMatch ?
-                        fileTypeMatch[1].split('/')[1] :
-                        'dat';
-
-                    // Upload to Cloudinary
-                    const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(
+                    // Upload to Cloudinary and add to vault
+                    const uploadResult = await vaultService.uploadAndAddToVault(
+                        user._id,
+                        req.body.profile,
                         base64String,
+                        type === "Photo" ? "Media" : type === "File" ? "Documents" : "Other",
+                        'Task Attachments',
                         {
-                            folder: 'task-attachments',
-                            resourceType,
-                            tags: [`type-${type.toLowerCase()}`]
+
+                            taskId: req.body._id,
+                            taskName: req.body.name,
+                            attachmentType: type,
+                            description: req.body.description
                         }
                     );
 
@@ -128,12 +116,12 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
                     return {
                         type: type as 'Photo' | 'File' | 'Link' | 'Other',
                         url: uploadResult.secure_url,
-                        name: uploadResult.original_filename || `attachment-${Date.now()}.${extension}`,
+                        name: uploadResult.original_filename || `attachment-${Date.now()}`,
                         description: '',
                         uploadedAt: new Date(),
-                        uploadedBy: user._id, // This should already be an ObjectId
+                        uploadedBy: user._id,
                         size: uploadResult.bytes,
-                        fileType: uploadResult.format || extension,
+                        fileType: uploadResult.format,
                         publicId: uploadResult.public_id
                     };
                 } catch (error) {
@@ -237,7 +225,6 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
     let uploadedFiles: Attachment[] = [];
 
     if (req.body.attachments && Array.isArray(req.body.attachments)) {
-        const cloudinaryService = new CloudinaryService();
 
         // Process each attachment object
         uploadedFiles = await Promise.all(
@@ -268,12 +255,18 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
                         'dat';
 
                     // Upload to Cloudinary
-                    const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(
+                    const uploadResult = await vaultService.uploadAndAddToVault(
+                        user._id,
+                        req.body.profile,
                         base64String,
+                        resourceType === "raw" ? "Documents" : "Media",
+                        // let the sub category be either Photo, Video, or Audio
+                        resourceType === "image" ? "Photo" : resourceType === "raw" ? "Video" : "Audio",
                         {
-                            folder: 'task-attachments',
-                            resourceType,
-                            tags: [`type-${type.toLowerCase()}`]
+                            taskId: req.body._id,
+                            taskName: req.body.name,
+                            attachmentType: type,
+                            description: req.body.description
                         }
                     );
 
@@ -284,7 +277,7 @@ export const updateTask = asyncHandler(async (req: Request, res: Response) => {
                         name: uploadResult.original_filename || `attachment-${Date.now()}.${extension}`,
                         description: '',
                         uploadedAt: new Date(),
-                        uploadedBy: user._id, // This should already be an ObjectId
+                        uploadedBy: user._id,
                         size: uploadResult.bytes,
                         fileType: uploadResult.format || extension,
                         publicId: uploadResult.public_id
@@ -420,6 +413,8 @@ export const deleteSubTask = asyncHandler(async (req: Request, res: Response) =>
 export const addComment = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
+    console.log('Adding comment to task:', req.params.id);
+
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
         throw createHttpError(400, 'Invalid task ID');
     }
@@ -433,14 +428,10 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(404, 'Task not found');
     }
 
-    console.log('takeProfileId', task);
-
     if (!task.profile) {
         throw createHttpError(400, 'Task has no associated profile');
     }
 
-    // Type assertions for IDs
-    const targetProfileId = (task.profile as any)._id.toString();
     const profileId = (task.profile as any)._id.toString();
 
     const updatedTask = await taskService.addComment(
@@ -457,18 +448,6 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
             targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
             contentId: (updatedTask as mongoose.Document).get('_id').toString(),
             content: req.body.text
-        });
-    } catch (error) {
-        console.error('Failed to emit social interaction:', error);
-    }
-
-    try {
-        await emitSocialInteraction(user._id, {
-            type: 'like',
-            profile: new Types.ObjectId(user._id),
-            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
-            contentId: (updatedTask as mongoose.Document).get('_id').toString(),
-            content: ''
         });
     } catch (error) {
         console.error('Failed to emit social interaction:', error);
@@ -495,31 +474,19 @@ export const likeComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Invalid comment index');
     }
 
-
-
+    const commentIndex = parseInt(req.params.commentIndex);
     const profileId = req.body.profileId;
 
-    const commentIndex = parseInt(req.params.commentIndex);
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
+
     const task = await taskService.likeComment(
         req.params.id,
         commentIndex,
         user._id,
         profileId
     );
-
-    // Emit the social interaction event
-    try {
-        await emitSocialInteraction(user._id, {
-            type: 'like',
-            profile: new Types.ObjectId(user._id),
-            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
-            contentId: (task as mongoose.Document).get('_id').toString(),
-            content: ''
-        });
-    } catch (error) {
-        console.error('Failed to emit social interaction:', error);
-        // Don't throw the error as the like was still added successfully
-    }
 
     res.json({
         success: true,
@@ -543,10 +510,17 @@ export const unlikeComment = asyncHandler(async (req: Request, res: Response) =>
     }
 
     const commentIndex = parseInt(req.params.commentIndex);
+    const profileId = req.body.profileId;
+
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
+
     const task = await taskService.unlikeComment(
         req.params.id,
         commentIndex,
-        user._id
+        user._id,
+        profileId
     );
 
     res.json({
@@ -623,8 +597,6 @@ export const removeAttachment = asyncHandler(async (req: Request, res: Response)
 export const likeTask = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
-    const profileId = new Types.ObjectId(req.params.profileId);
-
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
         throw createHttpError(400, 'Invalid task ID');
     }
@@ -635,13 +607,11 @@ export const likeTask = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(404, 'Task not found');
     }
 
-
     if (!taskToLike.profile) {
         throw createHttpError(400, 'Task has no associated profile');
     }
 
-    const targetProfileId = new Types.ObjectId(taskToLike.get('profile')._id);
-
+    const profileId = new Types.ObjectId((taskToLike.profile as { _id: Types.ObjectId })._id.toString());
     const task = await taskService.likeTask(req.params.id, profileId);
 
     if (!task) {
@@ -653,17 +623,17 @@ export const likeTask = asyncHandler(async (req: Request, res: Response) => {
         await emitSocialInteraction(user._id, {
             type: 'like',
             profile: new Types.ObjectId(user._id),
-            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
+            targetProfile: profileId,
             contentId: (task as mongoose.Document).get('_id').toString(),
             content: ''
         });
     } catch (error) {
         console.error('Failed to emit social interaction:', error);
     }
-
     res.json({
         success: true,
         data: task,
         message: 'Task liked successfully'
     });
 });
+

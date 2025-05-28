@@ -38,7 +38,6 @@
 import { Application } from 'express';
 import authRoutes from './auth.routes';
 import userRoutes from './user.routes'
-import planRoutes from './plan.routes'
 import profileRoutes from './profile.routes';
 // import connectionRoutes from './connection.routes';
 import profileConnectionRoutes from './profile-connection.routes';
@@ -71,11 +70,14 @@ import scansRoutes from './scans.routes';
 import nfcRoutes from './nfc.routes';
 import vaultRoutes from './vault.routes';
 import { protect } from '../middleware/auth.middleware';
-import { requireRole } from '../middleware/roleMiddleware';
 import { testRoutes } from './test.routes';
 import session from 'express-session';
 import passport from 'passport';
 import socialAuthRoutes from './auth.social.routes';
+import participantRoutes from './participant.routes';
+import reminderRoutes from './reminder.routes';
+import plansRoutes from './plans.routes';
+import communityRoutes from './community.routes';
 import profileFullRoutes from './profile-full.routes';
 /**
  * Configures and sets up all API routes for the application
@@ -144,11 +146,12 @@ export const setupRoutes = (app: Application): void => {
   // app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/profile-connections', protect, profileConnectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
-  app.use('/api/plans', protect, planRoutes);
   app.use('/api/tasks', protect, taskRoutes);
   app.use('/api/lists', protect, listRoutes);
   app.use('/api/events', protect, eventRoutes);
   app.use('/api/interactions', protect, interactionRoutes);
+  app.use('/api/plans', protect, plansRoutes);
+  app.use('/api/vault', protect, vaultRoutes);
   app.use('/api/relationships', protect, RelationshipTypeRoutes);
   app.use('/api/logs', logsRoutes);
   app.use('/api/my-pts', protect, myPtsRoutes);
@@ -164,6 +167,10 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/test/notifications', protect, notificationTestRoutes);
   app.use('/api/referrals', profileReferralRoutes);
   app.use('/api/presence', protect, presenceRoutes);
+  app.use('/api/community', protect, communityRoutes);
+  // additional routes related to plans
+  app.use('/api/participant', participantRoutes);
+  app.use('/api/reminders', reminderRoutes);
   app.use('/api/gamification', protect, gamificationRoutes);
   app.use('/api/analytics', protect, analyticsDashboardRoutes);
   app.use('/api/sessions', protect, sessionsRoutes);

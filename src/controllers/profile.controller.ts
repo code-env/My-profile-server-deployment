@@ -7,6 +7,7 @@ import { ProfileService } from '../services/profile.service';
 import { ProfileDocument } from '../models/profile.model';
 import { logger } from '../utils/logger';
 import { ProfileModel } from '../models/profile.model';
+import { ProfileFilter } from '../types/profiles';
 
 interface ProfileFieldToggle {
   sectionKey: string;
@@ -38,6 +39,15 @@ interface CreateProfileBody {
       enabled: boolean;
     }>;
   }>;
+  profileLocation?: {
+    city?: string;
+    stateOrProvince?: string;
+    country?: string;
+    coordinates?: {
+      latitude: number;
+      longitude: number;
+    };
+  };
 }
 
 export class ProfileController {
@@ -134,6 +144,7 @@ export class ProfileController {
         logger.warn(`Fixed "Untitled Profile" in final output to: ${formattedData.name}`);
       }
 
+
       logger.info(`Final formatted profile name: "${formattedData.name}"`);
       return formattedData;
     } catch (error) {
@@ -203,15 +214,19 @@ export class ProfileController {
     const userId = (req.user as any)?._id;
     if (!userId) throw createHttpError(401, 'Unauthorized');
 
-    const { templateId, profileInformation, sections } = req.body as CreateProfileBody;
+    const { templateId, profileInformation, sections, profileLocation } = req.body as CreateProfileBody;
     if (!templateId) throw createHttpError(400, 'templateId is required');
     if (!profileInformation?.username) throw createHttpError(400, 'username is required');
 
+    const ip = req.headers['x-forwarded-for'] as string;
     const profile = await this.service.createProfileWithContent(
       userId,
       templateId,
       profileInformation,
-      sections
+      sections,
+      undefined,
+      profileLocation,
+      ip
     );
 
     // Format the profile data for frontend consumption
@@ -465,7 +480,7 @@ export class ProfileController {
 
     // Check if user is authenticated and has admin role
     if (!user?._id) throw createHttpError(401, 'Unauthorized');
-    if (!user.role || !['admin', 'superadmin'].includes(user.role)) {
+    if (!user.role || !['user', 'admin', 'superadmin'].includes(user.role)) {
       throw createHttpError(403, 'Admin access required');
     }
 
@@ -599,4 +614,39 @@ export class ProfileController {
       message: 'Profile availability retrieved successfully'
     });
   });
+
+  /**
+   * Get community profiles with filters
+   * @param req Express request object
+   * @param res Express response object
+   * @param next Express next function
+   */
+  async getCommunityProfiles(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { town, city, country, ...otherFilters } = req.query;
+      const skip = parseInt(req.query.skip as string) || 0;
+      const limit = parseInt(req.query.limit as string) || 20;
+
+      const filters: ProfileFilter = {
+        ...(town && { town: town as string }),
+        ...(city && { city: city as string }),
+        ...(country && { country: country as string }),
+        ...otherFilters
+      };
+
+      const profiles = await this.service.getCommunityProfiles(filters, skip, limit);
+      
+      res.json({
+        success: true,
+        data: profiles,
+        pagination: {
+          skip,
+          limit,
+          total: profiles.length
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

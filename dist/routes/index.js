@@ -42,7 +42,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.setupRoutes = void 0;
 const auth_routes_1 = __importDefault(require("./auth.routes"));
 const user_routes_1 = __importDefault(require("./user.routes"));
-const plan_routes_1 = __importDefault(require("./plan.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
 // import connectionRoutes from './connection.routes';
 const profile_connection_routes_1 = __importDefault(require("./profile-connection.routes"));
@@ -79,6 +78,10 @@ const test_routes_1 = require("./test.routes");
 const express_session_1 = __importDefault(require("express-session"));
 const passport_1 = __importDefault(require("passport"));
 const auth_social_routes_1 = __importDefault(require("./auth.social.routes"));
+const participant_routes_1 = __importDefault(require("./participant.routes"));
+const reminder_routes_1 = __importDefault(require("./reminder.routes"));
+const plans_routes_1 = __importDefault(require("./plans.routes"));
+const community_routes_1 = __importDefault(require("./community.routes"));
 const profile_full_routes_1 = __importDefault(require("./profile-full.routes"));
 /**
  * Configures and sets up all API routes for the application
@@ -136,11 +139,12 @@ const setupRoutes = (app) => {
     // app.use('/api/connections', protect, connectionRoutes);
     app.use('/api/profile-connections', auth_middleware_1.protect, profile_connection_routes_1.default);
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
-    app.use('/api/plans', auth_middleware_1.protect, plan_routes_1.default);
     app.use('/api/tasks', auth_middleware_1.protect, task_routes_1.default);
     app.use('/api/lists', auth_middleware_1.protect, list_routes_1.default);
     app.use('/api/events', auth_middleware_1.protect, event_routes_1.default);
     app.use('/api/interactions', auth_middleware_1.protect, interaction_routes_1.default);
+    app.use('/api/plans', auth_middleware_1.protect, plans_routes_1.default);
+    app.use('/api/vault', auth_middleware_1.protect, vault_routes_1.default);
     app.use('/api/relationships', auth_middleware_1.protect, relationshipType_routes_1.default);
     app.use('/api/logs', logs_routes_1.default);
     app.use('/api/my-pts', auth_middleware_1.protect, my_pts_routes_1.default);
@@ -156,6 +160,10 @@ const setupRoutes = (app) => {
     app.use('/api/test/notifications', auth_middleware_1.protect, notification_test_routes_1.default);
     app.use('/api/referrals', profile_referral_routes_1.default);
     app.use('/api/presence', auth_middleware_1.protect, presence_routes_1.default);
+    app.use('/api/community', auth_middleware_1.protect, community_routes_1.default);
+    // additional routes related to plans
+    app.use('/api/participant', participant_routes_1.default);
+    app.use('/api/reminders', reminder_routes_1.default);
     app.use('/api/gamification', auth_middleware_1.protect, gamification_routes_1.default);
     app.use('/api/analytics', auth_middleware_1.protect, analytics_dashboard_routes_1.default);
     app.use('/api/sessions', auth_middleware_1.protect, sessions_routes_1.default);

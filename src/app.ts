@@ -75,10 +75,12 @@ import { initializeGradientUpdates } from "./startup/initialize-gradient-updates
 import { advancedTrackingMiddleware } from "./middleware/advanced-tracking.middleware";
 import { scheduleTokenCleanup } from "./jobs/cleanupTokens";
 import { scheduleScalableTokenCleanup } from "./jobs/scalableTokenCleanup";
+import { scheduleReminderProcessing } from "./jobs/reminderScheduler";
 import { scheduleLeaderboardUpdate, runImmediateLeaderboardUpdate } from "./jobs/updateLeaderboard";
 // Import passport configuration
 import "./config/passport";
 import { configureCookiesMiddleware } from "./middleware/cookie-config.middleware";
+import communityRoutes from './routes/community.routes';
 
 /**
  * @class AppServer
@@ -315,6 +317,7 @@ export class AppServer {
    */
   private configureRoutes(): void {
     setupRoutes(this.app);
+    this.app.use('/api/communities', communityRoutes);
   }
 
   /**
@@ -511,6 +514,10 @@ export class AppServer {
         logger.info('Using standard token cleanup');
         scheduleTokenCleanup();
       }
+
+      // Schedule reminder processing
+      scheduleReminderProcessing();
+      logger.info('Reminder processing job scheduled');
 
       // Always use HTTP server as Render handles SSL/HTTPS
       await this.startHttpServer();

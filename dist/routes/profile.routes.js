@@ -14,11 +14,11 @@ const profileController = new profile_controller_1.ProfileController();
 // Apply authentication middleware to all routes
 // router.use(authenticateToken);
 // Admin routes for managing profile templates
-router.post('/t/create', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['admin', 'superadmin']), admin_profile_template_controller_1.createTemplate);
+router.post('/t/create', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), admin_profile_template_controller_1.createTemplate);
 router.get('/t/list', authMiddleware_1.authenticateToken, admin_profile_template_controller_1.listTemplates);
 router.get('/t/:id', authMiddleware_1.authenticateToken, admin_profile_template_controller_1.getTemplateById);
-router.put('/t/:id', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['admin', 'superadmin']), admin_profile_template_controller_1.updateTemplate);
-router.delete('/t/:id', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['admin', 'superadmin']), admin_profile_template_controller_1.deleteTemplate);
+router.put('/t/:id', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), admin_profile_template_controller_1.updateTemplate);
+router.delete('/t/:id', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), admin_profile_template_controller_1.deleteTemplate);
 // Template-based profile routes
 router.post('/p', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), profileController.createProfile.bind(profileController));
 router.post('/p/:profileId/fields', authMiddleware_1.authenticateToken, profileController.setEnabledFields.bind(profileController));
@@ -35,4 +35,6 @@ router.post('/:profileId/availability', profileController.setAvailability);
 router.patch('/:profileId/availability', profileController.updateAvailability);
 router.get('/:profileId/availability', profileController.getAvailability);
 router.get('/:profileId/availability/slots', profileController.getAvailableSlots);
+// Get community profiles with filters
+router.get('/communities', profileController.getCommunityProfiles.bind(profileController));
 exports.default = router;

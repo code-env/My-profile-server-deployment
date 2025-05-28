@@ -175,6 +175,8 @@ interface IProfile {
 
   templatedId: mongoose.Types.ObjectId;
   sections: ITemplateSection[];
+  members?: mongoose.Types.ObjectId[];
+  groups?: mongoose.Types.ObjectId[];
 
   availability?: {
     isAvailable: boolean;
@@ -227,6 +229,7 @@ interface ITemplateField {
   placeholder?: string;
   options?: IFieldOption[];
   validation?: IFieldValidation;
+  value?: any;
 }
 
 interface IFieldOption {
@@ -284,11 +287,11 @@ const ProfileSchema = new Schema<IProfile>(
       accountHolder: { type: String, trim: true },
       pid: { type: String, trim: true },
       relationshipToAccountHolder: { type: String, trim: true },
-      creator: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+      creator: { type: Schema.Types.ObjectId, ref: 'Users', required: true, index: true },
       connectLink: { type: String, required: true, unique: true, index: true },
       followLink: { type: String, required: true, unique: true, index: true },
-      followers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-      following: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+      followers: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
+      following: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
       connectedProfiles: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
       affiliatedProfiles: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
       accessToken: { type: String, trim: true, index: true }, // Added for profile token authentication
@@ -297,6 +300,9 @@ const ProfileSchema = new Schema<IProfile>(
     },
     templatedId: { type: Schema.Types.ObjectId, ref: 'ProfileTemplate', required: true },
     sections: [{ type: Schema.Types.Mixed }],
+    members: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
+    groups: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
+
 
     ProfileFormat: {
       profileImage: { type: String, trim: true },
@@ -442,15 +448,7 @@ const ProfileSchema = new Schema<IProfile>(
           end: { type: String, required: true },
           isWorking: { type: Boolean, default: true }
         },
-        default: {
-          "Sunday": { start: "09:00", end: "17:00", isWorking: false },
-          "Monday": { start: "09:00", end: "17:00", isWorking: true },
-          "Tuesday": { start: "09:00", end: "17:00", isWorking: true },
-          "Wednesday": { start: "09:00", end: "17:00", isWorking: true },
-          "Thursday": { start: "09:00", end: "17:00", isWorking: true },
-          "Friday": { start: "09:00", end: "17:00", isWorking: true },
-          "Saturday": { start: "09:00", end: "17:00", isWorking: false }
-        }
+        default: {}
       },
       exceptions: [{
         date: { type: Date, required: true },
@@ -673,3 +671,5 @@ interface IProfileModel extends Model<IProfile> {
 }
 
 export const ProfileModel: Model<IProfile> = mongoose.model<IProfile, IProfileModel>('Profile', ProfileSchema);
+
+

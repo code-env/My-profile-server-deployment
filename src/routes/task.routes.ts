@@ -13,33 +13,34 @@ import {
     unlikeComment,
     addAttachment,
     removeAttachment,
-    likeTask,
+    likeTask
 } from '../controllers/task.controller';
+import { authenticateToken } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
-// Task CRUD routes
-router.post('/', createTask);
-router.get('/', getUserTasks);
-router.get('/:id', getTaskById);
-router.put('/:id', updateTask);
-router.delete('/:id', deleteTask);
+// Task routes
+router.post('/', authenticateToken, createTask);
+router.get('/:id', authenticateToken, getTaskById);
+router.get('/', authenticateToken, getUserTasks);
+router.put('/:id', authenticateToken, updateTask);
+router.delete('/:id', authenticateToken, deleteTask);
 
 // Subtask routes
-router.post('/:id/subtasks', addSubTask);
-router.put('/:id/subtasks/:subTaskIndex', updateSubTask);
-router.delete('/:id/subtasks/:subTaskIndex', deleteSubTask);
+router.post('/:id/subtasks', authenticateToken, addSubTask);
+router.put('/:id/subtasks/:subTaskIndex', authenticateToken, updateSubTask);
+router.delete('/:id/subtasks/:subTaskIndex', authenticateToken, deleteSubTask);
 
 // Comment routes
-router.post('/:id/comments', addComment);
-router.post('/:id/comments/:commentIndex/like', likeComment);
-router.delete('/:id/comments/:commentIndex/like', unlikeComment);
+router.post('/:id/comments', authenticateToken, addComment);
+router.post('/:id/comments/:commentIndex/like', authenticateToken, likeComment);
+router.delete('/:id/comments/:commentIndex/like', authenticateToken, unlikeComment);
 
 // Like routes
-router.post('/:id/like', likeTask);
+router.post('/:id/like', authenticateToken, likeTask);
 
 // Attachment routes
-router.post('/:id/attachments', addAttachment);
-router.delete('/:id/attachments/:attachmentIndex', removeAttachment);
+router.post('/:id/attachments', authenticateToken, addAttachment);
+router.delete('/:id/attachments/:attachmentIndex', authenticateToken, removeAttachment);
 
 export default router;

@@ -90,7 +90,7 @@ export async function checkTimeOverlap(
     })) {
       conflictingItems.push({
         type: 'task' as const,
-        title: task.name
+        title: task.title
       });
     }
   }

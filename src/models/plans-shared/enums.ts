@@ -1,7 +1,7 @@
 export enum VisibilityType {
   Public = 'Public',
   Private = 'Private',
-  OnlyMe = 'OnlyMe'
+  Hidden = 'Hidden'
 }
 
 export enum PriorityLevel {
@@ -71,4 +71,45 @@ export enum TaskCategory {
   Personal = 'Personal',
   Family = 'Family',
   Dependent = 'Dependent'
+}
+
+export enum EventType {
+  Meeting = 'meeting',
+  Celebration = 'celebration',
+  Appointment = 'appointment',
+  Booking = 'booking'
+}
+
+export enum EventStatus {
+  Draft = 'Draft',
+  Upcoming = 'Upcoming',
+  InProgress = 'InProgress',
+  Completed = 'Completed',
+  Cancelled = 'Cancelled',
+  Postponed = 'Postponed',
+  Archived = 'Archived'
+}
+
+export enum BookingStatus {
+  Pending = 'pending',
+  Confirmed = 'confirmed',
+  Cancelled = 'cancelled',
+  Completed = 'completed',
+  NoShow = 'no-show'
+}
+
+export enum PaymentStatus {
+  Pending = 'pending',
+  Paid = 'paid',
+  Refunded = 'refunded',
+  Failed = 'failed'
+}
+
+export enum PlanType {
+  TASK = 'Task',
+  MEETING = 'Meeting',
+  APPOINTMENT = 'Appointment',
+  EVENT = 'Event',
+  CELEBRATION = 'Celebration',
+  INTERACTION = 'Interaction'
 }

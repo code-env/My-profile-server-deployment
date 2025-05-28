@@ -78,6 +78,11 @@ const envSchema = z.object({
   SMTP_FROM: z.string(),
   SMTP_SERVICE: z.string().default("gmail"),
 
+  // Cloudinary Configuration
+  CLOUDINARY_CLOUD_NAME: z.string(),
+  CLOUDINARY_API_KEY: z.string(),
+  CLOUDINARY_API_SECRET: z.string(),
+
   // OAuth Configuration
   GOOGLE_CLIENT_ID: z.string(),
   GOOGLE_CLIENT_SECRET: z.string(),
@@ -140,6 +145,12 @@ const getConfig = () => {
       SMTP_FROM: process.env.SMTP_FROM,
       SMTP_SERVICE: process.env.SMTP_SERVICE,
 
+      // Cloudinary Configuration
+      CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+      CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+      CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+
+      
       // OAuth Configuration
       GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
       GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,

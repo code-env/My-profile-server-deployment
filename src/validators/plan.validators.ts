@@ -1,5 +1,5 @@
 import Joi from 'joi';
-import { PlanType } from '../models/plans/Plan';
+import { PlanType } from '../models/plans-shared';
 
 // Helper function for ObjectId validation
 const objectId = () => Joi.string().pattern(/^[0-9a-fA-F]{24}$/);

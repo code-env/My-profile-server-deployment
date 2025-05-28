@@ -12,7 +12,8 @@ export enum InteractionMode {
     CHAT = 'chat',
     COMMENT = 'comment',
     LIKE = 'like',
-    SOCIAL_MEDIA = 'social_media'
+    SOCIAL_MEDIA = 'social_media',
+    CONNECTION = 'connection'
 }
 
 export enum InteractionCategory {

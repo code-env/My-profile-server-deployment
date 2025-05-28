@@ -52,7 +52,22 @@ const notificationSchema = new Schema<INotification>(
         'achievement_unlocked',
         'sell_submitted',
         'sell_request',
-        'sell_completed'
+        'sell_completed',
+        'booking_request',
+        'reminder',
+        'community_invitation',
+        'community_group_invitation_response',
+        'community_group_invitation_request',
+        'community_group_invitation_accepted',
+        'community_group_invitation_cancelled',
+        'community_group_invitation_rejected',
+        'community_group_invitation_pending',
+        'community_group_invitation_accepted',
+        'community_group_invitation_rejected',
+        'community_group_invitation_pending',
+        'community_group_invitation_cancelled',
+        'community_announcement',
+        'community_report',
       ],
     },
     title: {
@@ -66,7 +81,7 @@ const notificationSchema = new Schema<INotification>(
     relatedTo: {
       model: {
         type: String,
-        enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction'],
+        enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction', 'Event', 'CommunityGroupInvitation'],
       },
       id: {
         type: Schema.Types.ObjectId,
@@ -116,3 +131,11 @@ notificationSchema.index({ expiresAt: 1 }, {
 });
 
 export const Notification = mongoose.model<INotification>('Notification', notificationSchema);
+
+
+// various arears of reminders
+// 1. Event reminders
+// 2. Task reminders
+// 3. Goal reminders
+// 4. Habit reminders
+// 5. Reminders for other items

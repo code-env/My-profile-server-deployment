@@ -1,0 +1,377 @@
+[
+  {
+    "userId": "6821a76aaac149cb861c9f1b",
+    "templateId": "682f46612cc21f6f1016ab20",
+    "profileInformation": {
+      "username": "Cameroon Tech Alliance",
+      "title": "National Technology Innovation Network"
+    },
+    "profileLocation": {
+      "city": "Yaoundé",
+      "stateOrProvince": "Centre",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 3.8480,
+        "longitude": 11.5021
+      }
+    },
+    "sections": [
+      {
+        "key": "info",
+        "fields": [
+          {
+            "key": "community_name",
+            "value": "Cameroon Tech Alliance",
+            "enabled": true
+          },
+          {
+            "key": "description",
+            "value": "A national network of tech hubs, innovation centers, and digital communities working together to drive Cameroon's digital transformation and tech ecosystem growth.",
+            "enabled": true
+          },
+          {
+            "key": "groups",
+            "value": [
+              "68301dfe266c33466f9d2adb",
+              "68301df5266c33466f9d2ac4"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "fields": [
+          {
+            "key": "email",
+            "value": "contact@cmtech.org",
+            "enabled": true
+          },
+          {
+            "key": "phone",
+            "value": "+237 222 123 456",
+            "enabled": true
+          },
+          {
+            "key": "website",
+            "value": "https://cmtech.org",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "social",
+        "fields": [
+          {
+            "key": "facebook",
+            "value": "https://facebook.com/cmtech",
+            "enabled": true
+          },
+          {
+            "key": "twitter",
+            "value": "https://twitter.com/cmtech",
+            "enabled": true
+          },
+          {
+            "key": "linkedin",
+            "value": "https://linkedin.com/company/cmtech",
+            "enabled": true
+          }
+        ]
+      }
+    ],
+    "groups": [
+      "68301dfe266c33466f9d2adb",
+      "68301df5266c33466f9d2ac4"
+    ]
+  },
+  {
+    "userId": "6821a76aaac149cb861c9f1b",
+    "templateId": "682f46612cc21f6f1016ab20",
+    "profileInformation": {
+      "username": "Cameroon Business Network",
+      "title": "National Business Community"
+    },
+    "profileLocation": {
+      "city": "Bamenda",
+      "stateOrProvince": "North-West",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 5.9597,
+        "longitude": 10.1460
+      }
+    },
+    "sections": [
+      {
+        "key": "info",
+        "fields": [
+          {
+            "key": "community_name",
+            "value": "Cameroon Business Network",
+            "enabled": true
+          },
+          {
+            "key": "description",
+            "value": "A nationwide network of business associations, chambers of commerce, and professional groups working together to strengthen Cameroon's business ecosystem and economic development.",
+            "enabled": true
+          },
+          {
+            "key": "groups",
+            "value": [
+              "68301deb266c33466f9d2aad",
+              "68301d8f266c33466f9d2a92"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "fields": [
+          {
+            "key": "email",
+            "value": "contact@cmbusiness.org",
+            "enabled": true
+          },
+          {
+            "key": "phone",
+            "value": "+237 222 234 567",
+            "enabled": true
+          },
+          {
+            "key": "website",
+            "value": "https://cmbusiness.org",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "social",
+        "fields": [
+          {
+            "key": "facebook",
+            "value": "https://facebook.com/cmbusiness",
+            "enabled": true
+          },
+          {
+            "key": "twitter",
+            "value": "https://twitter.com/cmbusiness",
+            "enabled": true
+          },
+          {
+            "key": "linkedin",
+            "value": "https://linkedin.com/company/cmbusiness",
+            "enabled": true
+          }
+        ]
+      }
+    ],
+    "groups": [
+      "68301deb266c33466f9d2aad",
+      "68301d8f266c33466f9d2a92"
+    ]
+  },
+  {
+    "userId": "6821a76aaac149cb861c9f1b",
+    "templateId": "682f46612cc21f6f1016ab20",
+    "profileInformation": {
+      "username": "Cameroon Cultural Federation",
+      "title": "National Arts and Culture Network"
+    },
+    "profileLocation": {
+      "city": "Buea",
+      "stateOrProvince": "South-West",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 4.1524,
+        "longitude": 9.2417
+      }
+    },
+    "sections": [
+      {
+        "key": "info",
+        "fields": [
+          {
+            "key": "community_name",
+            "value": "Cameroon Cultural Federation",
+            "enabled": true
+          },
+          {
+            "key": "description",
+            "value": "A national federation of cultural organizations, arts collectives, and heritage groups dedicated to preserving and promoting Cameroon's rich cultural diversity and artistic expression.",
+            "enabled": true
+          },
+          {
+            "key": "groups",
+            "value": [
+              "68301c18b6af86e9598604ab",
+              "68301ac43385806802b8814a"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "fields": [
+          {
+            "key": "email",
+            "value": "contact@cmculture.org",
+            "enabled": true
+          },
+          {
+            "key": "phone",
+            "value": "+237 222 345 678",
+            "enabled": true
+          },
+          {
+            "key": "website",
+            "value": "https://cmculture.org",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "social",
+        "fields": [
+          {
+            "key": "facebook",
+            "value": "https://facebook.com/cmculture",
+            "enabled": true
+          },
+          {
+            "key": "twitter",
+            "value": "https://twitter.com/cmculture",
+            "enabled": true
+          },
+          {
+            "key": "linkedin",
+            "value": "https://linkedin.com/company/cmculture",
+            "enabled": true
+          }
+        ]
+      }
+    ],
+    "groups": [
+      "68301c18b6af86e9598604ab",
+      "68301ac43385806802b8814a"
+    ]
+  },
+  {
+    "templateId": "682f46612cc21f6f1016ab20",
+    "profileInformation": {
+      "username": "Cameroon Tech Community",
+      "title": "Cameroon's Premier Tech Hub"
+    },
+    "profileLocation": {
+      "city": "Kribi",
+      "stateOrProvince": "South",
+      "country": "Cameroon",
+      "coordinates": {
+        "latitude": 2.9373,
+        "longitude": 9.9077
+      }
+    },
+    "sections": [
+      {
+        "key": "info",
+        "label": "Community Information",
+        "fields": [
+          {
+            "key": "community_name",
+            "value": "Cameroon Developers Network",
+            "enabled": true
+          },
+          {
+            "key": "description",
+            "value": "A vibrant community of Cameroonian developers, designers, and tech enthusiasts collaborating to build innovative solutions.",
+            "enabled": true
+          },
+          {
+            "key": "members",
+            "value": [
+              "6821b32adb64100767efc906",
+              "682d5c35e699107bb257814f"
+            ],
+            "enabled": true
+          },
+          {
+            "key": "groups",
+            "value": [
+              "682d59dae699107bb2578111",
+              "682d6743698eb0ce6f9d2ff3"
+            ],
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "contact",
+        "label": "Contact Information",
+        "fields": [
+          {
+            "key": "email",
+            "value": "contact@camdevs.org",
+            "enabled": true
+          },
+          {
+            "key": "phone",
+            "value": "+237 6XX XXX XXX",
+            "enabled": true
+          },
+          {
+            "key": "website",
+            "value": "https://camdevs.org",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "social",
+        "label": "Social Media",
+        "fields": [
+          {
+            "key": "facebook",
+            "value": "https://facebook.com/camdevs",
+            "enabled": true
+          },
+          {
+            "key": "twitter",
+            "value": "https://twitter.com/camdevs",
+            "enabled": true
+          },
+          {
+            "key": "linkedin",
+            "value": "https://linkedin.com/company/camdevs",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "key": "settings",
+        "label": "Community Settings",
+        "fields": [
+          {
+            "key": "visibility",
+            "value": "public",
+            "enabled": true
+          },
+          {
+            "key": "join_policy",
+            "value": "approval_required",
+            "enabled": true
+          }
+        ]
+      }
+    ],
+    "members": [
+      "6821b32adb64100767efc906",
+      "682d5c35e699107bb257814f"
+    ],
+    "groups": [
+      "682d59dae699107bb2578111",
+      "682d6743698eb0ce6f9d2ff3"
+    ]
+  },
+  
+] 

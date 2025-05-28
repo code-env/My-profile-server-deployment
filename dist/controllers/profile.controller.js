@@ -18,12 +18,13 @@ class ProfileController {
             const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a._id;
             if (!userId)
                 throw (0, http_errors_1.default)(401, 'Unauthorized');
-            const { templateId, profileInformation, sections } = req.body;
+            const { templateId, profileInformation, sections, profileLocation } = req.body;
             if (!templateId)
                 throw (0, http_errors_1.default)(400, 'templateId is required');
             if (!(profileInformation === null || profileInformation === void 0 ? void 0 : profileInformation.username))
                 throw (0, http_errors_1.default)(400, 'username is required');
-            const profile = await this.service.createProfileWithContent(userId, templateId, profileInformation, sections);
+            const ip = req.headers['x-forwarded-for'];
+            const profile = await this.service.createProfileWithContent(userId, templateId, profileInformation, sections, undefined, profileLocation, ip);
             // Format the profile data for frontend consumption
             const formattedProfile = this.formatProfileData(profile);
             res.status(201).json({ success: true, profile: formattedProfile });
@@ -241,7 +242,7 @@ class ProfileController {
             // Check if user is authenticated and has admin role
             if (!(user === null || user === void 0 ? void 0 : user._id))
                 throw (0, http_errors_1.default)(401, 'Unauthorized');
-            if (!user.role || !['admin', 'superadmin'].includes(user.role)) {
+            if (!user.role || !['user', 'admin', 'superadmin'].includes(user.role)) {
                 throw (0, http_errors_1.default)(403, 'Admin access required');
             }
             logger_1.logger.info(`Admin user ${user._id} (${user.email}) requesting all profiles`);
@@ -493,6 +494,38 @@ class ProfileController {
             };
             logger_1.logger.info('Returning fallback profile data');
             return fallbackData;
+        }
+    }
+    /**
+     * Get community profiles with filters
+     * @param req Express request object
+     * @param res Express response object
+     * @param next Express next function
+     */
+    async getCommunityProfiles(req, res, next) {
+        try {
+            const { town, city, country, ...otherFilters } = req.query;
+            const skip = parseInt(req.query.skip) || 0;
+            const limit = parseInt(req.query.limit) || 20;
+            const filters = {
+                ...(town && { town: town }),
+                ...(city && { city: city }),
+                ...(country && { country: country }),
+                ...otherFilters
+            };
+            const profiles = await this.service.getCommunityProfiles(filters, skip, limit);
+            res.json({
+                success: true,
+                data: profiles,
+                pagination: {
+                    skip,
+                    limit,
+                    total: profiles.length
+                }
+            });
+        }
+        catch (error) {
+            next(error);
         }
     }
 }

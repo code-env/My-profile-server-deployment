@@ -245,3 +245,27 @@ export interface SharedDocument {
     modifiedBy: string;
   }[];
 }
+
+export interface ProfileFilter {
+  country?: string;
+  city?: string;
+  stateOrProvince?: string;
+  town?: string;
+  latitude?: number;
+  longitude?: number;
+  radius?: number; // in kilometers
+  profileType?: string;      // e.g. 'academic', 'professional', 'interest', etc.
+  accessType?: string;       // e.g. 'private', 'free', 'paid'
+  createdBy?: string;        // user or profile ID
+  viewed?: 'viewed' | 'not_viewed';
+  tag?: string;              // e.g. 'social', 'digital', 'formal', etc.
+  verificationStatus?: 'verified' | 'not_verified';
+  creationDate?: 'last_24_hours' | 'last_7_days' | 'last_30_days' | 'last_365_days';
+  groupId?: string;
+  memberId?: string;
+  keyword?: string;
+  sortBy?: 'name' | 'createdAt' | 'members' | 'groups';
+  sortOrder?: 'asc' | 'desc';
+  skip?: number;
+  limit?: number;
+}

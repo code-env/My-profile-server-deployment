@@ -287,6 +287,15 @@ class CloudinaryService {
         console.error('Cloudinary upload error:', error);
         throw new Error(`Upload failed: ${error.message || 'Unknown error'}`);
     }
+
+    async moveToArchive(publicId: string): Promise<void> {
+        if (!publicId) return;
+        
+        const archiveFolder = 'archive';
+        const newPublicId = `${archiveFolder}/${publicId}`;
+        
+        await cloudinary.uploader.rename(publicId, newPublicId);
+    }
 }
 
 export default CloudinaryService;

@@ -3,18 +3,13 @@ import { Comment } from './interfaces';
 
 export const commentSchema = new Schema<Comment>({
   text: { type: String, required: true },
-  profile: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Profile',
-    required: true
-  },
-  createdBy: { 
+  postedBy: { 
     type: Schema.Types.ObjectId, 
     ref: 'Profile',
     required: true
   },
   createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date },
+  updatedAt: { type: Date, default: Date.now },
   likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }]
 }, {
   toJSON: {

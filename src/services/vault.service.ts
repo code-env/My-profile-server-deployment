@@ -1,799 +1,1602 @@
-/**
- * @file vault.service.ts
- * @description Vault Service Layer for Digital Asset Management
- * =========================================================
- *
- * This service handles all business logic for the Vault system,
- * including CRUD operations, encryption, analytics, and integrations.
- *
- * @version 1.0.0
- * @author My Profile Server
- */
-
+import { Vault, VaultCategory, VaultSubcategory, VaultItem, IVaultItem, IVaultSubcategory } from '../models/Vault';
 import { Types } from 'mongoose';
-import crypto from 'crypto';
-import {
-  VaultItemModel,
-  WalletItemModel,
-  DocumentItemModel,
-  MediaItemModel,
-  AlbumModel,
-  VaultActivityModel,
-  IVaultItemBase,
-  IWalletItem,
-  IDocumentItem,
-  IMediaItem,
-  IAlbum,
-  IVaultActivity,
-  IVaultStats,
-  WalletSubcategory,
-  DocumentSubcategory,
-  MediaSubcategory
-} from '../models/vault.model';
-import CloudinaryService from './cloudinary.service';
+import CloudinaryService from '../services/cloudinary.service';
+import { User } from '../models/User';
+import createHttpError from 'http-errors';
 
-// Create cloudinary service instance
-const cloudinaryService = new CloudinaryService();
+interface ISubcategoryWithChildren {
+  _id: Types.ObjectId;
+  name: string;
+  order: number;
+  hasChildren: boolean;
+  count: number;
+  items: any[];
+  subcategories: ISubcategoryWithChildren[];
+}
 
-export class VaultService {
-  private encryptionKey: string;
+class VaultService {
+  private cloudinaryService: CloudinaryService;
 
   constructor() {
-    this.encryptionKey = process.env.VAULT_ENCRYPTION_KEY || 'default-key-for-development';
+    this.cloudinaryService = new CloudinaryService();
   }
 
-  // ===========================
-  // ENCRYPTION UTILITIES
-  // ===========================
-
-  private encrypt(text: string): string {
-    if (!text) return text;
-    const cipher = crypto.createCipher('aes-256-cbc', this.encryptionKey);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return encrypted;
-  }
-
-  private decrypt(encryptedText: string): string {
-    if (!encryptedText) return encryptedText;
-    try {
-      const decipher = crypto.createDecipher('aes-256-cbc', this.encryptionKey);
-      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
-      return decrypted;
-    } catch (error) {
-      console.error('Decryption error:', error);
-      return encryptedText;
-    }
-  }
-
-  // ===========================
-  // GENERAL VAULT OPERATIONS
-  // ===========================
-
-  async getVaultItems(
-    profileId: string,
-    options: {
-      category?: 'wallet' | 'documents' | 'media';
-      subcategory?: string;
-      tags?: string[];
-      search?: string;
-      isFavorite?: boolean;
-      limit?: number;
-      offset?: number;
-      sortBy?: string;
-      sortOrder?: 'asc' | 'desc';
-    } = {}
-  ) {
-    const query: any = { profileId: new Types.ObjectId(profileId) };
-
-    // Apply filters
-    if (options.category) query.category = options.category;
-    if (options.subcategory) query.subcategory = options.subcategory;
-    if (options.isFavorite !== undefined) query.isFavorite = options.isFavorite;
-    if (options.tags && options.tags.length > 0) {
-      query.tags = { $in: options.tags };
-    }
-
-    // Text search
-    if (options.search) {
-      query.$or = [
-        { name: { $regex: options.search, $options: 'i' } },
-        { description: { $regex: options.search, $options: 'i' } },
-        { tags: { $in: [new RegExp(options.search, 'i')] } }
-      ];
-    }
-
-    // Build sort object
-    const sort: any = {};
-    if (options.sortBy) {
-      sort[options.sortBy] = options.sortOrder === 'desc' ? -1 : 1;
-    } else {
-      sort.createdAt = -1; // Default sort by newest
-    }
-
-    const items = await VaultItemModel
-      .find(query)
-      .sort(sort)
-      .limit(options.limit || 50)
-      .skip(options.offset || 0)
-      .populate('albumId', 'name description')
-      .populate('nfcCardId', 'cardId isActive')
-      .populate('relatedScanId', 'scanType fileName createdAt');
-
-    // Decrypt sensitive data for wallet items
-    const decryptedItems = items.map(item => {
-      if (item.category === 'wallet' && item.isEncrypted) {
-        const walletItem = item as unknown as IWalletItem;
-        if (walletItem.cardNumber) {
-          walletItem.cardNumber = this.decrypt(walletItem.cardNumber);
-        }
-        if (walletItem.documentNumber) {
-          walletItem.documentNumber = this.decrypt(walletItem.documentNumber);
-        }
+  private getDefaultCategories() {
+    return [
+      {
+        name: 'Wallet',
+        subcategories: [
+          { name: 'MyProfile' },
+          { name: 'Personal ID'},
+          { name: 'Professional ID'},
+          { name: 'Finance'},
+          { name: 'Insurance'},
+          { name: 'Medical'},
+          { name: 'Loyalty'},
+          { name: 'Pass'},
+        ]
+      },
+      {
+        name: 'Documents',
+        subcategories: [
+          { name: 'Documents' },
+          { name: 'Receipts' },
+          { name: 'Forms' },
+          { name: 'Vouchers' }
+        ]
+      },
+      {
+        name: 'Media',
+        subcategories: [
+          { name: 'Photos' },
+          { name: 'Videos' },
+          { name: 'Audio' }
+        ]
       }
-      return item;
-    });
-
-    return decryptedItems;
+    ];
   }
 
-  async getVaultItem(profileId: string, itemId: string) {
-    const item = await VaultItemModel
-      .findOne({
-        _id: new Types.ObjectId(itemId),
-        profileId: new Types.ObjectId(profileId)
+  async getUserVault(profileId: string) {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      return null;
+    }
+
+    // Get categories with their subcategories
+    const categories = await VaultCategory.find({ vaultId: vault._id })
+      .sort({ order: 1 });
+
+    const categoriesWithSubcategories = await Promise.all(
+      categories.map(async (category) => {
+        const subcategories = await VaultSubcategory.find({ 
+          vaultId: vault._id,
+          categoryId: category._id 
+        }).sort({ order: 1 });
+
+        return {
+          _id: category._id,
+          name: category.name,
+          order: category.order,
+          subcategories: subcategories.map(sub => ({
+            _id: sub._id,
+            name: sub.name,
+            order: sub.order
+          }))
+        };
       })
-      .populate('albumId', 'name description')
-      .populate('nfcCardId', 'cardId isActive')
-      .populate('relatedScanId', 'scanType fileName createdAt');
-
-    if (!item) {
-      throw new Error('Vault item not found');
-    }
-
-    // Log view activity
-    await this.logActivity(profileId, itemId, 'viewed');
-
-    // Decrypt sensitive data if needed
-    if (item.category === 'wallet' && item.isEncrypted) {
-      const walletItem = item as unknown as IWalletItem;
-      if (walletItem.cardNumber) {
-        walletItem.cardNumber = this.decrypt(walletItem.cardNumber);
-      }
-      if (walletItem.documentNumber) {
-        walletItem.documentNumber = this.decrypt(walletItem.documentNumber);
-      }
-    }
-
-    return item;
-  }
-
-  async deleteVaultItem(profileId: string, itemId: string) {
-    const item = await VaultItemModel.findOne({
-      _id: new Types.ObjectId(itemId),
-      profileId: new Types.ObjectId(profileId)
-    });
-
-    if (!item) {
-      throw new Error('Vault item not found');
-    }
-
-    // Delete associated files from Cloudinary
-    if (item.category === 'documents') {
-      const docItem = item as unknown as IDocumentItem;
-      if (docItem.fileUrl) {
-        await this.deleteCloudinaryFile(docItem.fileUrl);
-      }
-    } else if (item.category === 'media') {
-      const mediaItem = item as unknown as IMediaItem;
-      if (mediaItem.fileUrl) {
-        await this.deleteCloudinaryFile(mediaItem.fileUrl);
-      }
-      if (mediaItem.thumbnailUrl) {
-        await this.deleteCloudinaryFile(mediaItem.thumbnailUrl);
-      }
-    } else if (item.category === 'wallet') {
-      const walletItem = item as unknown as IWalletItem;
-      if (walletItem.frontImage) {
-        await this.deleteCloudinaryFile(walletItem.frontImage);
-      }
-      if (walletItem.backImage) {
-        await this.deleteCloudinaryFile(walletItem.backImage);
-      }
-    }
-
-    // Log deletion activity
-    await this.logActivity(profileId, itemId, 'deleted', {
-      itemName: item.name,
-      category: item.category
-    });
-
-    await VaultItemModel.findByIdAndDelete(itemId);
-
-    return { success: true, message: 'Vault item deleted successfully' };
-  }
-
-  // ===========================
-  // WALLET OPERATIONS
-  // ===========================
-
-  async createWalletItem(profileId: string, data: Partial<IWalletItem>) {
-    // Validate required fields
-    if (!data.name || !data.subcategory || !data.cardType) {
-      throw new Error('Name, subcategory, and cardType are required for wallet items');
-    }
-
-    // Encrypt sensitive data
-    const walletData = { ...data };
-    if (walletData.isEncrypted) {
-      if (walletData.cardNumber) {
-        walletData.cardNumber = this.encrypt(walletData.cardNumber);
-      }
-      if (walletData.documentNumber) {
-        walletData.documentNumber = this.encrypt(walletData.documentNumber);
-      }
-    }
-
-    // Extract last four digits if card number provided
-    if (data.cardNumber && !walletData.lastFourDigits) {
-      walletData.lastFourDigits = data.cardNumber.slice(-4);
-    }
-
-    const walletItem = new WalletItemModel({
-      ...walletData,
-      profileId: new Types.ObjectId(profileId),
-      category: 'wallet'
-    });
-
-    await walletItem.save();
-
-    // Log creation activity
-    await this.logActivity(profileId, walletItem._id.toString(), 'created', {
-      subcategory: walletItem.subcategory,
-      cardType: walletItem.cardType
-    });
-
-    return walletItem;
-  }
-
-  async updateWalletItem(profileId: string, itemId: string, updates: Partial<IWalletItem>) {
-    const item = await WalletItemModel.findOne({
-      _id: new Types.ObjectId(itemId),
-      profileId: new Types.ObjectId(profileId)
-    });
-
-    if (!item) {
-      throw new Error('Wallet item not found');
-    }
-
-    // Handle encryption for sensitive fields
-    const updateData = { ...updates };
-    if (updateData.cardNumber && item.isEncrypted) {
-      updateData.cardNumber = this.encrypt(updateData.cardNumber);
-      updateData.lastFourDigits = updates.cardNumber!.slice(-4);
-    }
-    if (updateData.documentNumber && item.isEncrypted) {
-      updateData.documentNumber = this.encrypt(updateData.documentNumber);
-    }
-
-    Object.assign(item, updateData);
-    await item.save();
-
-    // Log update activity
-    await this.logActivity(profileId, itemId, 'updated', {
-      updatedFields: Object.keys(updates)
-    });
-
-    return item;
-  }
-
-  async uploadCardImage(
-    profileId: string,
-    itemId: string,
-    file: Express.Multer.File,
-    side: 'front' | 'back'
-  ) {
-    const item = await WalletItemModel.findOne({
-      _id: new Types.ObjectId(itemId),
-      profileId: new Types.ObjectId(profileId)
-    });
-
-    if (!item) {
-      throw new Error('Wallet item not found');
-    }
-
-    // Upload to Cloudinary
-    const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(file.buffer, {
-      folder: `vault/wallet/${profileId}`,
-      resourceType: 'image'
-    });
-
-    // Delete old image if exists
-    const oldImageField = side === 'front' ? 'frontImage' : 'backImage';
-    if (item[oldImageField]) {
-      await this.deleteCloudinaryFile(item[oldImageField] as string);
-    }
-
-    // Update item with new image URL
-    item[oldImageField] = uploadResult.secure_url;
-    await item.save();
-
-    return { imageUrl: uploadResult.secure_url };
-  }
-
-  // ===========================
-  // DOCUMENT OPERATIONS
-  // ===========================
-
-  async createDocumentItem(
-    profileId: string,
-    data: Partial<IDocumentItem>,
-    file?: Express.Multer.File
-  ) {
-    if (!data.name || !data.subcategory) {
-      throw new Error('Name and subcategory are required for document items');
-    }
-
-    let fileUrl = '';
-    let fileName = '';
-    let fileType = '';
-    let fileSize = 0;
-
-    if (file) {
-      const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(file.buffer, {
-        folder: `vault/documents/${profileId}`,
-        resourceType: 'auto'
-      });
-
-      fileUrl = uploadResult.secure_url;
-      fileName = file.originalname;
-      fileType = file.mimetype;
-      fileSize = file.size;
-    } else if (data.fileUrl) {
-      fileUrl = data.fileUrl;
-      fileName = data.fileName || 'unknown';
-      fileType = data.fileType || 'application/octet-stream';
-      fileSize = data.fileSize || 0;
-    } else {
-      throw new Error('Either file upload or fileUrl is required');
-    }
-
-    const documentItem = new DocumentItemModel({
-      ...data,
-      profileId: new Types.ObjectId(profileId),
-      category: 'documents',
-      fileUrl,
-      fileName,
-      fileType,
-      fileSize
-    });
-
-    await documentItem.save();
-
-    // Log creation activity
-    await this.logActivity(profileId, documentItem._id.toString(), 'created', {
-      subcategory: documentItem.subcategory,
-      documentType: documentItem.documentType,
-      fileSize: documentItem.fileSize
-    });
-
-    return documentItem;
-  }
-
-  async updateDocumentItem(profileId: string, itemId: string, updates: Partial<IDocumentItem>) {
-    const item = await DocumentItemModel.findOne({
-      _id: new Types.ObjectId(itemId),
-      profileId: new Types.ObjectId(profileId)
-    });
-
-    if (!item) {
-      throw new Error('Document item not found');
-    }
-
-    // Handle version control if content changes
-    if (updates.fileUrl && updates.fileUrl !== item.fileUrl) {
-      item.previousVersions.push(item._id);
-      item.version += 1;
-    }
-
-    Object.assign(item, updates);
-    await item.save();
-
-    // Log update activity
-    await this.logActivity(profileId, itemId, 'updated', {
-      updatedFields: Object.keys(updates),
-      newVersion: item.version
-    });
-
-    return item;
-  }
-
-  async linkDocumentToScan(profileId: string, itemId: string, scanId: string) {
-    const item = await DocumentItemModel.findOne({
-      _id: new Types.ObjectId(itemId),
-      profileId: new Types.ObjectId(profileId)
-    });
-
-    if (!item) {
-      throw new Error('Document item not found');
-    }
-
-    item.relatedScanId = new Types.ObjectId(scanId);
-    await item.save();
-
-    return item;
-  }
-
-  // ===========================
-  // MEDIA OPERATIONS
-  // ===========================
-
-  async createMediaItem(
-    profileId: string,
-    data: Partial<IMediaItem>,
-    file: Express.Multer.File
-  ) {
-    if (!data.name || !data.subcategory || !data.mediaType) {
-      throw new Error('Name, subcategory, and mediaType are required for media items');
-    }
-
-    // Upload to Cloudinary
-    const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(file.buffer, {
-      folder: `vault/media/${profileId}`,
-      resourceType: data.mediaType === 'video' ? 'video' : 'auto'
-    });
-
-    // Generate thumbnail for videos
-    let thumbnailUrl;
-    if (data.mediaType === 'video') {
-      // Cloudinary automatically generates video thumbnails
-      thumbnailUrl = uploadResult.secure_url.replace('/video/upload/', '/video/upload/so_0/');
-    }
-
-    const mediaItem = new MediaItemModel({
-      ...data,
-      profileId: new Types.ObjectId(profileId),
-      category: 'media',
-      fileUrl: uploadResult.secure_url,
-      fileName: file.originalname,
-      fileType: file.mimetype,
-      fileSize: file.size,
-      cloudinaryPublicId: uploadResult.public_id,
-      thumbnailUrl,
-      dimensions: uploadResult.width && uploadResult.height ? {
-        width: uploadResult.width,
-        height: uploadResult.height
-      } : undefined,
-      duration: uploadResult.duration || undefined,
-      processingStatus: 'completed'
-    });
-
-    await mediaItem.save();
-
-    // Update album media count if assigned to album
-    if (data.albumId) {
-      await AlbumModel.findByIdAndUpdate(
-        data.albumId,
-        { $inc: { mediaCount: 1 } }
-      );
-    }
-
-    // Log creation activity
-    await this.logActivity(profileId, mediaItem._id.toString(), 'created', {
-      subcategory: mediaItem.subcategory,
-      mediaType: mediaItem.mediaType,
-      fileSize: mediaItem.fileSize
-    });
-
-    return mediaItem;
-  }
-
-  async updateMediaItem(profileId: string, itemId: string, updates: Partial<IMediaItem>) {
-    const item = await MediaItemModel.findOne({
-      _id: new Types.ObjectId(itemId),
-      profileId: new Types.ObjectId(profileId)
-    });
-
-    if (!item) {
-      throw new Error('Media item not found');
-    }
-
-    // Handle album changes
-    const oldAlbumId = item.albumId;
-    const newAlbumId = updates.albumId;
-
-    Object.assign(item, updates);
-    await item.save();
-
-    // Update album counts
-    if (oldAlbumId && oldAlbumId.toString() !== newAlbumId?.toString()) {
-      await AlbumModel.findByIdAndUpdate(oldAlbumId, { $inc: { mediaCount: -1 } });
-    }
-    if (newAlbumId && newAlbumId.toString() !== oldAlbumId?.toString()) {
-      await AlbumModel.findByIdAndUpdate(newAlbumId, { $inc: { mediaCount: 1 } });
-    }
-
-    // Log update activity
-    await this.logActivity(profileId, itemId, 'updated', {
-      updatedFields: Object.keys(updates)
-    });
-
-    return item;
-  }
-
-  // ===========================
-  // ALBUM OPERATIONS
-  // ===========================
-
-  async createAlbum(profileId: string, data: Partial<IAlbum>) {
-    if (!data.name) {
-      throw new Error('Album name is required');
-    }
-
-    const album = new AlbumModel({
-      ...data,
-      profileId: new Types.ObjectId(profileId)
-    });
-
-    await album.save();
-    return album;
-  }
-
-  async getAlbums(profileId: string) {
-    return AlbumModel.find({ profileId: new Types.ObjectId(profileId) })
-      .sort({ sortOrder: 1, createdAt: -1 })
-      .populate('coverImageId', 'fileUrl thumbnailUrl');
-  }
-
-  async updateAlbum(profileId: string, albumId: string, updates: Partial<IAlbum>) {
-    const album = await AlbumModel.findOne({
-      _id: new Types.ObjectId(albumId),
-      profileId: new Types.ObjectId(profileId)
-    });
-
-    if (!album) {
-      throw new Error('Album not found');
-    }
-
-    Object.assign(album, updates);
-    await album.save();
-    return album;
-  }
-
-  async deleteAlbum(profileId: string, albumId: string) {
-    const album = await AlbumModel.findOne({
-      _id: new Types.ObjectId(albumId),
-      profileId: new Types.ObjectId(profileId)
-    });
-
-    if (!album) {
-      throw new Error('Album not found');
-    }
-
-    // Remove album reference from media items
-    await MediaItemModel.updateMany(
-      { albumId: new Types.ObjectId(albumId) },
-      { $unset: { albumId: 1 } }
     );
 
-    await AlbumModel.findByIdAndDelete(albumId);
-    return { success: true, message: 'Album deleted successfully' };
+    return {
+      _id: vault._id,
+      profileId: vault.profileId,
+      storageUsed: vault.storageUsed,
+      storageLimit: vault.storageLimit,
+      categories: categoriesWithSubcategories
+    };
   }
 
-  // ===========================
-  // ANALYTICS & STATISTICS
-  // ===========================
+  async getItems(profileId: string, filters: any) {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) return null;
 
-  async getVaultStats(profileId: string): Promise<IVaultStats> {
-    const stats = await VaultItemModel.aggregate([
-      { $match: { profileId: new Types.ObjectId(profileId) } },
-      {
-        $group: {
-          _id: null,
-          totalItems: { $sum: 1 },
-          walletItems: {
-            $sum: { $cond: [{ $eq: ['$category', 'wallet'] }, 1, 0] }
-          },
-          documentItems: {
-            $sum: { $cond: [{ $eq: ['$category', 'documents'] }, 1, 0] }
-          },
-          mediaItems: {
-            $sum: { $cond: [{ $eq: ['$category', 'media'] }, 1, 0] }
-          },
-          encryptedItems: {
-            $sum: { $cond: ['$isEncrypted', 1, 0] }
+    const query: any = { 
+      vaultId: vault._id,
+      status: { $ne: 'archived' }  // Exclude archived items
+    };
+    
+    if (filters) {
+      if (filters.categoryId) {
+        // Handle both category ID and name
+        if (Types.ObjectId.isValid(filters.categoryId)) {
+          query.categoryId = new Types.ObjectId(filters.categoryId);
+        } else {
+          // If it's a name, find the category ID first
+          const category = await VaultCategory.findOne({
+            vaultId: vault._id,
+            name: { $regex: new RegExp(`^${filters.categoryId}$`, 'i') }
+          });
+          if (!category) {
+            // If category not found, return empty result
+            return {
+              items: []
+            };
+          }
+          query.categoryId = category._id;
+        }
+      }
+      if (filters.subcategoryId) {
+        // Handle both subcategory ID and name
+        if (Types.ObjectId.isValid(filters.subcategoryId)) {
+          query.subcategoryId = new Types.ObjectId(filters.subcategoryId);
+        } else {
+          // If it's a name, find the subcategory ID first
+          const subcategory = await VaultSubcategory.findOne({
+            vaultId: vault._id,
+            name: { $regex: new RegExp(`^${filters.subcategoryId}$`, 'i') }
+          });
+          if (!subcategory) {
+            // If subcategory not found, return empty result
+            return {
+              items: []
+            };
+          }
+          query.subcategoryId = subcategory._id;
+        }
+      }
+      if (filters.type) {
+        query.type = filters.type;
+      }
+      if (filters.search) {
+        query.$or = [
+          { title: { $regex: filters.search, $options: 'i' } },
+          { description: { $regex: filters.search, $options: 'i' } }
+        ];
+      }
+    }
+
+    const items = await VaultItem.find(query)
+      .sort({ createdAt: -1 });
+
+    // If we're filtering by subcategory, we don't need to group by category
+    if (filters?.subcategoryId) {
+      const subcategory = await VaultSubcategory.findById(filters.subcategoryId);
+      const category = subcategory ? await VaultCategory.findById(subcategory.categoryId) : null;
+      
+      // Get child subcategories
+      const childSubcategories = await VaultSubcategory.find({
+        vaultId: vault._id,
+        categoryId: subcategory?.categoryId,
+        parentId: subcategory?._id,
+        status: { $ne: 'archived' }
+      }).sort({ order: 1 });
+
+      // Get items for child subcategories
+      const childSubcategoriesWithItems = await Promise.all(
+        childSubcategories.map(async (childSub) => {
+          const [childCount, childItems] = await Promise.all([
+            VaultItem.countDocuments({
+              vaultId: vault._id,
+              subcategoryId: childSub._id,
+              status: { $ne: 'archived' }
+            }),
+            VaultItem.find({
+              vaultId: vault._id,
+              subcategoryId: childSub._id,
+              status: { $ne: 'archived' }
+            }).sort({ createdAt: -1 })
+          ]);
+
+          return {
+            _id: childSub._id,
+            name: childSub.name,
+            order: childSub.order,
+            hasChildren: false,
+            count: childCount,
+            status: childSub.status,
+            items: childItems.map(item => {
+              const itemObj = item.toObject() as Record<string, any>;
+              const typeData = itemObj[itemObj.type] || {};
+              delete itemObj[itemObj.type];
+
+              // Remove empty document field if it exists
+              if (itemObj.document && (!itemObj.document.tags || itemObj.document.tags.length === 0)) {
+                delete itemObj.document;
+              }
+
+              const finalItem = {
+                ...itemObj,
+                categoryName: category?.name,
+                subcategoryName: childSub.name,
+                status: itemObj.status || 'active'
+              };
+
+              // Only include type data if it's not empty
+              if (Object.keys(typeData).length > 0) {
+                Object.assign(finalItem, typeData);
+              }
+
+              return finalItem;
+            }),
+            subcategories: []
+          };
+        })
+      );
+
+      return {
+        items: [{
+          _id: category?._id,
+          name: category?.name,
+          count: items.length + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
+          subcategories: [{
+            _id: subcategory?._id,
+            name: subcategory?.name,
+            count: items.length + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
+            status: subcategory?.status || 'active',
+            items: items.map(item => {
+              const itemObj = item.toObject() as Record<string, any>;
+              const typeData = itemObj[itemObj.type] || {};
+              delete itemObj[itemObj.type];
+
+              // Remove empty document field if it exists
+              if (itemObj.document && (!itemObj.document.tags || itemObj.document.tags.length === 0)) {
+                delete itemObj.document;
+              }
+
+              const finalItem = {
+                ...itemObj,
+                categoryName: category?.name,
+                subcategoryName: subcategory?.name,
+                status: itemObj.status || 'active'
+              };
+
+              // Only include type data if it's not empty
+              if (Object.keys(typeData).length > 0) {
+                Object.assign(finalItem, typeData);
+              }
+
+              return finalItem;
+            }),
+            subcategories: childSubcategoriesWithItems
+          }]
+        }]
+      };
+    }
+
+    // Get categories and subcategories based on the query
+    let categories;
+    if (filters?.categoryId) {
+      // If category filter is provided, only get that category
+      const categoryId = Types.ObjectId.isValid(filters.categoryId) 
+        ? new Types.ObjectId(filters.categoryId)
+        : (await VaultCategory.findOne({
+            vaultId: vault._id,
+            name: { $regex: new RegExp(`^${filters.categoryId}$`, 'i') }
+          }))?._id;
+      
+      categories = categoryId ? [await VaultCategory.findById(categoryId)] : [];
+    } else {
+      // If no category filter, get all categories
+      categories = await VaultCategory.find({ vaultId: vault._id });
+    }
+
+    // Get subcategories for the selected categories
+    const subcategories = await VaultSubcategory.find({
+      vaultId: vault._id,
+      categoryId: { $in: categories.filter((cat): cat is NonNullable<typeof cat> => cat !== null).map(cat => cat._id) }
+    });
+
+    // Create lookup maps
+    const categoryMap = new Map(categories.filter((cat): cat is NonNullable<typeof cat> => cat !== null).map(cat => [cat._id.toString(), cat.name]));
+    const subcategoryMap = new Map(subcategories.map(sub => [sub._id.toString(), sub.name]));
+
+    // Group items by category and subcategory
+    const groupedItems = new Map();
+
+    // Initialize the structure only for the categories we have
+    categories.filter((cat): cat is NonNullable<typeof cat> => cat !== null).forEach(category => {
+      const categorySubcategories = subcategories.filter(sub => 
+        sub.categoryId.toString() === category._id.toString()
+      );
+      
+      groupedItems.set(category.name, {
+        _id: category._id,
+        name: category.name,
+        count: 0,
+        subcategories: new Map(
+          categorySubcategories.map(sub => [
+            sub.name,
+            {
+              _id: sub._id,
+              name: sub.name,
+              count: 0,
+              items: []
+            }
+          ])
+        )
+      });
+    });
+
+    // Add items to their respective groups
+    items.forEach(item => {
+      const itemObj = item.toObject() as Record<string, any>;
+      const typeData = itemObj[itemObj.type] || {};
+      delete itemObj[itemObj.type];
+
+      // Remove empty document field if it exists
+      if (itemObj.document && (!itemObj.document.tags || itemObj.document.tags.length === 0)) {
+        delete itemObj.document;
+      }
+
+      const categoryName = categoryMap.get(itemObj.categoryId.toString());
+      const subcategoryName = subcategoryMap.get(itemObj.subcategoryId.toString());
+
+      if (categoryName && subcategoryName) {
+        const categoryGroup = groupedItems.get(categoryName);
+        if (categoryGroup) {
+          categoryGroup.count++;
+          const subcategoryGroup = categoryGroup.subcategories.get(subcategoryName);
+          if (subcategoryGroup) {
+            subcategoryGroup.count++;
+            // Only include type data if it's not empty
+            const finalItem = {
+              ...itemObj,
+              categoryName,
+              subcategoryName
+            };
+            if (Object.keys(typeData).length > 0) {
+              Object.assign(finalItem, typeData);
+            }
+            subcategoryGroup.items.push(finalItem);
           }
         }
       }
-    ]);
+    });
 
-    // Calculate storage used for documents and media
-    const storageStats = await VaultItemModel.aggregate([
-      {
-        $match: {
-          profileId: new Types.ObjectId(profileId),
-          category: { $in: ['documents', 'media'] }
-        }
-      },
-      {
-        $group: {
-          _id: null,
-          totalStorage: { $sum: '$fileSize' }
-        }
-      }
-    ]);
-
-    // Get last activity
-    const lastActivity = await VaultActivityModel.findOne(
-      { profileId: new Types.ObjectId(profileId) },
-      {},
-      { sort: { createdAt: -1 } }
-    );
-
-    const result = stats[0] || {
-      totalItems: 0,
-      walletItems: 0,
-      documentItems: 0,
-      mediaItems: 0,
-      encryptedItems: 0
-    };
+    // Convert the Map structure to the final response format
+    const groupedResponse = Array.from(groupedItems.values()).map(category => ({
+      _id: category._id,
+      name: category.name,
+      count: category.count,
+      subcategories: Array.from(category.subcategories.values() as unknown as Array<{ _id: Types.ObjectId; name: string; count: number; items: any[] }>).map(sub => ({
+        _id: sub._id,
+        name: sub.name,
+        count: sub.count,
+        items: sub.items
+      }))
+    }));
 
     return {
-      ...result,
-      storageUsed: storageStats[0]?.totalStorage || 0,
-      lastActivity: lastActivity?.createdAt || new Date()
+      items: groupedResponse
     };
   }
 
-  async getVaultActivity(
-    profileId: string,
-    options: {
-      itemId?: string;
-      action?: string;
-      limit?: number;
-      offset?: number;
-    } = {}
-  ) {
-    const query: any = { profileId: new Types.ObjectId(profileId) };
+  async addItem(userId: string, profileId: string, category: string, subcategoryId: string, item: any) {
+    let fileSize = 0;
+    const uploadedImages: any = {};
 
-    if (options.itemId) {
-      query.itemId = new Types.ObjectId(options.itemId);
-    }
-    if (options.action) {
-      query.action = options.action;
+    // Get or create vault
+    let vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      vault = await Vault.create({
+        userId: new Types.ObjectId(userId),
+        profileId: new Types.ObjectId(profileId),
+        storageUsed: fileSize
+      });
     }
 
-    return VaultActivityModel
-      .find(query)
-      .sort({ createdAt: -1 })
-      .limit(options.limit || 50)
-      .skip(options.offset || 0)
-      .populate('itemId', 'name category subcategory');
-  }
+    // Get or create category
+    let categoryDoc = await VaultCategory.findOne({ 
+      vaultId: vault._id,
+      name: category 
+    });
+    if (!categoryDoc) {
+      categoryDoc = await VaultCategory.create({
+        vaultId: vault._id,
+        name: category,
+        order: await VaultCategory.countDocuments({ vaultId: vault._id })
+      });
+    }
 
-  // ===========================
-  // SHARING & ACCESS CONTROL
-  // ===========================
-
-  async shareVaultItem(
-    profileId: string,
-    itemId: string,
-    shareWithProfileIds: string[],
-    accessLevel: 'shared' | 'public' = 'shared'
-  ) {
-    const item = await VaultItemModel.findOne({
-      _id: new Types.ObjectId(itemId),
-      profileId: new Types.ObjectId(profileId)
+    // Verify subcategory exists and belongs to the correct category
+    const subcategoryDoc = await VaultSubcategory.findOne({
+      vaultId: vault._id,
+      categoryId: categoryDoc._id,
+      _id: new Types.ObjectId(subcategoryId)
     });
 
+    if (!subcategoryDoc) {
+      throw new Error('Subcategory not found or does not belong to the specified category');
+    }
+
+    // Handle main file upload if present
+    if (item.fileData) {
+      const uploadOptions = {
+        folder: `vault/${profileId}/${category}/${subcategoryDoc.name}`,
+        resourceType: this.getResourceTypeFromCategory(category),
+        tags: [`vault-${category}`, `vault-${subcategoryDoc.name}`]
+      };
+
+      const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(item.fileData, uploadOptions);
+      item.fileUrl = uploadResult.secure_url;
+      fileSize = uploadResult.bytes;
+      item.fileSize = fileSize;
+      item.publicId = uploadResult.public_id;
+      delete item.fileData;
+    }
+
+    // Handle card images if present
+    if (item.card?.images) {
+      const cardImages = item.card.images;
+      if (cardImages.front?.fileData) {
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(cardImages.front.fileData, {
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/card/front`,
+          resourceType: 'image'
+        });
+        uploadedImages.front = {
+          url: uploadResult.secure_url,
+          publicId: uploadResult.public_id,
+          uploadedAt: new Date(),
+          size: uploadResult.bytes
+        };
+        fileSize += uploadResult.bytes;
+        delete cardImages.front.fileData;
+      }
+      if (cardImages.back?.fileData) {
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(cardImages.back.fileData, {
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/card/back`,
+          resourceType: 'image'
+        });
+        uploadedImages.back = {
+          url: uploadResult.secure_url,
+          publicId: uploadResult.public_id,
+          uploadedAt: new Date(),
+          size: uploadResult.bytes
+        };
+        fileSize += uploadResult.bytes;
+        delete cardImages.back.fileData;
+      }
+      if (cardImages.additional?.length) {
+        uploadedImages.additional = await Promise.all(
+          cardImages.additional.map(async (img: any, index: number) => {
+            if (img.fileData) {
+              const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
+                folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/card/additional`,
+                resourceType: 'image'
+              });
+              fileSize += uploadResult.bytes;
+              delete img.fileData;
+              return {
+                url: uploadResult.secure_url,
+                publicId: uploadResult.public_id,
+                uploadedAt: new Date(),
+                size: uploadResult.bytes,
+                description: img.description
+              };
+            }
+            return img;
+          })
+        );
+      }
+      item.card.images = uploadedImages;
+    }
+
+    // Handle document images if present
+    if (item.document?.images) {
+      const docImages = item.document.images;
+      if (docImages.front?.fileData) {
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(docImages.front.fileData, {
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/document/front`,
+          resourceType: 'image'
+        });
+        uploadedImages.front = {
+          url: uploadResult.secure_url,
+          publicId: uploadResult.public_id,
+          uploadedAt: new Date(),
+          size: uploadResult.bytes
+        };
+        fileSize += uploadResult.bytes;
+        delete docImages.front.fileData;
+      }
+      if (docImages.back?.fileData) {
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(docImages.back.fileData, {
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/document/back`,
+          resourceType: 'image'
+        });
+        uploadedImages.back = {
+          url: uploadResult.secure_url,
+          publicId: uploadResult.public_id,
+          uploadedAt: new Date(),
+          size: uploadResult.bytes
+        };
+        fileSize += uploadResult.bytes;
+        delete docImages.back.fileData;
+      }
+      if (docImages.additional?.length) {
+        uploadedImages.additional = await Promise.all(
+          docImages.additional.map(async (img: any, index: number) => {
+            if (img.fileData) {
+              const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
+                folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/document/additional`,
+                resourceType: 'image'
+              });
+              fileSize += uploadResult.bytes;
+              delete img.fileData;
+              return {
+                url: uploadResult.secure_url,
+                publicId: uploadResult.public_id,
+                uploadedAt: new Date(),
+                size: uploadResult.bytes,
+                description: img.description
+              };
+            }
+            return img;
+          })
+        );
+      }
+      item.document.images = uploadedImages;
+    }
+
+    // Handle identification images if present
+    if (item.identification?.images) {
+      const idImages = item.identification.images;
+      if (idImages.front?.fileData) {
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(idImages.front.fileData, {
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/front`,
+          resourceType: 'image'
+        });
+        uploadedImages.front = {
+          url: uploadResult.secure_url,
+          publicId: uploadResult.public_id,
+          uploadedAt: new Date(),
+          size: uploadResult.bytes
+        };
+        fileSize += uploadResult.bytes;
+        delete idImages.front.fileData;
+      }
+      if (idImages.back?.fileData) {
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(idImages.back.fileData, {
+          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/back`,
+          resourceType: 'image'
+        });
+        uploadedImages.back = {
+          url: uploadResult.secure_url,
+          publicId: uploadResult.public_id,
+          uploadedAt: new Date(),
+          size: uploadResult.bytes
+        };
+        fileSize += uploadResult.bytes;
+        delete idImages.back.fileData;
+      }
+      if (idImages.additional?.length) {
+        uploadedImages.additional = await Promise.all(
+          idImages.additional.map(async (img: any, index: number) => {
+            if (img.fileData) {
+              const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
+                folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/additional`,
+                resourceType: 'image'
+              });
+              fileSize += uploadResult.bytes;
+              delete img.fileData;
+              return {
+                url: uploadResult.secure_url,
+                publicId: uploadResult.public_id,
+                uploadedAt: new Date(),
+                size: uploadResult.bytes,
+                description: img.description
+              };
+            }
+            return img;
+          })
+        );
+      }
+      item.identification.images = uploadedImages;
+    }
+
+    // Update vault storage
+    vault.storageUsed = (vault.storageUsed || 0) + fileSize;
+    await vault.save();
+
+    // Create the item
+    const newItem = await VaultItem.create({
+      vaultId: vault._id,
+      profileId: new Types.ObjectId(profileId),
+      categoryId: categoryDoc._id,
+      subcategoryId: subcategoryDoc._id,
+      type: item.type,
+      category: category,
+      title: item.title,
+      description: item.description || '',
+      fileUrl: item.fileUrl,
+      fileSize: fileSize,
+      publicId: item.publicId,
+      metadata: item.metadata || {},
+      card: item.card,
+      document: item.document ? {
+        ...item.document,
+        issueDate: item.document.issueDate ? new Date(item.document.issueDate) : undefined,
+        expiryDate: item.document.expiryDate ? new Date(item.document.expiryDate) : undefined
+      } : undefined,
+      location: item.location,
+      identification: item.identification
+    });
+
+    return newItem;
+  }
+
+  async updateItem(userId: string, itemId: string, updates: any) {
+    const item = await VaultItem.findById(itemId);
+      if (!item) {
+        throw new Error('Item not found');
+      }
+
+    let fileSize = 0;
+    const uploadedImages: any = {};
+
+    // Get category and subcategory names
+    const category = await VaultCategory.findById(item.categoryId);
+    const subcategory = await VaultSubcategory.findById(item.subcategoryId);
+
+    // Handle main file update if present
+    if (updates.fileData) {
+      // Delete old file if it exists
+      if (item.fileUrl) {
+        await this.cloudinaryService.delete(item.metadata?.publicId);
+      }
+
+      const uploadOptions = {
+        folder: `vault/${item.profileId}/${category?.name}/${subcategory?.name}`,
+        resourceType: this.getResourceTypeFromCategory(category?.name || ''),
+        tags: [`vault-${category?.name}`, `vault-${subcategory?.name}`]
+      };
+
+      const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(updates.fileData, uploadOptions);
+      updates.fileUrl = uploadResult.secure_url;
+      updates.fileSize = uploadResult.bytes;
+      updates.publicId = uploadResult.public_id;
+      fileSize += uploadResult.bytes;
+      delete updates.fileData;
+    }
+
+    // Handle card images update if present
+    if (updates.card?.images) {
+      const cardImages = updates.card.images;
+      if (cardImages.front?.fileData) {
+        // Delete old front image if exists
+        if (item.card?.images?.front?.storageId) {
+          await this.cloudinaryService.delete(item.card.images.front.storageId);
+        }
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(cardImages.front.fileData, {
+          folder: `vault/${item.profileId}/${category?.name}/${subcategory?.name}/card/front`,
+          resourceType: 'image'
+        });
+        uploadedImages.front = {
+          url: uploadResult.secure_url,
+          storageId: uploadResult.public_id,
+          storageProvider: 'cloudinary',
+          mimeType: uploadResult.format,
+          size: uploadResult.bytes,
+          uploadedAt: new Date(),
+          metadata: {
+            originalFormat: uploadResult.format,
+            resourceType: uploadResult.resource_type
+          }
+        };
+        fileSize += uploadResult.bytes;
+        delete cardImages.front.fileData;
+      }
+      if (cardImages.back?.fileData) {
+        // Delete old back image if exists
+        if (item.card?.images?.back?.storageId) {
+          await this.cloudinaryService.delete(item.card.images.back.storageId);
+        }
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(cardImages.back.fileData, {
+          folder: `vault/${item.profileId}/${category?.name}/${subcategory?.name}/card/back`,
+          resourceType: 'image'
+        });
+        uploadedImages.back = {
+          url: uploadResult.secure_url,
+          storageId: uploadResult.public_id,
+          storageProvider: 'cloudinary',
+          mimeType: uploadResult.format,
+          size: uploadResult.bytes,
+          uploadedAt: new Date(),
+          metadata: {
+            originalFormat: uploadResult.format,
+            resourceType: uploadResult.resource_type
+          }
+        };
+        fileSize += uploadResult.bytes;
+        delete cardImages.back.fileData;
+      }
+      if (cardImages.additional?.length) {
+        uploadedImages.additional = await Promise.all(
+          cardImages.additional.map(async (img: any, index: number) => {
+            if (img.fileData) {
+              const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
+                folder: `vault/${item.profileId}/${category?.name}/${subcategory?.name}/card/additional`,
+                resourceType: 'image'
+              });
+              fileSize += uploadResult.bytes;
+              delete img.fileData;
+              return {
+                url: uploadResult.secure_url,
+                storageId: uploadResult.public_id,
+                storageProvider: 'cloudinary',
+                mimeType: uploadResult.format,
+                size: uploadResult.bytes,
+                uploadedAt: new Date(),
+                description: img.description,
+                metadata: {
+                  originalFormat: uploadResult.format,
+                  resourceType: uploadResult.resource_type
+                }
+              };
+            }
+            return img;
+          })
+        );
+      }
+      updates.card.images = uploadedImages;
+    }
+
+    // Handle document images update if present
+    if (updates.document?.images) {
+      const docImages = updates.document.images;
+      if (docImages.front?.fileData) {
+        // Delete old front image if exists
+        if (item.document?.images?.front?.storageId) {
+          await this.cloudinaryService.delete(item.document.images.front.storageId);
+        }
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(docImages.front.fileData, {
+          folder: `vault/${item.profileId}/${category?.name}/${subcategory?.name}/document/front`,
+          resourceType: 'image'
+        });
+        uploadedImages.front = {
+          url: uploadResult.secure_url,
+          storageId: uploadResult.public_id,
+          storageProvider: 'cloudinary',
+          mimeType: uploadResult.format,
+          size: uploadResult.bytes,
+          uploadedAt: new Date(),
+          metadata: {
+            originalFormat: uploadResult.format,
+            resourceType: uploadResult.resource_type
+          }
+        };
+        fileSize += uploadResult.bytes;
+        delete docImages.front.fileData;
+      }
+      if (docImages.back?.fileData) {
+        // Delete old back image if exists
+        if (item.document?.images?.back?.storageId) {
+          await this.cloudinaryService.delete(item.document.images.back.storageId);
+        }
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(docImages.back.fileData, {
+          folder: `vault/${item.profileId}/${category?.name}/${subcategory?.name}/document/back`,
+          resourceType: 'image'
+        });
+        uploadedImages.back = {
+          url: uploadResult.secure_url,
+          storageId: uploadResult.public_id,
+          storageProvider: 'cloudinary',
+          mimeType: uploadResult.format,
+          size: uploadResult.bytes,
+          uploadedAt: new Date(),
+          metadata: {
+            originalFormat: uploadResult.format,
+            resourceType: uploadResult.resource_type
+          }
+        };
+        fileSize += uploadResult.bytes;
+        delete docImages.back.fileData;
+      }
+      if (docImages.additional?.length) {
+        uploadedImages.additional = await Promise.all(
+          docImages.additional.map(async (img: any, index: number) => {
+            if (img.fileData) {
+              const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
+                folder: `vault/${item.profileId}/${category?.name}/${subcategory?.name}/document/additional`,
+                resourceType: 'image'
+              });
+              fileSize += uploadResult.bytes;
+              delete img.fileData;
+              return {
+                url: uploadResult.secure_url,
+                storageId: uploadResult.public_id,
+                storageProvider: 'cloudinary',
+                mimeType: uploadResult.format,
+                size: uploadResult.bytes,
+                uploadedAt: new Date(),
+                description: img.description,
+                metadata: {
+                  originalFormat: uploadResult.format,
+                  resourceType: uploadResult.resource_type
+                }
+              };
+            }
+            return img;
+          })
+        );
+      }
+      updates.document.images = uploadedImages;
+    }
+
+    // Update vault storage
+    const vault = await Vault.findById(item.vaultId);
+    if (vault) {
+      vault.storageUsed = (vault.storageUsed || 0) - (item.metadata?.fileSize || 0) + fileSize;
+      await vault.save();
+    }
+
+    return VaultItem.findByIdAndUpdate(
+      itemId,
+      { $set: updates },
+      { new: true }
+    );
+  }
+
+  async deleteItem(profileId: string, itemId: string) {
+    const item = await VaultItem.findById(itemId);
     if (!item) {
-      throw new Error('Vault item not found');
+      throw new Error('Item not found');
     }
 
-    // Update sharing settings
-    item.accessLevel = accessLevel;
-    if (accessLevel === 'shared') {
-      item.sharedWith = shareWithProfileIds.map(id => new Types.ObjectId(id));
-    } else {
-      item.sharedWith = [];
+    // Delete file if it exists
+    if (item.fileUrl) {
+      await this.cloudinaryService.delete(item.metadata?.publicId);
     }
 
-    await item.save();
+    // Update vault storage
+    const vault = await Vault.findById(item.vaultId);
+    if (vault) {
+      vault.storageUsed = Math.max(0, (vault.storageUsed || 0) - (item.metadata?.fileSize || 0));
+      await vault.save();
+    }
 
-    // Log sharing activity
-    await this.logActivity(profileId, itemId, 'shared', {
-      accessLevel,
-      sharedWithCount: shareWithProfileIds.length
+    // Delete the item
+    await VaultItem.findByIdAndDelete(itemId);
+  }
+
+  private getResourceTypeFromCategory(category: string): 'image' | 'video' | 'raw' | 'auto' {
+    switch (category.toLowerCase()) {
+      case 'media':
+        return 'image';
+      case 'documents':
+        return 'raw';
+      default:
+        return 'auto';
+    }
+  }
+
+  async getCategories(profileId: string) {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      return this.getDefaultCategories();
+    }
+
+    // Get existing categories
+    const existingCategories = await VaultCategory.find({ vaultId: vault._id })
+      .sort({ order: 1 });
+
+    // Get default categories
+    const defaultCategories = this.getDefaultCategories();
+
+    // Check which default categories are missing
+    for (const defaultCat of defaultCategories) {
+      const existingCategory = existingCategories.find(cat => cat.name === defaultCat.name);
+      
+      if (!existingCategory) {
+        // Create the missing default category
+        const category = await VaultCategory.create({
+          vaultId: vault._id,
+          name: defaultCat.name,
+          order: existingCategories.length
+        });
+
+        // Create its subcategories
+        await Promise.all(
+          defaultCat.subcategories.map(async (sub, index) => {
+            return VaultSubcategory.create({
+              vaultId: vault._id,
+              categoryId: category._id,
+              name: sub.name,
+              order: index
+            });
+          })
+        );
+
+        existingCategories.push(category);
+      } else {
+        // Check for missing subcategories in existing category
+        const existingSubcategories = await VaultSubcategory.find({
+          vaultId: vault._id,
+          categoryId: existingCategory._id
+        });
+
+        // Find missing subcategories
+        const missingSubcategories = defaultCat.subcategories.filter(
+          defaultSub => !existingSubcategories.some(existingSub => existingSub.name === defaultSub.name)
+        );
+
+        // Create missing subcategories
+        if (missingSubcategories.length > 0) {
+          await Promise.all(
+            missingSubcategories.map(async (sub, index) => {
+              return VaultSubcategory.create({
+                vaultId: vault._id,
+                categoryId: existingCategory._id,
+                name: sub.name,
+                order: existingSubcategories.length + index
+              });
+            })
+          );
+        }
+      }
+    }
+
+    // Return all categories with their subcategories
+    return Promise.all(
+      existingCategories.map(async (category) => {
+        const subcategories = await VaultSubcategory.find({
+          vaultId: vault._id,
+          categoryId: category._id
+        }).sort({ order: 1 });
+
+        return {
+          _id: category._id,
+          name: category.name,
+          order: category.order,
+          subcategories: subcategories.map(sub => ({
+            _id: sub._id,
+            name: sub.name,
+            order: sub.order
+          }))
+        };
+      })
+    );
+  }
+
+  async createCategory(profileId: string, categoryName: string, subcategories: string[]) {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw new Error('Vault not found');
+    }
+
+    // Check if category already exists
+    const existingCategory = await VaultCategory.findOne({
+      vaultId: vault._id,
+      name: categoryName
+    });
+    if (existingCategory) {
+      throw new Error('Category already exists');
+    }
+
+    // Create new category
+    const category = await VaultCategory.create({
+      vaultId: vault._id,
+      name: categoryName,
+      order: await VaultCategory.countDocuments({ vaultId: vault._id })
     });
 
-    return item;
-  }
-
-  async getSharedItems(profileId: string) {
-    return VaultItemModel.find({
-      $or: [
-        { sharedWith: new Types.ObjectId(profileId) },
-        { accessLevel: 'public' }
-      ]
-    }).populate('profileId', 'firstName lastName profilePicture');
-  }
-
-  // ===========================
-  // UTILITY METHODS
-  // ===========================
-
-  private async logActivity(
-    profileId: string,
-    itemId: string,
-    action: IVaultActivity['action'],
-    details: Record<string, any> = {}
-  ) {
-    const activity = new VaultActivityModel({
-      profileId: new Types.ObjectId(profileId),
-      itemId: new Types.ObjectId(itemId),
-      action,
-      details
-    });
-
-    await activity.save();
-  }
-
-  private async deleteCloudinaryFile(fileUrl: string) {
-    try {
-      await cloudinaryService.delete(fileUrl);
-    } catch (error) {
-      console.error('Error deleting file from Cloudinary:', error);
-    }
-  }
-
-  // Search functionality
-  async searchVault(profileId: string, query: string, filters: {
-    categories?: string[];
-    tags?: string[];
-    dateFrom?: Date;
-    dateTo?: Date;
-  } = {}) {
-    const searchQuery: any = {
-      profileId: new Types.ObjectId(profileId),
-      $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } },
-        { tags: { $in: [new RegExp(query, 'i')] } }
-      ]
-    };
-
-    if (filters.categories && filters.categories.length > 0) {
-      searchQuery.category = { $in: filters.categories };
-    }
-
-    if (filters.tags && filters.tags.length > 0) {
-      searchQuery.tags = { $in: filters.tags };
-    }
-
-    if (filters.dateFrom || filters.dateTo) {
-      searchQuery.createdAt = {};
-      if (filters.dateFrom) searchQuery.createdAt.$gte = filters.dateFrom;
-      if (filters.dateTo) searchQuery.createdAt.$lte = filters.dateTo;
-    }
-
-    // For document items, also search in extracted text
-    const documentResults = await DocumentItemModel.find({
-      ...searchQuery,
-      extractedText: { $regex: query, $options: 'i' }
-    });
-
-    const generalResults = await VaultItemModel.find(searchQuery);
-
-    // Combine and deduplicate results
-    const allResults = [...generalResults, ...documentResults];
-    const uniqueResults = allResults.filter((item, index, self) =>
-      index === self.findIndex(t => t._id.toString() === item._id.toString())
+    // Create subcategories
+    const subcategoryDocs = await Promise.all(
+      subcategories.map(async (name, index) => {
+        return VaultSubcategory.create({
+          vaultId: vault._id,
+          categoryId: category._id,
+          name,
+          order: index
+        });
+      })
     );
 
-    return uniqueResults;
+    return {
+      _id: category._id,
+      name: category.name,
+      order: category.order,
+      subcategories: subcategoryDocs.map(sub => ({
+        _id: sub._id,
+        name: sub.name,
+        order: sub.order
+      }))
+    };
+  }
+
+  async createSubcategory(profileId: string, categoryName: string, subcategoryName: string, parentId?: string) {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw new Error('Vault not found');
+    }
+
+    const category = await VaultCategory.findOne({
+      vaultId: vault._id,
+      name: categoryName
+    });
+    if (!category) {
+      throw new Error('Category not found');
+    }
+
+    // If parentId is provided, verify it exists
+    if (parentId) {
+      const parentSubcategory = await VaultSubcategory.findOne({
+        vaultId: vault._id,
+        categoryId: category._id,
+        _id: new Types.ObjectId(parentId)
+      });
+      if (!parentSubcategory) {
+        throw new Error('Parent subcategory not found');
+      }
+    }
+
+    const existingSubcategory = await VaultSubcategory.findOne({
+      vaultId: vault._id,
+      categoryId: category._id,
+      parentId: parentId ? new Types.ObjectId(parentId) : { $exists: false },
+      name: subcategoryName
+    });
+    if (existingSubcategory) {
+      throw new Error('Subcategory already exists in this location');
+    }
+
+    const subcategory = await VaultSubcategory.create({
+      vaultId: vault._id,
+      categoryId: category._id,
+      parentId: parentId ? new Types.ObjectId(parentId) : undefined,
+      name: subcategoryName,
+      order: await VaultSubcategory.countDocuments({
+        vaultId: vault._id,
+        categoryId: category._id,
+        parentId: parentId ? new Types.ObjectId(parentId) : { $exists: false }
+      })
+    });
+
+    return {
+      _id: subcategory._id,
+      name: subcategory.name,
+      order: subcategory.order,
+      parentId: subcategory.parentId
+    };
+  }
+
+  async getItemById(profileId: string, itemId: string) {
+    const item = await VaultItem.findById(itemId);
+    if (!item) return null;
+
+    const category = await VaultCategory.findById(item.categoryId);
+    const subcategory = await VaultSubcategory.findById(item.subcategoryId);
+
+    const itemObj = item.toObject() as Record<string, any>;
+    const typeData = itemObj[itemObj.type] || {};
+    delete itemObj[itemObj.type];
+
+    // Remove empty document field if it exists
+    if (itemObj.document && (!itemObj.document.tags || itemObj.document.tags.length === 0)) {
+      delete itemObj.document;
+    }
+
+    const result = {
+      ...itemObj,
+      categoryName: category?.name,
+      subcategoryName: subcategory?.name
+    };
+
+    // Only include type data if it's not empty
+    if (Object.keys(typeData).length > 0) {
+      Object.assign(result, typeData);
+    }
+
+    return result;
+  }
+
+  async uploadAndAddToVault(
+    userId: string,
+    profileId: string,
+    fileData: string,
+    category: string,
+    subcategory: string,
+    metadata: any = {}
+  ) {
+    const uploadOptions = {
+      folder: `vault/${profileId}/${category}/${subcategory}`,
+      resourceType: this.getResourceTypeFromCategory(category),
+      tags: [`vault-${category}`, `vault-${subcategory}`]
+    };
+
+    const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(fileData, uploadOptions);
+    
+    // Add to vault
+    const item = {
+      type: 'document',
+      category,
+      title: uploadResult.original_filename || `file-${Date.now()}`,
+      description: metadata.description || '',
+      fileUrl: uploadResult.secure_url,
+      fileSize: uploadResult.bytes,
+      publicId: uploadResult.public_id,
+      metadata: {
+        ...metadata,
+        originalFormat: uploadResult.format,
+        resourceType: uploadResult.resource_type
+      }
+    };
+
+    await this.addItem(userId, profileId, category, subcategory, item);
+    return uploadResult;
+  }
+
+  async getSubcategories(profileId: string, categoryIdentifier: string, parentId?: string): Promise<ISubcategoryWithChildren[]> {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw new Error('Vault not found');
+    }
+
+    let category;
+    if (Types.ObjectId.isValid(categoryIdentifier)) {
+      category = await VaultCategory.findOne({
+        vaultId: vault._id,
+        _id: new Types.ObjectId(categoryIdentifier)
+      });
+    } else {
+      const escapedIdentifier = categoryIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      category = await VaultCategory.findOne({
+        vaultId: vault._id,
+        name: { $regex: new RegExp(`^${escapedIdentifier}$`, 'i') }
+      });
+    }
+
+    if (!category) {
+      throw new Error('Category not found');
+    }
+
+    // Query for immediate children only
+    const query: any = {
+      vaultId: vault._id,
+      categoryId: category._id,
+      status: { $ne: 'archived' }  // Exclude archived subcategories
+    };
+
+    if (parentId) {
+      query.parentId = new Types.ObjectId(parentId);
+    } else {
+      query.parentId = { $exists: false }; // Get only top-level subcategories
+    }
+
+    const subcategories = await VaultSubcategory.find(query).sort({ order: 1 });
+
+    // Get item counts and items for each subcategory
+    const subcategoriesWithChildren = await Promise.all(
+      subcategories.map(async (sub) => {
+        // Check if subcategory has children
+        const hasChildren = await VaultSubcategory.exists({
+          vaultId: vault._id,
+          categoryId: category._id,
+          parentId: sub._id,
+          status: { $ne: 'archived' }  // Exclude archived children
+        });
+
+        // Get item count and items for this subcategory
+        const [count, items] = await Promise.all([
+          VaultItem.countDocuments({
+            vaultId: vault._id,
+            subcategoryId: sub._id,
+            status: { $ne: 'archived' }  // Exclude archived items
+          }),
+          VaultItem.find({
+            vaultId: vault._id,
+            subcategoryId: sub._id,
+            status: { $ne: 'archived' }  // Exclude archived items
+          }).sort({ createdAt: -1 })
+        ]);
+
+        // Get child subcategories
+        const childSubcategories = await VaultSubcategory.find({
+          vaultId: vault._id,
+          categoryId: category._id,
+          parentId: sub._id,
+          status: { $ne: 'archived' }  // Exclude archived children
+        }).sort({ order: 1 });
+
+        // Get items for child subcategories
+        const childSubcategoriesWithItems = await Promise.all(
+          childSubcategories.map(async (childSub) => {
+            const [childCount, childItems] = await Promise.all([
+              VaultItem.countDocuments({
+                vaultId: vault._id,
+                subcategoryId: childSub._id
+              }),
+              VaultItem.find({
+                vaultId: vault._id,
+                subcategoryId: childSub._id
+              }).sort({ createdAt: -1 })
+            ]);
+
+            return {
+              _id: childSub._id,
+              name: childSub.name,
+              order: childSub.order,
+              hasChildren: false, // We're not loading deeper levels
+              count: childCount,
+              status: childSub.status,
+              items: childItems.map(item => ({
+                _id: item._id,
+                title: item.title,
+                type: item.type,
+                createdAt: item.createdAt
+              })),
+              subcategories: []
+            };
+          })
+        );
+
+        return {
+          _id: sub._id,
+          name: sub.name,
+          order: sub.order,
+          hasChildren: !!hasChildren,
+          count: count + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
+          status: sub.status,
+          items: items.map(item => ({
+            _id: item._id,
+            title: item.title,
+            type: item.type,
+            createdAt: item.createdAt
+          })),
+          subcategories: childSubcategoriesWithItems
+        };
+      })
+    );
+
+    return subcategoriesWithChildren;
+  }
+
+  async getNestedSubcategories(profileId: string, subcategoryId: string): Promise<ISubcategoryWithChildren[]> {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw new Error('Vault not found');
+    }
+
+    const parentSubcategory = await VaultSubcategory.findOne({
+      vaultId: vault._id,
+      _id: new Types.ObjectId(subcategoryId)
+    });
+
+    if (!parentSubcategory) {
+      throw new Error('Subcategory not found');
+    }
+
+    // Get immediate children
+    const subcategories = await VaultSubcategory.find({
+      vaultId: vault._id,
+      categoryId: parentSubcategory.categoryId,
+      parentId: parentSubcategory._id
+    }).sort({ order: 1 });
+
+    // Get item counts and items for each subcategory
+    const subcategoriesWithChildren = await Promise.all(
+      subcategories.map(async (sub) => {
+        // Check if subcategory has children
+        const hasChildren = await VaultSubcategory.exists({
+          vaultId: vault._id,
+          categoryId: parentSubcategory.categoryId,
+          parentId: sub._id
+        });
+
+        // Get item count and items for this subcategory
+        const [count, items] = await Promise.all([
+          VaultItem.countDocuments({
+            vaultId: vault._id,
+            subcategoryId: sub._id
+          }),
+          VaultItem.find({
+            vaultId: vault._id,
+            subcategoryId: sub._id
+          }).sort({ createdAt: -1 })
+        ]);
+
+        // Get child subcategories
+        const childSubcategories = await VaultSubcategory.find({
+          vaultId: vault._id,
+          categoryId: parentSubcategory.categoryId,
+          parentId: sub._id
+        }).sort({ order: 1 });
+
+        // Get items for child subcategories
+        const childSubcategoriesWithItems = await Promise.all(
+          childSubcategories.map(async (childSub) => {
+            const [childCount, childItems] = await Promise.all([
+              VaultItem.countDocuments({
+                vaultId: vault._id,
+                subcategoryId: childSub._id
+              }),
+              VaultItem.find({
+                vaultId: vault._id,
+                subcategoryId: childSub._id
+              }).sort({ createdAt: -1 })
+            ]);
+
+            return {
+              _id: childSub._id,
+              name: childSub.name,
+              order: childSub.order,
+              hasChildren: false, // We're not loading deeper levels
+              count: childCount,
+              status: childSub.status,
+              items: childItems.map(item => ({
+                _id: item._id,
+                title: item.title,
+                type: item.type,
+                createdAt: item.createdAt
+              })),
+              subcategories: []
+            };
+          })
+        );
+
+        return {
+          _id: sub._id,
+          name: sub.name,
+          order: sub.order,
+          hasChildren: !!hasChildren,
+          count: count + childSubcategoriesWithItems.reduce((sum, child) => sum + child.count, 0),
+          status: sub.status,
+          items: items.map(item => ({
+            _id: item._id,
+            title: item.title,
+            type: item.type,
+            createdAt: item.createdAt
+          })),
+          subcategories: childSubcategoriesWithItems
+        };
+      })
+    );
+
+    return subcategoriesWithChildren;
+  }
+
+  async clearAllVaultItems(profileId: string) {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw new Error('Vault not found');
+    }
+
+    // Get all items
+    const items = await VaultItem.find({ vaultId: vault._id });
+
+    // Delete all files from cloudinary
+    for (const item of items) {
+      // Delete main file if exists
+      if (item.fileUrl) {
+        await this.cloudinaryService.delete(item.metadata?.publicId);
+      }
+
+      // Delete card images
+      if (item.card?.images) {
+        if (item.card.images.front?.storageId) {
+          await this.cloudinaryService.delete(item.card.images.front.storageId);
+        }
+        if (item.card.images.back?.storageId) {
+          await this.cloudinaryService.delete(item.card.images.back.storageId);
+        }
+        if (item.card.images.additional) {
+          for (const img of item.card.images.additional) {
+            if (img.storageId) {
+              await this.cloudinaryService.delete(img.storageId);
+            }
+          }
+        }
+      }
+
+      // Delete document images
+      if (item.document?.images) {
+        if (item.document.images.front?.storageId) {
+          await this.cloudinaryService.delete(item.document.images.front.storageId);
+        }
+        if (item.document.images.back?.storageId) {
+          await this.cloudinaryService.delete(item.document.images.back.storageId);
+        }
+        if (item.document.images.additional) {
+          for (const img of item.document.images.additional) {
+            if (img.storageId) {
+              await this.cloudinaryService.delete(img.storageId);
+            }
+          }
+        }
+      }
+
+      // Delete identification images
+      if (item.identification?.images) {
+        if (item.identification.images.front?.storageId) {
+          await this.cloudinaryService.delete(item.identification.images.front.storageId);
+        }
+        if (item.identification.images.back?.storageId) {
+          await this.cloudinaryService.delete(item.identification.images.back.storageId);
+        }
+        if (item.identification.images.additional) {
+          for (const img of item.identification.images.additional) {
+            if (img.storageId) {
+              await this.cloudinaryService.delete(img.storageId);
+            }
+          }
+        }
+      }
+    }
+
+    // Delete all items
+    await VaultItem.deleteMany({ vaultId: vault._id });
+
+    // Delete all subcategories
+    await VaultSubcategory.deleteMany({ vaultId: vault._id });
+
+    // Delete all categories
+    await VaultCategory.deleteMany({ vaultId: vault._id });
+
+    // Reset vault storage
+    vault.storageUsed = 0;
+    await vault.save();
+
+    return { message: 'All vault items, categories, and subcategories cleared successfully' };
+  }
+
+  async moveSubcategory(profileId: string, subcategoryId: string, newParentId?: string) {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw new Error('Vault not found');
+    }
+
+    const subcategory = await VaultSubcategory.findOne({
+      vaultId: vault._id,
+      _id: new Types.ObjectId(subcategoryId)
+    });
+    if (!subcategory) {
+      throw new Error('Subcategory not found');
+    }
+
+    // Prevent circular references
+    if (newParentId) {
+      let currentParent = await VaultSubcategory.findById(newParentId);
+      while (currentParent) {
+        if (currentParent._id.toString() === subcategoryId) {
+          throw new Error('Cannot move subcategory to its own descendant');
+        }
+        currentParent = await VaultSubcategory.findById(currentParent.parentId);
+      }
+    }
+
+    // Update the subcategory
+    subcategory.parentId = newParentId ? new Types.ObjectId(newParentId) : undefined;
+    await subcategory.save();
+
+    return {
+      _id: subcategory._id,
+      name: subcategory.name,
+      order: subcategory.order,
+      parentId: subcategory.parentId
+    };
+  }
+
+  async deleteSubcategory(profileId: string, subcategoryId: string): Promise<void> {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (!vault) {
+      throw createHttpError(404, 'Vault not found');
+    }
+
+    // Find the subcategory
+    const subcategory = await VaultSubcategory.findOne({
+      vaultId: vault._id,
+      _id: new Types.ObjectId(subcategoryId)
+    });
+
+    if (!subcategory) {
+      throw createHttpError(404, 'Subcategory not found');
+    }
+
+    // Get all child subcategory IDs recursively
+    const childSubcategoryIds = await this.getAllChildSubcategoryIds(subcategory);
+
+    // Get all items to be archived
+    const items = await VaultItem.find({
+      vaultId: vault._id,
+      subcategoryId: { $in: [subcategoryId, ...childSubcategoryIds] }
+    });
+
+    // Archive items instead of deleting
+    for (const item of items) {
+      // Move files to archive folder in cloudinary if they exist
+      if (item.fileUrl) {
+        await this.cloudinaryService.moveToArchive(item.metadata?.publicId);
+      }
+
+      // Handle card images
+      if (item.card?.images) {
+        if (item.card.images.front?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.card.images.front.storageId);
+        }
+        if (item.card.images.back?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.card.images.back.storageId);
+        }
+        if (item.card.images.additional) {
+          for (const img of item.card.images.additional) {
+            if (img.storageId) {
+              await this.cloudinaryService.moveToArchive(img.storageId);
+            }
+          }
+        }
+      }
+
+      // Handle document images
+      if (item.document?.images) {
+        if (item.document.images.front?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.document.images.front.storageId);
+        }
+        if (item.document.images.back?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.document.images.back.storageId);
+        }
+        if (item.document.images.additional) {
+          for (const img of item.document.images.additional) {
+            if (img.storageId) {
+              await this.cloudinaryService.moveToArchive(img.storageId);
+            }
+          }
+        }
+      }
+
+      // Handle identification images
+      if (item.identification?.images) {
+        if (item.identification.images.front?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.identification.images.front.storageId);
+        }
+        if (item.identification.images.back?.storageId) {
+          await this.cloudinaryService.moveToArchive(item.identification.images.back.storageId);
+        }
+        if (item.identification.images.additional) {
+          for (const img of item.identification.images.additional) {
+            if (img.storageId) {
+              await this.cloudinaryService.moveToArchive(img.storageId);
+            }
+          }
+        }
+      }
+
+      // Mark item as archived
+      await VaultItem.findByIdAndUpdate(item._id, {
+        $set: {
+          status: 'archived',
+          archivedAt: new Date(),
+          archivedBy: profileId
+        }
+      });
+    }
+
+    // Archive subcategories instead of deleting
+    await VaultSubcategory.updateMany(
+      {
+        vaultId: vault._id,
+        _id: { $in: [subcategoryId, ...childSubcategoryIds] }
+      },
+      {
+        $set: {
+          status: 'archived',
+          archivedAt: new Date(),
+          archivedBy: profileId
+        }
+      }
+    );
+  }
+
+  private async getAllChildSubcategoryIds(subcategory: IVaultSubcategory): Promise<string[]> {
+    const ids: string[] = [subcategory._id.toString()];
+    
+    const children = await VaultSubcategory.find({
+      vaultId: subcategory.vaultId,
+      parentId: subcategory._id
+    });
+
+    for (const child of children) {
+      ids.push(...await this.getAllChildSubcategoryIds(child));
+    }
+    
+    return ids;
   }
 }
 
 export const vaultService = new VaultService();
-export default vaultService;

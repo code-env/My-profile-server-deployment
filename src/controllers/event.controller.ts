@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import mongoose, { Types } from 'mongoose';
 import eventService from '../services/event.service';
+import { NotificationService } from '../services/notification.service';
 import {
     PriorityLevel,
     RepeatFrequency,
@@ -8,12 +9,20 @@ import {
     ReminderType,
     ReminderUnit,
     VisibilityType,
-    Attachment
+    Attachment,
+    EventType,
+    BookingStatus,
+    EventStatus
 } from '../models/plans-shared';
 import createHttpError from 'http-errors';
 import asyncHandler from 'express-async-handler';
-import CloudinaryService from '../services/cloudinary.service';
 import { emitSocialInteraction } from '../utils/socketEmitter';
+import { MyPtsModel } from '../models/my-pts.model';
+import { TransactionType } from '../interfaces/my-pts.interface';
+import { User } from '../models/User';
+import { vaultService } from '../services/vault.service';
+
+const notificationService = new NotificationService();
 
 // Helper function to validate event data
 const validateEventData = (data: any) => {
@@ -31,13 +40,28 @@ const validateEventData = (data: any) => {
     if (data.visibility && !Object.values(VisibilityType).includes(data.visibility)) {
         errors.push(`visibility must be one of: ${Object.values(VisibilityType).join(', ')}`);
     }
-    if (data.eventType && !['meeting', 'celebration', 'appointment'].includes(data.eventType)) {
-        errors.push(`eventType must be one of: meeting, celebration, appointment`);
+    if (data.eventType && !Object.values(EventType).includes(data.eventType)) {
+        errors.push(`eventType must be one of: ${Object.values(EventType).join(', ')}`);
     }
 
-    // Validate meeting-specific requirements
-    if (data.eventType === 'appointment' && !data.serviceProvider) {
-        errors.push('serviceProvider is required for meetings');
+    // Validate booking-specific requirements
+    if (data.eventType === EventType.Booking) {
+        if (!data.booking) {
+            errors.push('booking details are required for booking events');
+        } else {
+            if (!data.booking.serviceProvider?.profileId) {
+                errors.push('service provider profile ID is required for bookings');
+            }
+            if (!data.booking.service?.name) {
+                errors.push('service name is required for bookings');
+            }
+            if (!data.booking.service?.duration) {
+                errors.push('service duration is required for bookings');
+            }
+            if (data.booking.myPts?.required && !data.booking.myPts?.amount) {
+                errors.push('MyPts amount is required when MyPts payment is required');
+            }
+        }
     }
 
     // Validate repeat settings if provided
@@ -77,8 +101,6 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
     let uploadedFiles: Attachment[] = [];
 
     if (req.body.attachments && Array.isArray(req.body.attachments)) {
-        const cloudinaryService = new CloudinaryService();
-
         uploadedFiles = await Promise.all(
             req.body.attachments.map(async (attachment: { data: string; type: string }) => {
                 try {
@@ -92,34 +114,31 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
                         throw new Error(`Invalid attachment type: ${type}`);
                     }
 
-                    let resourceType: 'image' | 'raw' = 'image';
-                    if (type === 'File') {
-                        resourceType = 'raw';
-                    }
-
-                    const fileTypeMatch = base64String.match(/^data:(image\/\w+|application\/\w+);base64,/);
-                    const extension = fileTypeMatch ?
-                        fileTypeMatch[1].split('/')[1] :
-                        'dat';
-
-                    const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(
+                    // Upload to vault
+                    const uploadResult = await vaultService.uploadAndAddToVault(
+                        user._id,
+                        req.body.profileId,
                         base64String,
+                        type === "Photo" ? "Media" : type === "File" ? "Documents" : "Other",
+                        // let the sub category be either Photo, Video, or Audio
+                        type === "Photo" ? "Photo" : type === "File" ? "Video" : "Audio",
                         {
-                            folder: 'event-attachments',
-                            resourceType,
-                            tags: [`type-${type.toLowerCase()}`]
+                            eventId: req.body._id,
+                            eventName: req.body.name,
+                            attachmentType: type,
+                            description: req.body.description
                         }
                     );
 
                     return {
                         type: type as 'Photo' | 'File' | 'Link' | 'Other',
                         url: uploadResult.secure_url,
-                        name: uploadResult.original_filename || `attachment-${Date.now()}.${extension}`,
+                        name: uploadResult.original_filename || `attachment-${Date.now()}`,
                         description: '',
                         uploadedAt: new Date(),
                         uploadedBy: user._id,
                         size: uploadResult.bytes,
-                        fileType: uploadResult.format || extension,
+                        fileType: uploadResult.format,
                         publicId: uploadResult.public_id
                     };
                 } catch (error) {
@@ -139,6 +158,37 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
     };
 
     const event = await eventService.createEvent(eventData);
+
+    if (event.booking?.serviceProvider?.profileId) {
+        console.log('Looking for user with profile ID:', event.booking.serviceProvider.profileId);
+        const profileUser = await User.findOne({ profiles: new mongoose.Types.ObjectId(event.booking.serviceProvider.profileId) });
+        console.log("profileUser", profileUser);
+        if (profileUser) {
+            await notificationService.createNotification({
+                recipient: profileUser._id,
+                type: 'booking_request',
+                title: 'New Booking Request',
+                message: `${user.fullName} has requested to book your service: ${event.booking?.service?.name}`,
+                relatedTo: {
+                    model: 'Event',
+                    id: event._id
+                },
+                action: {
+                    text: 'View Booking',
+                    url: `/bookings/${event._id}`
+                },
+                priority: 'high',
+                isRead: false,
+                isArchived: false,
+                metadata: {
+                    bookingId: event._id,
+                    serviceName: event.booking?.service?.name,
+                    requesterName: user.fullName,
+                    requesterId: user._id
+                }
+            });
+        }
+    }
     res.status(201).json({
         success: true,
         data: event,
@@ -213,7 +263,6 @@ export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
     let uploadedFiles: Attachment[] = [];
 
     if (req.body.attachments && Array.isArray(req.body.attachments)) {
-        const cloudinaryService = new CloudinaryService();
 
         uploadedFiles = await Promise.all(
             req.body.attachments.map(async (attachment: { data: string; type: string }) => {
@@ -233,12 +282,18 @@ export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
                         resourceType = 'raw';
                     }
 
-                    const uploadResult = await cloudinaryService.uploadAndReturnAllInfo(
+                    const uploadResult = await vaultService.uploadAndAddToVault(
+                        user._id,
+                        req.body.profileId,
                         base64String,
+                        type === "Photo" ? "Media" : type === "File" ? "Documents" : "Other",
+                        // let the sub category be either Photo, Video, or Audio
+                        type === "Photo" ? "Photo" : type === "File" ? "Video" : "Audio",
                         {
-                            folder: 'event-attachments',
-                            resourceType,
-                            tags: [`type-${type.toLowerCase()}`]
+                            eventId: req.body._id,
+                            eventName: req.body.name,
+                            attachmentType: type,
+                            description: req.body.description
                         }
                     );
 
@@ -457,7 +512,7 @@ export const setServiceProvider = asyncHandler(async (req: Request, res: Respons
         throw createHttpError(400, 'Invalid event ID');
     }
 
-    if (!req.body.profile || !req.body.role) {
+    if (!req.body.profileId || !req.body.role) {
         throw createHttpError(400, 'profile and role are required');
     }
 
@@ -465,7 +520,7 @@ export const setServiceProvider = asyncHandler(async (req: Request, res: Respons
         req.params.id,
         user._id,
         {
-            profileId: new mongoose.Types.ObjectId(req.body.profile),
+            profileId: new mongoose.Types.ObjectId(req.body.profileId),
             role: req.body.role
         }
     );
@@ -491,7 +546,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Comment text is required');
     }
 
-    if (!req.body.profile) {
+    if (!req.body.profileId) {
         throw createHttpError(400, 'Profile is required');
     }
 
@@ -504,8 +559,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Event has no associated profile');
     }
 
-
-    const profile = req.body.profile;
+    const profile = req.body.profileId;
     const updatedEvent = await eventService.addComment(
         req.params.id,
         user._id,
@@ -513,7 +567,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         { text: req.body.text }
     );
 
-    // display the updated event
+    // Emit social interaction
     try {
         await emitSocialInteraction(user._id, {
             type: 'comment',
@@ -552,11 +606,11 @@ export const likeEvent = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Event has no associated profile');
     }
 
-    if (!req.body.profile) {
+    if (!req.body.profileId) {
         throw createHttpError(400, 'Profile is required');
     }
 
-    const profile = req.body.profile;
+    const profile = req.body.profileId;
 
     const event = await eventService.likeEvent(req.params.id, user._id, profile);
 
@@ -583,26 +637,468 @@ export const likeEvent = asyncHandler(async (req: Request, res: Response) => {
 // @desc    Like comment
 // @route   POST /events/:id/comments/:commentId/like
 // @access  Private
-export const likeComment = asyncHandler(async (req: Request, res: Response) => {
+export const likeComment = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid event ID' });
+        }
+
+        if (!req.params.commentIndex || isNaN(parseInt(req.params.commentIndex))) {
+            return res.status(400).json({ error: 'Invalid comment index' });
+        }
+
+        if (!req.body.profileId) {
+            return res.status(400).json({ error: 'Profile ID is required' });
+        }
+
+        const commentIndex = parseInt(req.params.commentIndex);
+        const event = await eventService.likeComment(
+            req.params.id,
+            commentIndex,
+            user._id,
+            req.body.profileId
+        );
+
+        // Emit social interaction
+        try {
+            await emitSocialInteraction(user._id, {
+                type: 'like',
+                profile: new Types.ObjectId(user._id),
+                targetProfile: new Types.ObjectId(event.profile?._id as Types.ObjectId),
+                contentId: (event as mongoose.Document).get('_id').toString(),
+                content: ''
+            });
+        } catch (error) {
+            console.error('Failed to emit social interaction:', error);
+        }
+
+        return res.json({
+            success: true,
+            data: event,
+            message: 'Comment liked successfully'
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to like comment'
+        });
+    }
+};
+
+// @desc    Create a booking event
+// @route   POST /events/booking
+// @access  Private
+export const createBooking = async (req: Request, res: Response) => {
+    try {
+        const user = req.user as { _id: string; fullName: string };
+        if (!user) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        // Validate event data
+        try {
+            validateEventData(req.body);
+        } catch (error: any) {
+            return res.status(400).json({ message: error.message });
+        }
+
+        // Create the event
+        const event = await eventService.createEvent({
+            ...req.body,
+            createdBy: user._id
+        });
+
+        // Notify the service provider about the new booking request
+        if (event.booking?.serviceProvider?.profileId) {
+            // Get the user account associated with the profile
+            const profileUser = await User.findOne({ profiles: new mongoose.Types.ObjectId(event.booking.serviceProvider.profileId) });
+            if (profileUser) {
+                await notificationService.createNotification({
+                    recipient: profileUser._id,
+                    type: 'booking_request',
+                    title: 'New Booking Request',
+                    message: `${user.fullName} has requested to book your service: ${event.booking?.service?.name}`,
+                    relatedTo: {
+                        model: 'Event',
+                        id: event._id
+                    },
+                    actionText: 'View Booking',
+                    actionUrl: `/bookings/${event._id}`,
+                    priority: 'high'
+                });
+            }
+        }
+
+        res.status(201).json(event);
+    } catch (error) {
+        console.error('Error creating booking:', error);
+        res.status(500).json({ message: 'Error creating booking' });
+    }
+};
+
+// @desc    Update booking status
+// @route   PATCH /events/:id/booking/status
+// @access  Private
+export const updateBookingStatus = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
         throw createHttpError(400, 'Invalid event ID');
     }
 
-    if (!req.params.commentId || !mongoose.Types.ObjectId.isValid(req.params.commentId)) {
-        throw createHttpError(400, 'Invalid comment ID');
+    if (!req.body.status || !Object.values(BookingStatus).includes(req.body.status)) {
+        throw createHttpError(400, 'Invalid booking status');
     }
 
-    const event = await eventService.likeComment(
+    const event = await eventService.updateBookingStatus(
         req.params.id,
         user._id,
-        new mongoose.Types.ObjectId(req.params.commentId)
+        req.body.profileId,
+        req.body.status,
+        req.body.cancellationReason
     );
 
     res.json({
         success: true,
         data: event,
-        message: 'Comment liked successfully'
+        message: 'Booking status updated successfully'
+    });
+});
+
+// @desc    Update booking MyPts status
+// @route   PATCH /events/:id/booking/mypts
+// @access  Private
+export const updateBookingMyPts = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.status || !['pending', 'completed', 'failed'].includes(req.body.status)) {
+        throw createHttpError(400, 'Invalid MyPts status');
+    }
+
+    const event = await eventService.getEventById(req.params.id);
+    if (!event) {
+        throw createHttpError(404, 'Event not found');
+    }
+
+    if (!event.booking?.reward) {
+        throw createHttpError(400, 'This booking does not require MyPts payment');
+    }
+
+    // Handle MyPts transaction
+    if (req.body.status === 'completed') {
+        const myPts = await MyPtsModel.findOrCreate(user._id);
+        await myPts.deductMyPts(
+            event.booking.reward.points,
+            TransactionType.BOOKING_PAYMENT,
+            `Payment for booking: ${event.title}`,
+            { eventId: event._id },
+            req.body.transactionId
+        );
+    }
+
+    const updatedEvent = await eventService.updateBookingReward(
+        req.params.id,
+        user._id,
+        req.body.profileId,
+        {
+            status: req.body.status,
+            transactionId: req.body.transactionId
+        }
+    );
+
+    res.json({
+        success: true,
+        data: updatedEvent,
+        message: 'Booking MyPts status updated successfully'
+    });
+});
+
+// @desc    Reschedule booking
+// @route   PATCH /events/:id/booking/reschedule
+// @access  Private
+export const rescheduleBooking = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.startTime || !req.body.endTime) {
+        throw createHttpError(400, 'New start and end times are required');
+    }
+
+    const event = await eventService.rescheduleBooking(
+        req.params.id,
+        user._id,
+        req.body.profileId,
+        new Date(req.body.startTime),
+        new Date(req.body.endTime)
+    );
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Booking rescheduled successfully'
+    });
+});
+
+// @desc    Get bookings for a service provider
+// @route   GET /events/bookings/provider/:profileId
+// @access  Private
+export const getProviderBookings = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.profileId || !mongoose.Types.ObjectId.isValid(req.params.profileId)) {
+        throw createHttpError(400, 'Invalid profile ID');
+    }
+
+    const filters = {
+        ...req.query,
+        status: req.query.status as BookingStatus | undefined,
+        fromDate: req.query.fromDate ? new Date(req.query.fromDate as string) : undefined,
+        toDate: req.query.toDate ? new Date(req.query.toDate as string) : undefined
+    };
+
+    const bookings = await eventService.getProviderBookings(
+        new mongoose.Types.ObjectId(req.params.profileId),
+        filters
+    );
+
+    res.json({
+        success: true,
+        data: bookings,
+        message: 'Provider bookings fetched successfully'
+    });
+});
+
+// @desc    Update booking reward
+// @route   PATCH /events/:id/booking/reward
+// @access  Private
+export const updateBookingReward = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.status || !['pending', 'completed', 'failed'].includes(req.body.status)) {
+        throw createHttpError(400, 'Invalid reward status');
+    }
+
+    if (!req.body.profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
+
+    const event = await eventService.updateBookingReward(
+        req.params.id,
+        user._id,
+        req.body.profileId,
+        {
+            status: req.body.status,
+            transactionId: req.body.transactionId
+        }
+    );
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Booking reward updated successfully'
+    });
+});
+
+// @desc    Create a celebration event
+// @route   POST /events/celebration
+// @access  Private
+export const createCelebration = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    // Validate event data
+    try {
+        validateEventData(req.body);
+    } catch (error: any) {
+        throw createHttpError(400, error.message);
+    }
+
+    // Create the celebration event
+    const event = await eventService.createCelebration(
+        req.body,
+        user._id,
+        req.body.profileId
+    );
+
+    res.status(201).json({
+        success: true,
+        data: event,
+        message: 'Celebration created successfully'
+    });
+});
+
+// @desc    Add a gift to a celebration
+// @route   POST /events/:id/celebration/gift
+// @access  Private
+export const addGift = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.description) {
+        throw createHttpError(400, 'Gift description is required');
+    }
+
+    const event = await eventService.addGift(req.params.id, {
+        description: req.body.description,
+        requestedBy: req.body.requestedBy,
+        link: req.body.link
+    });
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Gift added successfully'
+    });
+});
+
+// @desc    Mark a gift as received
+// @route   PATCH /events/:id/celebration/gift/:giftIndex
+// @access  Private
+export const markGiftReceived = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    const giftIndex = parseInt(req.params.giftIndex);
+    if (isNaN(giftIndex)) {
+        throw createHttpError(400, 'Invalid gift index');
+    }
+
+    const event = await eventService.markGiftReceived(req.params.id, giftIndex);
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Gift marked as received'
+    });
+});
+
+// @desc    Add a social media post to a celebration
+// @route   POST /events/:id/celebration/social
+// @access  Private
+export const addSocialMediaPost = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.platform || !req.body.postId || !req.body.url) {
+        throw createHttpError(400, 'Platform, post ID, and URL are required');
+    }
+
+    const event = await eventService.addSocialMediaPost(req.params.id, {
+        platform: req.body.platform,
+        postId: req.body.postId,
+        url: req.body.url
+    });
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Social media post added successfully'
+    });
+});
+
+// @desc    Update celebration status
+// @route   PATCH /events/:id/celebration/status
+// @access  Private
+export const updateCelebrationStatus = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.status || !['planning', 'upcoming', 'completed', 'cancelled'].includes(req.body.status)) {
+        throw createHttpError(400, 'Invalid celebration status');
+    }
+
+    const event = await eventService.updateCelebrationStatus(req.params.id, req.body.status);
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Celebration status updated successfully'
+    });
+});
+
+// @desc    Update event status
+// @route   PATCH /events/:id/status
+// @access  Private
+export const updateEventStatus = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+        throw createHttpError(400, 'Invalid event ID');
+    }
+
+    if (!req.body.status || !Object.values(EventStatus).includes(req.body.status)) {
+        throw createHttpError(400, 'Invalid event status');
+    }
+
+    const event = await eventService.updateEventStatus(
+        req.params.id,
+        user._id,
+        req.body.status,
+        {
+            reason: req.body.reason,
+            updatedBy: user._id,
+            notes: req.body.notes
+        }
+    );
+
+    res.json({
+        success: true,
+        data: event,
+        message: 'Event status updated successfully'
+    });
+});
+
+// @desc    Bulk update event statuses
+// @route   PATCH /events/bulk/status
+// @access  Private
+export const bulkUpdateEventStatus = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+
+    if (!Array.isArray(req.body.eventIds) || req.body.eventIds.length === 0) {
+        throw createHttpError(400, 'Event IDs array is required');
+    }
+
+    if (!req.body.status || !Object.values(EventStatus).includes(req.body.status)) {
+        throw createHttpError(400, 'Invalid event status');
+    }
+
+    const results = await eventService.bulkUpdateEventStatus(
+        req.body.eventIds,
+        user._id,
+        req.body.status,
+        {
+            reason: req.body.reason,
+            updatedBy: user._id,
+            notes: req.body.notes
+        }
+    );
+
+    res.json({
+        success: true,
+        data: results,
+        message: `Updated ${results.success.length} events, ${results.failed.length} failed`
     });
 });

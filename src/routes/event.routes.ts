@@ -13,7 +13,19 @@ import {
     setServiceProvider,
     addComment,
     likeEvent,
-    likeComment
+    likeComment,
+    createBooking,
+    updateBookingStatus,
+    updateBookingReward,
+    rescheduleBooking,
+    getProviderBookings,
+    createCelebration,
+    addGift,
+    markGiftReceived,
+    addSocialMediaPost,
+    updateCelebrationStatus,
+    updateEventStatus,
+    bulkUpdateEventStatus
 } from '../controllers/event.controller';
 
 const router = express.Router();
@@ -21,27 +33,38 @@ const router = express.Router();
 // Event CRUD routes
 router.post('/', createEvent);
 router.get('/:id', getEventById);
-router.get('/', getUserEvents);
+router.get('/user/:userId', getUserEvents);
 router.put('/:id', updateEvent);
 router.delete('/:id', deleteEvent);
 
-// Agenda routes
-router.post('/:id/agenda', addAgendaItem);
-router.put('/:id/agenda/:agendaIndex', updateAgendaItem);
-router.delete('/:id/agenda/:agendaIndex', deleteAgendaItem);
-
-// Attachment routes
-router.post('/:id/attachments', addAttachment);
-router.delete('/:id/attachments/:attachmentIndex', removeAttachment);
-
-// Service provider route
-router.put('/:id/service-provider', setServiceProvider);
-
 // Comment routes
 router.post('/:id/comments', addComment);
-router.post('/:id/comments/:commentId/like', likeComment);
+router.post('/:id/comments/:commentIndex/like', likeComment);
 
-// Like route
+// Event interaction routes
+router.post('/:id/agenda', addAgendaItem);
+router.put('/:id/agenda/:itemId', updateAgendaItem);
+router.delete('/:id/agenda/:itemId', deleteAgendaItem);
+router.post('/:id/attachment', addAttachment);
+router.delete('/:id/attachment/:attachmentId', removeAttachment);
 router.post('/:id/like', likeEvent);
+
+// Event status routes
+router.patch('/:id/status', updateEventStatus);
+router.patch('/bulk/status', bulkUpdateEventStatus);
+
+// Booking routes
+router.post('/booking', createBooking);
+router.patch('/:id/booking/status', updateBookingStatus);
+router.patch('/:id/booking/reward', updateBookingReward);
+router.patch('/:id/booking/reschedule', rescheduleBooking);
+router.get('/bookings/provider/:profileId', getProviderBookings);
+
+// Celebration routes
+router.post('/celebration', createCelebration);
+router.post('/:id/celebration/gift', addGift);
+router.patch('/:id/celebration/gift/:giftIndex', markGiftReceived);
+router.post('/:id/celebration/social', addSocialMediaPost);
+router.patch('/:id/celebration/status', updateCelebrationStatus);
 
 export default router;

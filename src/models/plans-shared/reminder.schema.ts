@@ -3,6 +3,7 @@ import { ReminderType, ReminderUnit } from './enums';
 import { Reminder } from './interfaces';
 
 export const reminderSchema = new Schema<Reminder>({
+    _id: { type: Schema.Types.ObjectId, auto: true },
     type: {
         type: String,
         enum: Object.values(ReminderType),
