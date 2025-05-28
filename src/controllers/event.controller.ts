@@ -20,7 +20,7 @@ import { emitSocialInteraction } from '../utils/socketEmitter';
 import { MyPtsModel } from '../models/my-pts.model';
 import { TransactionType } from '../interfaces/my-pts.interface';
 import { User } from '../models/User';
-import vaultService from '../services/vault.service';
+import { vaultService } from '../services/vault.service';
 
 const notificationService = new NotificationService();
 

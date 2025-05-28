@@ -75,11 +75,11 @@ const ProfileSchema = new mongoose_1.Schema({
         accountHolder: { type: String, trim: true },
         pid: { type: String, trim: true },
         relationshipToAccountHolder: { type: String, trim: true },
-        creator: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+        creator: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Users', required: true, index: true },
         connectLink: { type: String, required: true, unique: true, index: true },
         followLink: { type: String, required: true, unique: true, index: true },
-        followers: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
-        following: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'User' }],
+        followers: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Profile' }],
+        following: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Profile' }],
         connectedProfiles: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Profile' }],
         affiliatedProfiles: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Profile' }],
         accessToken: { type: String, trim: true, index: true }, // Added for profile token authentication
@@ -88,6 +88,8 @@ const ProfileSchema = new mongoose_1.Schema({
     },
     templatedId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'ProfileTemplate', required: true },
     sections: [{ type: mongoose_1.Schema.Types.Mixed }],
+    members: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Profile' }],
+    groups: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Profile' }],
     ProfileFormat: {
         profileImage: { type: String, trim: true },
         coverImage: { type: String, trim: true },
@@ -232,15 +234,7 @@ const ProfileSchema = new mongoose_1.Schema({
                 end: { type: String, required: true },
                 isWorking: { type: Boolean, default: true }
             },
-            default: {
-                "Sunday": { start: "09:00", end: "17:00", isWorking: false },
-                "Monday": { start: "09:00", end: "17:00", isWorking: true },
-                "Tuesday": { start: "09:00", end: "17:00", isWorking: true },
-                "Wednesday": { start: "09:00", end: "17:00", isWorking: true },
-                "Thursday": { start: "09:00", end: "17:00", isWorking: true },
-                "Friday": { start: "09:00", end: "17:00", isWorking: true },
-                "Saturday": { start: "09:00", end: "17:00", isWorking: false }
-            }
+            default: {}
         },
         exceptions: [{
                 date: { type: Date, required: true },

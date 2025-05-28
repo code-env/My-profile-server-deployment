@@ -8,7 +8,7 @@ import {
 import asyncHandler from 'express-async-handler';
 import { Attachment, EndCondition, PriorityLevel, ReminderType, ReminderUnit, RepeatFrequency, TaskCategory, VisibilityType } from '../models/plans-shared';
 import { emitSocialInteraction } from '../utils/socketEmitter';
-import vaultService from '../services/vault.service';
+import { vaultService } from '../services/vault.service';
 import createHttpError from 'http-errors';
 
 

@@ -110,27 +110,20 @@ export class OrganizationService {
   }
 
   // Upload organization logo
-  async uploadLogo(
-    organizationId: string,
-    file: Express.Multer.File,
-    updaterProfileId: Types.ObjectId
-  ): Promise<IOrganization> {
-    const organization = await Organization.findById(organizationId);
-    if (!organization) {
-      throw createHttpError(404, 'Organization not found');
-    }
+  async uploadLogo(organizationId: string, base64Data: string, profileId: Types.ObjectId): Promise<IOrganization> {
+    const organization = await this.getOrganization(organizationId);
 
-    if (!organization.isAdmin(updaterProfileId)) {
-      throw createHttpError(403, 'Only admins can update organization logo');
+    // Check if user is admin or owner
+    if (!organization.isAdmin(profileId)) {
+      throw createHttpError(403, 'Only admins and owners can upload organization logo');
     }
 
     // Delete old logo if exists
     if (organization.logo?.publicId) {
-      await this.cloudinaryService.deleteImage(organization.logo.publicId);
+      await this.cloudinaryService.delete(organization.logo.publicId);
     }
 
-    // Upload new logo
-    const uploadResult = await this.cloudinaryService.uploadImage(file, {
+    const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(base64Data, {
       folder: `organizations/${organizationId}/logo`,
       transformation: {
         width: 200,
@@ -139,38 +132,31 @@ export class OrganizationService {
       }
     });
 
+    // Update organization with new logo
     organization.logo = {
       url: uploadResult.secure_url,
       publicId: uploadResult.public_id
     };
-    organization.updatedBy = updaterProfileId;
 
     await organization.save();
     return organization;
   }
 
   // Upload organization cover image
-  async uploadCoverImage(
-    organizationId: string,
-    file: Express.Multer.File,
-    updaterProfileId: Types.ObjectId
-  ): Promise<IOrganization> {
-    const organization = await Organization.findById(organizationId);
-    if (!organization) {
-      throw createHttpError(404, 'Organization not found');
-    }
+  async uploadCoverImage(organizationId: string, base64Data: string, profileId: Types.ObjectId): Promise<IOrganization> {
+    const organization = await this.getOrganization(organizationId);
 
-    if (!organization.isAdmin(updaterProfileId)) {
-      throw createHttpError(403, 'Only admins can update organization cover image');
+    // Check if user is admin or owner
+    if (!organization.isAdmin(profileId)) {
+      throw createHttpError(403, 'Only admins and owners can upload organization cover image');
     }
 
     // Delete old cover image if exists
     if (organization.coverImage?.publicId) {
-      await this.cloudinaryService.deleteImage(organization.coverImage.publicId);
+      await this.cloudinaryService.delete(organization.coverImage.publicId);
     }
 
-    // Upload new cover image
-    const uploadResult = await this.cloudinaryService.uploadImage(file, {
+    const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(base64Data, {
       folder: `organizations/${organizationId}/cover`,
       transformation: {
         width: 1200,
@@ -179,11 +165,11 @@ export class OrganizationService {
       }
     });
 
+    // Update organization with new cover image
     organization.coverImage = {
       url: uploadResult.secure_url,
       publicId: uploadResult.public_id
     };
-    organization.updatedBy = updaterProfileId;
 
     await organization.save();
     return organization;

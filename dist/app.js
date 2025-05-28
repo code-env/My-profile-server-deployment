@@ -78,10 +78,12 @@ const initialize_gradient_updates_1 = require("./startup/initialize-gradient-upd
 const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
 const cleanupTokens_1 = require("./jobs/cleanupTokens");
 const scalableTokenCleanup_1 = require("./jobs/scalableTokenCleanup");
+const reminderScheduler_1 = require("./jobs/reminderScheduler");
 const updateLeaderboard_1 = require("./jobs/updateLeaderboard");
 // Import passport configuration
 require("./config/passport");
 const cookie_config_middleware_1 = require("./middleware/cookie-config.middleware");
+const community_routes_1 = __importDefault(require("./routes/community.routes"));
 /**
  * @class AppServer
  * @description Core server application class that manages the Express application lifecycle,
@@ -294,6 +296,7 @@ class AppServer {
      */
     configureRoutes() {
         (0, routes_1.setupRoutes)(this.app);
+        this.app.use('/api/communities', community_routes_1.default);
     }
     /**
      * @private
@@ -465,6 +468,9 @@ class AppServer {
                 logger_1.logger.info('Using standard token cleanup');
                 (0, cleanupTokens_1.scheduleTokenCleanup)();
             }
+            // Schedule reminder processing
+            (0, reminderScheduler_1.scheduleReminderProcessing)();
+            logger_1.logger.info('Reminder processing job scheduled');
             // Always use HTTP server as Render handles SSL/HTTPS
             await this.startHttpServer();
             console.log("\n" + chalk_1.default.black(chalk_1.default.bgGreen(" SERVER READY ")));

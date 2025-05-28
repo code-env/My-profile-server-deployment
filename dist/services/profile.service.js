@@ -13,7 +13,7 @@ const profile_template_1 = require("../models/profiles/profile-template");
 const crypto_1 = require("../utils/crypto");
 const gradient_generator_1 = require("../utils/gradient-generator");
 const mongoose_2 = __importDefault(require("mongoose"));
-// No custom interfaces needed - we'll use type assertions with 'any' where necessary
+const geoip_lite_1 = __importDefault(require("geoip-lite"));
 class ProfileService {
     /**
      * Creates a profile with content in one step
@@ -21,12 +21,16 @@ class ProfileService {
      * @param templateId The template ID to base the profile on
      * @param profileInformation Basic profile information
      * @param sections Optional sections with field values and enabled status
+     * @param members Optional array of member IDs for group profiles
+     * @param location Optional location information for the profile
+     * @param ip Optional IP address for geolocation
+     * @param groups Optional array of group IDs for group profiles
      * @returns The created profile document
      */
-    async createProfileWithContent(userId, templateId, profileInformation, sections) {
+    async createProfileWithContent(userId, templateId, profileInformation, sections, members, location, ip, groups) {
         logger_1.logger.info(`Creating profile with content for user ${userId} using template ${templateId}`);
-        // Create the base profile
-        const profile = await this.createProfile(userId, templateId);
+        // Create the base profile with all parameters
+        const profile = await this.createProfile(userId, templateId, members, location, ip, groups);
         // Update profile information
         if (profileInformation) {
             profile.profileInformation.username = profileInformation.username;
@@ -67,9 +71,13 @@ class ProfileService {
      * Creates a new profile based on a template
      * @param userId The user ID creating the profile
      * @param templateId The template ID to base the profile on
+     * @param members Optional array of member IDs for group profiles
+     * @param location Optional location information for the profile
+     * @param ip Optional IP address for geolocation
+     * @param groups Optional array of group IDs for group profiles
      * @returns The created profile document
      */
-    async createProfile(userId, templateId) {
+    async createProfile(userId, templateId, members = [], location, ip, groups) {
         logger_1.logger.info(`Creating new profile for user ${userId} using template ${templateId}`);
         // Validate inputs
         if (!(0, mongoose_1.isValidObjectId)(userId) || !(0, mongoose_1.isValidObjectId)(templateId)) {
@@ -79,14 +87,6 @@ class ProfileService {
         const template = await profile_template_1.ProfileTemplate.findById(templateId);
         if (!template) {
             throw (0, http_errors_1.default)(404, 'Template not found');
-        }
-        // Check if user already has a profile of this type
-        const existingProfile = await profile_model_1.ProfileModel.findOne({
-            'profileInformation.creator': userId,
-            templatedId: templateId
-        });
-        if (existingProfile) {
-            throw (0, http_errors_1.default)(409, 'User already has a profile using this template');
         }
         // Generate unique links
         const [connectLink, profileLink] = await Promise.all([
@@ -98,22 +98,38 @@ class ProfileService {
         const referralLink = `mypts-ref-${referralCode}`;
         // Generate a unique secondary ID
         const secondaryId = await (0, crypto_1.generateSecondaryId)(async (id) => {
-            // Check if the ID is unique
             const existingProfile = await profile_model_1.ProfileModel.findOne({ secondaryId: id });
-            return !existingProfile; // Return true if no profile with this ID exists
+            return !existingProfile;
         });
-        // Create initial profile sections with all fields disabled by default
-        const initialSections = template.categories.map(category => ({
-            key: category.name,
-            label: category.label,
-            fields: category.fields.map(field => ({
-                key: field.name,
-                value: field.default || null,
-                enabled: false // Fields are disabled by default
-            }))
-        }));
-        // Get user data for profile username (using fullName instead of username)
+        // Get user data
         const user = await User_1.User.findById(userId);
+        if (!user) {
+            throw (0, http_errors_1.default)(404, 'User not found');
+        }
+        // Get user's location if not provided
+        let profileLocation = location;
+        if (!profileLocation) {
+            profileLocation = {
+                country: user.countryOfResidence
+            };
+            // Try to get coordinates from IP if available
+            if (ip) {
+                const geo = geoip_lite_1.default.lookup(ip);
+                if (geo) {
+                    profileLocation = {
+                        ...profileLocation,
+                        city: geo.city,
+                        stateOrProvince: geo.region,
+                        country: geo.country,
+                        coordinates: {
+                            latitude: geo.ll[0],
+                            longitude: geo.ll[1]
+                        }
+                    };
+                }
+            }
+        }
+        // Get user data for profile username
         const profileUsername = (user === null || user === void 0 ? void 0 : user.fullName) || (user === null || user === void 0 ? void 0 : user.username) || '';
         // Get country information from user
         const userCountry = (user === null || user === void 0 ? void 0 : user.countryOfResidence) || '';
@@ -141,13 +157,67 @@ class ProfileService {
         const countryCode = countryCodeMap[userCountry] || '';
         // Generate a unique gradient background based on the username
         const { gradient, primaryColor, secondaryColor } = (0, gradient_generator_1.generateProfileGradient)(profileUsername);
+        // Create initial sections from template with all fields disabled by default
+        const initialSections = template.categories.map(category => ({
+            key: category.name,
+            label: category.label || category.name,
+            icon: category.icon || '',
+            collapsible: category.collapsible !== false,
+            fields: category.fields.map(field => ({
+                key: field.name,
+                label: field.label || field.name,
+                widget: field.widget || 'text',
+                required: field.required || false,
+                placeholder: field.placeholder || '',
+                enabled: field.enabled !== false,
+                value: field.default || null,
+                options: field.options || [],
+                validation: field.validation || {}
+            }))
+        }));
+        // Add members and groups fields to info section for group profiles
+        if (template.profileCategory === 'group' || template.profileType === 'group') {
+            const infoSection = initialSections.find(s => s.key === 'info');
+            if (infoSection) {
+                // Add members field if it doesn't exist
+                if (!infoSection.fields.some(f => f.key === 'members')) {
+                    infoSection.fields.push({
+                        key: 'members',
+                        label: 'Members',
+                        widget: 'multiselect',
+                        required: false,
+                        placeholder: '',
+                        enabled: true,
+                        value: [],
+                        options: [],
+                        validation: {}
+                    });
+                }
+                // Add groups field if it doesn't exist
+                if (!infoSection.fields.some(f => f.key === 'groups')) {
+                    infoSection.fields.push({
+                        key: 'groups',
+                        label: 'Groups',
+                        widget: 'multiselect',
+                        required: false,
+                        placeholder: '',
+                        enabled: true,
+                        value: [],
+                        options: [],
+                        validation: {}
+                    });
+                }
+            }
+        }
+        // Create the profile with appropriate group/member handling
         const profile = new profile_model_1.ProfileModel({
             profileCategory: template.profileCategory,
             profileType: template.profileType,
-            secondaryId, // Add the secondary ID
+            secondaryId,
             templatedId: template._id,
             profileInformation: {
                 username: profileUsername,
+                title: '',
                 profileLink: profileLink,
                 creator: new mongoose_2.default.Types.ObjectId(userId),
                 connectLink,
@@ -167,6 +237,7 @@ class ProfileService {
                 updatedAt: new Date()
             },
             profileLocation: {
+                ...profileLocation,
                 country: userCountry,
                 countryCode: countryCode
             },
@@ -174,8 +245,41 @@ class ProfileService {
                 referalLink: referralLink,
                 referals: 0
             },
-            sections: initialSections
+            sections: initialSections,
+            members: [], // Initialize empty members array
+            groups: [] // Initialize empty groups array
         });
+        // Handle group profiles and members
+        if (template.profileCategory === 'group' || template.profileType === 'group') {
+            // Add the creator as a member by default
+            profile.members = [new mongoose_2.default.Types.ObjectId(userId)];
+            // Add any provided members from the members parameter
+            if (members && members.length > 0) {
+                const validMemberIds = members.filter(id => (0, mongoose_1.isValidObjectId)(id));
+                profile.members = [...profile.members, ...validMemberIds.map(id => new mongoose_2.default.Types.ObjectId(id))];
+                // Also add to the members field in info section if it exists
+                const infoSection = profile.sections.find(s => s.key === 'info');
+                if (infoSection) {
+                    const membersField = infoSection.fields.find(f => f.key === 'members');
+                    if (membersField) {
+                        membersField.value = profile.members;
+                    }
+                }
+            }
+            // Add any provided groups from the groups parameter
+            if (groups && groups.length > 0) {
+                const validGroupIds = groups.filter(id => (0, mongoose_1.isValidObjectId)(id));
+                profile.groups = validGroupIds.map(id => new mongoose_2.default.Types.ObjectId(id));
+                // Also add to the groups field in info section if it exists
+                const infoSection = profile.sections.find(s => s.key === 'info');
+                if (infoSection) {
+                    const groupsField = infoSection.fields.find(f => f.key === 'groups');
+                    if (groupsField) {
+                        groupsField.value = profile.groups;
+                    }
+                }
+            }
+        }
         await profile.save();
         logger_1.logger.info(`Profile created successfully: ${profile._id}`);
         return profile;
@@ -303,9 +407,53 @@ class ProfileService {
         if (!(0, mongoose_1.isValidObjectId)(profileId)) {
             throw (0, http_errors_1.default)(400, 'Invalid profile ID');
         }
-        const profile = await profile_model_1.ProfileModel.findById(profileId);
+        const profile = await profile_model_1.ProfileModel.findById(profileId)
+            .populate('profileInformation.creator', 'fullName email')
+            .populate('members', 'profileInformation.username profileInformation.title _id')
+            .populate('groups', 'profileInformation.username profileInformation.title _id');
         if (!profile) {
             throw (0, http_errors_1.default)(404, 'Profile not found');
+        }
+        // Process sections to ensure all fields are properly enabled and have values
+        profile.sections.forEach(section => {
+            section.fields.forEach(field => {
+                if (field.value === null && field.default) {
+                    field.value = field.default;
+                }
+            });
+        });
+        // Process members and groups if they exist
+        if (profile.members && profile.members.length > 0) {
+            const membersSection = profile.sections.find(s => s.key === 'info');
+            if (membersSection) {
+                const membersField = membersSection.fields.find(f => f.key === 'members');
+                if (membersField) {
+                    membersField.value = profile.members.map(member => {
+                        var _a, _b;
+                        return ({
+                            id: member._id,
+                            name: ((_a = member.profileInformation) === null || _a === void 0 ? void 0 : _a.title) || ((_b = member.profileInformation) === null || _b === void 0 ? void 0 : _b.username)
+                        });
+                    });
+                    membersField.enabled = true;
+                }
+            }
+        }
+        if (profile.groups && profile.groups.length > 0) {
+            const groupsSection = profile.sections.find(s => s.key === 'info');
+            if (groupsSection) {
+                const groupsField = groupsSection.fields.find(f => f.key === 'groups');
+                if (groupsField) {
+                    groupsField.value = profile.groups.map(group => {
+                        var _a, _b;
+                        return ({
+                            id: group._id,
+                            name: ((_a = group.profileInformation) === null || _a === void 0 ? void 0 : _a.title) || ((_b = group.profileInformation) === null || _b === void 0 ? void 0 : _b.username)
+                        });
+                    });
+                    groupsField.enabled = true;
+                }
+            }
         }
         return profile;
     }
@@ -783,6 +931,214 @@ class ProfileService {
             currentTime = new Date(currentTime.getTime() + (duration + buffer) * 60000);
         }
         return slots;
+    }
+    /**
+     * Fetches community profiles with filters for location and other criteria
+     * @param filters Object containing filter criteria (town, city, country, etc.)
+     * @param skip Number of documents to skip
+     * @param limit Maximum number of documents to return
+     * @returns Array of community profile documents with minimal sections
+     */
+    async getCommunityProfiles(filters = {}, skip = 0, limit = 20) {
+        logger_1.logger.info(`Fetching community profiles with filters: ${JSON.stringify(filters)}, skip: ${skip}, limit: ${limit}`);
+        // Build the filter query
+        const query = {
+            profileCategory: 'group',
+            profileType: 'community'
+        };
+        // Type filter
+        if (filters.profileType) {
+            query['profileType'] = filters.profileType;
+        }
+        // Access filter (if present in schema)
+        if (filters.accessType) {
+            query['accessType'] = filters.accessType;
+        }
+        // Created by filter
+        if (filters.createdBy) {
+            query['profileInformation.creator'] = filters.createdBy;
+        }
+        // Viewed/Not viewed filter (example: analytics.Networking.views or a views array)
+        if (filters.viewed === 'viewed') {
+            query['analytics.Networking.views'] = { $gt: 0 };
+        }
+        else if (filters.viewed === 'not_viewed') {
+            query['$or'] = [
+                { 'analytics.Networking.views': { $exists: false } },
+                { 'analytics.Networking.views': 0 }
+            ];
+        }
+        // Location filters
+        if (filters.city) {
+            query['profileLocation.city'] = { $regex: new RegExp(filters.city, 'i') };
+        }
+        if (filters.stateOrProvince) {
+            query['profileLocation.stateOrProvince'] = { $regex: new RegExp(filters.stateOrProvince, 'i') };
+        }
+        if (filters.country) {
+            query['profileLocation.country'] = { $regex: new RegExp(filters.country, 'i') };
+        }
+        if (filters.town) {
+            query['$or'] = [
+                { 'profileLocation.city': { $regex: new RegExp(filters.town, 'i') } },
+                { 'profileLocation.stateOrProvince': { $regex: new RegExp(filters.town, 'i') } }
+            ];
+        }
+        // Geospatial
+        if (filters.latitude && filters.longitude && filters.radius) {
+            query['profileLocation.coordinates'] = {
+                $near: {
+                    $geometry: {
+                        type: 'Point',
+                        coordinates: [filters.longitude, filters.latitude]
+                    },
+                    $maxDistance: filters.radius * 1000 // Convert km to meters
+                }
+            };
+        }
+        // Tag filter (if tags array or in sections.fields)
+        if (filters.tag) {
+            query['$or'] = [
+                { 'tags': filters.tag },
+                { 'sections.fields': { $elemMatch: { key: 'tag', value: filters.tag } } }
+            ];
+        }
+        // Verification status
+        if (filters.verificationStatus === 'verified') {
+            query['verificationStatus.isVerified'] = true;
+        }
+        else if (filters.verificationStatus === 'not_verified') {
+            query['verificationStatus.isVerified'] = false;
+        }
+        // Creation date filter (e.g., 'last_24_hours', 'last_7_days', 'last_30_days', 'last_365_days')
+        if (filters.creationDate) {
+            const now = new Date();
+            let fromDate = null;
+            switch (filters.creationDate) {
+                case 'last_24_hours':
+                    fromDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                    break;
+                case 'last_7_days':
+                    fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    break;
+                case 'last_30_days':
+                    fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                    break;
+                case 'last_365_days':
+                    fromDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+                    break;
+                default:
+                    fromDate = null;
+            }
+            if (fromDate) {
+                query['profileInformation.createdAt'] = { $gte: fromDate };
+            }
+        }
+        // Group/member filter
+        if (filters.groupId) {
+            query['groups'] = filters.groupId;
+        }
+        if (filters.memberId) {
+            query['members'] = filters.memberId;
+        }
+        // Keyword search
+        if (filters.keyword) {
+            query['$or'] = [
+                { 'profileInformation.username': { $regex: new RegExp(filters.keyword, 'i') } },
+                { 'profileInformation.title': { $regex: new RegExp(filters.keyword, 'i') } },
+                { 'sections.fields.value': { $regex: new RegExp(filters.keyword, 'i') } },
+                { 'profileLocation.city': { $regex: new RegExp(filters.keyword, 'i') } },
+                { 'profileLocation.stateOrProvince': { $regex: new RegExp(filters.keyword, 'i') } },
+                { 'profileLocation.country': { $regex: new RegExp(filters.keyword, 'i') } }
+            ];
+        }
+        // Sorting
+        const sort = {};
+        if (filters.sortBy) {
+            switch (filters.sortBy) {
+                case 'name':
+                    sort['profileInformation.username'] = filters.sortOrder === 'desc' ? -1 : 1;
+                    break;
+                case 'createdAt':
+                    sort['profileInformation.createdAt'] = filters.sortOrder === 'desc' ? -1 : 1;
+                    break;
+                case 'members':
+                    sort['members'] = filters.sortOrder === 'desc' ? -1 : 1;
+                    break;
+                case 'groups':
+                    sort['groups'] = filters.sortOrder === 'desc' ? -1 : 1;
+                    break;
+                default:
+                    sort['profileInformation.createdAt'] = -1;
+            }
+        }
+        else {
+            sort['profileInformation.createdAt'] = -1;
+        }
+        // Fetch profiles
+        const profiles = await profile_model_1.ProfileModel.find(query)
+            .select({
+            'profileInformation': 1,
+            'sections': 1,
+            'profileLocation': 1,
+            'members': 1,
+            'groups': 1,
+            'verificationStatus': 1,
+            'analytics': 1,
+            'tags': 1
+        })
+            .sort(sort)
+            .skip(skip)
+            .limit(limit)
+            .populate('profileInformation.creator', 'fullName email')
+            .populate('members', 'profileInformation.username profileInformation.title _id')
+            .populate('groups', 'profileInformation.username profileInformation.title _id');
+        // Process profiles to ensure all required fields are present
+        const processedProfiles = await Promise.all(profiles.map(async (profile) => {
+            // Log profile location for debugging
+            logger_1.logger.debug(`Profile ${profile._id} location:`, JSON.stringify(profile.profileLocation));
+            const infoSection = profile.sections.find(s => s.key === 'info');
+            if (infoSection) {
+                // Ensure community_name field exists and has a value
+                const communityNameField = infoSection.fields.find(f => f.key === 'community_name');
+                if (!communityNameField) {
+                    const communityNameField = {
+                        key: 'community_name',
+                        label: 'Community Name',
+                        widget: 'text',
+                        enabled: true,
+                        value: profile.profileInformation.title || profile.profileInformation.username
+                    };
+                    infoSection.fields.push(communityNameField);
+                }
+                else {
+                    communityNameField.value = profile.profileInformation.title || profile.profileInformation.username;
+                    communityNameField.enabled = true;
+                }
+                // Process members and groups fields
+                for (const field of infoSection.fields) {
+                    if (field.key === 'members' || field.key === 'groups') {
+                        const memberIds = field.value || [];
+                        if (Array.isArray(memberIds)) {
+                            const members = await profile_model_1.ProfileModel.find({ _id: { $in: memberIds } })
+                                .select('profileInformation.username profileInformation.title _id');
+                            field.value = members.map(member => {
+                                var _a, _b;
+                                return ({
+                                    id: member._id,
+                                    name: ((_a = member.profileInformation) === null || _a === void 0 ? void 0 : _a.title) || ((_b = member.profileInformation) === null || _b === void 0 ? void 0 : _b.username)
+                                });
+                            });
+                        }
+                    }
+                    else if (field.value === null && field.default) {
+                        field.value = field.default;
+                    }
+                }
+            }
+            return profile;
+        }));
+        return processedProfiles;
     }
 }
 exports.ProfileService = ProfileService;

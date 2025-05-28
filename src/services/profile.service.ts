@@ -59,7 +59,7 @@ export class ProfileService {
     groups?: string[]
   ): Promise<ProfileDocument> {
     logger.info(`Creating profile with content for user ${userId} using template ${templateId}`);
-    
+
     // Create the base profile with all parameters
     const profile = await this.createProfile(userId, templateId, members, location, ip, groups);
 
@@ -636,7 +636,7 @@ export class ProfileService {
     let query = Profile.find(filter).sort({ 'profileInformation.createdAt': -1 });
     if (limit > 0) {
       query = query.skip(skip).limit(limit);
-    } else {
+          } else {
       // If limit is 0 or negative, do not apply limit (return all)
       if (skip > 0) {
         query = query.skip(skip);
@@ -1027,13 +1027,13 @@ export class ProfileService {
 
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = dayNames[date.getDay()];
-
+    
     // Handle both Map and object formats for workingHours
-    const workingHours = profile.availability.workingHours instanceof Map
+    const workingHours = profile.availability.workingHours instanceof Map 
       ? profile.availability.workingHours.get(dayOfWeek)
       : profile.availability.workingHours[dayOfWeek];
     console.log('Debug - Working hours:', workingHours);
-
+    
     if (!workingHours?.isWorking) {
       console.log('Debug - Not a working day');
       return [];
@@ -1043,7 +1043,7 @@ export class ProfileService {
     const slots: Array<{start: Date, end: Date}> = [];
 
     // Check for exceptions
-    const exception = profile.availability.exceptions?.find(e =>
+    const exception = profile.availability.exceptions?.find(e => 
       e.date.toISOString().split('T')[0] === dateStr
     );
     console.log('Debug - Exception found:', exception);
@@ -1084,7 +1084,7 @@ export class ProfileService {
           if (!breakTime.days.includes(dayOfWeek)) return false;
           const breakStart = new Date(`${dateStr}T${breakTime.start}`);
           const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
-          return (currentTime >= breakStart && currentTime < breakEnd) ||
+          return (currentTime >= breakStart && currentTime < breakEnd) || 
                  (slotEnd > breakStart && slotEnd <= breakEnd);
         });
 

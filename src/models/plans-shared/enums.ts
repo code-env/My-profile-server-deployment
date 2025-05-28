@@ -104,3 +104,12 @@ export enum PaymentStatus {
   Refunded = 'refunded',
   Failed = 'failed'
 }
+
+export enum PlanType {
+  TASK = 'Task',
+  MEETING = 'Meeting',
+  APPOINTMENT = 'Appointment',
+  EVENT = 'Event',
+  CELEBRATION = 'Celebration',
+  INTERACTION = 'Interaction'
+}
