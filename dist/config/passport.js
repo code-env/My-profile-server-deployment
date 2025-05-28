@@ -20,7 +20,7 @@ const generateTokens = (userId, email) => {
     const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || '';
     // Use string literals instead of config values to avoid type errors
     const accessTokenOptions = {
-        expiresIn: "1h" // Reduced for better security
+        expiresIn: "4h" // Extended from 1h to 4h for better user experience
     };
     const refreshTokenOptions = {
         expiresIn: "30d" // Same as config.JWT_REFRESH_EXPIRATION
@@ -64,8 +64,11 @@ passport_1.default.use(new passport_google_oauth20_1.Strategy({
                     signupType: 'google',
                     isEmailVerified: true,
                     password: 'oauth2-user-no-password', // This will be hashed by the User model
-                    dateOfBirth: new Date(),
-                    countryOfResidence: 'Unknown',
+                    // Set these fields to undefined to avoid validation errors
+                    // They will be collected in the complete-profile page
+                    dateOfBirth: undefined,
+                    countryOfResidence: undefined,
+                    phoneNumber: undefined, // Will be collected in profile completion,
                     accountType: 'MYSELF',
                     accountCategory: 'PRIMARY_ACCOUNT',
                     verificationMethod: 'EMAIL',

@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "start": "NODE_NO_WARNINGS=1 node dist/server.js",
-    "dev": "NODE_NO_WARNINGS=1 nodemon src/server.ts",
+    "dev": "nodemon src/server.ts",
     "build": "tsc --skipLibCheck && cp -r src/templates dist/templates && cp -r public dist/public",
     "build:bun": "bun build ./src/server.ts --outdir ./dist --target node && cp -r src/templates dist/templates && cp -r public dist/public",
     "postinstall": "npm run build",
@@ -19,15 +19,22 @@
     "test:sockets": "ts-node src/scripts/test-socket-interactions.ts",
     "test:sockets:watch": "nodemon --exec ts-node src/scripts/test-socket-interactions.ts",
     "migrate-tokens": "ts-node src/scripts/migrate-refresh-tokens.ts",
+    "update-profile-country": "ts-node src/scripts/update-user-profile-country.ts",
     "update-secondary-ids": "ts-node src/scripts/update-profiles-with-secondary-id.ts",
     "update-secondary-ids:prod": "node dist/scripts/update-profiles-with-secondary-id.js",
+    "update-country-info:prod": "ts-node src/scripts/update-profile-countries.ts",
     "cleanup-tokens": "ts-node src/scripts/run-token-cleanup.ts",
     "cleanup-tokens:prod": "node dist/scripts/run-token-cleanup.js",
     "cleanup-tokens:scalable": "ts-node src/scripts/run-scalable-token-cleanup.ts",
     "cleanup-tokens:scalable:prod": "node dist/scripts/run-scalable-token-cleanup.js",
     "cleanup-tokens:scalable:bun": "bun run src/scripts/run-scalable-token-cleanup.ts",
     "update-profile-usernames": "ts-node src/scripts/update-profile-usernames.ts",
-    "update-profile-usernames:prod": "node dist/scripts/update-profile-usernames.js"
+    "update-profile-usernames:prod": "node dist/scripts/update-profile-usernames.js",
+    "update-gradients": "ts-node src/scripts/update-profiles-with-gradients.ts",
+    "fix-profile-completion-status": "ts-node src/scripts/fix-profile-completion-status.ts",
+    "add-missing-profile-complete": "ts-node src/scripts/add-missing-profile-complete-field.ts",
+    "update-gradients:prod": "node dist/scripts/update-profiles-with-gradients.js",
+    "update-gradients:render": "NODE_ENV=production node dist/scripts/update-profiles-with-gradients.js"
   },
   "keywords": [
     "authentication",
@@ -40,6 +47,7 @@
   "license": "ISC",
   "dependencies": {
     "@types/express-session": "^1.18.1",
+    "@types/multer": "^1.4.12",
     "@types/node-cron": "^3.0.11",
     "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
@@ -75,6 +83,7 @@
     "memcached": "^2.2.2",
     "mongoose": "^8.0.3",
     "morgan": "^1.10.0",
+    "multer": "^2.0.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.16",
     "passport": "^0.6.0",
@@ -98,6 +107,9 @@
     "winston": "^3.11.0",
     "ws": "^8.18.0",
     "zod": "^3.22.4"
+  },
+  "optionalDependencies": {
+    "nfc-pcsc": "^0.8.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

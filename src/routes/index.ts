@@ -52,6 +52,7 @@ import adminNotificationRoutes from './admin-notification.routes';
 import adminModuleRoutes from './admin/index';
 import stripeRoutes from './stripe.routes';
 import taskRoutes from './task.routes';
+import settingsRoutes from './settings.routes';
 import listRoutes from './list.routes';
 import eventRoutes from './event.routes';
 import interactionRoutes from './interaction.routes';
@@ -61,6 +62,13 @@ import notificationTestRoutes from './notification-test.routes';
 import userDeviceRoutes from './user-device.routes';
 import profileReferralRoutes from './profile-referral.routes';
 import presenceRoutes from './presence.routes';
+import gamificationRoutes from './gamification.routes';
+import analyticsDashboardRoutes from './analytics-dashboard.routes';
+import sessionsRoutes from './sessions.routes';
+import messageProfileRoutes from './message-profile.routes';
+import scansRoutes from './scans.routes';
+import nfcRoutes from './nfc.routes';
+import vaultRoutes from './vault.routes';
 import { protect } from '../middleware/auth.middleware';
 import { testRoutes } from './test.routes';
 import session from 'express-session';
@@ -69,8 +77,8 @@ import socialAuthRoutes from './auth.social.routes';
 import participantRoutes from './participant.routes';
 import reminderRoutes from './reminder.routes';
 import plansRoutes from './plans.routes';
-import vaultRoutes from './vault.routes';
 import communityRoutes from './community.routes';
+import profileFullRoutes from './profile-full.routes';
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -125,9 +133,16 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/auth/social', socialAuthRoutes);
+  app.use('/api/profile-full', profileFullRoutes);
+
+    // settings routes
+  app.use('/api/settings', protect, settingsRoutes);
 
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
+  app.use('/api/profiles', protect, scansRoutes);
+  app.use('/api/nfc', protect, nfcRoutes);
+  app.use('/api/vault', protect, vaultRoutes);
   // app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/profile-connections', protect, profileConnectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
@@ -156,6 +171,10 @@ export const setupRoutes = (app: Application): void => {
   // additional routes related to plans
   app.use('/api/participant', participantRoutes);
   app.use('/api/reminders', reminderRoutes);
+  app.use('/api/gamification', protect, gamificationRoutes);
+  app.use('/api/analytics', protect, analyticsDashboardRoutes);
+  app.use('/api/sessions', protect, sessionsRoutes);
+  app.use('/api/message-profile', protect, messageProfileRoutes);
 
   // Test email route
   app.get('/api/test/email', async (req, res) => {

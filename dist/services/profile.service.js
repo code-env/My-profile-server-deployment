@@ -11,6 +11,7 @@ const logger_1 = require("../utils/logger");
 const User_1 = require("../models/User");
 const profile_template_1 = require("../models/profiles/profile-template");
 const crypto_1 = require("../utils/crypto");
+const gradient_generator_1 = require("../utils/gradient-generator");
 const mongoose_2 = __importDefault(require("mongoose"));
 // No custom interfaces needed - we'll use type assertions with 'any' where necessary
 class ProfileService {
@@ -28,9 +29,7 @@ class ProfileService {
         const profile = await this.createProfile(userId, templateId);
         // Update profile information
         if (profileInformation) {
-            // Get user data to ensure we use fullName for username
-            const user = await User_1.User.findById(userId);
-            profile.profileInformation.username = (user === null || user === void 0 ? void 0 : user.fullName) || profileInformation.username;
+            profile.profileInformation.username = profileInformation.username;
             if (profileInformation.title)
                 profile.profileInformation.title = profileInformation.title;
             if (profileInformation.accountHolder)
@@ -116,6 +115,32 @@ class ProfileService {
         // Get user data for profile username (using fullName instead of username)
         const user = await User_1.User.findById(userId);
         const profileUsername = (user === null || user === void 0 ? void 0 : user.fullName) || (user === null || user === void 0 ? void 0 : user.username) || '';
+        // Get country information from user
+        const userCountry = (user === null || user === void 0 ? void 0 : user.countryOfResidence) || '';
+        // Simple country code mapping for common countries (can be expanded)
+        const countryCodeMap = {
+            'United States': 'US',
+            'Canada': 'CA',
+            'United Kingdom': 'GB',
+            'Australia': 'AU',
+            'Germany': 'DE',
+            'France': 'FR',
+            'Italy': 'IT',
+            'Spain': 'ES',
+            'Japan': 'JP',
+            'China': 'CN',
+            'India': 'IN',
+            'Brazil': 'BR',
+            'Mexico': 'MX',
+            'South Africa': 'ZA',
+            'Nigeria': 'NG',
+            'Kenya': 'KE',
+            'Ghana': 'GH',
+            'Cameroon': 'CM'
+        };
+        const countryCode = countryCodeMap[userCountry] || '';
+        // Generate a unique gradient background based on the username
+        const { gradient, primaryColor, secondaryColor } = (0, gradient_generator_1.generateProfileGradient)(profileUsername);
         const profile = new profile_model_1.ProfileModel({
             profileCategory: template.profileCategory,
             profileType: template.profileType,
@@ -129,6 +154,21 @@ class ProfileService {
                 followLink: profileLink,
                 createdAt: new Date(),
                 updatedAt: new Date()
+            },
+            ProfileFormat: {
+                profileImage: '', // Initialize with empty string
+                customization: {
+                    theme: {
+                        primaryColor: primaryColor,
+                        secondaryColor: secondaryColor,
+                        background: gradient,
+                    }
+                },
+                updatedAt: new Date()
+            },
+            profileLocation: {
+                country: userCountry,
+                countryCode: countryCode
             },
             ProfileReferal: {
                 referalLink: referralLink,
@@ -156,8 +196,11 @@ class ProfileService {
         if (!profile) {
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        // Verify user has permission to update
-        if (profile.profileInformation.creator.toString() !== userId) {
+        // Get user data to check if they're an admin
+        const user = await User_1.User.findById(userId);
+        // Verify user has permission to update (either creator or admin)
+        if (profile.profileInformation.creator.toString() !== userId &&
+            (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
             throw (0, http_errors_1.default)(403, 'You do not have permission to update this profile');
         }
         // Update field enabled status
@@ -191,8 +234,11 @@ class ProfileService {
         if (!profile) {
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        // Verify user has permission to update
-        if (profile.profileInformation.creator.toString() !== userId) {
+        // Get user data to check if they're an admin
+        const user = await User_1.User.findById(userId);
+        // Verify user has permission to update (either creator or admin)
+        if (profile.profileInformation.creator.toString() !== userId &&
+            (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
             throw (0, http_errors_1.default)(403, 'You do not have permission to update this profile');
         }
         // Get template for validation
@@ -276,6 +322,18 @@ class ProfileService {
         return await profile_model_1.ProfileModel.find({ 'profileInformation.creator': userId });
     }
     /**
+     * Gets the first profile for a user (typically used for referral processing)
+     * @param userId The user ID
+     * @returns The profile document or null if not found
+     */
+    async getProfileByUserId(userId) {
+        logger_1.logger.info(`Fetching first profile for user ${userId}`);
+        if (!(0, mongoose_1.isValidObjectId)(userId)) {
+            throw (0, http_errors_1.default)(400, 'Invalid user ID');
+        }
+        return await profile_model_1.ProfileModel.findOne({ 'profileInformation.creator': userId });
+    }
+    /**
      * Deletes a profile
      * @param profileId The profile ID
      * @param userId The user ID requesting deletion
@@ -290,7 +348,11 @@ class ProfileService {
         if (!profile) {
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        if (profile.profileInformation.creator.toString() !== userId) {
+        // Get user data to check if they're an admin
+        const user = await User_1.User.findById(userId);
+        // Verify user has permission to delete (either creator or admin)
+        if (profile.profileInformation.creator.toString() !== userId &&
+            (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
             throw (0, http_errors_1.default)(403, 'You do not have permission to delete this profile');
         }
         const result = await profile_model_1.ProfileModel.deleteOne({ _id: profileId });
@@ -305,10 +367,18 @@ class ProfileService {
      */
     async getAllProfiles(filter = {}, skip = 0, limit = 20) {
         logger_1.logger.info(`Fetching all profiles with filter: ${JSON.stringify(filter)}, skip: ${skip}, limit: ${limit}`);
-        return await profile_model_1.ProfileModel.find(filter)
-            .sort({ 'profileInformation.createdAt': -1 })
-            .skip(skip)
-            .limit(limit);
+        let query = profile_model_1.ProfileModel.find(filter).sort({ 'profileInformation.createdAt': -1 });
+        if (limit > 0) {
+            query = query.skip(skip).limit(limit);
+        }
+        else {
+            // If limit is 0 or negative, do not apply limit (return all)
+            if (skip > 0) {
+                query = query.skip(skip);
+            }
+            // No .limit() call, so all profiles are returned
+        }
+        return await query;
     }
     /**
      * Count profiles matching a filter
@@ -339,17 +409,18 @@ class ProfileService {
         if (!profile) {
             throw (0, http_errors_1.default)(404, 'Profile not found');
         }
-        // Verify user has permission to update
-        if (profile.profileInformation.creator.toString() !== userId) {
-            throw (0, http_errors_1.default)(403, 'You do not have permission to update this profile');
-        }
-        // Get user data to ensure we're using the correct fullName
+        // Get user data to check if they're an admin and for fullName
         const user = await User_1.User.findById(userId);
         if (!user) {
             throw (0, http_errors_1.default)(404, 'User not found');
         }
-        // Update the profile username with the user's fullName
-        profile.profileInformation.username = user.fullName || username;
+        // Verify user has permission to update (either creator or admin)
+        if (profile.profileInformation.creator.toString() !== userId &&
+            (!user.role || !['admin', 'superadmin'].includes(user.role))) {
+            throw (0, http_errors_1.default)(403, 'You do not have permission to update this profile');
+        }
+        // Update the profile username with the provided username
+        profile.profileInformation.username = username;
         profile.profileInformation.updatedAt = new Date();
         // If description is provided, update it using the updateProfileContent method
         if (description !== undefined) {
@@ -401,12 +472,13 @@ class ProfileService {
     /**
      * Creates a default personal profile for a new user
      * @param userId The user ID
+     * @param userObject Optional user object to avoid additional database query
      * @returns The created profile document
      */
-    async createDefaultProfile(userId) {
+    async createDefaultProfile(userId, userObject) {
         logger_1.logger.info(`Creating default personal profile for user ${userId}`);
-        // Get user data
-        const user = await User_1.User.findById(userId);
+        // Get user data - use provided user object if available to avoid race conditions
+        const user = userObject || await User_1.User.findById(userId);
         if (!user) {
             throw (0, http_errors_1.default)(404, 'User not found');
         }
@@ -507,31 +579,50 @@ class ProfileService {
             await ProfileReferralService.getProfileReferral(profile._id);
             logger_1.logger.info(`Created referral record for profile: ${profile._id}`);
             // Check if the user was referred (has a valid referral code)
-            if (user.referralCode && typeof user.referralCode === 'string' && user.referralCode.trim() !== '') {
+            // Always check for referral code, whether from normal registration or social auth
+            // First check for temporary referral code (from registration process)
+            // Important: We prioritize tempReferralCode over referralCode because referralCode might be the user's own code
+            const referralCode = user.tempReferralCode;
+            logger_1.logger.info(`Checking referral code for user ${userId}: ${referralCode}`);
+            // Log the entire user object for debugging
+            logger_1.logger.info(`User object for debugging: ${JSON.stringify({
+                id: user._id,
+                email: user.email,
+                referralCode: user.referralCode,
+                tempReferralCode: user.tempReferralCode
+            })}`);
+            if (referralCode && typeof referralCode === 'string' && referralCode.trim() !== '') {
                 try {
                     // Validate the referral code
-                    const referringProfileId = await ProfileReferralService.validateReferralCode(user.referralCode);
+                    const referringProfileId = await ProfileReferralService.validateReferralCode(referralCode);
                     if (referringProfileId) {
-                        // Process the referral
-                        const referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+                        // Process the referral and retry if it fails initially
+                        let referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+                        // If first attempt fails, wait briefly and retry once
+                        if (!referralProcessed) {
+                            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+                            referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+                        }
                         if (referralProcessed) {
-                            logger_1.logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${user.referralCode}`);
+                            logger_1.logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${referralCode}`);
+                            // Initialize referral record for the new profile
+                            await ProfileReferralService.initializeReferralCode(profile._id);
                         }
                         else {
-                            logger_1.logger.warn(`Failed to process referral for profile ${profile._id} with referral code ${user.referralCode}`);
+                            logger_1.logger.error(`Failed to process referral for profile ${profile._id} with referral code ${referralCode} after retry`);
                         }
                     }
                     else {
-                        logger_1.logger.info(`Referral code ${user.referralCode} is invalid or not found, skipping referral processing`);
+                        logger_1.logger.warn(`Invalid referral code provided: ${referralCode}`);
                     }
                 }
                 catch (referralError) {
                     logger_1.logger.error(`Error processing referral for profile ${profile._id}:`, referralError);
-                    // Don't throw the error to avoid disrupting the profile creation process
+                    // Continue profile creation even if referral processing fails
                 }
             }
             else {
-                logger_1.logger.info(`No valid referral code found for user ${userId}, skipping referral processing`);
+                logger_1.logger.info(`No referral code found for user ${userId}`);
             }
         }
         catch (error) {
@@ -539,6 +630,159 @@ class ProfileService {
             // Don't throw the error to avoid disrupting the profile creation process
         }
         return profile;
+    }
+    /**
+     * Set profile availability
+     */
+    async setAvailability(profileId, availabilityData) {
+        const profile = await this.getProfile(profileId);
+        if (!profile) {
+            throw (0, http_errors_1.default)(404, 'Profile not found');
+        }
+        // Convert profile to document to access methods
+        const profileDoc = profile;
+        profileDoc.availability = {
+            ...profileDoc.availability,
+            ...availabilityData,
+            isAvailable: true
+        };
+        await profileDoc.save();
+        return profileDoc.availability;
+    }
+    /**
+     * Update profile availability
+     */
+    async updateAvailability(profileId, updates) {
+        const profile = await this.getProfile(profileId);
+        if (!profile) {
+            throw (0, http_errors_1.default)(404, 'Profile not found');
+        }
+        // Convert profile to document to access methods
+        const profileDoc = profile;
+        if (!profileDoc.availability) {
+            profileDoc.availability = {
+                isAvailable: true,
+                defaultDuration: 60,
+                bufferTime: 15,
+                workingHours: {},
+                exceptions: [],
+                bookingWindow: {
+                    minNotice: 60,
+                    maxAdvance: 30
+                },
+                breakTime: []
+            };
+        }
+        // Update specific fields
+        if (updates.defaultDuration)
+            profileDoc.availability.defaultDuration = updates.defaultDuration;
+        if (updates.bufferTime)
+            profileDoc.availability.bufferTime = updates.bufferTime;
+        if (updates.workingHours)
+            profileDoc.availability.workingHours = updates.workingHours;
+        if (updates.exceptions)
+            profileDoc.availability.exceptions = updates.exceptions;
+        if (updates.bookingWindow)
+            profileDoc.availability.bookingWindow = updates.bookingWindow;
+        if (updates.breakTime) {
+            // Ensure breakTime days are properly formatted strings
+            profileDoc.availability.breakTime = updates.breakTime.map((breakTime) => ({
+                start: breakTime.start,
+                end: breakTime.end,
+                days: breakTime.days.map((day) => day.charAt(0).toUpperCase() + day.slice(1).toLowerCase())
+            }));
+        }
+        if (updates.isAvailable !== undefined)
+            profileDoc.availability.isAvailable = updates.isAvailable;
+        await profileDoc.save();
+        return profileDoc.availability;
+    }
+    /**
+     * Get profile availability
+     */
+    async getAvailability(profileId) {
+        const profile = await this.getProfile(profileId);
+        if (!profile) {
+            throw (0, http_errors_1.default)(404, 'Profile not found');
+        }
+        return profile.availability;
+    }
+    /**
+     * Get available slots for a specific date
+     */
+    async getAvailableSlots(profileId, date) {
+        var _a, _b, _c;
+        const profile = await this.getProfile(profileId);
+        if (!profile) {
+            throw new Error('Profile not found');
+        }
+        if (!((_a = profile.availability) === null || _a === void 0 ? void 0 : _a.isAvailable)) {
+            console.log('Debug - Profile is not available');
+            return [];
+        }
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayOfWeek = dayNames[date.getDay()];
+        // Handle both Map and object formats for workingHours
+        const workingHours = profile.availability.workingHours instanceof Map
+            ? profile.availability.workingHours.get(dayOfWeek)
+            : profile.availability.workingHours[dayOfWeek];
+        console.log('Debug - Working hours:', workingHours);
+        if (!(workingHours === null || workingHours === void 0 ? void 0 : workingHours.isWorking)) {
+            console.log('Debug - Not a working day');
+            return [];
+        }
+        const dateStr = date.toISOString().split('T')[0];
+        const slots = [];
+        // Check for exceptions
+        const exception = (_b = profile.availability.exceptions) === null || _b === void 0 ? void 0 : _b.find(e => e.date.toISOString().split('T')[0] === dateStr);
+        console.log('Debug - Exception found:', exception);
+        if (exception) {
+            if (!exception.isAvailable) {
+                console.log('Debug - Exception marks day as unavailable');
+                return [];
+            }
+            if (exception.slots) {
+                console.log('Debug - Using exception slots');
+                return exception.slots.map(slot => ({
+                    start: new Date(`${dateStr}T${slot.start}`),
+                    end: new Date(`${dateStr}T${slot.end}`)
+                }));
+            }
+        }
+        // Generate slots based on working hours and default duration
+        const startTime = new Date(`${dateStr}T${workingHours.start}`);
+        const endTime = new Date(`${dateStr}T${workingHours.end}`);
+        const duration = profile.availability.defaultDuration;
+        const buffer = profile.availability.bufferTime;
+        console.log('Debug - Slot generation:', {
+            startTime,
+            endTime,
+            duration,
+            buffer
+        });
+        let currentTime = new Date(startTime);
+        while (currentTime < endTime) {
+            const slotEnd = new Date(currentTime.getTime() + duration * 60000);
+            if (slotEnd <= endTime) {
+                // Check if slot overlaps with break time
+                const isInBreakTime = (_c = profile.availability.breakTime) === null || _c === void 0 ? void 0 : _c.some(breakTime => {
+                    if (!breakTime.days.includes(dayOfWeek))
+                        return false;
+                    const breakStart = new Date(`${dateStr}T${breakTime.start}`);
+                    const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
+                    return (currentTime >= breakStart && currentTime < breakEnd) ||
+                        (slotEnd > breakStart && slotEnd <= breakEnd);
+                });
+                if (!isInBreakTime) {
+                    slots.push({
+                        start: new Date(currentTime),
+                        end: new Date(slotEnd)
+                    });
+                }
+            }
+            currentTime = new Date(currentTime.getTime() + (duration + buffer) * 60000);
+        }
+        return slots;
     }
 }
 exports.ProfileService = ProfileService;

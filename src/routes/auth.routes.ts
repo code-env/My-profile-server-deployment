@@ -9,8 +9,8 @@ import { logger } from "../utils/logger";
 import EmailService from "../services/email.service";
 import WhatsAppService from "../services/whatsapp.service";
 import { User } from "../models/User";
-// Import the JavaScript version of the controller
-const { AuthUpdateController } = require("../controllers/auth.update.controller");
+// Import the TypeScript version of the controller
+import { AuthUpdateController } from "../controllers/auth.update.controller";
 
 const router = express.Router();
 
@@ -22,6 +22,22 @@ router.get("/", (req, res) => {
 // Health check endpoint
 router.get("/healthcheck", (req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Verify authentication status
+router.get("/verify", authenticateToken, (req, res) => {
+  // If we get here, the user is authenticated
+  const user = req.user as any;
+  res.status(200).json({
+    success: true,
+    isAuthenticated: true,
+    user: {
+      _id: user._id,
+      email: user.email,
+      role: user.role || ((user as any)._doc ? (user as any)._doc.role : null),
+      isAdmin: user.role === 'admin' || ((user as any)._doc && (user as any)._doc.role === 'admin')
+    }
+  });
 });
 
 //Rate limiting configuration
@@ -46,6 +62,8 @@ router.get("/sessions", authenticateToken, AuthController.getSessions);
 router.post("/forgot-password", AuthController.forgotPassword);
 router.post("/reset-password", AuthController.resetPassword);
 
+// Remove the broken reference to AuthController.verifyToken and implement /verify here
+router.post("/verify", AuthController.verifyToken);
 
 // User validation endpoints
 router.get("/check-email/:email", AuthController.checkEmail);
@@ -109,7 +127,11 @@ router.get("/user/info", (req, res) => {
             linkedinId: user.linkedinId,
             signupType: user.signupType,
             isEmailVerified: user.isEmailVerified,
-            profileImage: user.profileImage
+            profileImage: user.profileImage,
+            phoneNumber: user.phoneNumber,
+            countryOfResidence: user.countryOfResidence,
+            dateOfBirth: user.dateOfBirth,
+            isProfileComplete: user.isProfileComplete
           }
         });
       })
@@ -127,6 +149,9 @@ router.get("/user/info", (req, res) => {
 router.post("/verify-otp", AuthController.verifyOTP);
 router.post("/resend-otp", AuthController.resendOTP);
 router.post("/select-otp-method", AuthController.selectOTPMethod);
+
+// Change identifier endpoint (requires authentication)
+router.post("/change-identifier", AuthController.changeIdentifier);
 
 // Email verification
 router.post("/verify-email", AuthController.verifyEmail);

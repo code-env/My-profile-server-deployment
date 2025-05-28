@@ -166,7 +166,7 @@ router.post('/donate', protect, attachProfile, validateRequest(donateMyPtsSchema
 // Admin routes
 router.get('/admin/transactions', protect, getAllProfileTransactions);
 router.get('/admin/stats', protect, getMyPtsStats);
-router.post('/award', protect, attachProfile, validateRequest(awardMyPtsSchema), awardMyPts);
+router.post('/award', protect, validateRequest(awardMyPtsSchema), awardMyPts);
 router.post('/admin/process-sell', protect, validateRequest(processSellTransactionSchema), processSellTransaction);
 router.post('/admin/reject-sell', protect, validateRequest(rejectSellTransactionSchema), rejectSellTransaction);
 router.post('/admin/synchronize-balances', protect, synchronizeMyPtsBalances);

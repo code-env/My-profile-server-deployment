@@ -30,6 +30,7 @@ exports.registerSchema = zod_1.z.object({
 exports.loginSchema = zod_1.z.object({
     identifier: zod_1.z.string().min(1, "Email or username is required"),
     password: zod_1.z.string().min(1, "Password is required"),
+    rememberMe: zod_1.z.boolean().default(false),
 });
 // OTP Verification schema
 exports.otpVerificationSchema = zod_1.z.object({

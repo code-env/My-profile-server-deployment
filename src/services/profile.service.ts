@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { User } from '../models/User';
 import { ProfileTemplate, ProfileType, ProfileCategory } from '../models/profiles/profile-template';
 import { generateUniqueConnectLink, generateReferralCode, generateSecondaryId } from '../utils/crypto';
+import { generateProfileGradient } from '../utils/gradient-generator';
 import mongoose from 'mongoose';
 import { ITemplateField } from '../models/profiles/profile-template';
 import { FieldWidget } from '../models/profiles/profile-template';
@@ -58,6 +59,74 @@ export class ProfileService {
     groups?: string[]
   ): Promise<ProfileDocument> {
     logger.info(`Creating profile with content for user ${userId} using template ${templateId}`);
+    
+    // Create the base profile with all parameters
+    const profile = await this.createProfile(userId, templateId, members, location, ip, groups);
+
+    // Update profile information
+    if (profileInformation) {
+      profile.profileInformation.username = profileInformation.username;
+
+      if (profileInformation.title) profile.profileInformation.title = profileInformation.title;
+      if (profileInformation.accountHolder) profile.profileInformation.accountHolder = profileInformation.accountHolder;
+      if (profileInformation.pid) profile.profileInformation.pid = profileInformation.pid;
+      if (profileInformation.relationshipToAccountHolder)
+        profile.profileInformation.relationshipToAccountHolder = profileInformation.relationshipToAccountHolder;
+    }
+
+    // Update sections and fields if provided
+    if (sections && sections.length > 0) {
+      // For each provided section
+      for (const providedSection of sections) {
+        // Find matching section in profile
+        const profileSection = profile.sections.find(s => s.key === providedSection.key);
+        if (profileSection) {
+          // Update fields in the section
+          for (const providedField of providedSection.fields) {
+            const profileField = profileSection.fields.find(f => f.key === providedField.key);
+            if (profileField) {
+              // Use type assertion to allow property assignment
+              (profileField as any).value = providedField.value;
+              profileField.enabled = providedField.enabled;
+            }
+          }
+        }
+      }
+    }
+
+    // Save the updated profile
+    await profile.save();
+    logger.info(`Profile with content created successfully: ${profile._id}`);
+    return profile;
+  }
+
+  /**
+   * Creates a new profile based on a template
+   * @param userId The user ID creating the profile
+   * @param templateId The template ID to base the profile on
+   * @param members Optional array of member IDs for group profiles
+   * @param location Optional location information for the profile
+   * @param ip Optional IP address for geolocation
+   * @param groups Optional array of group IDs for group profiles
+   * @returns The created profile document
+   */
+  async createProfile(
+    userId: string,
+    templateId: string,
+    members: string[] = [],
+    location?: {
+      city?: string;
+      stateOrProvince?: string;
+      country?: string;
+      coordinates?: {
+        latitude: number;
+        longitude: number;
+      };
+    },
+    ip?: string,
+    groups?: string[]
+  ): Promise<ProfileDocument> {
+    logger.info(`Creating new profile for user ${userId} using template ${templateId}`);
 
     // Validate inputs
     if (!isValidObjectId(userId) || !isValidObjectId(templateId)) {
@@ -117,7 +186,38 @@ export class ProfileService {
       }
     }
 
-    // Create initial sections from template
+    // Get user data for profile username
+    const profileUsername = user?.fullName || user?.username || '';
+
+    // Get country information from user
+    const userCountry = user?.countryOfResidence || '';
+    // Simple country code mapping for common countries (can be expanded)
+    const countryCodeMap: Record<string, string> = {
+      'United States': 'US',
+      'Canada': 'CA',
+      'United Kingdom': 'GB',
+      'Australia': 'AU',
+      'Germany': 'DE',
+      'France': 'FR',
+      'Italy': 'IT',
+      'Spain': 'ES',
+      'Japan': 'JP',
+      'China': 'CN',
+      'India': 'IN',
+      'Brazil': 'BR',
+      'Mexico': 'MX',
+      'South Africa': 'ZA',
+      'Nigeria': 'NG',
+      'Kenya': 'KE',
+      'Ghana': 'GH',
+      'Cameroon': 'CM'
+    };
+    const countryCode = countryCodeMap[userCountry] || '';
+
+    // Generate a unique gradient background based on the username
+    const { gradient, primaryColor, secondaryColor } = generateProfileGradient(profileUsername);
+
+    // Create initial sections from template with all fields disabled by default
     const initialSections = template.categories.map(category => ({
       key: category.name,
       label: category.label || category.name,
@@ -136,27 +236,77 @@ export class ProfileService {
       }))
     }));
 
-    // Create the base profile
+    // Add members and groups fields to info section for group profiles
+    if (template.profileCategory === 'group' || template.profileType === 'group') {
+      const infoSection = initialSections.find(s => s.key === 'info');
+      if (infoSection) {
+        // Add members field if it doesn't exist
+        if (!infoSection.fields.some(f => f.key === 'members')) {
+          infoSection.fields.push({
+            key: 'members',
+            label: 'Members',
+            widget: 'multiselect',
+            required: false,
+            placeholder: '',
+            enabled: true,
+            value: [],
+            options: [],
+            validation: {}
+          });
+        }
+        // Add groups field if it doesn't exist
+        if (!infoSection.fields.some(f => f.key === 'groups')) {
+          infoSection.fields.push({
+            key: 'groups',
+            label: 'Groups',
+            widget: 'multiselect',
+            required: false,
+            placeholder: '',
+            enabled: true,
+            value: [],
+            options: [],
+            validation: {}
+          });
+        }
+      }
+    }
+
+    // Create the profile with appropriate group/member handling
     const profile = new Profile({
       profileCategory: template.profileCategory,
       profileType: template.profileType,
       secondaryId,
       templatedId: template._id,
       profileInformation: {
-        username: profileInformation.username || user.fullName || user.username || '',
-        title: profileInformation.title || '',
-        profileLink,
+        username: profileUsername,
+        title: '',
+        profileLink: profileLink,
         creator: new mongoose.Types.ObjectId(userId),
         connectLink,
         followLink: profileLink,
         createdAt: new Date(),
         updatedAt: new Date()
       },
+      ProfileFormat: {
+        profileImage: '', // Initialize with empty string
+        customization: {
+          theme: {
+            primaryColor: primaryColor,
+            secondaryColor: secondaryColor,
+            background: gradient,
+          }
+        },
+        updatedAt: new Date()
+      },
+      profileLocation: {
+        ...profileLocation,
+        country: userCountry,
+        countryCode: countryCode
+      },
       ProfileReferal: {
         referalLink: referralLink,
         referals: 0
       },
-      profileLocation,
       sections: initialSections,
       members: [], // Initialize empty members array
       groups: [] // Initialize empty groups array
@@ -171,180 +321,28 @@ export class ProfileService {
       if (members && members.length > 0) {
         const validMemberIds = members.filter(id => isValidObjectId(id));
         profile.members = [...profile.members, ...validMemberIds.map(id => new mongoose.Types.ObjectId(id))];
-      }
-
-      // Add any provided groups from the groups parameter
-      if (groups && groups.length > 0) {
-        const validGroupIds = groups.filter(id => isValidObjectId(id));
-        profile.groups = validGroupIds.map(id => new mongoose.Types.ObjectId(id));
-      }
-    }
-
-    // Apply provided sections data if available
-    if (sections && sections.length > 0) {
-      for (const providedSection of sections) {
-        const profileSection = profile.sections.find(s => s.key === providedSection.key);
-        if (profileSection) {
-          for (const providedField of providedSection.fields) {
-            const profileField = profileSection.fields.find(f => f.key === providedField.key);
-            if (profileField) {
-              profileField.value = providedField.value;
-              profileField.enabled = providedField.enabled;
-              
-              // Special handling for members field in info section
-              if (providedField.key === 'members' && Array.isArray(providedField.value)) {
-                // Ensure the root members array includes all members from the sections
-                providedField.value.forEach((memberId: string) => {
-                  if (isValidObjectId(memberId)) {
-                    const objectId = new mongoose.Types.ObjectId(memberId);
-                    if (!profile.members.some(m => m.equals(objectId))) {
-                      profile.members.push(objectId);
-                    }
-                  }
-                });
-              }
-
-              // Special handling for groups field in info section
-              if (providedField.key === 'groups' && Array.isArray(providedField.value)) {
-                // Ensure the root groups array includes all groups from the sections
-                providedField.value.forEach((groupId: string) => {
-                  if (isValidObjectId(groupId)) {
-                    const objectId = new mongoose.Types.ObjectId(groupId);
-                    if (!profile.groups.some(g => g.equals(objectId))) {
-                      profile.groups.push(objectId);
-                    }
-                  }
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-
-    await profile.save();
-    logger.info(`Profile with content created successfully: ${profile._id}`);
-    return profile;
-  }
-
-  /**
-   * Creates a new profile based on a template
-   * @param userId The user ID creating the profile
-   * @param templateId The template ID to base the profile on
-   * @param members Array of member IDs
-   * @returns The created profile document
-   */
-  async createProfile(
-    userId: string,
-    templateId: string,
-    members: string[] = []
-  ): Promise<ProfileDocument> {
-    logger.info(`Creating new profile for user ${userId} using template ${templateId}`);
-
-    // Validate inputs
-    if (!isValidObjectId(userId) || !isValidObjectId(templateId)) {
-      throw createHttpError(400, 'Invalid user ID or template ID');
-    }
-
-    // Get the template
-    const template = await ProfileTemplate.findById(templateId);
-    if (!template) {
-      throw createHttpError(404, 'Template not found');
-    }
-
-    // Generate unique links
-    const [connectLink, profileLink] = await Promise.all([
-      generateUniqueConnectLink(),
-      generateUniqueConnectLink()
-    ]);
-
-    // Generate a unique referral link
-    const referralCode = generateReferralCode();
-    const referralLink = `mypts-ref-${referralCode}`;
-
-    // Generate a unique secondary ID
-    const secondaryId = await generateSecondaryId(async (id: string) => {
-      const existingProfile = await Profile.findOne({ secondaryId: id });
-      return !existingProfile;
-    });
-
-    // Create initial profile sections with all fields disabled by default
-    const initialSections = template.categories.map(category => ({
-      key: category.name,
-      label: category.label,
-      fields: category.fields.map(field => ({
-        key: field.name,
-        value: field.default || null,
-        enabled: false // Fields are disabled by default
-      }))
-    }));
-
-    // Add members and groups fields to info section for group profiles
-    if (template.profileCategory === 'group' || template.profileType === 'group') {
-      const infoSection = initialSections.find(s => s.key === 'info');
-      if (infoSection) {
-        // Add members field if it doesn't exist
-        if (!infoSection.fields.some(f => f.key === 'members')) {
-          infoSection.fields.push({
-            key: 'members',
-            value: [],
-            enabled: true
-          });
-        }
-        // Add groups field if it doesn't exist
-        if (!infoSection.fields.some(f => f.key === 'groups')) {
-          infoSection.fields.push({
-            key: 'groups',
-            value: [],
-            enabled: true
-          });
-        }
-      }
-    }
-
-    // Get user data for profile username
-    const user = await User.findById(userId);
-    const profileUsername = user?.fullName || user?.username || '';
-
-    // Create the profile with appropriate group/member handling
-    const profile = new Profile({
-      profileCategory: template.profileCategory,
-      profileType: template.profileType,
-      secondaryId,
-      templatedId: template._id,
-      profileInformation: {
-        username: profileUsername,
-        profileLink: profileLink,
-        creator: new mongoose.Types.ObjectId(userId),
-        connectLink,
-        followLink: profileLink,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      ProfileReferal: {
-        referalLink: referralLink,
-        referals: 0
-      },
-      sections: initialSections,
-      members: [] // Initialize empty members array
-    });
-
-    // Handle group profiles and members
-    if (template.profileCategory === 'group' || template.profileType === 'group') {
-      // Add the creator as a member
-      profile.members = [new mongoose.Types.ObjectId(userId)];
-      
-      // If additional members are provided, add them
-      if (members && members.length > 0) {
-        const validMemberIds = members.filter(id => isValidObjectId(id));
-        profile.members = [...profile.members, ...validMemberIds.map(id => new mongoose.Types.ObjectId(id))];
         
         // Also add to the members field in info section if it exists
         const infoSection = profile.sections.find(s => s.key === 'info');
         if (infoSection) {
           const membersField = infoSection.fields.find(f => f.key === 'members');
           if (membersField) {
-            membersField.value = profile.members;
+            (membersField as any).value = profile.members;
+          }
+        }
+      }
+
+      // Add any provided groups from the groups parameter
+      if (groups && groups.length > 0) {
+        const validGroupIds = groups.filter(id => isValidObjectId(id));
+        profile.groups = validGroupIds.map(id => new mongoose.Types.ObjectId(id));
+        
+        // Also add to the groups field in info section if it exists
+        const infoSection = profile.sections.find(s => s.key === 'info');
+        if (infoSection) {
+          const groupsField = infoSection.fields.find(f => f.key === 'groups');
+          if (groupsField) {
+            (groupsField as any).value = profile.groups;
           }
         }
       }
@@ -354,7 +352,6 @@ export class ProfileService {
     logger.info(`Profile created successfully: ${profile._id}`);
     return profile;
   }
-
 
   /**
    * Enables/disables fields in a profile
@@ -383,8 +380,12 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    // Verify user has permission to update
-    if (profile.profileInformation.creator.toString() !== userId) {
+    // Get user data to check if they're an admin
+    const user = await User.findById(userId);
+
+    // Verify user has permission to update (either creator or admin)
+    if (profile.profileInformation.creator.toString() !== userId &&
+        (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
       throw createHttpError(403, 'You do not have permission to update this profile');
     }
 
@@ -432,8 +433,12 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    // Verify user has permission to update
-    if (profile.profileInformation.creator.toString() !== userId) {
+    // Get user data to check if they're an admin
+    const user = await User.findById(userId);
+
+    // Verify user has permission to update (either creator or admin)
+    if (profile.profileInformation.creator.toString() !== userId &&
+        (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
       throw createHttpError(403, 'You do not have permission to update this profile');
     }
 
@@ -573,6 +578,21 @@ export class ProfileService {
   }
 
   /**
+   * Gets the first profile for a user (typically used for referral processing)
+   * @param userId The user ID
+   * @returns The profile document or null if not found
+   */
+  async getProfileByUserId(userId: string): Promise<ProfileDocument | null> {
+    logger.info(`Fetching first profile for user ${userId}`);
+
+    if (!isValidObjectId(userId)) {
+      throw createHttpError(400, 'Invalid user ID');
+    }
+
+    return await Profile.findOne({ 'profileInformation.creator': userId });
+  }
+
+  /**
    * Deletes a profile
    * @param profileId The profile ID
    * @param userId The user ID requesting deletion
@@ -590,9 +610,12 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    if (profile.profileInformation.creator.toString() != userId) {
-      console.log(` creator id ${profile.profileInformation.creator.toString()} user id ${userId}`);
-      logger.warn(`User ${userId} does not have permission to delete profile ${profileId}`);
+    // Get user data to check if they're an admin
+    const user = await User.findById(userId);
+
+    // Verify user has permission to delete (either creator or admin)
+    if (profile.profileInformation.creator.toString() !== userId &&
+        (!user || !user.role || !['admin', 'superadmin'].includes(user.role))) {
       throw createHttpError(403, 'You do not have permission to delete this profile');
     }
 
@@ -610,100 +633,17 @@ export class ProfileService {
   async getAllProfiles(filter: any = {}, skip = 0, limit = 20): Promise<ProfileDocument[]> {
     logger.info(`Fetching all profiles with filter: ${JSON.stringify(filter)}, skip: ${skip}, limit: ${limit}`);
 
-    const profiles = await Profile.find(filter)
-      .select({
-        'profileCategory': 1,
-        'profileType': 1,
-        'secondaryId': 1,
-        'profileInformation': 1,
-        'sections': 1,
-        'members': 1,
-        'groups': 1,
-        'ProfileFormat': 1,
-        'profileLocation': 1,
-        'ProfileProducts': 1,
-        'verificationStatus': 1,
-        'ProfileMypts': 1,
-        'ProfileReferal': 1,
-        'ProfileBadges': 1,
-        'analytics': 1,
-        'availability': 1
-      })
-      .populate('profileInformation.creator', 'fullName email')
-      .populate('members', 'profileInformation.username profileInformation.title _id')
-      .populate('groups', 'profileInformation.username profileInformation.title _id')
-      .sort({ 'profileInformation.createdAt': -1 })
-      .skip(skip)
-      .limit(limit);
-
-    // Process profiles to ensure all required fields are present
-    const processedProfiles = await Promise.all(profiles.map(async profile => {
-      // Process sections to ensure all fields are properly enabled and have values
-      profile.sections.forEach(section => {
-        section.fields.forEach(field => {
-          if (field.value === null && field.default) {
-            field.value = field.default;
-          }
-        });
-      });
-
-      // Process members and groups if they exist
-      if (profile.members && profile.members.length > 0) {
-        const membersSection = profile.sections.find(s => s.key === 'info');
-        if (membersSection) {
-          const membersField = membersSection.fields.find(f => f.key === 'members');
-          if (membersField) {
-            membersField.value = profile.members.map(member => ({
-              id: member._id,
-              name: (member as any).profileInformation?.title || (member as any).profileInformation?.username
-            }));
-            membersField.enabled = true;
-          } else {
-            // Add members field if it doesn't exist
-            membersSection.fields.push({
-              key: 'members',
-              label: 'Members',
-              widget: 'multiselect',
-              value: profile.members.map(member => ({
-                id: member._id,
-                name: (member as any).profileInformation?.title || (member as any).profileInformation?.username
-              })),
-              enabled: true
-            });
-          }
-        }
+    let query = Profile.find(filter).sort({ 'profileInformation.createdAt': -1 });
+    if (limit > 0) {
+      query = query.skip(skip).limit(limit);
+    } else {
+      // If limit is 0 or negative, do not apply limit (return all)
+      if (skip > 0) {
+        query = query.skip(skip);
       }
-
-      if (profile.groups && profile.groups.length > 0) {
-        const groupsSection = profile.sections.find(s => s.key === 'info');
-        if (groupsSection) {
-          const groupsField = groupsSection.fields.find(f => f.key === 'groups');
-          if (groupsField) {
-            groupsField.value = profile.groups.map(group => ({
-              id: group._id,
-              name: (group as any).profileInformation?.title || (group as any).profileInformation?.username
-            }));
-            groupsField.enabled = true;
-          } else {
-            // Add groups field if it doesn't exist
-            groupsSection.fields.push({
-              key: 'groups',
-              label: 'Groups',
-              widget: 'multiselect',
-              value: profile.groups.map(group => ({
-                id: group._id,
-                name: (group as any).profileInformation?.title || (group as any).profileInformation?.username
-              })),
-              enabled: true
-            });
-          }
-        }
-      }
-
-      return profile;
-    }));
-
-    return processedProfiles;
+      // No .limit() call, so all profiles are returned
+    }
+    return await query;
   }
 
   /**
@@ -746,19 +686,20 @@ export class ProfileService {
       throw createHttpError(404, 'Profile not found');
     }
 
-    // Verify user has permission to update
-    if (profile.profileInformation.creator.toString() !== userId) {
-      throw createHttpError(403, 'You do not have permission to update this profile');
-    }
-
-    // Get user data to ensure we're using the correct fullName
+    // Get user data to check if they're an admin and for fullName
     const user = await User.findById(userId);
     if (!user) {
       throw createHttpError(404, 'User not found');
     }
 
-    // Update the profile username with the user's fullName
-    profile.profileInformation.username = user.fullName || username;
+    // Verify user has permission to update (either creator or admin)
+    if (profile.profileInformation.creator.toString() !== userId &&
+        (!user.role || !['admin', 'superadmin'].includes(user.role))) {
+      throw createHttpError(403, 'You do not have permission to update this profile');
+    }
+
+    // Update the profile username with the provided username
+    profile.profileInformation.username = username;
     profile.profileInformation.updatedAt = new Date();
 
     // If description is provided, update it using the updateProfileContent method
@@ -818,13 +759,14 @@ export class ProfileService {
   /**
    * Creates a default personal profile for a new user
    * @param userId The user ID
+   * @param userObject Optional user object to avoid additional database query
    * @returns The created profile document
    */
-  async createDefaultProfile(userId: string): Promise<ProfileDocument> {
+  async createDefaultProfile(userId: string, userObject?: any): Promise<ProfileDocument> {
     logger.info(`Creating default personal profile for user ${userId}`);
 
-    // Get user data
-    const user = await User.findById(userId);
+    // Get user data - use provided user object if available to avoid race conditions
+    const user = userObject || await User.findById(userId);
     if (!user) {
       throw createHttpError(404, 'User not found');
     }
@@ -935,29 +877,52 @@ export class ProfileService {
       logger.info(`Created referral record for profile: ${profile._id}`);
 
       // Check if the user was referred (has a valid referral code)
-      if (user.referralCode && typeof user.referralCode === 'string' && user.referralCode.trim() !== '') {
+      // Always check for referral code, whether from normal registration or social auth
+      // First check for temporary referral code (from registration process)
+      // Important: We prioritize tempReferralCode over referralCode because referralCode might be the user's own code
+      const referralCode = user.tempReferralCode;
+      logger.info(`Checking referral code for user ${userId}: ${referralCode}`);
+
+      // Log the entire user object for debugging
+      logger.info(`User object for debugging: ${JSON.stringify({
+        id: user._id,
+        email: user.email,
+        referralCode: user.referralCode,
+        tempReferralCode: user.tempReferralCode
+      })}`);
+
+      if (referralCode && typeof referralCode === 'string' && referralCode.trim() !== '') {
         try {
           // Validate the referral code
-          const referringProfileId = await ProfileReferralService.validateReferralCode(user.referralCode);
+          const referringProfileId = await ProfileReferralService.validateReferralCode(referralCode);
 
           if (referringProfileId) {
-            // Process the referral
-            const referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+            // Process the referral and retry if it fails initially
+            let referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+
+            // If first attempt fails, wait briefly and retry once
+            if (!referralProcessed) {
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+              referralProcessed = await ProfileReferralService.processReferral(profile._id, referringProfileId);
+            }
 
             if (referralProcessed) {
-              logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${user.referralCode}`);
+              logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${referralCode}`);
+
+              // Initialize referral record for the new profile
+              await ProfileReferralService.initializeReferralCode(profile._id);
             } else {
-              logger.warn(`Failed to process referral for profile ${profile._id} with referral code ${user.referralCode}`);
+              logger.error(`Failed to process referral for profile ${profile._id} with referral code ${referralCode} after retry`);
             }
           } else {
-            logger.info(`Referral code ${user.referralCode} is invalid or not found, skipping referral processing`);
+            logger.warn(`Invalid referral code provided: ${referralCode}`);
           }
         } catch (referralError) {
           logger.error(`Error processing referral for profile ${profile._id}:`, referralError);
-          // Don't throw the error to avoid disrupting the profile creation process
+          // Continue profile creation even if referral processing fails
         }
       } else {
-        logger.info(`No valid referral code found for user ${userId}, skipping referral processing`);
+        logger.info(`No referral code found for user ${userId}`);
       }
     } catch (error) {
       logger.error(`Error creating referral record for profile ${profile._id}:`, error);
@@ -1062,13 +1027,13 @@ export class ProfileService {
 
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = dayNames[date.getDay()];
-    
+
     // Handle both Map and object formats for workingHours
-    const workingHours = profile.availability.workingHours instanceof Map 
+    const workingHours = profile.availability.workingHours instanceof Map
       ? profile.availability.workingHours.get(dayOfWeek)
       : profile.availability.workingHours[dayOfWeek];
     console.log('Debug - Working hours:', workingHours);
-    
+
     if (!workingHours?.isWorking) {
       console.log('Debug - Not a working day');
       return [];
@@ -1078,7 +1043,7 @@ export class ProfileService {
     const slots: Array<{start: Date, end: Date}> = [];
 
     // Check for exceptions
-    const exception = profile.availability.exceptions?.find(e => 
+    const exception = profile.availability.exceptions?.find(e =>
       e.date.toISOString().split('T')[0] === dateStr
     );
     console.log('Debug - Exception found:', exception);
@@ -1119,7 +1084,7 @@ export class ProfileService {
           if (!breakTime.days.includes(dayOfWeek)) return false;
           const breakStart = new Date(`${dateStr}T${breakTime.start}`);
           const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
-          return (currentTime >= breakStart && currentTime < breakEnd) || 
+          return (currentTime >= breakStart && currentTime < breakEnd) ||
                  (slotEnd > breakStart && slotEnd <= breakEnd);
         });
 

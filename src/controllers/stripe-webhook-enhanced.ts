@@ -1,7 +1,5 @@
-import { Request, Response } from 'express';
 import Stripe from 'stripe';
 import mongoose from 'mongoose';
-import { getStripe, stripeConfig } from '../config/stripe.config';
 import { logger } from '../utils/logger';
 import { MyPtsTransactionModel } from '../models/my-pts.model';
 import { TransactionStatus } from '../interfaces/my-pts.interface';
@@ -136,20 +134,31 @@ export async function handlePaymentIntentSucceeded(paymentIntent: Stripe.Payment
     await transaction.save();
     console.log('[WEBHOOK DEBUG] Updated transaction status to COMPLETED');
 
-    // Update MyPts balance
+    // Update MyPts balance directly
     myPts.balance += transaction.amount;
     myPts.lifetimeEarned += transaction.amount;
     myPts.lastTransaction = new Date();
     await myPts.save();
     console.log('[WEBHOOK DEBUG] Updated MyPts balance to:', myPts.balance);
 
-    // Update the profile's myPtsBalance field and ProfileMypts fields to match the MyPts balance
-    await ProfileModel.findByIdAndUpdate(profile._id, {
-      myPtsBalance: myPts.balance,
-      'ProfileMypts.currentBalance': myPts.balance,
-      'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
-    });
-    console.log('[WEBHOOK DEBUG] Updated profile myPtsBalance and ProfileMypts to:', myPts.balance);
+    // Update the profile document to keep it in sync
+    try {
+      const result = await ProfileModel.findByIdAndUpdate(profile._id, {
+        'ProfileMypts.currentBalance': myPts.balance,
+        'ProfileMypts.lifetimeMypts': myPts.lifetimeEarned
+      }, { new: true });
+
+      console.log('[WEBHOOK DEBUG] Profile update result:', {
+        id: result?._id,
+        currentBalance: result?.ProfileMypts?.currentBalance,
+        lifetimeMypts: result?.ProfileMypts?.lifetimeMypts
+      });
+    } catch (error) {
+      console.error('[WEBHOOK DEBUG] Error updating profile document:', error);
+      // Don't throw the error to avoid disrupting the main transaction
+    }
+
+    console.log('[WEBHOOK DEBUG] Updated profile ProfileMypts to:', myPts.balance);
 
     // Move MyPts from reserve to circulation
     const hub = await myPtsHubService.getHubState();

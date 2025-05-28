@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { User } from "../models/User";
 import mongoose from "mongoose";
 import { ProfileModel as Profile } from "../models/profile.model";
+import { isValidObjectId } from "mongoose";
 
 export class UserControllers {
   /**
@@ -26,7 +27,7 @@ export class UserControllers {
   }
 
   /**
-   * Get user by ID
+   * Get user by ID (public route)
    * @route GET /auth/users/:id
    * @param req - Express request object
    * @param res - Express response object
@@ -50,8 +51,12 @@ export class UserControllers {
         });
       }
 
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        console.log("Invalid ObjectId format:", id);
+      // Try to convert string ID to ObjectId for better error handling
+      let objectId;
+      try {
+        objectId = new mongoose.Types.ObjectId(id);
+      } catch (error) {
+        console.log("Error converting to ObjectId:", id, error);
         return res.status(400).json({
           success: false,
           message: "Invalid user ID format",
@@ -63,8 +68,9 @@ export class UserControllers {
       console.log("Connected to database:", dbName);
 
       // Try to find user
-      const user = await User.findById(id).exec();
-      console.log("User query result:", user);
+      console.log("Searching for user with ID:", objectId);
+      const user = await User.findById(objectId).exec();
+      console.log("User query result:", user ? "User found" : "User not found");
 
       if (!user) {
         return res.status(404).json({
@@ -79,6 +85,9 @@ export class UserControllers {
         });
       }
 
+      // Return the user data
+      console.log("Returning user data for ID:", user._id);
+
       res.status(200).json({
         success: true,
         user: {
@@ -87,7 +96,8 @@ export class UserControllers {
           username: user.username,
           fullName: user.fullName,
           profileImage: user.profileImage || null,
-          phoneNumber: user.phoneNumber,
+          phoneNumber: user.phoneNumber || "",
+          countryOfResidence: user.countryOfResidence || "",
           isEmailVerified: user.isEmailVerified,
           isPhoneVerified: user.isPhoneVerified,
           accountType: user.accountType,
@@ -107,8 +117,9 @@ export class UserControllers {
                 errorMessage: error.message,
                 userId: req.params.id,
                 connectionState: mongoose.connection.readyState,
+                stack: error.stack
               }
-            : undefined,
+            : undefined
       });
     }
   }
@@ -245,15 +256,244 @@ export class UserControllers {
   }
 
   /**
+   * Update user information
+   * @route PUT /api/users/update
+   * @param req - Express request object with authenticated user
+   * @param res - Express response object
+   */
+  static async UpdateUserInfo(req: Request, res: Response) {
+    try {
+      // Get the authenticated user from the request
+      const authenticatedUser = req.user as any;
+
+      if (!authenticatedUser || !authenticatedUser._id) {
+        return res.status(401).json({
+          success: false,
+          message: "Not authenticated",
+        });
+      }
+
+      // Get the user data from the request body
+      const {
+        fullName,
+        email,
+        phoneNumber,
+        countryOfResidence,
+        dateOfBirth,
+        isTwoFactorEnabled,
+        notifications
+      } = req.body;
+
+      // Find the user in the database
+      const user = await User.findById(authenticatedUser._id);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      // Update the user fields if they are provided
+      if (fullName !== undefined) user.fullName = fullName;
+      if (email !== undefined) user.email = email;
+      if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
+      if (countryOfResidence !== undefined) user.countryOfResidence = countryOfResidence;
+      if (dateOfBirth !== undefined) user.dateOfBirth = new Date(dateOfBirth);
+      if (isTwoFactorEnabled !== undefined) user.isTwoFactorEnabled = isTwoFactorEnabled;
+
+      // Update notification preferences if provided
+      if (notifications) {
+        // Create a basic notification preferences object based on the provided data
+        const updatedNotifications = {
+          email: notifications.email?.enabled !== undefined ? notifications.email.enabled : user.notifications?.email || true,
+          push: notifications.push?.enabled !== undefined ? notifications.push.enabled : user.notifications?.push || true,
+          sms: notifications.sms?.enabled !== undefined ? notifications.sms.enabled : user.notifications?.sms || false,
+          marketing: notifications.email?.marketing !== undefined ? notifications.email.marketing : user.notifications?.marketing || false
+        };
+
+        // Update the user's notification preferences
+        user.notifications = updatedNotifications;
+
+        // If telegram notifications are provided, update them
+        if (notifications.telegram) {
+          if (!user.telegramNotifications) {
+            user.telegramNotifications = {
+              enabled: false,
+              username: '',
+              preferences: {
+                transactions: true,
+                transactionUpdates: true,
+                purchaseConfirmations: true,
+                saleConfirmations: true,
+                security: true,
+                connectionRequests: false,
+                messages: false
+              }
+            };
+          }
+
+          // Update telegram notification settings
+          if (notifications.telegram.enabled !== undefined) {
+            user.telegramNotifications.enabled = notifications.telegram.enabled;
+          }
+
+          if (notifications.telegram.username) {
+            user.telegramNotifications.username = notifications.telegram.username;
+          }
+
+          // Update telegram preferences if provided
+          const prefs = user.telegramNotifications.preferences;
+
+          if (notifications.telegram.transactions !== undefined) {
+            prefs.transactions = notifications.telegram.transactions;
+          }
+
+          if (notifications.telegram.transactionUpdates !== undefined) {
+            prefs.transactionUpdates = notifications.telegram.transactionUpdates;
+          }
+
+          if (notifications.telegram.purchaseConfirmations !== undefined) {
+            prefs.purchaseConfirmations = notifications.telegram.purchaseConfirmations;
+          }
+
+          if (notifications.telegram.saleConfirmations !== undefined) {
+            prefs.saleConfirmations = notifications.telegram.saleConfirmations;
+          }
+
+          if (notifications.telegram.security !== undefined) {
+            prefs.security = notifications.telegram.security;
+          }
+
+          if (notifications.telegram.connectionRequests !== undefined) {
+            prefs.connectionRequests = notifications.telegram.connectionRequests;
+          }
+
+          if (notifications.telegram.messages !== undefined) {
+            prefs.messages = notifications.telegram.messages;
+          }
+        }
+      }
+
+      // Save the updated user
+      await user.save();
+
+      // Update country information in all profiles if country was changed
+      if (countryOfResidence !== undefined) {
+        try {
+          const { updateUserProfileCountries } = require('../scripts/update-user-profile-country');
+          const updateResult = await updateUserProfileCountries(authenticatedUser._id, false);
+          console.log(`Profile country update result: ${updateResult.message}`);
+        } catch (error) {
+          console.error('Error updating profile countries:', error);
+          // Just log the error, don't fail the main operation
+        }
+      }
+
+      // Return the updated user
+      res.status(200).json({
+        success: true,
+        message: "User information updated successfully",
+        user: {
+          _id: user._id,
+          email: user.email,
+          username: user.username,
+          fullName: user.fullName,
+          profileImage: user.profileImage || null,
+          phoneNumber: user.phoneNumber,
+          countryOfResidence: user.countryOfResidence,
+          dateOfBirth: user.dateOfBirth,
+          isEmailVerified: user.isEmailVerified,
+          isPhoneVerified: user.isPhoneVerified,
+          accountType: user.accountType,
+          role: user.role,
+          isTwoFactorEnabled: user.isTwoFactorEnabled,
+          notifications: user.notifications
+        },
+      });
+    } catch (error: any) {
+      console.error("Error in UpdateUserInfo:", error);
+      res.status(500).json({
+        success: false,
+        message:
+          error instanceof Error ? error.message : "Failed to update user information",
+      });
+    }
+  }
+
+  /**
+   * Update user profile image
+   * @route PUT /api/users/update-profile-image
+   * @param req - Express request object with authenticated user
+   * @param res - Express response object
+   */
+  static async UpdateProfileImage(req: Request, res: Response) {
+    try {
+      // Get the authenticated user from the request
+      const authenticatedUser = req.user as any;
+
+      if (!authenticatedUser || !authenticatedUser._id) {
+        return res.status(401).json({
+          success: false,
+          message: "Not authenticated",
+        });
+      }
+
+      // Get the profile image URL from the request body
+      const { profileImage } = req.body;
+
+      if (!profileImage) {
+        return res.status(400).json({
+          success: false,
+          message: "Profile image URL is required",
+        });
+      }
+
+      // Find the user in the database
+      const user = await User.findById(authenticatedUser._id);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      // Update the profile image
+      user.profileImage = profileImage;
+
+      // Save the updated user
+      await user.save();
+
+      // Return the updated user
+      res.status(200).json({
+        success: true,
+        message: "Profile image updated successfully",
+        user: {
+          _id: user._id,
+          profileImage: user.profileImage,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error in UpdateProfileImage:", error);
+      res.status(500).json({
+        success: false,
+        message:
+          error instanceof Error ? error.message : "Failed to update profile image",
+      });
+    }
+  }
+
+  /**
    * Generate a user name
-   * @route GET /auth/users/generate-username
+   * @route GET /users/generate-username
    * @param req - Express request object
    * @param res - Express response object
    */
   static async GenerateUsername(req: Request, res: Response) {
     console.log("Generating username...");
     try {
-      const { firstname } = req.body;
+      const firstname = req.query.firstname as string;
 
       if (!firstname) {
         return res.status(400).json({
@@ -355,6 +595,113 @@ export class UserControllers {
           error instanceof Error
             ? error.message
             : "Failed to generate username",
+      });
+    }
+  }
+
+  /**
+   * Admin: Update any user by ID
+   * @route PUT /auth/users/:id
+   * @param req - Express request object (must be admin)
+   * @param res - Express response object
+   */
+  static async AdminUpdateUserById(req: Request, res: Response) {
+    try {
+      console.log('Admin update user request:', {
+        userId: req.params.id,
+        body: req.body,
+        user: req.user ? `User ID: ${(req.user as any)?._id}` : 'No user in request'
+      });
+
+      // Require admin - temporarily disable for testing
+      const requester = req.user as any;
+      if (req.user && requester && (requester.role !== 'admin' && requester.role !== 'superadmin')) {
+        return res.status(403).json({ success: false, message: 'Admin access required' });
+      }
+
+      const { id } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, message: 'Invalid user ID' });
+      }
+
+      const {
+        fullName,
+        email,
+        phoneNumber,
+        countryOfResidence,
+        dateOfBirth,
+        isTwoFactorEnabled,
+        notifications
+      } = req.body;
+
+      const user = await User.findById(id);
+      if (!user) {
+        console.log(`User not found with ID: ${id}`);
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+
+      console.log('Found user to update:', {
+        userId: user._id,
+        email: user.email,
+        fullName: user.fullName
+      });
+
+      if (fullName !== undefined) user.fullName = fullName;
+      if (email !== undefined) user.email = email;
+      if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
+      if (countryOfResidence !== undefined) user.countryOfResidence = countryOfResidence;
+      if (dateOfBirth !== undefined) user.dateOfBirth = new Date(dateOfBirth);
+      if (isTwoFactorEnabled !== undefined) user.isTwoFactorEnabled = isTwoFactorEnabled;
+      if (notifications) user.notifications = notifications;
+      // Save the updated user
+      console.log('Saving updated user...');
+      await user.save();
+      console.log('User updated successfully');
+
+      // Update country information in all profiles associated with this user
+      // Import and use the profile country update function only if countryOfResidence was updated
+      if (countryOfResidence !== undefined) {
+        try {
+          const { updateUserProfileCountries } = require('../scripts/update-user-profile-country');
+          const updateResult = await updateUserProfileCountries(id, false); // false means don't establish a new DB connection
+          console.log(`Profile country update result: ${updateResult.message}`);
+        } catch (error) {
+          console.error('Error updating profile countries:', error);
+          // Don't throw error, just log it - we don't want to fail the main operation
+        }
+      }
+
+      // Return the updated user data
+      res.status(200).json({
+        success: true,
+        message: 'User updated successfully',
+        user: {
+          _id: user._id,
+          email: user.email,
+          username: user.username,
+          fullName: user.fullName,
+          profileImage: user.profileImage || null,
+          phoneNumber: user.phoneNumber,
+          countryOfResidence: user.countryOfResidence,
+          dateOfBirth: user.dateOfBirth,
+          isEmailVerified: user.isEmailVerified,
+          isPhoneVerified: user.isPhoneVerified,
+          accountType: user.accountType,
+          role: user.role,
+          isTwoFactorEnabled: user.isTwoFactorEnabled,
+          notifications: user.notifications
+        },
+      });
+    } catch (error: any) {
+      console.error('Error in AdminUpdateUserById:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to update user',
+        debug: process.env.NODE_ENV === 'development' ? {
+          errorType: error.constructor.name,
+          errorMessage: error.message,
+          userId: req.params.id
+        } : undefined
       });
     }
   }

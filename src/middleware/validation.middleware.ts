@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema } from 'zod';
+import { validationResult } from 'express-validator';
 import { logger } from '../utils/logger';
 
 /**
@@ -45,4 +46,32 @@ export const validateRequest = (schema: ZodSchema) => {
       });
     }
   };
+};
+
+/**
+ * Middleware to handle express-validator validation errors
+ */
+export const handleValidationErrors = (req: Request, res: Response, next: NextFunction) => {
+  const errors = validationResult(req);
+
+  if (!errors.isEmpty()) {
+    const formattedErrors = errors.array().map(error => ({
+      path: error.type === 'field' ? error.path : 'unknown',
+      message: error.msg
+    }));
+
+    logger.warn(`Validation failed for ${req.path}:`, formattedErrors);
+
+    const errorMessage = formattedErrors.length === 1
+      ? `Validation failed: ${formattedErrors[0].message}`
+      : `Validation failed: ${formattedErrors.length} errors found`;
+
+    return res.status(400).json({
+      success: false,
+      message: errorMessage,
+      errors: formattedErrors
+    });
+  }
+
+  next();
 };

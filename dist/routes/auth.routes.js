@@ -14,8 +14,8 @@ const logger_1 = require("../utils/logger");
 const email_service_1 = __importDefault(require("../services/email.service"));
 const whatsapp_service_1 = __importDefault(require("../services/whatsapp.service"));
 const User_1 = require("../models/User");
-// Import the JavaScript version of the controller
-const { AuthUpdateController } = require("../controllers/auth.update.controller");
+// Import the TypeScript version of the controller
+const auth_update_controller_1 = require("../controllers/auth.update.controller");
 const router = express_1.default.Router();
 // API Documentation endpoint
 router.get("/", (req, res) => {
@@ -24,6 +24,21 @@ router.get("/", (req, res) => {
 // Health check endpoint
 router.get("/healthcheck", (req, res) => {
     res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+// Verify authentication status
+router.get("/verify", authMiddleware_1.authenticateToken, (req, res) => {
+    // If we get here, the user is authenticated
+    const user = req.user;
+    res.status(200).json({
+        success: true,
+        isAuthenticated: true,
+        user: {
+            _id: user._id,
+            email: user.email,
+            role: user.role || (user._doc ? user._doc.role : null),
+            isAdmin: user.role === 'admin' || (user._doc && user._doc.role === 'admin')
+        }
+    });
 });
 //Rate limiting configuration
 const authLimiter = (0, express_rate_limit_1.default)({
@@ -44,6 +59,8 @@ router.post("/trouble-login", auth_controller_1.AuthController.troubleLogin);
 router.get("/sessions", authMiddleware_1.authenticateToken, auth_controller_1.AuthController.getSessions);
 router.post("/forgot-password", auth_controller_1.AuthController.forgotPassword);
 router.post("/reset-password", auth_controller_1.AuthController.resetPassword);
+// Remove the broken reference to AuthController.verifyToken and implement /verify here
+router.post("/verify", auth_controller_1.AuthController.verifyToken);
 // User validation endpoints
 router.get("/check-email/:email", auth_controller_1.AuthController.checkEmail);
 router.get("/check-username/:username", auth_controller_1.AuthController.checkUsername);
@@ -99,7 +116,11 @@ router.get("/user/info", (req, res) => {
                     linkedinId: user.linkedinId,
                     signupType: user.signupType,
                     isEmailVerified: user.isEmailVerified,
-                    profileImage: user.profileImage
+                    profileImage: user.profileImage,
+                    phoneNumber: user.phoneNumber,
+                    countryOfResidence: user.countryOfResidence,
+                    dateOfBirth: user.dateOfBirth,
+                    isProfileComplete: user.isProfileComplete
                 }
             });
         })
@@ -117,6 +138,8 @@ router.get("/user/info", (req, res) => {
 router.post("/verify-otp", auth_controller_1.AuthController.verifyOTP);
 router.post("/resend-otp", auth_controller_1.AuthController.resendOTP);
 router.post("/select-otp-method", auth_controller_1.AuthController.selectOTPMethod);
+// Change identifier endpoint (requires authentication)
+router.post("/change-identifier", auth_controller_1.AuthController.changeIdentifier);
 // Email verification
 router.post("/verify-email", auth_controller_1.AuthController.verifyEmail);
 router.post("/resend-verification", auth_controller_1.AuthController.resendVerification);
@@ -359,5 +382,5 @@ router.post("/change-email", auth_controller_1.AuthController.changeEmail);
 router.post("/change-phone", auth_controller_1.AuthController.changePhoneNumber);
 router.post("/change-username", auth_controller_1.AuthController.changeUsername);
 // Update profile information
-router.post("/update-profile", authMiddleware_1.authenticateToken, AuthUpdateController.updateProfile);
+router.post("/update-profile", authMiddleware_1.authenticateToken, auth_update_controller_1.AuthUpdateController.updateProfile);
 exports.default = router;

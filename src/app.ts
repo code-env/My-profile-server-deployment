@@ -71,10 +71,12 @@ import { validateEnv } from "./utils/env-validator";
 import WhatsAppService from "./services/whatsapp.service";
 import { initializeMyPtsHub } from "./startup/initialize-my-pts-hub";
 import { initializeProfileTemplates } from "./startup/initialize-profile-templates";
+import { initializeGradientUpdates } from "./startup/initialize-gradient-updates";
 import { advancedTrackingMiddleware } from "./middleware/advanced-tracking.middleware";
 import { scheduleTokenCleanup } from "./jobs/cleanupTokens";
 import { scheduleScalableTokenCleanup } from "./jobs/scalableTokenCleanup";
 import { scheduleReminderProcessing } from "./jobs/reminderScheduler";
+import { scheduleLeaderboardUpdate, runImmediateLeaderboardUpdate } from "./jobs/updateLeaderboard";
 // Import passport configuration
 import "./config/passport";
 import { configureCookiesMiddleware } from "./middleware/cookie-config.middleware";
@@ -489,9 +491,16 @@ export class AppServer {
       // Initialize MyPts Hub service
       await initializeMyPtsHub();
 
+      // Initialize gradient updates scheduler
+      await initializeGradientUpdates();
+
       // Initialize admin settings
       const { initializeDefaultSettings } = require('./models/admin-settings.model');
       await initializeDefaultSettings();
+
+      // Initialize leaderboard and schedule updates
+      await runImmediateLeaderboardUpdate();
+      scheduleLeaderboardUpdate();
 
       // Schedule token cleanup job
       // Use scalable token cleanup for large user bases (1M+ users)

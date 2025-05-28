@@ -12,115 +12,199 @@ class ConnectionService {
   private static analyticsService = new AnalyticsService();
   private static connectionAnalytics = new ConnectionAnalyticsService();
 
-  static async createConnection(
+  // static async createConnection(
+  //   fromUserId: any,
+  //   toProfileId: string,
+  //   connectionType: string,
+  //   details: {
+  //     message?: string;
+  //     amount?: number;
+  //     employmentDetails?: {
+  //       position?: string;
+  //       company?: string;
+  //       salary?: string;
+  //       startDate?: Date;
+  //     };
+  //     metadata?: Record<string, any>;
+  //     source?: 'qr' | 'link' | 'direct';
+  //   }
+  // ) {
+  //   console.log('Entering createConnection with params:', { fromUserId, toProfileId, connectionType, details });
+  //   try {
+  //     const profile = await ProfileModel.findById(toProfileId);
+  //     if (!profile) {
+  //       throw new Error('Profile not found');
+  //     }
+
+  //     // Check if connection is allowed based on profile preferences
+  //     if (!this.isConnectionAllowed(profile, connectionType)) {
+  //       throw new Error(`This profile does not accept ${connectionType} connections`);
+  //     }
+
+  //     // Validate donation amount if applicable
+  //     // if (connectionType === 'donation' &&
+  //     //     profile.connectionPreferences.minimumDonation &&
+  //     //     (!details.amount || details.amount < profile.connectionPreferences.minimumDonation)) {
+  //     //   throw new Error(`Minimum donation amount is ${profile.connectionPreferences.minimumDonation}`);
+  //     // }
+
+  //     // Check for existing connection
+  //     const existingConnection = await Connection.findOne({
+  //       fromUser: fromUserId,
+  //       toProfile: toProfileId,
+  //       connectionType,
+  //       status: { $in: ['pending', 'accepted'] },
+  //     });
+
+  //     if (existingConnection) {
+  //       throw new Error('Connection already exists');
+  //     }
+
+  //     // Determine if connection should be auto-accepted
+  //     const shouldAutoAccept = this.shouldAutoAcceptConnection(profile, details.source, connectionType);
+
+  //     // Create new connection
+  //     const connection = await Connection.create({
+  //       fromUser: fromUserId,
+  //       toProfile: toProfileId,
+  //       connectionType,
+  //       status: shouldAutoAccept ? 'accepted' : 'pending',
+  //       message: details.message,
+  //       amount: details.amount,
+  //       employmentDetails: details.employmentDetails,
+  //       metadata: {
+  //         ...details.metadata,
+  //         source: details.source
+  //       },
+  //     });
+
+  //     // If connection is automatically accepted, update profile stats and connections
+  //     if (shouldAutoAccept) {
+  //       await this.updateProfileConnections(toProfileId, fromUserId, connectionType, 'add');
+
+  //       // Track the engagement
+  //       await this.analyticsService.trackEngagement(
+  //         toProfileId,
+  //         profile.profileInformation.creator.toString(),
+  //         fromUserId,
+  //         'connect',
+  //         { connectionType, source: details.source }
+  //       );
+
+  //       // Send notification for auto-accepted connection
+  //       await this.notificationService.createNotification({
+  //         type: 'CONNECTION_ACCEPTED',
+  //         recipient: fromUserId,
+  //         sender: profile.profileInformation.creator instanceof mongoose.Types.ObjectId ? profile.profileInformation.creator : new mongoose.Types.ObjectId(profile.profileInformation.creator),
+  //         reference: {
+  //           type: 'connection',
+  //           id: connection._id
+  //         },
+  //         metadata: {
+  //           connectionType,
+  //           profileName: profile.profileInformation.username,
+  //           source: details.source
+  //         }
+  //       });
+  //     } else {
+  //       // Send connection request notification
+  //       await this.notificationService.createNotification({
+  //         type: 'CONNECTION_REQUEST',
+  //         recipient: profile.profileInformation.creator,
+  //         sender: new mongoose.Types.ObjectId(fromUserId),
+  //         reference: {
+  //           type: 'connection',
+  //           id: connection._id
+  //         },
+  //         metadata: {
+  //           connectionType,
+  //           message: details.message,
+  //           source: details.source
+  //         }
+  //       });
+  //     }
+
+  //     return connection;
+  //   } catch (error) {
+  //     logger.error('Error in createConnection:', error);
+  //     throw error;
+  //   }
+  // }
+
+   static async createConnection(
     fromUserId: any,
+    fromProfileId: string,
     toProfileId: string,
-    connectionType: string,
+    connectionType: 'follow' | 'connect',
     details: {
-      message?: string;
-      amount?: number;
-      employmentDetails?: {
-        position?: string;
-        company?: string;
-        salary?: string;
-        startDate?: Date;
-      };
+      connectionReason?: string;
+      exchangeInformationfor?: string;
       metadata?: Record<string, any>;
-      source?: 'qr' | 'link' | 'direct';
+      source?: 'qrcode' | 'link' | 'direct';
     }
   ) {
-    console.log('Entering createConnection with params:', { fromUserId, toProfileId, connectionType, details });
+    console.log('Entering createConnection with params:', { fromUserId, fromProfileId, toProfileId, connectionType, details });
     try {
-      const profile = await ProfileModel.findById(toProfileId);
-      if (!profile) {
-        throw new Error('Profile not found');
-      }
+      const fromProfile = await ProfileModel.findById(fromProfileId);
+      const toProfile = await ProfileModel.findById(toProfileId);
 
-      // Check if connection is allowed based on profile preferences
-      if (!this.isConnectionAllowed(profile, connectionType)) {
+      if (!fromProfile) throw new Error('From profile not found');
+      if (!toProfile) throw new Error('To profile not found');
+
+      if (!this.isConnectionAllowed(toProfile, connectionType)) {
         throw new Error(`This profile does not accept ${connectionType} connections`);
       }
 
-      // Validate donation amount if applicable
-      // if (connectionType === 'donation' &&
-      //     profile.connectionPreferences.minimumDonation &&
-      //     (!details.amount || details.amount < profile.connectionPreferences.minimumDonation)) {
-      //   throw new Error(`Minimum donation amount is ${profile.connectionPreferences.minimumDonation}`);
-      // }
-
-      // Check for existing connection
       const existingConnection = await Connection.findOne({
         fromUser: fromUserId,
+        fromProfile: fromProfileId,
         toProfile: toProfileId,
         connectionType,
         status: { $in: ['pending', 'accepted'] },
       });
 
-      if (existingConnection) {
-        throw new Error('Connection already exists');
-      }
+      if (existingConnection) throw new Error('Connection already exists');
+// affiliated profile types
+      const affiliationTypes = ['group', 'team', 'family', 'neighborhood', 'company', 'business', 'association', 'organization', 'institution', 'community'];
+      const connectionCategory = affiliationTypes.includes(fromProfile.profileType) || affiliationTypes.includes(toProfile.profileType) ? 'affiliation' : 'connection';
 
-      // Determine if connection should be auto-accepted
-      const shouldAutoAccept = this.shouldAutoAcceptConnection(profile, details.source, connectionType);
+      const shouldAutoAccept = this.shouldAutoAcceptConnection(toProfile, details.source, connectionType);
 
-      // Create new connection
       const connection = await Connection.create({
         fromUser: fromUserId,
+        fromProfile: fromProfileId,
         toProfile: toProfileId,
         connectionType,
+        connectionCategory,
         status: shouldAutoAccept ? 'accepted' : 'pending',
-        message: details.message,
-        amount: details.amount,
-        employmentDetails: details.employmentDetails,
-        metadata: {
-          ...details.metadata,
-          source: details.source
-        },
+        connectionReason: details.connectionReason,
+        exchangeInformationfor: details.exchangeInformationfor,
+        metadata: { ...details.metadata, source: details.source },
+        source: details.source,
       });
 
-      // If connection is automatically accepted, update profile stats and connections
       if (shouldAutoAccept) {
-        await this.updateProfileConnections(toProfileId, fromUserId, connectionType, 'add');
+        // await this.updateProfileConnections(toProfileId, fromUserId, connectionType, 'add');
+        await this.analyticsService.trackEngagement(toProfileId, toProfile.profileInformation.creator.toString(), fromUserId, 'connect', { connectionType, source: details.source });
 
-        // Track the engagement
-        await this.analyticsService.trackEngagement(
-          toProfileId,
-          profile.profileInformation.creator.toString(),
-          fromUserId,
-          'connect',
-          { connectionType, source: details.source }
-        );
-
-        // Send notification for auto-accepted connection
         await this.notificationService.createNotification({
-          type: 'CONNECTION_ACCEPTED',
+          type: 'connection_accepted',
+          message:"new connection accepted",
+          title: 'Connection Accepted',
           recipient: fromUserId,
-          sender: profile.profileInformation.creator instanceof mongoose.Types.ObjectId ? profile.profileInformation.creator : new mongoose.Types.ObjectId(profile.profileInformation.creator),
-          reference: {
-            type: 'connection',
-            id: connection._id
-          },
-          metadata: {
-            connectionType,
-            profileName: profile.profileInformation.username,
-            source: details.source
-          }
+          sender: new mongoose.Types.ObjectId(toProfile.profileInformation.creator),
+          reference: { type: 'connection', id: connection._id },
+          metadata: { connectionType, profileName: toProfile.profileInformation.username, source: details.source },
         });
       } else {
-        // Send connection request notification
         await this.notificationService.createNotification({
-          type: 'CONNECTION_REQUEST',
-          recipient: profile.profileInformation.creator,
+          type: 'connection_request',
+          message: details.connectionReason || 'You have a new connection request',
+          title: 'Connection Request',
+          recipient: toProfile.profileInformation.creator,
           sender: new mongoose.Types.ObjectId(fromUserId),
-          reference: {
-            type: 'connection',
-            id: connection._id
-          },
-          metadata: {
-            connectionType,
-            message: details.message,
-            source: details.source
-          }
+          reference: { type: 'connection', id: connection._id },
+          metadata: { connectionType, connectionReason: details.connectionReason, source: details.source },
         });
       }
 
@@ -131,7 +215,9 @@ class ConnectionService {
     }
   }
 
-  static async updateConnectionStatus(connectionId: string, status: 'accepted' | 'rejected') {
+
+
+  static async updateConnectionStatus(connectionId: string, status: 'accepted' | 'rejected' | 'disconnect' | 'unfollow' | 'unaffiliate' ) {
     console.log('Entering updateConnectionStatus with params:', { connectionId, status });
     try {
       const connection = await Connection.findById(connectionId);
@@ -158,6 +244,7 @@ class ConnectionService {
           connection.toProfile.toString(),
           connection.fromUser.toString(),
           connection.connectionType,
+          
           'remove'
         );
       }
@@ -169,23 +256,33 @@ class ConnectionService {
     }
   }
 
-  static async getProfileConnections(profileId: string, status?: string) {
-    console.log('Entering getProfileConnections with params:', { profileId, status });
-    try {
-      const query: any = { toProfile: profileId };
-      if (status) {
-        query.status = status;
-      }
+static async getProfileConnections(
+  profileId: string,
+  status?: string,
+  connectionCategory?: 'affiliation' | 'connection'
+) {
+  console.log('Entering getProfileConnections with params:', { profileId, status, connectionCategory });
+  try {
+    const query: any = { toProfile: profileId };
 
-      return await Connection.find(query)
-        .populate('fromUser', 'firstName lastName email profileImage')
-        .sort({ createdAt: -1 });
-    } catch (error) {
-      console.error('Error in getProfileConnections:', error);
-      logger.error('Get profile connections error:', error);
-      throw error;
+    if (status) {
+      query.status = status;
     }
+
+    // Add connectionCategory filter if provided
+    if (connectionCategory) {
+      query.connectionCategory = connectionCategory;
+    }
+
+    return await Connection.find(query)
+      .populate('fromUser', 'firstName lastName email profileImage')
+      .sort({ createdAt: -1 });
+  } catch (error) {
+    console.error('Error in getProfileConnections:', error);
+    logger.error('Get profile connections error:', error);
+    throw error;
   }
+}
 
   static async getUserConnections(userId: string, status?: string) {
     console.log('Entering getUserConnections with params:', { userId, status });
@@ -378,84 +475,68 @@ class ConnectionService {
   }
 
   private static async updateProfileConnections(
-    profileId: string,
-    userId: string,
+    fromprofileId: string,
+    telegramomprofileId: string,
     connectionType: string,
     operation: 'add' | 'remove'
   ) {
-    const profile:any = await ProfileModel.findById(profileId);
-    if (!profile) throw new Error('Profile not found');
+    const fProfile:any = await ProfileModel.findById(fromprofileId);
+    const tProfile:any = await ProfileModel.findById(telegramomprofileId);
+    if (!fProfile || !tProfile) throw new Error('Profile not found');
 
     const updateOperations: any = {};
 
     // Update arrays based on operation
     if (operation === 'add') {
       // Add to appropriate arrays if not already present
-      if (!profile.connections.connected.includes(userId)) {
-        updateOperations.$push = {
-          'connections.connected': userId,
-          'connections.lastConnections': {
-            user: userId,
-            connectionType,
-            connectedAt: new Date()
-          }
-        };
+      
+      fProfile.analytics.Circles.connections = fProfile.analytics.Circles.connections + 1;
+      tProfile.analytics.Circles.connections = tProfile.analytics.Circles.connections + 1;
+      await fProfile.save();
+      await tProfile.save();
+
+      // Update specific connection type counts
+      if (connectionType === 'follow') {  
+      fProfile.analytics.Circles.following = fProfile.analytics.Circles.following + 1;
+      tProfile.analytics.Circles.followers = tProfile.analytics.Circles.followers + 1;
+      await tProfile.save();
       }
+      if (connectionType === 'affiliation'){
+        fProfile.analytics.Circles.affiliations = fProfile.analytics.Circles.affiliations + 1;
+        await tProfile.save();
+      }
+
+    }else if (operation === 'remove') {
+      // Remove from appropriate arrays
+      fProfile.analytics.Circles.connections = fProfile.analytics.Circles.connections - 1;
+      tProfile.analytics.Circles.connections = tProfile.analytics.Circles.connections - 1;
+      await fProfile.save();
+      await tProfile.save();
 
       // Update specific connection type counts
       if (connectionType === 'follow') {
-        updateOperations.$inc = { 'stats.followers': 1 };
-        updateOperations.$push = {
-          ...updateOperations.$push,
-          'connections.followers': userId
-        };
-      }
-    } else {
-      // Remove from arrays
-      updateOperations.$pull = {
-        'connections.connected': userId,
-        'connections.followers': userId,
-        'connections.following': userId
-      };
-
-      // Update specific connection type counts
-      if (connectionType === 'follow') {
-        updateOperations.$inc = { 'stats.followers': -1 };
+        fProfile.analytics.Circles.following = fProfile.analytics.Circles.following - 1;
+        tProfile.analytics.Circles.followers = tProfile.analytics.Circles.followers - 1;
+        await tProfile.save();
       }
     }
 
-    // Limit lastConnections array to last 10 connections
-    updateOperations.$push = {
-      ...updateOperations.$push,
-      'connections.lastConnections': { $each: [], $slice: -10 }
-    };
 
-    await ProfileModel.updateOne(
-      { _id: profileId },
-      updateOperations
-    );
+
+
   }
+
 
   private static shouldAutoAcceptConnection(
     profile: any,
-    source?: 'qr' | 'link' | 'direct',
+    source?: 'qrcode' | 'link' | 'direct',
     connectionType?: string
   ): boolean {
-    const { connectionPreferences } = profile;
+    const { privacySettings } = profile;
+    if (!privacySettings) return false;
 
-    // If profile has automatic approval setting
-    if (connectionPreferences.connectionApproval === 'automatic') {
-      return true;
-    }
-
-    // Auto-accept connections from QR codes and connect links if verification isn't required
-    if (connectionPreferences.connectionApproval !== 'verified-only' &&
-        (source === 'qr' || source === 'link')) {
-      return true;
-    }
-
-    // Auto-accept followers if allowed
-    if (connectionType === 'follow' && connectionPreferences.allowFollowers) {
+    // If profile has automatic approval setting or connection type is from qrcode or from link,a automatically accept the request on behalf of the user
+    if (privacySettings.connectionType === 'direct' || source  === 'qrcode' || source === 'link'|| privacySettings.connectionType === 'follow' || connectionType === 'connection') {
       return true;
     }
 

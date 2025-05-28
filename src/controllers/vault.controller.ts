@@ -1,10 +1,8 @@
-import { Request, Response } from 'express';
-import vaultService from '../services/vault.service';
+import { vaultService } from '../services/vault.service';
 import { Types } from 'mongoose';
-import { IUser } from '../models/User';
-import createHttpError from 'http-errors';
 import asyncHandler from 'express-async-handler';
-import HttpError from 'http-errors';
+import { Request, Response } from 'express';
+import createHttpError from 'http-errors';
 
 
 interface ItemFilters {

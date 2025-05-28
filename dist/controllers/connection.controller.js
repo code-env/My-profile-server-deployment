@@ -17,16 +17,16 @@ class ConnectionController {
     static async createConnectionRequest(req, res) {
         try {
             const user = req.user;
-            const { toProfileId, connectionType, details } = req.body;
+            const { fromProfileId, toProfileId, connectionType, details = {} } = req.body;
             const fromUserId = user === null || user === void 0 ? void 0 : user._id;
             if (!fromUserId) {
-                throw new errors_1.CustomError("MISSING_TOKEN", 'User not authenticated');
+                throw new errors_1.CustomError('MISSING_TOKEN', 'User not authenticated');
             }
-            const connection = await connection_service_1.default.createConnection(fromUserId, toProfileId, connectionType, details);
-            res.status(201).json({
-                success: true,
-                data: connection
-            });
+            if (!fromProfileId) {
+                throw new errors_1.CustomError('MISSING_PARAM', 'fromProfileId is required');
+            }
+            const connection = await connection_service_1.default.createConnection(fromUserId, fromProfileId, toProfileId, connectionType, details);
+            res.status(201).json({ success: true, data: connection });
         }
         catch (error) {
             logger_1.logger.error('Error in createConnectionRequest:', error);
@@ -50,6 +50,15 @@ class ConnectionController {
                 throw new errors_1.CustomError("MISSING_TOKEN", 'User not authenticated');
             }
             const connection = await connection_service_1.default.updateConnectionStatus(connectionId, status);
+            // TODO: use the actual profile id here, not the user id and then emit the event
+            // if (status === 'accepted') {
+            //   await emitSocialInteraction(userId, {
+            //     type: 'connection',
+            //     profile: new Types.ObjectId(userId),
+            //     targetProfile: new Types.ObjectId(connection.toProfile),
+            //     contentId: connection._id as Types.ObjectId,
+            //   });
+            // }
             res.json({
                 success: true,
                 data: connection
@@ -322,14 +331,17 @@ class ConnectionController {
     static async connectViaQR(req, res) {
         try {
             const user = req.user;
-            const { profileId } = req.params;
-            const { connectionType = 'follow' } = req.body;
-            const userId = user === null || user === void 0 ? void 0 : user._id;
-            if (!userId) {
+            const { profileId: toProfileId } = req.params;
+            const { fromProfileId, connectionType = 'follow' } = req.body;
+            const fromUserId = user === null || user === void 0 ? void 0 : user._id;
+            if (!fromUserId) {
                 throw new errors_1.CustomError('MISSING_TOKEN', 'User not authenticated');
             }
-            const connection = await connection_service_1.default.createConnection(userId, profileId, connectionType, {
-                source: 'qr',
+            if (!fromProfileId) {
+                throw new errors_1.CustomError('MISSING_PARAM', 'fromProfileId is required');
+            }
+            const connection = await connection_service_1.default.createConnection(fromUserId, fromProfileId, toProfileId, connectionType, {
+                source: 'qrcode',
                 metadata: {
                     scannedAt: new Date(),
                     userAgent: req.headers['user-agent']
@@ -345,9 +357,9 @@ class ConnectionController {
         }
         catch (error) {
             logger_1.logger.error('Error in connectViaQR:', error);
-            res.status(error instanceof errors_1.CustomError ? 400 : 500).json({
+            res.status(error.statusCode || 500).json({
                 success: false,
-                message: error instanceof Error ? error.message : 'Failed to connect via QR'
+                message: error.message || 'Failed to connect via QR'
             });
         }
     }
@@ -358,13 +370,16 @@ class ConnectionController {
     static async connectViaLink(req, res) {
         try {
             const user = req.user;
-            const { profileId } = req.params;
-            const { connectionType = 'follow' } = req.body;
-            const userId = user === null || user === void 0 ? void 0 : user._id;
-            if (!userId) {
+            const { profileId: toProfileId } = req.params;
+            const { fromProfileId, connectionType = 'follow' } = req.body;
+            const fromUserId = user === null || user === void 0 ? void 0 : user._id;
+            if (!fromUserId) {
                 throw new errors_1.CustomError('MISSING_TOKEN', 'User not authenticated');
             }
-            const connection = await connection_service_1.default.createConnection(userId, profileId, connectionType, {
+            if (!fromProfileId) {
+                throw new errors_1.CustomError('MISSING_PARAM', 'fromProfileId is required');
+            }
+            const connection = await connection_service_1.default.createConnection(fromUserId, fromProfileId, toProfileId, connectionType, {
                 source: 'link',
                 metadata: {
                     clickedAt: new Date(),
@@ -382,9 +397,9 @@ class ConnectionController {
         }
         catch (error) {
             logger_1.logger.error('Error in connectViaLink:', error);
-            res.status(error instanceof errors_1.CustomError ? 400 : 500).json({
+            res.status(error.statusCode || 500).json({
                 success: false,
-                message: error instanceof Error ? error.message : 'Failed to connect via link'
+                message: error.message || 'Failed to connect via link'
             });
         }
     }
@@ -395,13 +410,16 @@ class ConnectionController {
     static async requestConnection(req, res) {
         try {
             const user = req.user;
-            const { toProfileId, connectionType, message, metadata } = req.body;
-            const userId = user === null || user === void 0 ? void 0 : user._id;
-            if (!userId) {
+            const { fromProfileId, toProfileId, connectionType, message, metadata } = req.body;
+            const fromUserId = user === null || user === void 0 ? void 0 : user._id;
+            if (!fromUserId) {
                 throw new errors_1.CustomError('MISSING_TOKEN', 'User not authenticated');
             }
-            const connection = await connection_service_1.default.createConnection(userId, toProfileId, connectionType, {
-                message,
+            if (!fromProfileId) {
+                throw new errors_1.CustomError('MISSING_PARAM', 'fromProfileId is required');
+            }
+            const connection = await connection_service_1.default.createConnection(fromUserId, fromProfileId, toProfileId, connectionType, {
+                connectionReason: message,
                 metadata,
                 source: 'direct'
             });
@@ -415,9 +433,9 @@ class ConnectionController {
         }
         catch (error) {
             logger_1.logger.error('Error in requestConnection:', error);
-            res.status(error instanceof errors_1.CustomError ? 400 : 500).json({
+            res.status(error.statusCode || 500).json({
                 success: false,
-                message: error instanceof Error ? error.message : 'Failed to send connection request'
+                message: error.message || 'Failed to send connection request'
             });
         }
     }

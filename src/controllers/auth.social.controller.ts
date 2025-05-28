@@ -294,7 +294,27 @@ export class SocialAuthController {
           // Create a new user
           const username = await SocialAuthController.generateUniqueUsername(profile.name || profile.email.split('@')[0]);
 
+          // Check URL for referral code
+          let referralCode = '';
+          try {
+            const url = new URL(req.url || '', `http://${req.headers.host}`);
+            referralCode = url.searchParams.get('ref') || '';
+            logger.info(`Found referral code in URL: ${referralCode}`);
+
+            // Also check for referral code in state parameter
+            if (!referralCode && state && state.includes('ref=')) {
+              const refMatch = state.match(/ref=([^&]+)/);
+              if (refMatch && refMatch[1]) {
+                referralCode = refMatch[1];
+                logger.info(`Found referral code in state parameter: ${referralCode}`);
+              }
+            }
+          } catch (urlError) {
+            logger.error('Error extracting referral code from URL:', urlError);
+          }
+
           // Create a new user with required fields
+          logger.info(`Creating new user with referral code: ${referralCode}`);
           user = new User({
             googleId: profile.id,
             email: profile.email,
@@ -303,14 +323,18 @@ export class SocialAuthController {
             signupType: 'google',
             isEmailVerified: true,
             profileImage: profile.picture,
+            // Store referral code temporarily for profile creation
+            // We use tempReferralCode to avoid conflicts with existing codes
+            tempReferralCode: referralCode || undefined,
             // Set these fields to undefined to avoid validation errors
             // They will be collected in the complete-profile page
             dateOfBirth: undefined,
             countryOfResidence: undefined,
-            phoneNumber: '', // Empty phone number
+            phoneNumber: undefined, // Will be collected in profile completion
             accountType: 'MYSELF', // Default account type
             accountCategory: 'PRIMARY_ACCOUNT', // Default account category
             verificationMethod: 'EMAIL', // Default verification method
+            isProfileComplete: false, // Social auth users need to complete their profile
             password: await SocialAuthController.generateRandomPassword() // Generate a random password
           });
 
@@ -321,7 +345,7 @@ export class SocialAuthController {
           try {
             const { ProfileService } = require('../services/profile.service');
             const profileService = new ProfileService();
-            const profile = await profileService.createDefaultProfile(user._id.toString());
+            const profile = await profileService.createDefaultProfile(user._id.toString(), user);
             logger.info(`Default profile created for new Google user ${user._id}: ${profile._id}`);
 
             // Update user with profile ID
@@ -342,7 +366,7 @@ export class SocialAuthController {
           profileId: user.profileId || user.profiles?.[0]?.toString() // Include profile ID in token
         },
         process.env.JWT_SECRET || 'your-secret-key',
-        { expiresIn: '1h' }
+        { expiresIn: '4h' } // Extended from 1h to 4h for better user experience
       );
 
       const refreshToken = jwt.sign(
@@ -353,7 +377,7 @@ export class SocialAuthController {
           type: 'refresh'
         },
         process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
-        { expiresIn: '7d' }
+        { expiresIn: '30d' } // Extended from 7d to 30d for consistency with other refresh tokens
       );
 
       // Store refresh token
@@ -367,14 +391,14 @@ export class SocialAuthController {
       res.cookie('accessToken', accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 1000, // 1 hour
+        maxAge: 4 * 60 * 60 * 1000, // 4 hours (extended from 1 hour)
         path: '/',
       });
 
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days (extended from 7 days)
         path: '/',
       });
 
@@ -514,8 +538,10 @@ export class SocialAuthController {
           signupType: user.signupType,
           isEmailVerified: user.isEmailVerified,
           profileImage: user.profileImage,
+          phoneNumber: user.phoneNumber, // Include phone number
           dateOfBirth: user.dateOfBirth, // Include date of birth
           countryOfResidence: user.countryOfResidence, // Include country of residence
+          isProfileComplete: user.isProfileComplete, // Include profile completion status
           profileId: profileId, // Include profile ID in response
           profiles: user.profiles ? user.profiles.map(p => p.toString()) : [] // Include all profiles
         }

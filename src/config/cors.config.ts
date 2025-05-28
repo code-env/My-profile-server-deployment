@@ -14,12 +14,14 @@ export const whitelistOrigins = [
   'http://127.0.0.1:5173',
   'http://localhost:42133',
   'http://127.0.0.1:42133',
+  'https://solid-trout-6jqrj4gpgrqfrv6x-3000.app.github.dev',
 
   // Production domains
   "https://my-pts-dashboard-management.vercel.app",
   "https://my-profile-web-olive.vercel.app",
   "https://new-backend-chat-system.onrender.com",
   "https://my-profile-server-api.onrender.com",
+  "https://my-pts.vercel.app",
 
   // Environment variables
   process.env.CLIENT_URL,

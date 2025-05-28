@@ -18,8 +18,8 @@ router.get('/tree', protect, attachProfile, ProfileReferralController.getReferra
 router.get('/share-link', protect, attachProfile, ProfileReferralController.getShareableLink);
 router.post('/initialize', protect, attachProfile, ProfileReferralController.initializeReferralCode);
 
-// Public routes with optional authentication
-router.get('/leaderboard', (req, res, next) => {
+// Helper function for optional authentication
+const optionalAuth = (req: any, res: any, next: any) => {
   // Try to authenticate but continue even if it fails
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -39,7 +39,11 @@ router.get('/leaderboard', (req, res, next) => {
     // No auth header, just continue
     next();
   }
-}, ProfileReferralController.getReferralLeaderboard);
+};
+
+// Public routes with optional authentication
+router.get('/leaderboard', optionalAuth, ProfileReferralController.getReferralLeaderboard);
+router.get('/top-earners', optionalAuth, ProfileReferralController.getTopEarnersLeaderboard);
 router.post('/validate', validateRequest(validateReferralCodeSchema), ProfileReferralController.validateReferralCode);
 
 export default router;

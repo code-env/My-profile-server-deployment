@@ -59,6 +59,10 @@ export const protect = async (
     const isAdminHeader = req.header('X-User-Is-Admin');
     const isAdminCookie = req.cookies['X-User-Is-Admin'];
 
+    // Log all headers for debugging
+    logger.debug(`Auth headers: ${JSON.stringify(req.headers)}`);
+    logger.debug(`Auth cookies: ${JSON.stringify(req.cookies)}`);
+
     // If admin role is indicated in headers or cookies, ensure it's set in the user object
     if (
       (adminRoleHeader === 'admin' || adminCookie === 'admin') ||
@@ -70,6 +74,15 @@ export const protect = async (
       } else {
         logger.warn(`Admin role requested but not found in database for user ${user._id}`);
       }
+    }
+
+    // Log the user's role for debugging
+    logger.debug(`User ${user._id} authenticated with role: ${user.role || 'none'}`);
+
+    // Ensure the user object has the role property from the database
+    if (!user.role && (user as any)._doc && (user as any)._doc.role) {
+      user.role = (user as any)._doc.role;
+      logger.debug(`Set user role from _doc: ${user.role}`);
     }
 
     req.user = user;

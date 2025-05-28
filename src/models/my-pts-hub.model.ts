@@ -69,13 +69,14 @@ export interface IMyPtsHubMethods {
 // Define MyPtsHub Document type
 export type MyPtsHubDocument = IMyPtsHub & Document & IMyPtsHubMethods;
 
+const totalSupply = 1000000000
 // Create the MyPtsHub schema
 const myPtsHubSchema = new Schema<IMyPtsHub>(
   {
     totalSupply: {
       type: Number,
       required: true,
-      default: 1000000000,  // 1 billion total supply
+      default: totalSupply,  // 1 billion total supply
       min: 0
     },
     circulatingSupply: {
@@ -87,13 +88,13 @@ const myPtsHubSchema = new Schema<IMyPtsHub>(
     reserveSupply: {
       type: Number,
       required: true,
-      default: 0,  // No MyPts in reserve initially
+      default: totalSupply * 0.05,  // No MyPts in reserve initially
       min: 0
     },
     holdingSupply: {
       type: Number,
       required: true,
-      default: 150000000,  // 15% of total supply in holding
+      default: totalSupply * 0.15 ,  // 15% of total supply in holding
       min: 0
     },
     maxSupply: {

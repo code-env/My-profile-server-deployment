@@ -57,6 +57,7 @@ const admin_notification_routes_1 = __importDefault(require("./admin-notificatio
 const index_1 = __importDefault(require("./admin/index"));
 const stripe_routes_1 = __importDefault(require("./stripe.routes"));
 const task_routes_1 = __importDefault(require("./task.routes"));
+const settings_routes_1 = __importDefault(require("./settings.routes"));
 const list_routes_1 = __importDefault(require("./list.routes"));
 const event_routes_1 = __importDefault(require("./event.routes"));
 const interaction_routes_1 = __importDefault(require("./interaction.routes"));
@@ -66,11 +67,19 @@ const notification_test_routes_1 = __importDefault(require("./notification-test.
 const user_device_routes_1 = __importDefault(require("./user-device.routes"));
 const profile_referral_routes_1 = __importDefault(require("./profile-referral.routes"));
 const presence_routes_1 = __importDefault(require("./presence.routes"));
+const gamification_routes_1 = __importDefault(require("./gamification.routes"));
+const analytics_dashboard_routes_1 = __importDefault(require("./analytics-dashboard.routes"));
+const sessions_routes_1 = __importDefault(require("./sessions.routes"));
+const message_profile_routes_1 = __importDefault(require("./message-profile.routes"));
+const scans_routes_1 = __importDefault(require("./scans.routes"));
+const nfc_routes_1 = __importDefault(require("./nfc.routes"));
+const vault_routes_1 = __importDefault(require("./vault.routes"));
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const test_routes_1 = require("./test.routes");
 const express_session_1 = __importDefault(require("express-session"));
 const passport_1 = __importDefault(require("passport"));
 const auth_social_routes_1 = __importDefault(require("./auth.social.routes"));
+const profile_full_routes_1 = __importDefault(require("./profile-full.routes"));
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -116,8 +125,14 @@ const setupRoutes = (app) => {
     app.use('/api/auth', auth_routes_1.default);
     app.use('/api/users', user_routes_1.default);
     app.use('/api/auth/social', auth_social_routes_1.default);
+    app.use('/api/profile-full', profile_full_routes_1.default);
+    // settings routes
+    app.use('/api/settings', auth_middleware_1.protect, settings_routes_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
+    app.use('/api/profiles', auth_middleware_1.protect, scans_routes_1.default);
+    app.use('/api/nfc', auth_middleware_1.protect, nfc_routes_1.default);
+    app.use('/api/vault', auth_middleware_1.protect, vault_routes_1.default);
     // app.use('/api/connections', protect, connectionRoutes);
     app.use('/api/profile-connections', auth_middleware_1.protect, profile_connection_routes_1.default);
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
@@ -141,6 +156,10 @@ const setupRoutes = (app) => {
     app.use('/api/test/notifications', auth_middleware_1.protect, notification_test_routes_1.default);
     app.use('/api/referrals', profile_referral_routes_1.default);
     app.use('/api/presence', auth_middleware_1.protect, presence_routes_1.default);
+    app.use('/api/gamification', auth_middleware_1.protect, gamification_routes_1.default);
+    app.use('/api/analytics', auth_middleware_1.protect, analytics_dashboard_routes_1.default);
+    app.use('/api/sessions', auth_middleware_1.protect, sessions_routes_1.default);
+    app.use('/api/message-profile', auth_middleware_1.protect, message_profile_routes_1.default);
     // Test email route
     app.get('/api/test/email', async (req, res) => {
         try {
