@@ -6,7 +6,9 @@ import {
     getInteractionFrequency,
     getInteractionsBetweenProfiles,
     createManualInteraction,
-    getAllProfileInteractions
+    getAllProfileInteractions,
+    createPhysicalInteraction,
+    createBulkPhysicalInteractions
 } from '../controllers/interaction.controller';
 
 const router = Router();
@@ -40,6 +42,16 @@ router.get('/profile/:profileId/all', getAllProfileInteractions);
 // @route   POST /interactions
 // @access  Private
 router.post('/', createManualInteraction);
+
+// @desc    Create physical interaction (QR scan, NFC tap, etc.)
+// @route   POST /interactions/physical
+// @access  Private
+router.post('/physical', createPhysicalInteraction);
+
+// @desc    Bulk create physical interactions
+// @route   POST /interactions/physical/bulk
+// @access  Private
+router.post('/physical/bulk', createBulkPhysicalInteractions);
 
 // @desc    Get interactions between two profiles
 // @route   GET /interactions/profile/between/:profileId/:targetProfileId
