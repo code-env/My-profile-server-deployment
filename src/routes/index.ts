@@ -144,7 +144,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/nfc', protect, nfcRoutes);
   app.use('/api/vault', protect, vaultRoutes);
   // app.use('/api/connections', protect, connectionRoutes);
-  app.use('/api/profile-connections', protect, profileConnectionRoutes);
+  app.use('/api/p/connections', protect, profileConnectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
   app.use('/api/tasks', protect, taskRoutes);
   app.use('/api/lists', protect, listRoutes);

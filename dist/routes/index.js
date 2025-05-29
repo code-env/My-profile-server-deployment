@@ -137,7 +137,7 @@ const setupRoutes = (app) => {
     app.use('/api/nfc', auth_middleware_1.protect, nfc_routes_1.default);
     app.use('/api/vault', auth_middleware_1.protect, vault_routes_1.default);
     // app.use('/api/connections', protect, connectionRoutes);
-    app.use('/api/profile-connections', auth_middleware_1.protect, profile_connection_routes_1.default);
+    app.use('/api/p/connections', auth_middleware_1.protect, profile_connection_routes_1.default);
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
     app.use('/api/tasks', auth_middleware_1.protect, task_routes_1.default);
     app.use('/api/lists', auth_middleware_1.protect, list_routes_1.default);
