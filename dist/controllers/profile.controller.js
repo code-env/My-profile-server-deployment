@@ -9,6 +9,7 @@ const http_errors_1 = __importDefault(require("http-errors"));
 const mongoose_1 = require("mongoose");
 const profile_service_1 = require("../services/profile.service");
 const logger_1 = require("../utils/logger");
+const profile_model_1 = require("../models/profile.model");
 class ProfileController {
     constructor() {
         this.service = new profile_service_1.ProfileService();
@@ -231,6 +232,23 @@ class ProfileController {
             const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a._id;
             if (!userId)
                 throw (0, http_errors_1.default)(401, 'Unauthorized');
+            // **CRITICAL FIX: Check if user already has a personal profile to prevent duplicates**
+            const existingPersonalProfile = await profile_model_1.ProfileModel.findOne({
+                'profileInformation.creator': userId,
+                profileType: 'personal',
+                profileCategory: 'individual'
+            });
+            if (existingPersonalProfile) {
+                logger_1.logger.info(`User ${userId} already has a personal profile: ${existingPersonalProfile._id}. Returning existing profile.`);
+                // Format the existing profile data for frontend consumption
+                const formattedProfile = this.formatProfileData(existingPersonalProfile);
+                res.status(200).json({
+                    success: true,
+                    profile: formattedProfile,
+                    message: 'Personal profile already exists for this user'
+                });
+                return;
+            }
             const profile = await this.service.createDefaultProfile(userId);
             // Format the profile data for frontend consumption
             const formattedProfile = this.formatProfileData(profile);

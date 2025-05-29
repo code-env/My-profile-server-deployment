@@ -779,6 +779,28 @@ export class ProfileService {
       throw createHttpError(404, 'User not found');
     }
 
+    // **CRITICAL FIX: Check if user already has a personal profile to prevent duplicates**
+    const existingPersonalProfile = await Profile.findOne({
+      'profileInformation.creator': userId,
+      profileType: 'personal',
+      profileCategory: 'individual'
+    });
+
+    if (existingPersonalProfile) {
+      logger.info(`User ${userId} already has a personal profile: ${existingPersonalProfile._id}. Returning existing profile.`);
+      
+      // Update user's profiles array if needed
+      if (!user.profiles || !user.profiles.includes(existingPersonalProfile._id)) {
+        if (!user.profiles) user.profiles = [];
+        user.profiles.push(existingPersonalProfile._id);
+        await user.save();
+        logger.info(`Updated user's profiles array with existing personal profile`);
+      }
+
+      // Return the existing personal profile
+      return existingPersonalProfile;
+    }
+
     // Get the default personal profile template
     let template = await ProfileTemplate.findOne({
       profileType: 'personal',

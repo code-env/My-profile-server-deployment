@@ -462,9 +462,30 @@ export class ProfileController {
   });
 
   /** POST /default */
-  createDefaultProfile = asyncHandler(async (req: Request, res: Response) => {
+  createDefaultProfile = asyncHandler(async (req: Request, res: Response): Promise<void> => {
     const userId = (req.user as any)?._id;
     if (!userId) throw createHttpError(401, 'Unauthorized');
+
+    // **CRITICAL FIX: Check if user already has a personal profile to prevent duplicates**
+    const existingPersonalProfile = await ProfileModel.findOne({
+      'profileInformation.creator': userId,
+      profileType: 'personal',
+      profileCategory: 'individual'
+    });
+    
+    if (existingPersonalProfile) {
+      logger.info(`User ${userId} already has a personal profile: ${existingPersonalProfile._id}. Returning existing profile.`);
+      
+      // Format the existing profile data for frontend consumption
+      const formattedProfile = this.formatProfileData(existingPersonalProfile);
+      
+      res.status(200).json({ 
+        success: true, 
+        profile: formattedProfile,
+        message: 'Personal profile already exists for this user'
+      });
+      return;
+    }
 
     const profile = await this.service.createDefaultProfile(userId);
 
