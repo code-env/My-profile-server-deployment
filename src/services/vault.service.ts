@@ -3,6 +3,11 @@ import { Types } from 'mongoose';
 import CloudinaryService from '../services/cloudinary.service';
 import { User } from '../models/User';
 import createHttpError from 'http-errors';
+import { SettingsService } from './settings.service';
+import { ProfileModel } from '../models/profile.model';
+import { logger } from '../utils/logger';
+import { Connection } from '../models/Connection';
+import { ProfileConnectionModel } from '../models/profile-connection.model';
 
 interface ISubcategoryWithChildren {
   _id: Types.ObjectId;
@@ -16,9 +21,11 @@ interface ISubcategoryWithChildren {
 
 class VaultService {
   private cloudinaryService: CloudinaryService;
+  private settingsService: SettingsService;
 
   constructor() {
     this.cloudinaryService = new CloudinaryService();
+    this.settingsService = new SettingsService();
   }
 
   private getDefaultCategories() {
@@ -56,7 +63,30 @@ class VaultService {
     ];
   }
 
-  async getUserVault(profileId: string) {
+  async getUserVault(profileId: string, requestingProfileId?: string) {
+    // Check permissions if requesting profile is different from vault owner
+    if (requestingProfileId && requestingProfileId !== profileId) {
+      const permissionCheck = await this.checkVaultAccessPermissions(requestingProfileId, profileId);
+      if (!permissionCheck.allowed) {
+        throw createHttpError(403, permissionCheck.reason || 'Access denied to vault');
+      }
+
+      // Log vault access activity
+      const targetProfile = await ProfileModel.findById(profileId);
+      if (targetProfile) {
+        await this.logVaultActivity(
+          (targetProfile as any).profileInformation.creator.toString(),
+          profileId,
+          'vault_accessed',
+          {
+            requestingProfileId,
+            accessType: 'full_vault',
+            timestamp: new Date()
+          }
+        );
+      }
+    }
+
     const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) {
       return null;
@@ -1633,6 +1663,373 @@ class VaultService {
     }
     
     return ids;
+  }
+
+  /**
+   * Check if a profile can access another profile's vault based on privacy settings
+   */
+  private async checkVaultAccessPermissions(
+    requestingProfileId: string,
+    targetProfileId: string,
+    vaultCategory?: 'wallet' | 'documents' | 'media'
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    try {
+      // Get target profile
+      const targetProfile = await ProfileModel.findById(targetProfileId);
+      if (!targetProfile) {
+        return { allowed: false, reason: 'Target profile not found' };
+      }
+
+      // If requesting profile is the same as target, always allow
+      if (requestingProfileId === targetProfileId) {
+        return { allowed: true };
+      }
+
+      // Get target profile's settings
+      const targetSettings = await this.settingsService.getSettings((targetProfile as any).profileInformation.creator.toString(), targetProfileId);
+      if (!targetSettings) {
+        return { allowed: false, reason: 'Target profile settings not found' };
+      }
+
+      // Check if requesting profile is blocked
+      if (targetSettings.blockingSettings?.blockedProfiles?.includes(requestingProfileId)) {
+        return { allowed: false, reason: 'You are blocked by this profile' };
+      }
+
+      // Check general vault visibility
+      const vaultVisibility = targetSettings.privacy?.Visibility?.profile?.vault;
+      if (!vaultVisibility) {
+        return { allowed: false, reason: 'Vault visibility settings not configured' };
+      }
+
+      // Check category-specific visibility if specified
+      let categoryVisibility = vaultVisibility;
+      if (vaultCategory && targetSettings.privacy?.Visibility?.vault?.[vaultCategory]) {
+        categoryVisibility = targetSettings.privacy.Visibility.vault[vaultCategory];
+      }
+
+      // Apply visibility rules
+      switch (categoryVisibility.level) {
+        case 'Public':
+          return { allowed: true };
+        
+        case 'OnlyMe':
+          return { allowed: false, reason: 'Vault is private' };
+        
+        case 'ConnectionsOnly':
+          // Check if profiles are connected
+          const areConnected = await this.checkIfProfilesConnected(requestingProfileId, targetProfileId);
+          if (!areConnected) {
+            return { allowed: false, reason: 'Vault access limited to connections only' };
+          }
+          return { allowed: true };
+        
+        case 'Custom':
+          if (categoryVisibility.customUsers?.includes(requestingProfileId)) {
+            return { allowed: true };
+          }
+          return { allowed: false, reason: 'You do not have custom access to this vault' };
+        
+        default:
+          return { allowed: false, reason: 'Invalid visibility setting' };
+      }
+    } catch (error) {
+      logger.error('Error checking vault access permissions:', error);
+      return { allowed: false, reason: 'Error checking permissions' };
+    }
+  }
+
+  /**
+   * Check if a profile can perform specific actions on vault items (share, export, download)
+   */
+  private async checkVaultActionPermissions(
+    requestingProfileId: string,
+    targetProfileId: string,
+    action: 'share' | 'export' | 'download'
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    try {
+      // Get target profile
+      const targetProfile = await ProfileModel.findById(targetProfileId);
+      if (!targetProfile) {
+        return { allowed: false, reason: 'Target profile not found' };
+      }
+
+      // If requesting profile is the same as target, always allow
+      if (requestingProfileId === targetProfileId) {
+        return { allowed: true };
+      }
+
+      // Get target profile's settings
+      const actionTargetSettings = await this.settingsService.getSettings((targetProfile as any).profileInformation.creator.toString(), targetProfileId);
+      if (!actionTargetSettings) {
+        return { allowed: false, reason: 'Target profile settings not found' };
+      }
+
+      // Check if requesting profile is blocked
+      if (actionTargetSettings.blockingSettings?.blockedProfiles?.includes(requestingProfileId)) {
+        return { allowed: false, reason: 'You are blocked by this profile' };
+      }
+
+      // Check action-specific permissions
+      const actionPermission = actionTargetSettings.privacy?.permissions?.[action];
+      if (!actionPermission) {
+        return { allowed: false, reason: `${action} permission not configured` };
+      }
+
+      // Apply permission rules
+      switch (actionPermission.level) {
+        case 'Public':
+          return { allowed: true };
+        
+        case 'NoOne':
+          return { allowed: false, reason: `${action} is disabled for all profiles` };
+        
+        case 'ConnectionsOnly':
+          const areConnected = await this.checkIfProfilesConnected(requestingProfileId, targetProfileId);
+          if (!areConnected) {
+            return { allowed: false, reason: `${action} limited to connections only` };
+          }
+          return { allowed: true };
+        
+        case 'Custom':
+          if (actionPermission.customUsers?.includes(requestingProfileId)) {
+            return { allowed: true };
+          }
+          return { allowed: false, reason: `You do not have custom ${action} access` };
+        
+        default:
+          return { allowed: false, reason: `Invalid ${action} permission setting` };
+      }
+    } catch (error) {
+      logger.error(`Error checking vault ${action} permissions:`, error);
+      return { allowed: false, reason: 'Error checking permissions' };
+    }
+  }
+
+  /**
+   * Check if activity logging should be enabled for vault operations
+   */
+  private async shouldLogVaultActivity(userId: string, profileId: string): Promise<boolean> {
+    try {
+      const settings = await this.settingsService.getSettings(userId, profileId);
+      return settings?.dataSettings?.activityLogsEnabled ?? true; // Default to true
+    } catch (error) {
+      logger.error('Error checking activity logging setting:', error);
+      return true; // Default to logging on error
+    }
+  }
+
+  /**
+   * Check if profiles are connected through various connection types
+   */
+  private async checkIfProfilesConnected(profileId1: string, profileId2: string): Promise<boolean> {
+    try {
+      // Check if profiles are the same (always connected to self)
+      if (profileId1 === profileId2) {
+        return true;
+      }
+
+      // Method 1: Check Connection model for accepted connections
+      const connectionExists = await Connection.findOne({
+        $or: [
+          { fromProfile: profileId1, toProfile: profileId2, status: 'accepted' },
+          { fromProfile: profileId2, toProfile: profileId1, status: 'accepted' }
+        ]
+      });
+
+      if (connectionExists) {
+        return true;
+      }
+
+      // Method 2: Check ProfileConnectionModel for accepted connections
+      const profileConnectionExists = await ProfileConnectionModel.findOne({
+        $or: [
+          { requesterId: profileId1, receiverId: profileId2, status: 'ACCEPTED' },
+          { requesterId: profileId2, receiverId: profileId1, status: 'ACCEPTED' }
+        ]
+      });
+
+      if (profileConnectionExists) {
+        return true;
+      }
+
+      // Method 3: Check profile arrays for direct connections
+      const profile1 = await ProfileModel.findById(profileId1);
+      const profile2 = await ProfileModel.findById(profileId2);
+
+      if (profile1 && profile2) {
+        // Check if they are in each other's connected profiles
+        const profile1Connected = profile1.profileInformation?.connectedProfiles?.some(
+          (id: any) => id.toString() === profileId2
+        );
+        const profile2Connected = profile2.profileInformation?.connectedProfiles?.some(
+          (id: any) => id.toString() === profileId1
+        );
+
+        if (profile1Connected || profile2Connected) {
+          return true;
+        }
+
+        // Check if they are following each other (mutual follow = connection)
+        const profile1Following = profile1.profileInformation?.following?.some(
+          (id: any) => id.toString() === profileId2
+        );
+        const profile2Following = profile2.profileInformation?.following?.some(
+          (id: any) => id.toString() === profileId1
+        );
+
+        // Consider mutual following as a connection
+        if (profile1Following && profile2Following) {
+          return true;
+        }
+
+        // Check if they are affiliated
+        const profile1Affiliated = profile1.profileInformation?.affiliatedProfiles?.some(
+          (id: any) => id.toString() === profileId2
+        );
+        const profile2Affiliated = profile2.profileInformation?.affiliatedProfiles?.some(
+          (id: any) => id.toString() === profileId1
+        );
+
+        if (profile1Affiliated || profile2Affiliated) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      logger.error('Error checking if profiles are connected:', error);
+      // Default to false on error for security
+      return false;
+    }
+  }
+
+  /**
+   * Check if a profile can share vault items from another profile
+   */
+  async canShareVaultItems(requestingProfileId: string, targetProfileId: string): Promise<{ allowed: boolean; reason?: string }> {
+    return this.checkVaultActionPermissions(requestingProfileId, targetProfileId, 'share');
+  }
+
+  /**
+   * Check if a profile can export vault items from another profile
+   */
+  async canExportVaultItems(requestingProfileId: string, targetProfileId: string): Promise<{ allowed: boolean; reason?: string }> {
+    return this.checkVaultActionPermissions(requestingProfileId, targetProfileId, 'export');
+  }
+
+  /**
+   * Check if a profile can download vault items from another profile
+   */
+  async canDownloadVaultItems(requestingProfileId: string, targetProfileId: string): Promise<{ allowed: boolean; reason?: string }> {
+    return this.checkVaultActionPermissions(requestingProfileId, targetProfileId, 'download');
+  }
+
+  /**
+   * Check if a profile can access a specific vault category
+   */
+  async canAccessVaultCategory(
+    requestingProfileId: string, 
+    targetProfileId: string, 
+    category: 'wallet' | 'documents' | 'media'
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    return this.checkVaultAccessPermissions(requestingProfileId, targetProfileId, category);
+  }
+
+  /**
+   * Log vault activity if enabled in settings
+   */
+  private async logVaultActivity(
+    userId: string,
+    profileId: string,
+    action: string,
+    details: Record<string, any>
+  ): Promise<void> {
+    try {
+      const shouldLog = await this.shouldLogVaultActivity(userId, profileId);
+      if (shouldLog) {
+        logger.info('Vault activity:', {
+          userId,
+          profileId,
+          action,
+          details,
+          timestamp: new Date()
+        });
+        
+        // You could also save this to a dedicated activity log collection
+        // await ActivityLog.create({ userId, profileId, action, details });
+      }
+    } catch (error) {
+      logger.error('Error logging vault activity:', error);
+    }
+  }
+
+  /**
+   * Get vault access summary for a profile
+   */
+  async getVaultAccessSummary(requestingProfileId: string, targetProfileId: string): Promise<{
+    canAccess: boolean;
+    canAccessWallet: boolean;
+    canAccessDocuments: boolean;
+    canAccessMedia: boolean;
+    canShare: boolean;
+    canExport: boolean;
+    canDownload: boolean;
+    connectionStatus: 'connected' | 'not_connected' | 'same_profile';
+  }> {
+    try {
+      const [
+        generalAccess,
+        walletAccess,
+        documentsAccess,
+        mediaAccess,
+        shareAccess,
+        exportAccess,
+        downloadAccess,
+        isConnected
+      ] = await Promise.all([
+        this.checkVaultAccessPermissions(requestingProfileId, targetProfileId),
+        this.checkVaultAccessPermissions(requestingProfileId, targetProfileId, 'wallet'),
+        this.checkVaultAccessPermissions(requestingProfileId, targetProfileId, 'documents'),
+        this.checkVaultAccessPermissions(requestingProfileId, targetProfileId, 'media'),
+        this.checkVaultActionPermissions(requestingProfileId, targetProfileId, 'share'),
+        this.checkVaultActionPermissions(requestingProfileId, targetProfileId, 'export'),
+        this.checkVaultActionPermissions(requestingProfileId, targetProfileId, 'download'),
+        this.checkIfProfilesConnected(requestingProfileId, targetProfileId)
+      ]);
+
+      let connectionStatus: 'connected' | 'not_connected' | 'same_profile';
+      if (requestingProfileId === targetProfileId) {
+        connectionStatus = 'same_profile';
+      } else if (isConnected) {
+        connectionStatus = 'connected';
+      } else {
+        connectionStatus = 'not_connected';
+      }
+
+      return {
+        canAccess: generalAccess.allowed,
+        canAccessWallet: walletAccess.allowed,
+        canAccessDocuments: documentsAccess.allowed,
+        canAccessMedia: mediaAccess.allowed,
+        canShare: shareAccess.allowed,
+        canExport: exportAccess.allowed,
+        canDownload: downloadAccess.allowed,
+        connectionStatus
+      };
+    } catch (error) {
+      logger.error('Error getting vault access summary:', error);
+      return {
+        canAccess: false,
+        canAccessWallet: false,
+        canAccessDocuments: false,
+        canAccessMedia: false,
+        canShare: false,
+        canExport: false,
+        canDownload: false,
+        connectionStatus: 'not_connected'
+      };
+    }
   }
 }
 

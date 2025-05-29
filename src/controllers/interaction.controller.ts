@@ -174,4 +174,211 @@ export const getInteractionsBetweenProfiles = asyncHandler(async (req: Request, 
         data: interactionData,
         message: 'Interactions fetched successfully'
     });
+});
+
+// @desc    Create physical interaction (QR scan, NFC tap, etc.)
+// @route   POST /interactions/physical
+// @access  Private
+export const createPhysicalInteraction = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+    const userId = new Types.ObjectId(user._id);
+    
+    const {
+        profileId,
+        scannedProfileId,
+        interactionType = 'qr_scan', // Default to QR scan
+        location,
+        metadata
+    } = req.body;
+
+    // Validate required fields
+    if (!profileId || !scannedProfileId) {
+        throw createHttpError(400, 'Profile ID and scanned profile ID are required');
+    }
+
+    // Validate ObjectIds
+    if (!Types.ObjectId.isValid(profileId) || !Types.ObjectId.isValid(scannedProfileId)) {
+        throw createHttpError(400, 'Invalid profile IDs provided');
+    }
+
+    // Prevent self-interaction
+    if (profileId === scannedProfileId) {
+        throw createHttpError(400, 'Cannot create interaction with yourself');
+    }
+
+    let interaction;
+
+    try {
+        // Handle different types of physical interactions
+        switch (interactionType) {
+            case 'qr_scan':
+                interaction = await interactionService.handleQRScanInteraction(
+                    userId,
+                    new Types.ObjectId(profileId),
+                    new Types.ObjectId(scannedProfileId),
+                    location
+                );
+                break;
+            
+            case 'nfc_tap':
+                // Handle NFC tap interaction
+                interaction = await interactionService.generateInteraction(
+                    userId,
+                    new Types.ObjectId(profileId),
+                    new Types.ObjectId(scannedProfileId),
+                    InteractionMode.IN_PERSON,
+                    {
+                        entityType: 'nfc',
+                        action: 'tap',
+                        metadata: {
+                            interactionType: 'nfc_tap',
+                            ...metadata
+                        }
+                    }
+                );
+                break;
+            
+            case 'proximity':
+                // Handle proximity-based interaction (Bluetooth, etc.)
+                interaction = await interactionService.generateInteraction(
+                    userId,
+                    new Types.ObjectId(profileId),
+                    new Types.ObjectId(scannedProfileId),
+                    InteractionMode.IN_PERSON,
+                    {
+                        entityType: 'proximity',
+                        action: 'detected',
+                        metadata: {
+                            interactionType: 'proximity',
+                            ...metadata
+                        }
+                    }
+                );
+                break;
+            
+            default:
+                throw createHttpError(400, `Unsupported physical interaction type: ${interactionType}`);
+        }
+
+        res.status(201).json({
+            success: true,
+            data: interaction,
+            message: `Physical interaction (${interactionType}) recorded successfully`
+        });
+
+    } catch (error: any) {
+        logger.error('Physical interaction error:', error);
+        
+        // Handle permission errors gracefully
+        if (error.message.includes('not allowed')) {
+            throw createHttpError(403, error.message);
+        }
+        
+        throw createHttpError(500, 'Failed to create physical interaction');
+    }
+});
+
+// @desc    Bulk create physical interactions (for batch processing)
+// @route   POST /interactions/physical/bulk
+// @access  Private
+export const createBulkPhysicalInteractions = asyncHandler(async (req: Request, res: Response) => {
+    const user: any = req.user!;
+    const userId = new Types.ObjectId(user._id);
+    
+    const { interactions } = req.body;
+
+    if (!Array.isArray(interactions) || interactions.length === 0) {
+        throw createHttpError(400, 'Interactions array is required and cannot be empty');
+    }
+
+    if (interactions.length > 50) {
+        throw createHttpError(400, 'Cannot process more than 50 interactions at once');
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (let i = 0; i < interactions.length; i++) {
+        const interactionData = interactions[i];
+        
+        try {
+            const {
+                profileId,
+                scannedProfileId,
+                interactionType = 'qr_scan',
+                location,
+                metadata
+            } = interactionData;
+
+            // Validate required fields
+            if (!profileId || !scannedProfileId) {
+                throw new Error('Profile ID and scanned profile ID are required');
+            }
+
+            // Validate ObjectIds
+            if (!Types.ObjectId.isValid(profileId) || !Types.ObjectId.isValid(scannedProfileId)) {
+                throw new Error('Invalid profile IDs provided');
+            }
+
+            // Prevent self-interaction
+            if (profileId === scannedProfileId) {
+                throw new Error('Cannot create interaction with yourself');
+            }
+
+            let interaction;
+
+            switch (interactionType) {
+                case 'qr_scan':
+                    interaction = await interactionService.handleQRScanInteraction(
+                        userId,
+                        new Types.ObjectId(profileId),
+                        new Types.ObjectId(scannedProfileId),
+                        location
+                    );
+                    break;
+                
+                default:
+                    interaction = await interactionService.generateInteraction(
+                        userId,
+                        new Types.ObjectId(profileId),
+                        new Types.ObjectId(scannedProfileId),
+                        InteractionMode.IN_PERSON,
+                        {
+                            entityType: interactionType,
+                            action: 'physical_interaction',
+                            metadata: {
+                                interactionType,
+                                ...metadata
+                            }
+                        }
+                    );
+            }
+
+            results.push({
+                index: i,
+                success: true,
+                data: interaction
+            });
+
+        } catch (error: any) {
+            logger.error(`Bulk physical interaction error at index ${i}:`, error);
+            errors.push({
+                index: i,
+                error: error.message,
+                data: interactionData
+            });
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        data: {
+            processed: results.length,
+            failed: errors.length,
+            total: interactions.length,
+            results,
+            errors
+        },
+        message: `Processed ${results.length} of ${interactions.length} physical interactions`
+    });
 }); 
