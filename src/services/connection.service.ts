@@ -482,6 +482,7 @@ static async getProfileConnections(
   ) {
     const fProfile:any = await ProfileModel.findById(fromprofileId);
     const tProfile:any = await ProfileModel.findById(telegramomprofileId);
+    console.log('fProfile', fromprofileId);
     if (!fProfile || !tProfile) throw new Error('Profile not found');
 
     const updateOperations: any = {};

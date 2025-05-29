@@ -389,6 +389,7 @@ class ConnectionService {
     static async updateProfileConnections(fromprofileId, telegramomprofileId, connectionType, operation) {
         const fProfile = await profile_model_1.ProfileModel.findById(fromprofileId);
         const tProfile = await profile_model_1.ProfileModel.findById(telegramomprofileId);
+        console.log('fProfile', fromprofileId);
         if (!fProfile || !tProfile)
             throw new Error('Profile not found');
         const updateOperations = {};

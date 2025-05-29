@@ -43,8 +43,8 @@ exports.setupRoutes = void 0;
 const auth_routes_1 = __importDefault(require("./auth.routes"));
 const user_routes_1 = __importDefault(require("./user.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
-// import connectionRoutes from './connection.routes';
-const profile_connection_routes_1 = __importDefault(require("./profile-connection.routes"));
+const connection_routes_1 = __importDefault(require("./connection.routes"));
+// import profileConnectionRoutes from './profile-connection.routes';
 const contact_route_1 = __importDefault(require("./contact.route"));
 const relationshipType_routes_1 = __importDefault(require("./relationshipType.routes"));
 const logs_routes_1 = __importDefault(require("./logs.routes"));
@@ -56,6 +56,7 @@ const admin_notification_routes_1 = __importDefault(require("./admin-notificatio
 const index_1 = __importDefault(require("./admin/index"));
 const stripe_routes_1 = __importDefault(require("./stripe.routes"));
 const task_routes_1 = __importDefault(require("./task.routes"));
+const data_routes_1 = __importDefault(require("./data.routes"));
 const settings_routes_1 = __importDefault(require("./settings.routes"));
 const list_routes_1 = __importDefault(require("./list.routes"));
 const event_routes_1 = __importDefault(require("./event.routes"));
@@ -131,13 +132,15 @@ const setupRoutes = (app) => {
     app.use('/api/profile-full', profile_full_routes_1.default);
     // settings routes
     app.use('/api/settings', auth_middleware_1.protect, settings_routes_1.default);
+    // profile data routes
+    app.use('/api/p/data', data_routes_1.default);
     // Protected routes
     app.use('/api/profiles', auth_middleware_1.protect, profile_routes_1.default);
     app.use('/api/profiles', auth_middleware_1.protect, scans_routes_1.default);
     app.use('/api/nfc', auth_middleware_1.protect, nfc_routes_1.default);
     app.use('/api/vault', auth_middleware_1.protect, vault_routes_1.default);
     // app.use('/api/connections', protect, connectionRoutes);
-    app.use('/api/profile-connections', auth_middleware_1.protect, profile_connection_routes_1.default);
+    app.use('/api/p/connections', auth_middleware_1.protect, connection_routes_1.default);
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
     app.use('/api/tasks', auth_middleware_1.protect, task_routes_1.default);
     app.use('/api/lists', auth_middleware_1.protect, list_routes_1.default);
