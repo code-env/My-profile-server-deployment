@@ -98,6 +98,18 @@ export class CommunityController {
     }
   );
 
+  static getCommunityWithSettings = asyncHandler(
+    async (req: Request, res: Response) => {
+      const user: any = req.user;
+      if (!user || !user._id) throw createHttpError(401, "Not authenticated");
+      const { id } = req.params;
+      if (!isValidObjectId(id))
+        throw createHttpError(400, "Invalid community ID");
+      const communityData = await communityService.getCommunityWithSettings(id);
+      res.json({ success: true, data: communityData });
+    }
+  );
+
   static updateCommunitySettings = asyncHandler(
     async (req: Request, res: Response) => {
       const user: any = req.user;
@@ -111,6 +123,82 @@ export class CommunityController {
         updates
       );
       res.json({ success: true, data: updated });
+    }
+  );
+
+  static updateCommunityNotificationSettings = asyncHandler(
+    async (req: Request, res: Response) => {
+      const user: any = req.user;
+      if (!user || !user._id) throw createHttpError(401, "Not authenticated");
+      const { id } = req.params;
+      const updates = req.body;
+      if (!isValidObjectId(id))
+        throw createHttpError(400, "Invalid community ID");
+      const updated = await communityService.updateCommunityNotificationSettings(id, updates);
+      res.json({ success: true, data: updated });
+    }
+  );
+
+  static updateCommunityPrivacySettings = asyncHandler(
+    async (req: Request, res: Response) => {
+      const user: any = req.user;
+      if (!user || !user._id) throw createHttpError(401, "Not authenticated");
+      const { id } = req.params;
+      const updates = req.body;
+      if (!isValidObjectId(id))
+        throw createHttpError(400, "Invalid community ID");
+      const updated = await communityService.updateCommunityPrivacySettings(id, updates);
+      res.json({ success: true, data: updated });
+    }
+  );
+
+  static getCommunityModerationSettings = asyncHandler(
+    async (req: Request, res: Response) => {
+      const user: any = req.user;
+      if (!user || !user._id) throw createHttpError(401, "Not authenticated");
+      const { id } = req.params;
+      if (!isValidObjectId(id))
+        throw createHttpError(400, "Invalid community ID");
+      const settings = await communityService.getCommunityModerationSettings(id);
+      res.json({ success: true, data: settings });
+    }
+  );
+
+  static updateCommunityModerationSettings = asyncHandler(
+    async (req: Request, res: Response) => {
+      const user: any = req.user;
+      if (!user || !user._id) throw createHttpError(401, "Not authenticated");
+      const { id } = req.params;
+      const updates = req.body;
+      if (!isValidObjectId(id))
+        throw createHttpError(400, "Invalid community ID");
+      const updated = await communityService.updateCommunityModerationSettings(id, updates);
+      res.json({ success: true, data: updated });
+    }
+  );
+
+  static updateCommunitySpecificSetting = asyncHandler(
+    async (req: Request, res: Response) => {
+      const user: any = req.user;
+      if (!user || !user._id) throw createHttpError(401, "Not authenticated");
+      const { id } = req.params;
+      const { key, value } = req.body;
+      if (!isValidObjectId(id) || !key)
+        throw createHttpError(400, "Invalid input");
+      const updated = await communityService.updateCommunitySpecificSetting(id, key, value);
+      res.json({ success: true, data: updated });
+    }
+  );
+
+  static getCommunitySpecificSetting = asyncHandler(
+    async (req: Request, res: Response) => {
+      const user: any = req.user;
+      if (!user || !user._id) throw createHttpError(401, "Not authenticated");
+      const { id, key } = req.params;
+      if (!isValidObjectId(id) || !key)
+        throw createHttpError(400, "Invalid input");
+      const value = await communityService.getCommunitySpecificSetting(id, key);
+      res.json({ success: true, data: { key, value } });
     }
   );
 
