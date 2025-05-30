@@ -30,6 +30,13 @@ router.delete('/p/:profileId', authMiddleware_1.authenticateToken, (0, roleMiddl
 router.post('/default', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), profileController.createDefaultProfile.bind(profileController));
 // Admin routes for managing all profiles
 router.get('/all', authMiddleware_1.authenticateToken, profileController.getAllProfiles.bind(profileController));
+/**
+ * @route DELETE /api/profiles/duplicates/personal
+ * @desc Delete duplicate personal profiles, keeping ones with non-zero MYPTS balance
+ * @access Admin only
+ * @returns {Object} Summary of deletion results including profiles deleted and kept
+ */
+router.delete('/duplicates/personal', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['admin', 'superadmin']), profileController.deleteDuplicatePersonalProfiles.bind(profileController));
 // Profile availability routes
 router.post('/:profileId/availability', profileController.setAvailability);
 router.patch('/:profileId/availability', profileController.updateAvailability);

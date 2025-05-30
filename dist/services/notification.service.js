@@ -217,7 +217,7 @@ class NotificationService {
         }
     }
     async sendEmailNotification(notification, user) {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v;
         try {
             if (!user.email) {
                 logger_1.logger.info(`No email found for user ${user._id}`);
@@ -241,38 +241,9 @@ class NotificationService {
                 appName: 'MyPts',
                 year: new Date().getFullYear(),
                 baseUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
-                unsubscribeToken: user.unsubscribeToken || ''
-            };
-            // For reminder notifications, use specific templates
-            if (notification.type === 'reminder') {
-                const reminderType = (_c = notification.metadata) === null || _c === void 0 ? void 0 : _c.reminderType;
-                const relatedModel = (_d = notification.relatedTo) === null || _d === void 0 ? void 0 : _d.model;
-                if (relatedModel === 'Task') {
-                    emailTemplate = 'task-reminder';
-                    emailSubject = `Task Reminder: ${((_e = notification.metadata) === null || _e === void 0 ? void 0 : _e.itemTitle) || notification.title}`;
-                }
-                else if (relatedModel === 'Event') {
-                    // Check if this is a booking event
-                    if (((_f = notification.metadata) === null || _f === void 0 ? void 0 : _f.eventType) === 'booking' || ((_g = notification.metadata) === null || _g === void 0 ? void 0 : _g.eventType) === 'Booking') {
-                        emailTemplate = 'booking-reminder';
-                        emailSubject = `Booking Reminder: ${((_h = notification.metadata) === null || _h === void 0 ? void 0 : _h.itemTitle) || notification.title}`;
-                    }
-                    else {
-                        emailTemplate = 'event-reminder';
-                        emailSubject = `Event Reminder: ${((_j = notification.metadata) === null || _j === void 0 ? void 0 : _j.itemTitle) || notification.title}`;
-                    }
-                }
-                else if (relatedModel === 'Booking') {
-                    emailTemplate = 'booking-reminder';
-                    emailSubject = `Booking Reminder: ${((_k = notification.metadata) === null || _k === void 0 ? void 0 : _k.itemTitle) || notification.title}`;
-                }
-                else {
-                    // Fallback to general reminder template
-                    emailTemplate = 'general-reminder';
-                    emailSubject = `Reminder: ${((_l = notification.metadata) === null || _l === void 0 ? void 0 : _l.itemTitle) || notification.title}`;
-                }
-                // Add helper function for date formatting
-                templateData.formatDateTime = (dateString) => {
+                unsubscribeToken: user.unsubscribeToken || '',
+                recipientName: user.fullName || user.firstName || 'User',
+                formatDateTime: (dateString) => {
                     if (!dateString)
                         return '';
                     const date = new Date(dateString);
@@ -284,10 +255,62 @@ class NotificationService {
                         hour: '2-digit',
                         minute: '2-digit'
                     });
+                }
+            };
+            // For connection requests, use the specialized connection template
+            if (((_c = notification.metadata) === null || _c === void 0 ? void 0 : _c.connectionType) || ((_d = notification.metadata) === null || _d === void 0 ? void 0 : _d.connectionReason) || ((_e = notification.metadata) === null || _e === void 0 ? void 0 : _e.source)) {
+                emailTemplate = 'connection-request';
+                emailSubject = `New Connection Request - ${notification.title}`;
+            }
+            // For booking requests, use the event notification template
+            else if (notification.type === 'booking_request') {
+                emailTemplate = 'event-notification';
+                emailSubject = `New Booking Request - ${notification.title}`;
+                // Ensure metadata has the right structure for event-notification template
+                templateData.metadata = {
+                    ...templateData.metadata,
+                    eventType: 'booking',
+                    notificationType: 'request'
                 };
             }
+            // For events and bookings, use the specialized event template
+            else if (((_f = notification.metadata) === null || _f === void 0 ? void 0 : _f.eventType) || ((_g = notification.metadata) === null || _g === void 0 ? void 0 : _g.eventName) || ((_h = notification.metadata) === null || _h === void 0 ? void 0 : _h.eventDate) || ((_j = notification.metadata) === null || _j === void 0 ? void 0 : _j.bookingId)) {
+                emailTemplate = 'event-notification';
+                emailSubject = ((_k = notification.metadata) === null || _k === void 0 ? void 0 : _k.eventType) === 'booking' ?
+                    `Booking Notification - ${notification.title}` :
+                    `Event Notification - ${notification.title}`;
+            }
+            // For reminder notifications, use specific templates
+            else if (notification.type === 'reminder') {
+                const reminderType = (_l = notification.metadata) === null || _l === void 0 ? void 0 : _l.reminderType;
+                const relatedModel = (_m = notification.relatedTo) === null || _m === void 0 ? void 0 : _m.model;
+                if (relatedModel === 'Task') {
+                    emailTemplate = 'task-reminder';
+                    emailSubject = `Task Reminder: ${((_o = notification.metadata) === null || _o === void 0 ? void 0 : _o.itemTitle) || notification.title}`;
+                }
+                else if (relatedModel === 'Event') {
+                    // Check if this is a booking event
+                    if (((_p = notification.metadata) === null || _p === void 0 ? void 0 : _p.eventType) === 'booking' || ((_q = notification.metadata) === null || _q === void 0 ? void 0 : _q.eventType) === 'Booking') {
+                        emailTemplate = 'event-notification';
+                        emailSubject = `Booking Reminder: ${((_r = notification.metadata) === null || _r === void 0 ? void 0 : _r.itemTitle) || notification.title}`;
+                    }
+                    else {
+                        emailTemplate = 'event-notification';
+                        emailSubject = `Event Reminder: ${((_s = notification.metadata) === null || _s === void 0 ? void 0 : _s.itemTitle) || notification.title}`;
+                    }
+                }
+                else if (relatedModel === 'Booking') {
+                    emailTemplate = 'event-notification';
+                    emailSubject = `Booking Reminder: ${((_t = notification.metadata) === null || _t === void 0 ? void 0 : _t.itemTitle) || notification.title}`;
+                }
+                else {
+                    // Fallback to general reminder template
+                    emailTemplate = 'general-reminder';
+                    emailSubject = `Reminder: ${((_u = notification.metadata) === null || _u === void 0 ? void 0 : _u.itemTitle) || notification.title}`;
+                }
+            }
             // For transaction notifications, use specific templates based on transaction type
-            else if (notification.type === 'system_notification' && ((_m = notification.relatedTo) === null || _m === void 0 ? void 0 : _m.model) === 'Transaction') {
+            else if (notification.type === 'system_notification' && ((_v = notification.relatedTo) === null || _v === void 0 ? void 0 : _v.model) === 'Transaction') {
                 templateData.transactionId = notification.relatedTo.id;
                 templateData.metadata = notification.metadata || {};
                 // Add timestamp if not present
