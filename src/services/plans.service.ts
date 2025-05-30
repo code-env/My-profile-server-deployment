@@ -99,15 +99,31 @@ class PlansService {
 
         // Fetch tasks, events, and lists based on type filter
         const tasksPromise = filters.type !== 'Event' && filters.type !== 'List' 
-            ? taskService.getUserTasks(userId, profileId, filters as TaskFilter)
+            ? taskService.getUserTasks(userId, profileId, {
+                status: filters.status as any,
+                priority: filters.priority,
+                category: filters.category,
+                search: filters.search,
+                isAllDay: filters.isAllDay,
+                fromDate: filters.fromDate,
+                toDate: filters.toDate
+            })
             : Promise.resolve({ tasks: [], pagination: { page: 1, limit: 20, total: 0, pages: 0, hasNext: false, hasPrev: false } });
         
         const eventsPromise = filters.type !== 'Task' && filters.type !== 'List' 
-            ? eventService.getUserEvents(userId, profileId, filters).then(result => result.events)
+            ? eventService.getUserEvents(userId, profileId, {
+                status: filters.status,
+                priority: filters.priority,
+                category: filters.category,
+                search: filters.search,
+                isAllDay: filters.isAllDay,
+                fromDate: filters.fromDate,
+                toDate: filters.toDate
+            }).then(result => result.events)
             : Promise.resolve([]);
         
         const listsPromise = filters.type !== 'Task' && filters.type !== 'Event' 
-            ? listService.getUserLists(userId, {
+            ? listService.getUserLists(profileId, {
                 type: filters.listType,
                 importance: filters.importance,
                 search: filters.search

@@ -14,9 +14,17 @@ export class LeaderboardService {
    */
   async updateLeaderboard(): Promise<void> {
     try {
+
+      // check if application is in dev mode
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('Leaderboard update skipped in development mode');
+        return;
+      }
+
       logger.info('Starting leaderboard update');
       
       // Get current leaderboard for tracking rank changes
+
       const currentLeaderboard = await LeaderboardEntryModel.find().sort({ rank: 1 });
       const currentRanks = new Map<string, number>();
       

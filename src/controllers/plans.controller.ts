@@ -8,6 +8,12 @@ import plansService from '../services/plans.service';
 // @access  Private
 export const getPlans = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
+    const profileId = req.query.profileId as string || req.header('X-Profile-Id');
+    
+    if (!profileId) {
+        throw createHttpError(400, 'Profile ID is required');
+    }
+    
     const filters: any = {};
 
     // Apply filters from query params
@@ -27,7 +33,7 @@ export const getPlans = asyncHandler(async (req: Request, res: Response) => {
         filters.toDate = new Date(req.query.toDate as string);
     }
 
-    const plans = await plansService.getPlans(user._id, filters);
+    const plans = await plansService.getPlans(user._id, profileId, filters);
     res.json({
         success: true,
         data: plans,

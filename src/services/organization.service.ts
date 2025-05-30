@@ -41,6 +41,7 @@ export class OrganizationService {
     const organization = new Organization({
       ...data,
       createdBy: creatorProfileId,
+      profile: creatorProfileId,
       updatedBy: creatorProfileId,
       members: [{
         profileId: creatorProfileId,
@@ -59,7 +60,8 @@ export class OrganizationService {
     const organization = await Organization.findById(organizationId)
       .populate('members.profileId', 'name avatar')
       .populate('createdBy', 'name avatar')
-      .populate('updatedBy', 'name avatar');
+      .populate('updatedBy', 'name avatar')
+      .populate('profile', 'name avatar');
 
     if (!organization) {
       throw createHttpError(404, 'Organization not found');
@@ -303,7 +305,8 @@ export class OrganizationService {
         .skip(skip)
         .limit(limit)
         .populate('members.profileId', 'name avatar')
-        .populate('createdBy', 'name avatar'),
+        .populate('createdBy', 'name avatar')
+        .populate('profile', 'name avatar'),
       Organization.countDocuments(query)
     ]);
 

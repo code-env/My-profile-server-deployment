@@ -1,3 +1,4 @@
+import { NotificationService } from './../services/notification.service';
 import { Request, Response } from 'express';
 import mongoose, { Types } from 'mongoose';
 import taskService from '../services/task.service';
@@ -11,6 +12,7 @@ import { emitSocialInteraction } from '../utils/socketEmitter';
 import { vaultService } from '../services/vault.service';
 import createHttpError from 'http-errors';
 import { mapTaskEventDataToInternal, mapTaskEventDataToExternal } from '../utils/visibilityMapper';
+import { SettingsService } from '../services/settings.service';
 
 
 // Helper function to validate task data
@@ -449,6 +451,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
 
     console.log('Adding comment to task:', req.params.id);
+    console.log('Request body:', req.body);
 
     if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
         throw createHttpError(400, 'Invalid task ID');
@@ -475,17 +478,64 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         req.body.text
     );
 
-    try {
-        await emitSocialInteraction(user._id, {
-            type: 'comment',
-            profile: new Types.ObjectId(user._id),
-            targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
-            contentId: (updatedTask as mongoose.Document).get('_id').toString(),
-            content: req.body.text
-        });
-    } catch (error) {
-        console.error('Failed to emit social interaction:', error);
-    }
+    // Move social interaction and notifications to background (non-blocking)
+    setImmediate(async () => {
+        try {
+            // Use the profile from request body (commenter's profile)
+            const userProfileId = req.body.profile;
+            console.log('Using commenter profile ID:', userProfileId);
+            
+            if (!userProfileId) {
+                console.error('No profile ID provided in request body');
+                return;
+            }
+            
+            await emitSocialInteraction(user._id, {
+                type: 'comment',
+                profile: new Types.ObjectId(userProfileId),
+                targetProfile: new Types.ObjectId(task.profile?._id as Types.ObjectId),
+                contentId: (updatedTask as mongoose.Document).get('_id').toString(),
+                content: req.body.text
+            });
+
+            // Send notification to task owner if different from commenter
+            if (task.profile?._id && task.profile._id.toString() !== user._id.toString()) {
+                // Get task owner's settings to check if push notifications are enabled
+                const settingsService = new SettingsService();
+                const taskOwnerSettings = await settingsService.getSettings(
+                    task.profile._id.toString(), 
+                    task.profile._id.toString()
+                );
+                
+                // Check if push notifications are enabled
+                if (taskOwnerSettings?.general?.appSystem?.allowNotifications && 
+                    taskOwnerSettings?.notifications?.communication?.comments?.push) {
+                    
+                    // Send push notification
+                    const notificationData = {
+                        title: 'New Task Comment',
+                        body: `${user.username} commented on your task: "${task.title}"`,
+                        data: {
+                            type: 'task_comment',
+                            taskId: task._id.toString(),
+                            commenterId: user._id.toString(),
+                            commenterName: user.username
+                        }
+                    };
+                    
+                    await new NotificationService().createNotification({
+                        type: 'task_comment',
+                        recipient: new Types.ObjectId(task.profile._id.toString()),
+                        title: notificationData.title,
+                        message: notificationData.body,
+                        metadata: notificationData.data
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Failed to process background tasks (social interaction/notifications):', error);
+        }
+    });
 
     res.json({
         success: true,
@@ -653,19 +703,26 @@ export const likeTask = asyncHandler(async (req: Request, res: Response) => {
 
     // Emit the social interaction event
     try {
-        await emitSocialInteraction(user._id, {
-            type: 'like',
-            profile: new Types.ObjectId(user._id),
-            targetProfile: profileId,
-            contentId: (task as mongoose.Document).get('_id').toString(),
-            content: ''
-        });
+        const commenterProfileId = req.body.profile;
+        if (!commenterProfileId) {
+            console.error('No profile ID provided in request body for like');
+        } else {
+            setTimeout(async () => {
+                await emitSocialInteraction(user._id, {
+                    type: 'like',
+                    profile: new Types.ObjectId(commenterProfileId),
+                    targetProfile: profileId,
+                    contentId: (task as mongoose.Document).get('_id').toString(),
+                    content: ''
+                });
+            }, 1000);
+        }
     } catch (error) {
         console.error('Failed to emit social interaction:', error);
     }
     res.json({
         success: true,
-        data: task,
+        data: task.likes.length,
         message: 'Task liked successfully'
     });
 });

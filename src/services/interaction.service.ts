@@ -97,8 +97,8 @@ export class InteractionService {
                 socket.on('social:interaction', async (
                     data: {
                     type: 'like' | 'comment' | 'share',
-                    profile: Types.ObjectId,
-                    targetProfile: Types.ObjectId,
+                    profile: string,
+                    targetProfile: string,
                     contentId: string,
                     content?: string
                 }) => {
@@ -106,8 +106,8 @@ export class InteractionService {
                     try {
                         const interaction = await this.handleSocialInteraction(
                             new Types.ObjectId(userId),
-                            data.profile,
-                            data.targetProfile,
+                            new Types.ObjectId(data.profile),
+                            new Types.ObjectId(data.targetProfile),
                             data.type,
                             data.contentId,
                             data.content
@@ -457,7 +457,13 @@ export class InteractionService {
         contentId: string,
         content?: string
     ): Promise<IInteraction> {
-        logger.info('handleSocialInteraction', userId, profileId, targetProfile, type, contentId, content);
+        logger.info('=== handleSocialInteraction START ===');
+        logger.info('userId:', userId.toString());
+        logger.info('profileId:', profileId.toString());
+        logger.info('targetProfile:', targetProfile.toString());
+        logger.info('type:', type);
+        logger.info('contentId:', contentId);
+        logger.info('content:', content);
         
         // Check if social interaction is allowed
         const permissionCheck = await this.checkInteractionPermissions(
@@ -465,8 +471,10 @@ export class InteractionService {
             targetProfile,
             'social'
         );
+        logger.info('Permission check result:', permissionCheck);
 
         if (!permissionCheck.allowed) {
+            logger.error('Social interaction not allowed:', permissionCheck.reason);
             throw new Error(`Social interaction not allowed: ${permissionCheck.reason}`);
         }
 
@@ -476,6 +484,7 @@ export class InteractionService {
             targetProfile,
             'social'
         );
+        logger.info('Recording check result:', recordingCheck);
 
         const interaction = new this.interactionModel({
             title: recordingCheck.record ? 
@@ -508,11 +517,15 @@ export class InteractionService {
 
         // Only save to database if recording is allowed
         if (recordingCheck.record) {
+            logger.info('Saving interaction to database...');
             const savedInteraction = await interaction.save();
+            logger.info('Interaction saved successfully with ID:', savedInteraction._id);
             this.broadcastInteraction(savedInteraction);
+            logger.info('=== handleSocialInteraction END (SAVED) ===');
             return savedInteraction;
         } else {
             logger.info(`Social interaction not recorded: ${recordingCheck.reason}`);
+            logger.info('=== handleSocialInteraction END (NOT SAVED) ===');
             // Return the interaction object without saving
             return interaction;
         }
@@ -593,20 +606,6 @@ export class InteractionService {
         }
     }
 
-    // private determineRelationship(initiatorProfileId: Types.ObjectId, targetProfileId: Types.ObjectId): Types.ObjectId {
-    //    // get the relatoinship type from contact or connections
-    //    const relationship = Contact.findOne({
-    //     $or: [
-    //         { profile: initiatorProfileId, targetProfile: targetProfileId },
-    //         { profile: targetProfileId, targetProfile: initiatorProfileId }
-    //     ]
-    //    });
-
-    //    console.log('relationship', relationship);
-
-    //    return relationship?._id || targetProfileId;
-    // }
-
     // Fetch user's interactions with pagination and filters
     async getUserInteractions(
         userId: Types.ObjectId,
@@ -629,7 +628,8 @@ export class InteractionService {
         const query: any = {
             $or: [
                 { profile: profileId },
-                { relationship: profileId }
+                { relationship: profileId },
+                { targetProfile: profileId }
             ]
         };
 
@@ -907,6 +907,8 @@ export class InteractionService {
         interactionType: 'chat' | 'call' | 'visit' | 'qr_scan' | 'social' | 'connection'
     ): Promise<{ allowed: boolean; reason?: string }> {
         try {
+
+            logger.info('Checking interaction permissions for:', initiatorProfileId, targetProfileId, interactionType);
             // Get both profiles
             const [initiatorProfile, targetProfile] = await Promise.all([
                 ProfileModel.findById(initiatorProfileId).lean(),
