@@ -1,4 +1,3 @@
-
 import { Types } from 'mongoose';
 import asyncHandler from 'express-async-handler';
 import { Request, Response } from 'express';
@@ -389,13 +388,13 @@ const createCategory = asyncHandler(async (req: Request, res: Response) => {
 
 // Create new subcategory
 const createSubcategory = asyncHandler(async (req: Request, res: Response) => {
-  const { profileId, categoryId, subcategoryName, parentId } = req.body;
+  const { profileId, categoryName, subcategoryName, parentId } = req.body;
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
   }
 
-  if (!categoryId) {
-    throw createHttpError(400, 'Category ID is required');
+  if (!categoryName) {
+    throw createHttpError(400, 'Category name is required');
   }
 
   if (!subcategoryName || typeof subcategoryName !== 'string') {
@@ -404,7 +403,7 @@ const createSubcategory = asyncHandler(async (req: Request, res: Response) => {
 
   const subcategory = await vaultService.createSubcategory(
     profileId,
-    categoryId,
+    categoryName,
     subcategoryName,
     parentId
   );
@@ -413,7 +412,7 @@ const createSubcategory = asyncHandler(async (req: Request, res: Response) => {
 });
 
 // Get item by ID
-export const getItemById = asyncHandler(async (req: Request, res: Response) => {
+const getItemById = asyncHandler(async (req: Request, res: Response) => {
   const { itemId } = req.params;
   const { profileId } = req.query as { profileId: string };
   if (!profileId) {
@@ -436,7 +435,7 @@ export const getItemById = asyncHandler(async (req: Request, res: Response) => {
 });
 
 // Upload and add to vault
-export const uploadAndAddToVault = asyncHandler(async (req: Request, res: Response) => {
+const uploadAndAddToVault = asyncHandler(async (req: Request, res: Response) => {
   const { profileId, fileData, category, subcategory, metadata } = req.body;
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
@@ -562,8 +561,92 @@ const deleteSubcategory = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+const getVaultSettings = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.params;
+  const userId = (req as any).user?.id;
+
+  if (!userId) {
+    throw createHttpError(401, 'User not authenticated');
+  }
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  const vaultSettings = await vaultService.getVaultSettings(userId, profileId);
+  
+  res.json({
+    success: true,
+    data: vaultSettings
+  });
+});
+
+const updateVaultSettings = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.params;
+  const userId = (req as any).user?.id;
+  const updates = req.body;
+
+  if (!userId) {
+    throw createHttpError(401, 'User not authenticated');
+  }
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  const updatedSettings = await vaultService.updateVaultSettings(userId, profileId, updates);
+  
+  res.json({
+    success: true,
+    message: 'Vault settings updated successfully',
+    data: updatedSettings
+  });
+});
+
+const getVaultAccessSummary = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.params;
+  const { requestingProfileId } = req.query;
+  
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!requestingProfileId) {
+    throw createHttpError(400, 'Requesting profile ID is required');
+  }
+
+  const accessSummary = await vaultService.getVaultAccessSummary(
+    requestingProfileId as string, 
+    profileId as string
+  );
+  
+  res.json({
+    success: true,
+    data: accessSummary
+  });
+});
+
+// Delete user vault
+const deleteUserVault = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.query as { profileId: string };
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  // Clear all vault items, categories, and subcategories
+  await vaultService.clearAllVaultItems(profileId);
+  
+  // Delete the vault document itself
+  await vaultService.deleteVault(profileId);
+  
+  res.json({
+    message: 'Vault and all contents deleted successfully'
+  });
+});
+
 export {
   getUserVault,
+  deleteUserVault,
   getItems,
   getItemsByCategory,
   getItemsBySubcategory,
@@ -577,5 +660,10 @@ export {
   getNestedSubcategories,
   clearAllVaultItems,
   moveSubcategory,
-  deleteSubcategory
+  deleteSubcategory,
+  getItemById,
+  uploadAndAddToVault,
+  getVaultSettings,
+  updateVaultSettings,
+  getVaultAccessSummary
 }; 

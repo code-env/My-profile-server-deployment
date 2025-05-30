@@ -20,7 +20,13 @@ import {
   getNestedSubcategories,
   getItemsBySubcategory,
   getItemsByCategory,
-  deleteSubcategory
+  deleteSubcategory,
+  getVaultSettings,
+  updateVaultSettings,
+  getVaultAccessSummary,
+  getItemById,
+  uploadAndAddToVault,
+  deleteUserVault
 } from '../controllers/vault.controller';
 import { authenticateToken } from '../middleware/authMiddleware';
 
@@ -72,14 +78,14 @@ const categoryValidation = [
 
 // Subcategory validation schema
 const subcategoryValidation = [
-  body('name').notEmpty().trim().isLength({ min: 1, max: 100 }).withMessage('Subcategory name is required and must be under 100 characters'),
-  body('categoryId').notEmpty().isMongoId().withMessage('Valid category ID is required'),
+  body('subcategoryName').notEmpty().trim().isLength({ min: 1, max: 100 }).withMessage('Subcategory name is required and must be under 100 characters'),
+  body('categoryName').notEmpty().isString().withMessage('Category name is required'),
   body('description').optional().isString().isLength({ max: 500 }).withMessage('Description must be under 500 characters'),
   body('icon').optional().isString().trim().isLength({ max: 50 }).withMessage('Icon must be under 50 characters'),
   body('color').optional().isString().trim().matches(/^#[0-9A-F]{6}$/i).withMessage('Color must be a valid hex color'),
   body('isActive').optional().isBoolean().withMessage('isActive must be a boolean'),
   body('sortOrder').optional().isInt({ min: 0 }).withMessage('Sort order must be a non-negative integer'),
-  body('parentSubcategoryId').optional().isMongoId().withMessage('Parent subcategory ID must be valid')
+  body('parentId').optional().isMongoId().withMessage('Parent subcategory ID must be valid')
 ];
 
 // Item validation schema
@@ -165,6 +171,17 @@ router.get('/',
 );
 
 /**
+ * @route DELETE /api/vault
+ * @desc Delete user's vault
+ * @access Private
+ */
+router.delete('/',
+  authenticateToken,
+  validate(profileIdQueryValidation),
+  deleteUserVault
+);
+
+/**
  * @route GET /api/vault/items
  * @desc Get all vault items with filtering and pagination
  * @access Private
@@ -179,6 +196,18 @@ router.get('/items',
   getItems
 );
 
+
+/**
+ * @route GET /api/vault/items/:itemId
+ * @desc Get a vault item by ID
+ * @access Private
+ */
+
+router.get('/items/:itemId',
+  protect,
+  validate([objectIdValidation]),
+  getItemById
+);
 /**
  * @route POST /api/vault/items
  * @desc Add a new vault item
@@ -354,6 +383,63 @@ router.delete('/clear',
     ...profileIdQueryValidation
   ]),
   clearAllVaultItems
+);
+
+// ====================================================
+// VAULT SETTINGS ROUTES
+// ====================================================
+
+/**
+ * @route GET /api/vault/settings/:profileId
+ * @desc Get vault settings for a profile
+ * @access Private
+ */
+router.get('/settings/:profileId',
+  authenticateToken,
+  validate([
+    param('profileId').isMongoId().withMessage('Valid profile ID is required')
+  ]),
+  getVaultSettings
+);
+
+/**
+ * @route PUT /api/vault/settings/:profileId
+ * @desc Update vault settings for a profile
+ * @access Private
+ */
+router.put('/settings/:profileId',
+  authenticateToken,
+  validate([
+    param('profileId').isMongoId().withMessage('Valid profile ID is required'),
+    body('storage.limit').optional().isNumeric().withMessage('Storage limit must be a number'),
+    body('preferences.compressionEnabled').optional().isBoolean().withMessage('Compression enabled must be boolean'),
+    body('preferences.encryptionEnabled').optional().isBoolean().withMessage('Encryption enabled must be boolean'),
+    body('preferences.maxFileSize').optional().isNumeric().withMessage('Max file size must be a number'),
+    body('preferences.allowedFileTypes').optional().isArray().withMessage('Allowed file types must be an array'),
+    body('preferences.autoBackup').optional().isBoolean().withMessage('Auto backup must be boolean'),
+    body('privacy.vault.level').optional().isIn(['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom']).withMessage('Invalid vault visibility level'),
+    body('privacy.wallet.level').optional().isIn(['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom']).withMessage('Invalid wallet visibility level'),
+    body('privacy.documents.level').optional().isIn(['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom']).withMessage('Invalid documents visibility level'),
+    body('privacy.media.level').optional().isIn(['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom']).withMessage('Invalid media visibility level'),
+    body('permissions.share.level').optional().isIn(['Public', 'ConnectionsOnly', 'NoOne', 'Custom']).withMessage('Invalid share permission level'),
+    body('permissions.export.level').optional().isIn(['Public', 'ConnectionsOnly', 'NoOne', 'Custom']).withMessage('Invalid export permission level'),
+    body('permissions.download.level').optional().isIn(['Public', 'ConnectionsOnly', 'NoOne', 'Custom']).withMessage('Invalid download permission level')
+  ]),
+  updateVaultSettings
+);
+
+/**
+ * @route GET /api/vault/access-summary/:profileId
+ * @desc Get vault access summary for a requesting profile
+ * @access Private
+ */
+router.get('/access-summary/:profileId',
+  authenticateToken,
+  validate([
+    param('profileId').isMongoId().withMessage('Valid profile ID is required'),
+    query('requestingProfileId').isMongoId().withMessage('Valid requesting profile ID is required')
+  ]),
+  getVaultAccessSummary
 );
 
 export default router;

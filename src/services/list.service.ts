@@ -6,10 +6,11 @@ class ListService {
   /**
    * Create a new list
    */
-  async createList(listData: Partial<IList>, userId: string) {
+  async createList(listData: Partial<IList>, userId: string, profileId: string) {
     const list = new List({
       ...listData,
       createdBy: userId,
+      profile: profileId,
       visibility: listData.visibility ? mapExternalToInternal(listData.visibility as any) : 'Public',
     });
 
@@ -45,7 +46,7 @@ class ListService {
    * Get all lists for a user with filters
    */
   async getUserLists(
-    userId: string,
+    profileId: string,
     filters: {
       type?: string;
       importance?: string;
@@ -53,7 +54,7 @@ class ListService {
       search?: string;
     } = {}
   ) {
-    const query: any = { createdBy: userId };
+    const query: any = { profile: profileId };
 
     // Apply filters
     if (filters.type) query.type = filters.type;
@@ -87,14 +88,14 @@ class ListService {
   /**
    * Update a list
    */
-  async updateList(listId: string, userId: string, updateData: Partial<IList>) {
+  async updateList(listId: string, userId: string, profileId: string, updateData: Partial<IList>) {
     // Map visibility if provided
     if (updateData.visibility) {
       updateData.visibility = mapExternalToInternal(updateData.visibility as any);
     }
 
     const list = await List.findOneAndUpdate(
-      { _id: listId, createdBy: userId },
+      { _id: listId, profile: profileId },
       updateData,
       { new: true, runValidators: true }
     );
@@ -109,8 +110,8 @@ class ListService {
   /**
    * Delete a list
    */
-  async deleteList(listId: string, userId: string) {
-    const result = await List.deleteOne({ _id: listId, createdBy: userId });
+  async deleteList(listId: string, userId: string, profileId: string) {
+    const result = await List.deleteOne({ _id: listId, profile: profileId });
     if (result.deletedCount === 0) {
       throw new Error('List not found or access denied');
     }
@@ -120,8 +121,8 @@ class ListService {
   /**
    * Add an item to a list
    */
-  async addListItem(listId: string, userId: string, itemData: ListItem) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async addListItem(listId: string, userId: string, profileId: string, itemData: ListItem) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) {
       throw new Error('List not found or access denied');
     }
@@ -137,10 +138,11 @@ class ListService {
   async updateListItem(
     listId: string,
     userId: string,
+    profileId: string,
     itemId: string,
     updateData: Partial<ListItem>
   ) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     const item = list.items.find((item: ListItem) => item._id?.toString() === itemId);
     if (!item) throw new Error('Item not found');
@@ -152,8 +154,8 @@ class ListService {
   /**
    * Delete a list item
    */
-  async deleteListItem(listId: string, userId: string, itemId: string) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async deleteListItem(listId: string, userId: string, profileId: string, itemId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     console.log(list.items);
     const item = list.items.find(item => item._id?.toString() === itemId);
@@ -167,8 +169,8 @@ class ListService {
   /**
    * Toggle item completion status
    */
-  async toggleItemCompletion(listId: string, userId: string, itemId: string) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async toggleItemCompletion(listId: string, userId: string, profileId: string, itemId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     const item = list.items.find((item: ListItem) => item._id?.toString() === itemId);
     if (!item) throw new Error('Item not found');
@@ -284,12 +286,12 @@ class ListService {
   /**
    * Assign an item to a profile
    */
-  async assignItemToProfile(listId: string, userId: string, itemId: string, profileId: string) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async assignItemToProfile(listId: string, userId: string, profileId: string, itemId: string, assigneeProfileId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     const item = list.items.find((item: ListItem) => item._id?.toString() === itemId);
     if (!item) throw new Error('Item not found');
-    item.assignedTo = new mongoose.Types.ObjectId(profileId);
+    item.assignedTo = new mongoose.Types.ObjectId(assigneeProfileId);
     await list.save();
     return list.toObject();
   }
@@ -297,11 +299,11 @@ class ListService {
   /**
    * Add a participant to a list
    */
-  async addParticipant(listId: string, userId: string, profileId: string) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async addParticipant(listId: string, userId: string, profileId: string, participantProfileId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
-    if (!list.participants.includes(new mongoose.Types.ObjectId(profileId))) {
-      list.participants.push(new mongoose.Types.ObjectId(profileId));
+    if (!list.participants.includes(new mongoose.Types.ObjectId(participantProfileId))) {
+      list.participants.push(new mongoose.Types.ObjectId(participantProfileId));
     }
     await list.save();
     return list.toObject();
@@ -310,10 +312,10 @@ class ListService {
   /**
    * Remove a participant from a list
    */
-  async removeParticipant(listId: string, userId: string, profileId: string) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async removeParticipant(listId: string, userId: string, profileId: string, participantProfileId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
-    list.participants = list.participants.filter(p => p.toString() !== profileId);
+    list.participants = list.participants.filter(p => p.toString() !== participantProfileId);
     await list.save();
     return list.toObject();
   }
@@ -321,8 +323,8 @@ class ListService {
   /**
    * Add an attachment to a list item
    */
-  async addAttachmentToItem(listId: string, userId: string, itemId: string, attachment: any) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async addAttachmentToItem(listId: string, userId: string, profileId: string, itemId: string, attachment: any) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     const item = list.items.find((item: ListItem) => item._id?.toString() === itemId);
     if (!item) throw new Error('Item not found');
@@ -335,8 +337,8 @@ class ListService {
   /**
    * Remove an attachment from a list item
    */
-  async removeAttachmentFromItem(listId: string, userId: string, itemIndex: number, attachmentIndex: number) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async removeAttachmentFromItem(listId: string, userId: string, profileId: string, itemIndex: number, attachmentIndex: number) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     if (itemIndex < 0 || itemIndex >= list.items.length) throw new Error('Invalid item index');
     if (!list.items[itemIndex].attachments || attachmentIndex < 0 || attachmentIndex >= list.items[itemIndex].attachments.length) throw new Error('Invalid attachment index');
@@ -348,8 +350,8 @@ class ListService {
   /**
    * Add a sub-task to a list item
    */
-  async addSubTask(listId: string, userId: string, itemId: string, subTask: any) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async addSubTask(listId: string, userId: string, profileId: string, itemId: string, subTask: any) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     const item = list.items.find((item: ListItem) => item._id?.toString() === itemId);
     if (!item) throw new Error('Item not found');
@@ -362,8 +364,8 @@ class ListService {
   /**
    * Remove a sub-task from a list item
    */
-  async removeSubTask(listId: string, userId: string, itemId: string, subTaskId: string) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async removeSubTask(listId: string, userId: string, profileId: string, itemId: string, subTaskId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     const item = list.items.find((item: ListItem) => item._id?.toString() === itemId);
     if (!item) throw new Error('Item not found');
@@ -378,13 +380,15 @@ class ListService {
   /**
    * Duplicate a list (deep copy)
    */
-  async duplicateList(listId: string, userId: string) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async duplicateList(listId: string, userId: string, profileId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     const newList = new List({
       ...list.toObject(),
       _id: undefined,
       name: list.name + ' (Copy)',
+      createdBy: userId,
+      profile: profileId,
       createdAt: new Date(),
       updatedAt: new Date(),
       items: list.items.map(item => ({ ...item })),
@@ -399,8 +403,8 @@ class ListService {
   /**
    * Mark all items as complete
    */
-  async checkAllItems(listId: string, userId: string) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async checkAllItems(listId: string, userId: string, profileId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     list.items.forEach(item => {
       item.isCompleted = true;
@@ -413,8 +417,8 @@ class ListService {
   /**
    * Mark all items as incomplete
    */
-  async uncheckAllItems(listId: string, userId: string) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async uncheckAllItems(listId: string, userId: string, profileId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
     list.items.forEach(item => {
       item.isCompleted = false;
@@ -427,10 +431,10 @@ class ListService {
   /**
    * Share a list (add participants)
    */
-  async shareList(listId: string, userId: string, profileIds: string[]) {
-    const list = await List.findOne({ _id: listId, createdBy: userId });
+  async shareList(listId: string, userId: string, profileId: string, participantProfileIds: string[]) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
-    profileIds.forEach(pid => {
+    participantProfileIds.forEach(pid => {
       if (!list.participants.some(existing => existing.toString() === pid)) {
         list.participants.push(new mongoose.Types.ObjectId(pid));
       }

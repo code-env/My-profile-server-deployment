@@ -45,6 +45,7 @@ export interface IOrganization extends Document {
     defaultRole: 'member';
   };
   createdBy: Types.ObjectId;
+  profile: Types.ObjectId;
   updatedBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -143,6 +144,11 @@ const OrganizationSchema = new Schema<IOrganization>({
     }
   },
   createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'Profile',
+    required: true
+  },
+  profile: {
     type: Schema.Types.ObjectId,
     ref: 'Profile',
     required: true

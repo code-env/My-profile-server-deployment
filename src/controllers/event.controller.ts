@@ -375,7 +375,7 @@ export const updateEvent = asyncHandler(async (req: Request, res: Response) => {
 // @access  Private
 export const deleteEvent = asyncHandler(async (req: Request, res: Response) => {
     const user: any = req.user!;
-    const profileId = req.body.profileId || user.activeProfile;
+    const profileId = req.body.profileId || user.activeProfile || req.query.profileId;
     
     if (!profileId) {
         throw createHttpError(400, 'Profile ID is required');
@@ -602,7 +602,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Comment text is required');
     }
 
-    if (!req.body.profileId) {
+    if (!req.body.profile && !req.query.profile && !req.body.profileId) {
         throw createHttpError(400, 'Profile is required');
     }
 
@@ -615,7 +615,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Event has no associated profile');
     }
 
-    const profile = req.body.profileId;
+    const profile = req.body.profileId || req.query.profileId || user.activeProfile;
     const updatedEvent = await eventService.addComment(
         req.params.id,
         user._id,
@@ -625,12 +625,14 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
 
     // Emit social interaction
     try {
-        await emitSocialInteraction(user._id, {
-            type: 'comment',
-            profile: new Types.ObjectId(user._id),
-            targetProfile: new Types.ObjectId(event.profile?._id as Types.ObjectId),
-            contentId: (updatedEvent as mongoose.Document).get('_id').toString(),
-            content: req.body.text
+        setImmediate(async () => {
+            await emitSocialInteraction(user._id, {
+                type: 'comment',
+                profile: new Types.ObjectId(profile),
+                targetProfile: new Types.ObjectId(event.profile?._id as Types.ObjectId),
+                contentId: (updatedEvent as mongoose.Document).get('_id').toString(),
+                content: req.body.text
+            });
         });
     } catch (error) {
         console.error('Failed to emit social interaction:', error);
@@ -638,7 +640,7 @@ export const addComment = asyncHandler(async (req: Request, res: Response) => {
 
     res.json({
         success: true,
-        data: updatedEvent,
+        data: updatedEvent.comments[updatedEvent.comments.length - 1],
         message: 'Comment added successfully'
     });
 });
@@ -662,22 +664,24 @@ export const likeEvent = asyncHandler(async (req: Request, res: Response) => {
         throw createHttpError(400, 'Event has no associated profile');
     }
 
-    if (!req.body.profileId) {
+    if (!req.body.profileId && !req.query.profileId && !req.body.profile && !req.query.profile) {
         throw createHttpError(400, 'Profile is required');
     }
 
-    const profile = req.body.profileId;
+    const profile = req.body.profileId || req.query.profileId || req.body.profile || req.query.profile;
 
     const event = await eventService.likeEvent(req.params.id, user._id, profile);
 
     // display the updated event
     try {
-        await emitSocialInteraction(user._id, {
-            type: 'like',
-            profile: new Types.ObjectId(user._id),
-            targetProfile: new Types.ObjectId(event.profile?._id as Types.ObjectId),
-            contentId: (event as mongoose.Document).get('_id').toString(),
-            content: req.body.text
+        setImmediate(async () => {
+            await emitSocialInteraction(user._id, {
+                type: 'like',
+                profile: new Types.ObjectId(profile),
+                targetProfile: new Types.ObjectId(event.profile?._id as Types.ObjectId),
+                contentId: (event as mongoose.Document).get('_id').toString(),
+                content: 'liked event'
+            });
         });
     } catch (error) {
         console.error('Failed to emit social interaction:', error);
@@ -685,7 +689,7 @@ export const likeEvent = asyncHandler(async (req: Request, res: Response) => {
 
     res.json({
         success: true,
-        data: event,
+        data: event.comments[event.likes.length - 1],
         message: 'Event liked successfully'
     });
 });
@@ -718,12 +722,14 @@ export const likeComment = async (req: Request, res: Response) => {
 
         // Emit social interaction
         try {
+            setImmediate(async () => {
             await emitSocialInteraction(user._id, {
                 type: 'like',
-                profile: new Types.ObjectId(user._id),
+                profile: new Types.ObjectId(req.body.profileId),
                 targetProfile: new Types.ObjectId(event.profile?._id as Types.ObjectId),
                 contentId: (event as mongoose.Document).get('_id').toString(),
                 content: ''
+                });
             });
         } catch (error) {
             console.error('Failed to emit social interaction:', error);
@@ -770,6 +776,7 @@ export const createBooking = async (req: Request, res: Response) => {
             // Get the user account associated with the profile
             const profileUser = await User.findOne({ profiles: new mongoose.Types.ObjectId(event.booking.serviceProvider.profileId) });
             if (profileUser) {
+                setImmediate(async () => {
                 await notificationService.createNotification({
                     recipient: profileUser._id,
                     type: 'booking_request',
@@ -782,6 +789,7 @@ export const createBooking = async (req: Request, res: Response) => {
                     actionText: 'View Booking',
                     actionUrl: `/bookings/${event._id}`,
                     priority: 'high'
+                });
                 });
             }
         }

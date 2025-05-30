@@ -29,7 +29,10 @@ const validateInteractionData = (data: SocialInteractionData) => {
 
 // Get socket URL from environment or config
 const getSocketUrl = () => {
-    return process.env.SOCKET_IO_URL || 'http://localhost:3000';
+    // if its dev mode use socket_io_url2 else use socket_io_url
+    const url = process.env.NODE_ENV === 'development' ? process.env.SOCKET_IO_URL2 : process.env.SOCKET_IO_URL;
+    console.log('Socket URL being used:', url);
+    return url;
 };
 
 export const emitSocialInteraction = async (
@@ -40,7 +43,10 @@ export const emitSocialInteraction = async (
     // Validate the interaction data
     validateInteractionData(data);
 
-    const socketUrl = serverUrl || getSocketUrl();
+    const socketUrl = getSocketUrl();
+    if (!socketUrl) {
+        throw new Error('Socket URL not found');
+    }
     console.log('Creating socket connection to', socketUrl);
     const socket = Client(socketUrl, {
         query: { userId: userId.toString() }

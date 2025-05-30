@@ -192,6 +192,7 @@ export interface SettingsDocument extends Document {
       post: NotificationChannelSettings;
       reactions: NotificationChannelSettings;
       inbox: NotificationChannelSettings;
+      comments: NotificationChannelSettings;  
       share: NotificationChannelSettings;
     };
     calendar: {
@@ -637,6 +638,7 @@ const SettingsSchema = new Schema<SettingsDocument>({
       post: channelField(),
       reactions: channelField(),
       inbox: channelField(),
+      comments: channelField(),
       share: channelField(),
     },
     calendar: {

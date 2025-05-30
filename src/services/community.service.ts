@@ -169,19 +169,19 @@ export class CommunityService {
     
     // Only send notifications if community allows them
     if (notificationSettings.general.allNotifications && notificationSettings.channels.push) {
-      // Send notification to all members
-      const notificationService = new NotificationService();
-      await Promise.all(
-        profile.members.map(memberId =>
-          notificationService.createNotification({
-            recipient: memberId,
-            type: 'community_broadcast',
-            title: 'Community Announcement',
-            message,
-            relatedTo: { model: 'Profile', id: communityId }
-          })
-        )
-      );
+    // Send notification to all members
+    const notificationService = new NotificationService();
+    await Promise.all(
+      profile.members.map(memberId =>
+        notificationService.createNotification({
+          recipient: memberId,
+          type: 'community_broadcast',
+          title: 'Community Announcement',
+          message,
+          relatedTo: { model: 'Profile', id: communityId }
+        })
+      )
+    );
     }
 
     // Store the broadcast in a section for history
@@ -287,14 +287,14 @@ export class CommunityService {
     // Send notification to community admin only if notifications are enabled
     const notificationSettings = settings.notifications;
     if (notificationSettings.general.allNotifications && notificationSettings.channels.push) {
-      const notificationService = new NotificationService();
-      await notificationService.createNotification({
-        recipient: community.profileInformation.creator,
-        type: 'community_report',
-        title: 'Community Report',
-        message: `A report has been made on the community by profile ${profileId}.`,
-        relatedTo: { model: 'Profile', id: communityId },
-      });
+    const notificationService = new NotificationService();
+    await notificationService.createNotification({
+      recipient: community.profileInformation.creator,
+      type: 'community_report',
+      title: 'Community Report',
+      message: `A report has been made on the community by profile ${profileId}.`,
+      relatedTo: { model: 'Profile', id: communityId },
+    });
     }
     
     return { 

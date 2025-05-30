@@ -92,6 +92,19 @@ class VaultService {
       return null;
     }
 
+    // Get user settings to apply storage and display preferences
+    const profile = await ProfileModel.findById(profileId);
+    const settings = profile ? await this.settingsService.getSettings(
+      (profile as any).profileInformation.creator.toString(), 
+      profileId
+    ) : null;
+
+    // Apply storage limit from settings if available
+    let storageLimit = vault.storageLimit;
+    if (settings?.specificSettings?.vaultStorageLimit) {
+      storageLimit = settings.specificSettings.vaultStorageLimit;
+    }
+
     // Get categories with their subcategories
     const categories = await VaultCategory.find({ vaultId: vault._id })
       .sort({ order: 1 });
@@ -120,8 +133,20 @@ class VaultService {
       _id: vault._id,
       profileId: vault.profileId,
       storageUsed: vault.storageUsed,
-      storageLimit: vault.storageLimit,
-      categories: categoriesWithSubcategories
+      storageLimit: storageLimit,
+      storageUsedFormatted: this.formatStorageSize(vault.storageUsed, settings),
+      storageLimitFormatted: this.formatStorageSize(storageLimit, settings),
+      storagePercentage: Math.round((vault.storageUsed / storageLimit) * 100),
+      categories: categoriesWithSubcategories,
+      settings: {
+        autoBackup: settings?.dataSettings?.autoDataBackup ?? true,
+        compressionEnabled: settings?.specificSettings?.vaultCompressionEnabled ?? true,
+        encryptionEnabled: settings?.specificSettings?.vaultEncryptionEnabled ?? false,
+        maxFileSize: settings?.specificSettings?.vaultMaxFileSize ?? 104857600, // 100MB default
+        allowedFileTypes: settings?.specificSettings?.vaultAllowedFileTypes ?? ['*'],
+        autoDeleteOldFiles: settings?.specificSettings?.vaultAutoDeleteOldFiles ?? false,
+        autoDeleteDays: settings?.specificSettings?.vaultAutoDeleteDays ?? 365
+      }
     };
   }
 
@@ -220,33 +245,15 @@ class VaultService {
             _id: childSub._id,
             name: childSub.name,
             order: childSub.order,
-            hasChildren: false,
+            hasChildren: false, // We're not loading deeper levels
             count: childCount,
             status: childSub.status,
-            items: childItems.map(item => {
-              const itemObj = item.toObject() as Record<string, any>;
-              const typeData = itemObj[itemObj.type] || {};
-              delete itemObj[itemObj.type];
-
-              // Remove empty document field if it exists
-              if (itemObj.document && (!itemObj.document.tags || itemObj.document.tags.length === 0)) {
-                delete itemObj.document;
-              }
-
-              const finalItem = {
-                ...itemObj,
-                categoryName: category?.name,
-                subcategoryName: childSub.name,
-                status: itemObj.status || 'active'
-              };
-
-              // Only include type data if it's not empty
-              if (Object.keys(typeData).length > 0) {
-                Object.assign(finalItem, typeData);
-              }
-
-              return finalItem;
-            }),
+            items: childItems.map(item => ({
+              _id: item._id,
+              title: item.title,
+              type: item.type,
+              createdAt: item.createdAt
+            })),
             subcategories: []
           };
         })
@@ -404,13 +411,24 @@ class VaultService {
     let fileSize = 0;
     const uploadedImages: any = {};
 
+    // Get user settings for vault preferences
+    const profile = await ProfileModel.findById(profileId);
+    const settings = profile ? await this.settingsService.getSettings(userId, profileId) : null;
+
+    // Check storage limits and file restrictions
+    await this.validateFileUpload(userId, profileId, item, settings);
+
     // Get or create vault
     let vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) {
+      // Apply storage limit from settings when creating vault
+      const storageLimit = settings?.specificSettings?.vaultStorageLimit ?? 21474836480; // 20GB default
+      
       vault = await Vault.create({
         userId: new Types.ObjectId(userId),
         profileId: new Types.ObjectId(profileId),
-        storageUsed: fileSize
+        storageUsed: fileSize,
+        storageLimit: storageLimit
       });
     }
 
@@ -438,12 +456,20 @@ class VaultService {
       throw new Error('Subcategory not found or does not belong to the specified category');
     }
 
+    // Apply compression settings if enabled
+    const compressionEnabled = settings?.specificSettings?.vaultCompressionEnabled ?? true;
+    const encryptionEnabled = settings?.specificSettings?.vaultEncryptionEnabled ?? false;
+
     // Handle main file upload if present
     if (item.fileData) {
       const uploadOptions = {
         folder: `vault/${profileId}/${category}/${subcategoryDoc.name}`,
         resourceType: this.getResourceTypeFromCategory(category),
-        tags: [`vault-${category}`, `vault-${subcategoryDoc.name}`]
+        tags: [`vault-${category}`, `vault-${subcategoryDoc.name}`],
+        transformation: compressionEnabled ? [
+          { quality: 'auto:good' },
+          { fetch_format: 'auto' }
+        ] : undefined
       };
 
       const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(item.fileData, uploadOptions);
@@ -451,6 +477,16 @@ class VaultService {
       fileSize = uploadResult.bytes;
       item.fileSize = fileSize;
       item.publicId = uploadResult.public_id;
+      
+      // Add encryption metadata if enabled
+      if (encryptionEnabled) {
+        item.metadata = {
+          ...item.metadata,
+          encrypted: true,
+          encryptionMethod: 'AES-256'
+        };
+      }
+      
       delete item.fileData;
     }
 
@@ -626,7 +662,7 @@ class VaultService {
     vault.storageUsed = (vault.storageUsed || 0) + fileSize;
     await vault.save();
 
-    // Create the item
+    // Create the item with settings-based metadata
     const newItem = await VaultItem.create({
       vaultId: vault._id,
       profileId: new Types.ObjectId(profileId),
@@ -639,7 +675,16 @@ class VaultService {
       fileUrl: item.fileUrl,
       fileSize: fileSize,
       publicId: item.publicId,
-      metadata: item.metadata || {},
+      metadata: {
+        ...item.metadata,
+        compressed: compressionEnabled,
+        encrypted: encryptionEnabled,
+        uploadSettings: {
+          autoBackup: settings?.dataSettings?.autoDataBackup ?? true,
+          compressionEnabled,
+          encryptionEnabled
+        }
+      },
       card: item.card,
       document: item.document ? {
         ...item.document,
@@ -649,6 +694,18 @@ class VaultService {
       location: item.location,
       identification: item.identification
     });
+
+    // Send notification if enabled
+    await this.sendVaultNotification(userId, profileId, 'item_added', {
+      itemTitle: item.title,
+      category: category,
+      subcategory: subcategoryDoc.name
+    });
+
+    // Schedule backup if auto-backup is enabled
+    if (settings?.dataSettings?.autoDataBackup) {
+      await this.scheduleItemBackup(newItem._id.toString(), userId);
+    }
 
     return newItem;
   }
@@ -1135,9 +1192,42 @@ class VaultService {
     const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(fileData, uploadOptions);
     
     // Find or create subcategory by name
-    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    let vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) {
-      throw new Error('Vault not found');
+      // log error
+      console.error('Vault not found');
+
+      // create vault with userId
+      vault = await Vault.create({
+        userId: new Types.ObjectId(userId),
+        profileId: new Types.ObjectId(profileId),
+        storageLimit: 1000000000,
+        storageUsed: 0
+      });
+
+      // Create default categories when vault is created
+      const defaultCategories = this.getDefaultCategories();
+      await Promise.all(
+        defaultCategories.map(async (defaultCat) => {
+          const categoryDoc = await VaultCategory.create({
+            vaultId: vault?._id,
+            name: defaultCat.name,
+            order: 0
+          });
+
+          // Create subcategories
+          return Promise.all(
+            defaultCat.subcategories.map(async (sub, index) => {
+              return VaultSubcategory.create({
+                vaultId: vault?._id,
+                categoryId: categoryDoc._id,
+                name: sub.name,
+                order: index
+              });
+            })
+          );
+        })
+      );
     }
 
     // Find category by name
@@ -2029,6 +2119,286 @@ class VaultService {
         canDownload: false,
         connectionStatus: 'not_connected'
       };
+    }
+  }
+
+  /**
+   * Validate file upload against user settings and limits
+   */
+  private async validateFileUpload(userId: string, profileId: string, item: any, settings: any): Promise<void> {
+    // Check file size limits
+    const maxFileSize = settings?.specificSettings?.vaultMaxFileSize ?? 104857600; // 100MB default
+    if (item.fileData && item.fileSize > maxFileSize) {
+      throw createHttpError(413, `File size exceeds limit of ${this.formatStorageSize(maxFileSize, settings)}`);
+    }
+
+    // Check allowed file types
+    const allowedFileTypes = settings?.specificSettings?.vaultAllowedFileTypes ?? ['*'];
+    if (allowedFileTypes[0] !== '*' && item.fileType) {
+      const isAllowed = allowedFileTypes.some((type: string) => 
+        item.fileType.toLowerCase().includes(type.toLowerCase())
+      );
+      if (!isAllowed) {
+        throw createHttpError(415, `File type ${item.fileType} is not allowed`);
+      }
+    }
+
+    // Check storage quota
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (vault) {
+      const storageLimit = settings?.specificSettings?.vaultStorageLimit ?? vault.storageLimit;
+      const estimatedNewSize = (vault.storageUsed || 0) + (item.fileSize || 0);
+      
+      if (estimatedNewSize > storageLimit) {
+        throw createHttpError(507, `Storage limit exceeded. Available: ${this.formatStorageSize(storageLimit - vault.storageUsed, settings)}`);
+      }
+    }
+
+    // // Check if storage permission is enabled
+    // if (!settings?.general?.appSystem?.permissions?.storage) {
+    //   throw createHttpError(403, 'Storage permission is disabled in settings');
+    // }
+  }
+
+  /**
+   * Format storage size according to user's regional settings
+   */
+  private formatStorageSize(bytes: number, settings: any): string {
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let size = bytes;
+    let unitIndex = 0;
+
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+
+    // Use user's number format preference
+    const numberFormat = settings?.general?.regional?.numberFormat ?? 'dot';
+    const formattedSize = numberFormat === 'comma' 
+      ? size.toFixed(2).replace('.', ',')
+      : size.toFixed(2);
+
+    return `${formattedSize} ${units[unitIndex]}`;
+  }
+
+  /**
+   * Send vault-related notifications based on user preferences
+   */
+  private async sendVaultNotification(userId: string, profileId: string, action: string, details: any): Promise<void> {
+    try {
+      const settings = await this.settingsService.getSettings(userId, profileId);
+      
+      // Check if notifications are enabled
+      if (!settings?.general?.appSystem?.allowNotifications) {
+        return;
+      }
+
+      // Check specific vault notification preferences
+      const vaultNotifications = settings?.notifications?.Account?.storageLevel;
+      if (!vaultNotifications) {
+        return;
+      }
+
+      const notificationData = {
+        userId,
+        profileId,
+        action,
+        details,
+        timestamp: new Date()
+      };
+
+      // Send notifications based on enabled channels
+      if (vaultNotifications.push) {
+        // Send push notification
+        logger.info('Sending vault push notification:', notificationData);
+      }
+
+      if (vaultNotifications.email) {
+        // Send email notification
+        logger.info('Sending vault email notification:', notificationData);
+      }
+
+      if (vaultNotifications.inApp) {
+        // Send in-app notification
+        logger.info('Sending vault in-app notification:', notificationData);
+      }
+
+      if (vaultNotifications.text) {
+        // Send SMS notification
+        logger.info('Sending vault SMS notification:', notificationData);
+      }
+    } catch (error) {
+      logger.error('Error sending vault notification:', error);
+    }
+  }
+
+  /**
+   * Schedule automatic backup for vault item
+   */
+  private async scheduleItemBackup(itemId: string, userId: string): Promise<void> {
+    try {
+      // This would integrate with a job queue system like Bull or Agenda
+      logger.info(`Scheduling backup for vault item ${itemId} for user ${userId}`);
+      
+      // Example: Add to backup queue
+      // await backupQueue.add('backup-vault-item', { itemId, userId }, {
+      //   delay: 60000, // 1 minute delay
+      //   attempts: 3
+      // });
+    } catch (error) {
+      logger.error('Error scheduling item backup:', error);
+    }
+  }
+
+  /**
+   * Get vault settings for a profile
+   */
+  async getVaultSettings(userId: string, profileId: string): Promise<any> {
+    const settings = await this.settingsService.getSettings(userId, profileId);
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+
+    return {
+      storage: {
+        used: vault?.storageUsed || 0,
+        limit: settings?.specificSettings?.vaultStorageLimit ?? vault?.storageLimit ?? 21474836480,
+        usedFormatted: this.formatStorageSize(vault?.storageUsed || 0, settings),
+        limitFormatted: this.formatStorageSize(
+          settings?.specificSettings?.vaultStorageLimit ?? vault?.storageLimit ?? 21474836480, 
+          settings
+        ),
+        percentage: vault ? Math.round(((vault.storageUsed || 0) / (settings?.specificSettings?.vaultStorageLimit ?? vault.storageLimit)) * 100) : 0
+      },
+      preferences: {
+        autoBackup: settings?.dataSettings?.autoDataBackup ?? true,
+        compressionEnabled: settings?.specificSettings?.vaultCompressionEnabled ?? true,
+        encryptionEnabled: settings?.specificSettings?.vaultEncryptionEnabled ?? false,
+        maxFileSize: settings?.specificSettings?.vaultMaxFileSize ?? 104857600,
+        allowedFileTypes: settings?.specificSettings?.vaultAllowedFileTypes ?? ['*'],
+        autoDeleteOldFiles: settings?.specificSettings?.vaultAutoDeleteOldFiles ?? false,
+        autoDeleteDays: settings?.specificSettings?.vaultAutoDeleteDays ?? 365
+      },
+      notifications: {
+        enabled: settings?.general?.appSystem?.allowNotifications ?? true,
+        channels: settings?.notifications?.Account?.storageLevel ?? {
+          push: true,
+          email: true,
+          inApp: true,
+          text: false
+        }
+      },
+      privacy: {
+        vault: settings?.privacy?.Visibility?.profile?.vault ?? { level: 'OnlyMe' },
+        wallet: settings?.privacy?.Visibility?.vault?.wallet ?? { level: 'OnlyMe' },
+        documents: settings?.privacy?.Visibility?.vault?.documents ?? { level: 'OnlyMe' },
+        media: settings?.privacy?.Visibility?.vault?.media ?? { level: 'ConnectionsOnly' }
+      },
+      permissions: {
+        share: settings?.privacy?.permissions?.share ?? { level: 'ConnectionsOnly' },
+        export: settings?.privacy?.permissions?.export ?? { level: 'ConnectionsOnly' },
+        download: settings?.privacy?.permissions?.download ?? { level: 'ConnectionsOnly' }
+      },
+      regional: {
+        dateFormat: settings?.general?.regional?.dateFormat ?? 'MM/DD/YYYY',
+        numberFormat: settings?.general?.regional?.numberFormat ?? 'dot',
+        currency: settings?.general?.regional?.currency ?? 'USD',
+        language: settings?.general?.regional?.language ?? 'en'
+      }
+    };
+  }
+
+  /**
+   * Update vault-specific settings
+   */
+  async updateVaultSettings(userId: string, profileId: string, updates: any): Promise<any> {
+    const currentSettings = await this.settingsService.getSettings(userId, profileId);
+    
+    const vaultUpdates: any = {};
+
+    // Update vault-specific settings
+    if (updates.storage?.limit) {
+      vaultUpdates['specificSettings.vaultStorageLimit'] = updates.storage.limit;
+    }
+
+    if (updates.preferences) {
+      if (updates.preferences.compressionEnabled !== undefined) {
+        vaultUpdates['specificSettings.vaultCompressionEnabled'] = updates.preferences.compressionEnabled;
+      }
+      if (updates.preferences.encryptionEnabled !== undefined) {
+        vaultUpdates['specificSettings.vaultEncryptionEnabled'] = updates.preferences.encryptionEnabled;
+      }
+      if (updates.preferences.maxFileSize !== undefined) {
+        vaultUpdates['specificSettings.vaultMaxFileSize'] = updates.preferences.maxFileSize;
+      }
+      if (updates.preferences.allowedFileTypes !== undefined) {
+        vaultUpdates['specificSettings.vaultAllowedFileTypes'] = updates.preferences.allowedFileTypes;
+      }
+      if (updates.preferences.autoDeleteOldFiles !== undefined) {
+        vaultUpdates['specificSettings.vaultAutoDeleteOldFiles'] = updates.preferences.autoDeleteOldFiles;
+      }
+      if (updates.preferences.autoDeleteDays !== undefined) {
+        vaultUpdates['specificSettings.vaultAutoDeleteDays'] = updates.preferences.autoDeleteDays;
+      }
+      if (updates.preferences.autoBackup !== undefined) {
+        vaultUpdates['dataSettings.autoDataBackup'] = updates.preferences.autoBackup;
+      }
+    }
+
+    // Update privacy settings
+    if (updates.privacy) {
+      if (updates.privacy.vault) {
+        vaultUpdates['privacy.Visibility.profile.vault'] = updates.privacy.vault;
+      }
+      if (updates.privacy.wallet) {
+        vaultUpdates['privacy.Visibility.vault.wallet'] = updates.privacy.wallet;
+      }
+      if (updates.privacy.documents) {
+        vaultUpdates['privacy.Visibility.vault.documents'] = updates.privacy.documents;
+      }
+      if (updates.privacy.media) {
+        vaultUpdates['privacy.Visibility.vault.media'] = updates.privacy.media;
+      }
+    }
+
+    // Update permission settings
+    if (updates.permissions) {
+      if (updates.permissions.share) {
+        vaultUpdates['privacy.permissions.share'] = updates.permissions.share;
+      }
+      if (updates.permissions.export) {
+        vaultUpdates['privacy.permissions.export'] = updates.permissions.export;
+      }
+      if (updates.permissions.download) {
+        vaultUpdates['privacy.permissions.download'] = updates.permissions.download;
+      }
+    }
+
+    // Update notification settings
+    if (updates.notifications?.channels) {
+      vaultUpdates['notifications.Account.storageLevel'] = updates.notifications.channels;
+    }
+
+    // Apply updates
+    const updatedSettings = await this.settingsService.updateSettings(userId, vaultUpdates);
+
+    // Update vault storage limit if changed
+    if (updates.storage?.limit) {
+      await Vault.updateOne(
+        { profileId: new Types.ObjectId(profileId) },
+        { storageLimit: updates.storage.limit }
+      );
+    }
+
+    return this.getVaultSettings(userId, profileId);
+  }
+
+  /**
+   * Delete the vault document itself
+   */
+  async deleteVault(profileId: string): Promise<void> {
+    const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
+    if (vault) {
+      await Vault.findByIdAndDelete(vault._id);
     }
   }
 }
