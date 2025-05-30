@@ -6,14 +6,8 @@ import path from 'path';
 import Handlebars from 'handlebars';
 
 // Register Handlebars helpers
-Handlebars.registerHelper('gt', function(a, b) {
-  return a > b;
-});
-
-Handlebars.registerHelper('eq', function(a, b) {
-  return a === b;
-});
-
+Handlebars.registerHelper('eq', (a: any, b: any) => a === b);
+Handlebars.registerHelper('gt', (a: number, b: number) => a > b);
 Handlebars.registerHelper('formatNumber', function(num) {
   return num.toLocaleString();
 });
@@ -32,6 +26,23 @@ Handlebars.registerHelper('formatDate', function(timestamp) {
     minute: '2-digit',
     hour12: true
   });
+});
+
+Handlebars.registerHelper('or', (...args: any[]) => {
+  return args.slice(0, -1).some(arg => !!arg);
+});
+
+Handlebars.registerHelper('unless', (conditional: any, options: any) => {
+  if (!conditional) {
+    return options.fn(this);
+  } else {
+    return options.inverse(this);
+  }
+});
+
+Handlebars.registerHelper('substring', (str: string, start: number, end?: number) => {
+  if (!str) return '';
+  return end ? str.substring(start, end) : str.substring(start);
 });
 
 class EmailService {

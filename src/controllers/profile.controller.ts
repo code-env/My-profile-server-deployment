@@ -670,4 +670,37 @@ export class ProfileController {
       next(error);
     }
   }
+
+  /**
+   * Delete duplicate personal profiles (Admin only)
+   * Keeps profiles with non-zero MYPTS balance, or the most recent one if all have zero balance
+   */
+  deleteDuplicatePersonalProfiles = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    // Check if user is admin
+    const user = req.user as any;
+    if (!user || !['admin', 'superadmin'].includes(user.role)) {
+      throw createHttpError(403, 'Admin access required');
+    }
+
+    logger.info(`Admin ${user._id} initiated duplicate personal profile deletion`);
+
+    try {
+      const results = await this.service.deleteDuplicatePersonalProfiles();
+
+      logger.info('Duplicate profile deletion completed successfully', {
+        totalUsersProcessed: results.totalUsersProcessed,
+        totalProfilesDeleted: results.totalProfilesDeleted,
+        usersWithDuplicates: results.usersWithDuplicates
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Duplicate personal profiles deleted successfully',
+        data: results
+      });
+    } catch (error) {
+      logger.error('Error deleting duplicate personal profiles:', error);
+      throw createHttpError(500, 'Failed to delete duplicate personal profiles');
+    }
+  });
 }

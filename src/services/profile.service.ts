@@ -1349,4 +1349,191 @@ export class ProfileService {
 
     return processedProfiles;
   }
+
+  /**
+   * Delete duplicate personal profiles for users, keeping only profiles with non-zero MYPTS balance
+   * or the most recent one if all have zero balance
+   * @returns Summary of deletion results
+   */
+  async deleteDuplicatePersonalProfiles(): Promise<{
+    totalUsersProcessed: number;
+    totalProfilesDeleted: number;
+    usersWithDuplicates: number;
+    deletionDetails: Array<{
+      userId: string;
+      profilesFound: number;
+      profilesDeleted: number;
+      keptProfile: {
+        id: string;
+        name: string;
+        balance: number;
+        createdAt: Date;
+      };
+      deletedProfiles: Array<{
+        id: string;
+        name: string;
+        balance: number;
+        createdAt: Date;
+      }>;
+    }>;
+  }> {
+    logger.info('Starting duplicate personal profile deletion process');
+
+    const results = {
+      totalUsersProcessed: 0,
+      totalProfilesDeleted: 0,
+      usersWithDuplicates: 0,
+      deletionDetails: [] as Array<{
+        userId: string;
+        profilesFound: number;
+        profilesDeleted: number;
+        keptProfile: {
+          id: string;
+          name: string;
+          balance: number;
+          createdAt: Date;
+        };
+        deletedProfiles: Array<{
+          id: string;
+          name: string;
+          balance: number;
+          createdAt: Date;
+        }>;
+      }>
+    };
+
+    // Define the profile type for aggregation results
+    interface ProfileInfo {
+      id: mongoose.Types.ObjectId;
+      name: string;
+      balance: number;
+      createdAt: Date;
+    }
+
+    try {
+      // Get all users who have personal profiles
+      const usersWithPersonalProfiles = await Profile.aggregate([
+        {
+          $match: {
+            profileType: 'personal',
+            profileCategory: 'individual'
+          }
+        },
+        {
+          $group: {
+            _id: '$profileInformation.creator',
+            profiles: {
+              $push: {
+                id: '$_id',
+                name: '$profileInformation.username',
+                balance: { $ifNull: ['$ProfileMypts.currentBalance', 0] },
+                createdAt: '$createdAt'
+              }
+            },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $match: {
+            count: { $gt: 1 } // Only users with more than one personal profile
+          }
+        }
+      ]);
+
+      logger.info(`Found ${usersWithPersonalProfiles.length} users with duplicate personal profiles`);
+
+      for (const userGroup of usersWithPersonalProfiles) {
+        const userId = userGroup._id;
+        const profiles: ProfileInfo[] = userGroup.profiles;
+        
+        results.totalUsersProcessed++;
+        results.usersWithDuplicates++;
+
+        logger.info(`Processing user ${userId} with ${profiles.length} personal profiles`);
+
+        // Log all profiles for this user
+        profiles.forEach((profile: ProfileInfo) => {
+          logger.info(`Profile: ${profile.id}, Name: ${profile.name}, Balance: ${profile.balance}, Created: ${profile.createdAt}`);
+        });
+
+        // Find profiles with non-zero balance
+        const profilesWithBalance = profiles.filter((p: ProfileInfo) => p.balance > 0);
+        
+        let profileToKeep: ProfileInfo;
+        let profilesToDelete: ProfileInfo[];
+
+        if (profilesWithBalance.length > 0) {
+          // Keep the profile with the highest balance (or most recent if tied)
+          profileToKeep = profilesWithBalance.reduce((prev: ProfileInfo, current: ProfileInfo) => {
+            if (current.balance > prev.balance) return current;
+            if (current.balance === prev.balance && new Date(current.createdAt) > new Date(prev.createdAt)) return current;
+            return prev;
+          });
+          
+          // Delete all other profiles
+          profilesToDelete = profiles.filter((p: ProfileInfo) => p.id !== profileToKeep.id);
+        } else {
+          // All profiles have zero balance, keep the most recent one
+          profileToKeep = profiles.reduce((prev: ProfileInfo, current: ProfileInfo) => 
+            new Date(current.createdAt) > new Date(prev.createdAt) ? current : prev
+          );
+          
+          // Delete all other profiles
+          profilesToDelete = profiles.filter((p: ProfileInfo) => p.id !== profileToKeep.id);
+        }
+
+        logger.info(`Keeping profile: ${profileToKeep.id} (${profileToKeep.name}) with balance ${profileToKeep.balance}`);
+        logger.info(`Deleting ${profilesToDelete.length} profiles`);
+
+        // Delete the duplicate profiles
+        const deletedProfiles = [];
+        for (const profileToDelete of profilesToDelete) {
+          try {
+            logger.info(`Deleting profile: ${profileToDelete.id} (${profileToDelete.name}) with balance ${profileToDelete.balance}`);
+            
+            // Delete the profile
+            await Profile.findByIdAndDelete(profileToDelete.id);
+            
+            // Remove from user's profiles array
+            await User.findByIdAndUpdate(userId, {
+              $pull: { profiles: profileToDelete.id }
+            });
+
+            deletedProfiles.push(profileToDelete);
+            results.totalProfilesDeleted++;
+            
+            logger.info(`Successfully deleted profile: ${profileToDelete.id}`);
+          } catch (error) {
+            logger.error(`Error deleting profile ${profileToDelete.id}:`, error);
+          }
+        }
+
+        // Add to results
+        results.deletionDetails.push({
+          userId: userId.toString(),
+          profilesFound: profiles.length,
+          profilesDeleted: deletedProfiles.length,
+          keptProfile: {
+            id: profileToKeep.id.toString(),
+            name: profileToKeep.name || 'Unnamed Profile',
+            balance: profileToKeep.balance,
+            createdAt: profileToKeep.createdAt
+          },
+          deletedProfiles: deletedProfiles.map((p: ProfileInfo) => ({
+            id: p.id.toString(),
+            name: p.name || 'Unnamed Profile',
+            balance: p.balance,
+            createdAt: p.createdAt
+          }))
+        });
+      }
+
+      logger.info(`Duplicate profile deletion completed. Processed ${results.totalUsersProcessed} users, deleted ${results.totalProfilesDeleted} profiles`);
+      
+      return results;
+    } catch (error) {
+      logger.error('Error during duplicate profile deletion:', error);
+      throw error;
+    }
+  }
 }
