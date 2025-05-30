@@ -2379,7 +2379,7 @@ class VaultService {
     }
 
     // Apply updates
-    const updatedSettings = await this.settingsService.updateSettings(userId, vaultUpdates);
+    const updatedSettings = await this.settingsService.updateSettings(userId, profileId, vaultUpdates);
 
     // Update vault storage limit if changed
     if (updates.storage?.limit) {
