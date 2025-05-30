@@ -11,12 +11,8 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const handlebars_1 = __importDefault(require("handlebars"));
 // Register Handlebars helpers
-handlebars_1.default.registerHelper('gt', function (a, b) {
-    return a > b;
-});
-handlebars_1.default.registerHelper('eq', function (a, b) {
-    return a === b;
-});
+handlebars_1.default.registerHelper('eq', (a, b) => a === b);
+handlebars_1.default.registerHelper('gt', (a, b) => a > b);
 handlebars_1.default.registerHelper('formatNumber', function (num) {
     return num.toLocaleString();
 });
@@ -34,6 +30,22 @@ handlebars_1.default.registerHelper('formatDate', function (timestamp) {
         minute: '2-digit',
         hour12: true
     });
+});
+handlebars_1.default.registerHelper('or', (...args) => {
+    return args.slice(0, -1).some(arg => !!arg);
+});
+handlebars_1.default.registerHelper('unless', (conditional, options) => {
+    if (!conditional) {
+        return options.fn(this);
+    }
+    else {
+        return options.inverse(this);
+    }
+});
+handlebars_1.default.registerHelper('substring', (str, start, end) => {
+    if (!str)
+        return '';
+    return end ? str.substring(start, end) : str.substring(start);
 });
 class EmailService {
     // Custom verification method
