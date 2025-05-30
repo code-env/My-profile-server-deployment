@@ -287,37 +287,9 @@ export class NotificationService {
         appName: 'MyPts',
         year: new Date().getFullYear(),
         baseUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
-        unsubscribeToken: user.unsubscribeToken || ''
-      };
-
-      // For reminder notifications, use specific templates
-      if (notification.type === 'reminder') {
-        const reminderType = notification.metadata?.reminderType;
-        const relatedModel = notification.relatedTo?.model;
-        
-        if (relatedModel === 'Task') {
-          emailTemplate = 'task-reminder';
-          emailSubject = `Task Reminder: ${notification.metadata?.itemTitle || notification.title}`;
-        } else if (relatedModel === 'Event') {
-          // Check if this is a booking event
-          if (notification.metadata?.eventType === 'booking' || notification.metadata?.eventType === 'Booking') {
-            emailTemplate = 'booking-reminder';
-            emailSubject = `Booking Reminder: ${notification.metadata?.itemTitle || notification.title}`;
-          } else {
-            emailTemplate = 'event-reminder';
-            emailSubject = `Event Reminder: ${notification.metadata?.itemTitle || notification.title}`;
-          }
-        } else if (relatedModel === 'Booking') {
-          emailTemplate = 'booking-reminder';
-          emailSubject = `Booking Reminder: ${notification.metadata?.itemTitle || notification.title}`;
-        } else {
-          // Fallback to general reminder template
-          emailTemplate = 'general-reminder';
-          emailSubject = `Reminder: ${notification.metadata?.itemTitle || notification.title}`;
-        }
-        
-        // Add helper function for date formatting
-        templateData.formatDateTime = (dateString: string) => {
+        unsubscribeToken: user.unsubscribeToken || '',
+        recipientName: user.fullName || user.firstName || 'User',
+        formatDateTime: (dateString: string) => {
           if (!dateString) return '';
           const date = new Date(dateString);
           return date.toLocaleDateString('en-US', {
@@ -328,7 +300,57 @@ export class NotificationService {
             hour: '2-digit',
             minute: '2-digit'
           });
+        }
+      };
+
+      // For connection requests, use the specialized connection template
+      if (notification.metadata?.connectionType || notification.metadata?.connectionReason || notification.metadata?.source) {
+        emailTemplate = 'connection-request';
+        emailSubject = `New Connection Request - ${notification.title}`;
+      }
+      // For booking requests, use the event notification template
+      else if (notification.type === 'booking_request') {
+        emailTemplate = 'event-notification';
+        emailSubject = `New Booking Request - ${notification.title}`;
+        // Ensure metadata has the right structure for event-notification template
+        templateData.metadata = {
+          ...templateData.metadata,
+          eventType: 'booking',
+          notificationType: 'request'
         };
+      }
+      // For events and bookings, use the specialized event template
+      else if (notification.metadata?.eventType || notification.metadata?.eventName || notification.metadata?.eventDate || notification.metadata?.bookingId) {
+        emailTemplate = 'event-notification';
+        emailSubject = notification.metadata?.eventType === 'booking' ? 
+          `Booking Notification - ${notification.title}` : 
+          `Event Notification - ${notification.title}`;
+      }
+      // For reminder notifications, use specific templates
+      else if (notification.type === 'reminder') {
+        const reminderType = notification.metadata?.reminderType;
+        const relatedModel = notification.relatedTo?.model;
+        
+        if (relatedModel === 'Task') {
+          emailTemplate = 'task-reminder';
+          emailSubject = `Task Reminder: ${notification.metadata?.itemTitle || notification.title}`;
+        } else if (relatedModel === 'Event') {
+          // Check if this is a booking event
+          if (notification.metadata?.eventType === 'booking' || notification.metadata?.eventType === 'Booking') {
+            emailTemplate = 'event-notification';
+            emailSubject = `Booking Reminder: ${notification.metadata?.itemTitle || notification.title}`;
+          } else {
+            emailTemplate = 'event-notification';
+            emailSubject = `Event Reminder: ${notification.metadata?.itemTitle || notification.title}`;
+          }
+        } else if (relatedModel === 'Booking') {
+          emailTemplate = 'event-notification';
+          emailSubject = `Booking Reminder: ${notification.metadata?.itemTitle || notification.title}`;
+        } else {
+          // Fallback to general reminder template
+          emailTemplate = 'general-reminder';
+          emailSubject = `Reminder: ${notification.metadata?.itemTitle || notification.title}`;
+        }
       }
       // For transaction notifications, use specific templates based on transaction type
       else if (notification.type === 'system_notification' && notification.relatedTo?.model === 'Transaction') {

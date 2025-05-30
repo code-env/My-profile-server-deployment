@@ -182,9 +182,27 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
                 isArchived: false,
                 metadata: {
                     bookingId: event._id,
-                    serviceName: event.booking?.service?.name,
-                    requesterName: user.fullName,
-                    requesterId: user._id
+                    itemTitle: event.booking?.service?.name || 'Service Booking',
+                    eventType: 'booking',
+                    notificationType: 'request',
+                    startTime: event.startTime,
+                    endTime: event.endTime,
+                    location: event.location,
+                    duration: event.booking?.service?.duration,
+                    description: event.description,
+                    status: 'pending',
+                    service: {
+                        name: event.booking?.service?.name,
+                        duration: event.booking?.service?.duration
+                    },
+                    provider: {
+                        profileId: event.booking?.serviceProvider?.profileId,
+                        role: event.booking?.serviceProvider?.role
+                    },
+                    requester: {
+                        name: user.fullName,
+                        id: user._id
+                    }
                 }
             });
         }
@@ -786,9 +804,37 @@ export const createBooking = async (req: Request, res: Response) => {
                         model: 'Event',
                         id: event._id
                     },
-                    actionText: 'View Booking',
-                    actionUrl: `/bookings/${event._id}`,
-                    priority: 'high'
+                    action: {
+                        text: 'View Booking',
+                        url: `/bookings/${event._id}`
+                    },
+                    priority: 'high',
+                    isRead: false,
+                    isArchived: false,
+                    metadata: {
+                        bookingId: event._id,
+                        itemTitle: event.booking?.service?.name || 'Service Booking',
+                        eventType: 'booking',
+                        notificationType: 'request',
+                        startTime: event.startTime,
+                        endTime: event.endTime,
+                        location: event.location,
+                        duration: event.booking?.service?.duration,
+                        description: event.description,
+                        status: 'pending',
+                        service: {
+                            name: event.booking?.service?.name,
+                            duration: event.booking?.service?.duration
+                        },
+                        provider: {
+                            profileId: event.booking?.serviceProvider?.profileId,
+                            role: event.booking?.serviceProvider?.role
+                        },
+                        requester: {
+                            name: user.fullName,
+                            id: user._id
+                        }
+                    }
                 });
                 });
             }
