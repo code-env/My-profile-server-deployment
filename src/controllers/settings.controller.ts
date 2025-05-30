@@ -69,6 +69,7 @@ export class SettingsController {
   public updateSettings = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = (req.user as any)?._id;
+      const profileId = (req.params as any).profileId;
       if (!userId) throw createHttpError(401, 'Unauthorized');
 
       const updates = req.body;
@@ -76,7 +77,7 @@ export class SettingsController {
       if (!updates || typeof updates !== "object")  {
         throw createHttpError(400, 'Valid update data is required');
       }
-      const updated = await this.settingsService.updateSettings(userId, updates);
+      const updated = await this.settingsService.updateSettings(userId, profileId, updates);
       if (!updated)  {
         res.status(404).json({ message: "Settings not found" });
       }

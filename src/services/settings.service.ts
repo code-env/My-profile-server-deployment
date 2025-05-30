@@ -147,11 +147,33 @@ return  await defaultSettings.save()
    */
   async updateSettings(
     userId: string,
+    profileId: string,
     updates: PartialDeep<SettingsDocument>
   ): Promise<SettingsDocument | null> {
-    // Flatten the deeply nested update payload to dot notation
+    // First update the profile's specific settings if they exist in the updates
+    if (updates.specificSettings) {
+      const profile = await ProfileModel.findOne({ _id: profileId });
+      if (!profile) throw new Error("Profile not found");
+      
+      // Convert current settings to plain object and ensure it exists
+      const currentSettings = (profile.specificSettings?.toObject?.() || profile.specificSettings || {}) as Record<string, any>;
+      // Convert updates to plain object to remove any Mongoose internals
+      const updatesPlain = (updates.specificSettings?.toObject?.() || updates.specificSettings) as Record<string, any>;
+      
+      // Merge the settings
+      const updatedSpecificSettings = { ...currentSettings, ...updatesPlain };
+      
+      // Update the profile's specific settings
+      await ProfileModel.findOneAndUpdate(
+        { _id: profileId },
+        { $set: { specificSettings: updatedSpecificSettings } }
+      );
+    }
+
+    // Flatten the deeply nested update payload to dot notation for general settings
     const dotNotatedUpdate = flattenToDotNotation(updates);
 
+    // Update the general settings
     return await SettingsModel.findOneAndUpdate(
       { userId },
       { $set: dotNotatedUpdate } as UpdateQuery<SettingsDocument>,
