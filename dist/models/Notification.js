@@ -91,7 +91,7 @@ const notificationSchema = new mongoose_1.Schema({
     relatedTo: {
         model: {
             type: String,
-            enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction', 'Event', 'CommunityGroupInvitation'],
+            enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction', 'Event', 'Task', 'CommunityGroupInvitation'],
         },
         id: {
             type: mongoose_1.Schema.Types.ObjectId,

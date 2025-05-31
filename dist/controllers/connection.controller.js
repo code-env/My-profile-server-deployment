@@ -9,6 +9,8 @@ const logger_1 = require("../utils/logger");
 const errors_1 = require("../utils/errors");
 const profile_model_1 = require("../models/profile.model");
 const Connection_1 = require("../models/Connection");
+const mongoose_1 = require("mongoose");
+const socketEmitter_1 = require("../utils/socketEmitter");
 class ConnectionController {
     /**
      * Create a new connection request
@@ -26,6 +28,21 @@ class ConnectionController {
                 throw new errors_1.CustomError('MISSING_PARAM', 'fromProfileId is required');
             }
             const connection = await connection_service_1.default.createConnection(fromUserId, fromProfileId, toProfileId, connectionType, details);
+            // Emit social interaction for connection request
+            try {
+                setImmediate(async () => {
+                    await (0, socketEmitter_1.emitSocialInteraction)(fromUserId, {
+                        type: 'connection',
+                        profile: new mongoose_1.Types.ObjectId(fromProfileId),
+                        targetProfile: new mongoose_1.Types.ObjectId(toProfileId),
+                        contentId: connection._id,
+                        content: `${connectionType} request`
+                    });
+                });
+            }
+            catch (error) {
+                console.error('Failed to emit social interaction for connection request:', error);
+            }
             res.status(201).json({ success: true, data: connection });
         }
         catch (error) {
@@ -50,15 +67,23 @@ class ConnectionController {
                 throw new errors_1.CustomError("MISSING_TOKEN", 'User not authenticated');
             }
             const connection = await connection_service_1.default.updateConnectionStatus(connectionId, status);
-            // TODO: use the actual profile id here, not the user id and then emit the event
-            // if (status === 'accepted') {
-            //   await emitSocialInteraction(userId, {
-            //     type: 'connection',
-            //     profile: new Types.ObjectId(userId),
-            //     targetProfile: new Types.ObjectId(connection.toProfile),
-            //     contentId: connection._id as Types.ObjectId,
-            //   });
-            // }
+            // Emit social interaction for connection status update
+            if (status === 'accepted') {
+                try {
+                    setImmediate(async () => {
+                        await (0, socketEmitter_1.emitSocialInteraction)(userId, {
+                            type: 'connection',
+                            profile: new mongoose_1.Types.ObjectId(connection.toProfile),
+                            targetProfile: new mongoose_1.Types.ObjectId(connection.fromProfile),
+                            contentId: connection._id,
+                            content: 'connection accepted'
+                        });
+                    });
+                }
+                catch (error) {
+                    console.error('Failed to emit social interaction for connection acceptance:', error);
+                }
+            }
             res.json({
                 success: true,
                 data: connection
