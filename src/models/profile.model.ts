@@ -101,6 +101,7 @@ interface IProfile {
   };
 
   ProfileBadges?: {
+    
     badges?: Array<{
       id: string;
       name: string;
