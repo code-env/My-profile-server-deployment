@@ -31,6 +31,21 @@ handlebars_1.default.registerHelper('formatDate', function (timestamp) {
         hour12: true
     });
 });
+handlebars_1.default.registerHelper('formatDateTime', function (timestamp) {
+    if (!timestamp)
+        return '';
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime()))
+        return '';
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+});
 handlebars_1.default.registerHelper('or', (...args) => {
     return args.slice(0, -1).some(arg => !!arg);
 });

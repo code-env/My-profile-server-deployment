@@ -172,6 +172,11 @@ const userSchema = new mongoose_1.Schema({
             type: mongoose_1.Schema.Types.ObjectId,
             ref: 'Profile',
         }],
+    activeProfile: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: 'Profile',
+        sparse: true,
+    },
     referrals: [{
             type: mongoose_1.Schema.Types.ObjectId,
             ref: 'User',

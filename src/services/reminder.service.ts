@@ -1,95 +1,101 @@
-import { Event } from '../models/Event';
-import { Task } from '../models/Tasks';
-import { IEvent } from '../models/Event';
-import { ITask } from '../models/Tasks';
-import { Reminder, ReminderType, ReminderUnit } from '../models/plans-shared';
-import { NotificationService } from './notification.service';
-import EmailService from './email.service';
-import mongoose, { Model } from 'mongoose';
-import { logger } from '../utils/logger';
+import { Event, IEvent } from '../models/Event';
+import { Task, ITask } from '../models/Tasks';
 import { List, IList } from '../models/List';
+import { NotificationService } from './notification.service';
+import { SettingsService } from './settings.service';
+import { logger } from '../utils/logger';
+import mongoose, { Model } from 'mongoose';
 import { mapExternalToInternal } from '../utils/visibilityMapper';
+import { Reminder, ReminderType, ReminderUnit } from '../models/plans-shared';
+import EmailService from './email.service';
+import { TimezoneUtils } from '../utils/timezoneUtils';
 
 class ReminderService {
     private notificationService: NotificationService;
     private emailService: EmailService;
+    private settingsService: SettingsService;
     private readonly MAX_RETRIES = 3;
     private readonly RETRY_DELAY = 5000; // 5 seconds
 
     constructor() {
         this.notificationService = new NotificationService();
         this.emailService = new EmailService();
+        this.settingsService = new SettingsService();
     }
 
     /**
-     * Add a reminder to an event, task, or list item
+     * Add a reminder to an event, task, or list item with timezone awareness
      */
     async addReminder(
         itemId: string,
-        userId: string,
-        reminder: {
-            type: ReminderType;
-            value: number;
-            unit: ReminderUnit;
-            message?: string;
-            recipients?: string[];
-        },
-        itemType: 'event' | 'task' | 'list' = 'event',
-        itemIndex?: number // For list item
-    ): Promise<IEvent | ITask | IList> {
-        let Model: Model<any>;
-        if (itemType === 'event') Model = Event;
-        else if (itemType === 'task') Model = Task;
-        else Model = List;
-        const item = await Model.findOne({ _id: itemId, createdBy: userId });
-        if (!item) {
-            throw new Error(`${itemType} not found or access denied`);
-        }
-        if (itemType === 'list' && typeof itemIndex === 'number') {
-            // Add reminder to a list item
-            const listItem = item.items[itemIndex];
-            if (!listItem) throw new Error('List item not found');
-            listItem.reminders = listItem.reminders || [];
-            const baseTime = listItem.createdAt || new Date();
-            const reminderTime = this.calculateReminderTime(
-                baseTime,
-                reminder.value,
-                reminder.unit
+        itemType: 'event' | 'task' | 'list',
+        reminderType: ReminderType,
+        customValue?: number,
+        customUnit?: 'minutes' | 'hours' | 'days' | 'weeks',
+        userId?: string
+    ): Promise<Reminder> {
+        try {
+            // Get the item based on type
+            let item: any;
+            let itemTime: Date;
+            let createdBy: string;
+
+            if (itemType === 'event') {
+                item = await Event.findById(itemId);
+                if (!item) throw new Error('Event not found');
+                itemTime = item.startTime;
+                createdBy = item.createdBy;
+            } else if (itemType === 'task') {
+                item = await Task.findById(itemId);
+                if (!item) throw new Error('Task not found');
+                itemTime = item.startTime || item.createdAt;
+                createdBy = item.createdBy;
+            } else {
+                item = await List.findById(itemId);
+                if (!item) throw new Error('List not found');
+                itemTime = item.createdAt;
+                createdBy = item.createdBy;
+            }
+
+            // Get user timezone
+            const userTimezone = await TimezoneUtils.getUserTimezone(createdBy.toString());
+
+            // Calculate reminder time with timezone awareness
+            const reminderTime = await this.calculateReminderTime(
+                itemTime,
+                reminderType,
+                customValue,
+                customUnit,
+                userTimezone
             );
-            listItem.reminders.push({
-                type: reminder.type,
-                amount: reminder.value,
-                unit: reminder.unit,
-                customEmail: reminder.recipients?.[0],
+
+            // Create reminder object
+            const reminder: Reminder = {
+                type: reminderType,
+                amount: customValue,
+                unit: customUnit as ReminderUnit,
                 triggered: false,
-                triggerTime: reminderTime,
-                minutesBefore: reminder.unit === 'Minutes' ? reminder.value : undefined
-            });
-        } else {
-            // Add reminder to event or task
-            const baseTime = item.startTime || new Date();
-            const reminderTime = this.calculateReminderTime(
-                baseTime,
-                reminder.value,
-                reminder.unit
-            );
-            item.reminders = item.reminders || [];
-            item.reminders.push({
-                type: reminder.type,
-                amount: reminder.value,
-                unit: reminder.unit,
-                customEmail: reminder.recipients?.[0],
-                triggered: false,
-                triggerTime: reminderTime,
-                minutesBefore: reminder.unit === 'Minutes' ? reminder.value : undefined
-            });
+                triggerTime: reminderTime
+            };
+
+            // Add reminder to the item
+            if (!item.reminders) {
+                item.reminders = [];
+            }
+            item.reminders.push(reminder);
+            await item.save();
+
+            logger.info(`Reminder created for ${itemType} ${itemId} at ${reminderTime} (${userTimezone})`);
+
+            return reminder;
+        } catch (error) {
+            logger.error(`Error adding reminder: ${error}`);
+            throw error;
         }
-        await item.save();
-        return item;
     }
 
     /**
-     * Update reminder status and calculate next trigger time for repeating events
+     * Update reminder status and calculate next trigger time for repeating events with timezone awareness
      */
     async updateReminderStatus(
         itemId: string,
@@ -118,11 +124,24 @@ class ReminderService {
                     // Update the event's next run time
                     item.repeat.nextRun = nextEventTime;
                     
+                    // Get user's timezone for calculating next reminder time
+                    const userSettings = await this.settingsService.getSettings(item.createdBy.toString());
+                    const userTimezone = userSettings?.general?.time?.timeZone || 'UTC';
+                    
                     // Calculate and set next reminder time
-                    reminder.triggerTime = this.calculateReminderTime(
+                    const reminderType = reminder.type || ReminderType.Hours1; // Default fallback
+                    const customValue = reminder.amount;
+                    const customUnit = reminder.unit === ReminderUnit.Minutes ? 'minutes' :
+                                     reminder.unit === ReminderUnit.Hours ? 'hours' :
+                                     reminder.unit === ReminderUnit.Days ? 'days' :
+                                     reminder.unit === ReminderUnit.Weeks ? 'weeks' : 'hours';
+                    
+                    reminder.triggerTime = await this.calculateReminderTime(
                         nextEventTime,
-                        reminder.amount || 0,
-                        reminder.minutesBefore ? ReminderUnit.Minutes : ReminderUnit.Hours
+                        reminderType,
+                        customValue,
+                        customUnit,
+                        userTimezone
                     );
                     reminder.triggered = false; // Reset for next occurrence
                 } else {
@@ -362,6 +381,11 @@ class ReminderService {
             itemTime = item.startTime;
             actionUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/${itemType}s/${item._id}`;
             
+            // Get user's timezone settings for proper time formatting
+            const userSettings = await this.settingsService.getSettings(item.createdBy.toString());
+            const userTimezone = userSettings?.general?.time?.timeZone || 'UTC';
+            const timeFormat = userSettings?.general?.time?.timeFormat || '24h';
+            
             // Enhanced metadata for events and tasks
             metadata = {
                 itemId: item._id,
@@ -373,7 +397,9 @@ class ReminderService {
                 category: item.category || '',
                 priority: item.priority || 'medium',
                 location: item.location || '',
-                timeUntilEvent: itemTime ? this.calculateTimeUntil(itemTime) : 'Unknown',
+                timeUntilEvent: itemTime ? this.calculateTimeUntil(itemTime, userTimezone) : 'Unknown',
+                userTimezone,
+                formattedStartTime: itemTime ? await this.formatTimeForUser(itemTime, userTimezone, item.createdBy?.toString() || item.profile?.toString()) : undefined,
             };
 
             // Event-specific metadata
@@ -382,6 +408,7 @@ class ReminderService {
                 metadata.participants = item.participants || [];
                 metadata.endTime = item.endTime;
                 metadata.duration = item.duration;
+                metadata.formattedEndTime = item.endTime ? await this.formatTimeForUser(item.endTime, userTimezone, item.createdBy?.toString() || item.profile?.toString()) : undefined;
             }
 
             // Task-specific metadata
@@ -390,11 +417,16 @@ class ReminderService {
                 metadata.dueDate = item.dueDate || itemTime;
                 metadata.estimatedDuration = item.estimatedDuration;
                 metadata.tags = item.tags || [];
+                metadata.formattedDueDate = (item.dueDate || itemTime) ? await this.formatTimeForUser(item.dueDate || itemTime, userTimezone, item.createdBy?.toString() || item.profile?.toString()) : undefined;
             }
         } else if (itemType === 'list') {
             itemTitle = `${item.listName || 'List'}: ${item.name}`;
             itemTime = item.dueDate || item.createdAt;
             actionUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/lists/${item._id}`;
+            
+            // Get user's timezone settings for list items
+            const userSettings = await this.settingsService.getSettings(item.createdBy?.toString() || item.profile?.toString());
+            const userTimezone = userSettings?.general?.time?.timeZone || 'UTC';
             
             metadata = {
                 itemId: item._id,
@@ -404,7 +436,9 @@ class ReminderService {
                 startTime: itemTime,
                 description: item.description || '',
                 listName: item.listName || 'List',
-                timeUntilEvent: itemTime ? this.calculateTimeUntil(itemTime) : 'Unknown',
+                timeUntilEvent: itemTime ? this.calculateTimeUntil(itemTime, userTimezone) : 'Unknown',
+                userTimezone,
+                formattedTime: itemTime ? await this.formatTimeForUser(itemTime, userTimezone, item.createdBy?.toString() || item.profile?.toString()) : undefined,
             };
         }
 
@@ -471,55 +505,109 @@ class ReminderService {
     }
 
     /**
-     * Calculate time until event in a human-readable format
+     * Calculate time until event in a human-readable format with timezone awareness
      */
-    private calculateTimeUntil(eventTime: Date): string {
-        const now = new Date();
-        const timeDiff = eventTime.getTime() - now.getTime();
-        
-        if (timeDiff <= 0) {
-            return 'Now';
-        }
-
-        const minutes = Math.floor(timeDiff / (1000 * 60));
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-
-        if (days > 0) {
-            return `${days} day${days > 1 ? 's' : ''}`;
-        } else if (hours > 0) {
-            return `${hours} hour${hours > 1 ? 's' : ''}`;
-        } else {
-            return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+    private calculateTimeUntil(eventTime: Date, userTimezone: string = 'UTC'): string {
+        try {
+            const timeDiff = TimezoneUtils.calculateTimeDifferenceInUserTimezone(
+                new Date(),
+                eventTime,
+                userTimezone
+            );
+            
+            return timeDiff.humanReadable;
+        } catch (error) {
+            logger.error(`Error calculating time until event: ${error}`);
+            return 'Unknown';
         }
     }
 
     /**
-     * Calculate reminder time based on start time and reminder settings
+     * Format time for user based on their timezone and time format preferences
      */
-    private calculateReminderTime(
-        itemTime: Date,
-        value: number,
-        unit: ReminderUnit
-    ): Date {
-        const reminderTime = new Date(itemTime);
-
-        switch (unit) {
-            case 'Minutes':
-                reminderTime.setMinutes(reminderTime.getMinutes() - value);
-                break;
-            case 'Hours':
-                reminderTime.setHours(reminderTime.getHours() - value);
-                break;
-            case 'Days':
-                reminderTime.setDate(reminderTime.getDate() - value);
-                break;
-            case 'Weeks':
-                reminderTime.setDate(reminderTime.getDate() - (value * 7));
-                break;
+    private async formatTimeForUser(time: Date, userTimezone: string, userId: string): Promise<string> {
+        try {
+            return await TimezoneUtils.formatDateForUser(
+                time,
+                userId,
+                { includeTime: true, includeDate: true, includeTimezone: true }
+            );
+        } catch (error) {
+            logger.error(`Error formatting time for user: ${error}`);
+            return time.toISOString();
         }
+    }
 
-        return reminderTime;
+    /**
+     * Calculate reminder time based on start time and reminder settings with timezone awareness
+     */
+    private async calculateReminderTime(
+        itemTime: Date,
+        reminderType: ReminderType,
+        customValue?: number,
+        customUnit?: 'minutes' | 'hours' | 'days' | 'weeks',
+        userTimezone: string = 'UTC'
+    ): Promise<Date> {
+        try {
+            // Convert item time to user's timezone for accurate calculations
+            const adjustedItemTime = TimezoneUtils.convertToUserTimezone(itemTime, userTimezone);
+            
+            let reminderTime: Date;
+
+            switch (reminderType) {
+                case ReminderType.Minutes15:
+                    reminderTime = new Date(adjustedItemTime.getTime() - 15 * 60 * 1000);
+                    break;
+                case ReminderType.Minutes30:
+                    reminderTime = new Date(adjustedItemTime.getTime() - 30 * 60 * 1000);
+                    break;
+                case ReminderType.Hours1:
+                    reminderTime = new Date(adjustedItemTime.getTime() - 60 * 60 * 1000);
+                    break;
+                case ReminderType.Hours2:
+                    reminderTime = new Date(adjustedItemTime.getTime() - 2 * 60 * 60 * 1000);
+                    break;
+                case ReminderType.Days1:
+                    reminderTime = new Date(adjustedItemTime.getTime() - 24 * 60 * 60 * 1000);
+                    break;
+                case ReminderType.Days2:
+                    reminderTime = new Date(adjustedItemTime.getTime() - 2 * 24 * 60 * 60 * 1000);
+                    break;
+                case ReminderType.Weeks1:
+                    reminderTime = new Date(adjustedItemTime.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    break;
+                case ReminderType.Custom:
+                    if (!customValue || !customUnit) {
+                        throw new Error('Custom reminder requires value and unit');
+                    }
+                    
+                    let multiplier = 1;
+                    switch (customUnit) {
+                        case 'minutes':
+                            multiplier = 60 * 1000;
+                            break;
+                        case 'hours':
+                            multiplier = 60 * 60 * 1000;
+                            break;
+                        case 'days':
+                            multiplier = 24 * 60 * 60 * 1000;
+                            break;
+                        case 'weeks':
+                            multiplier = 7 * 24 * 60 * 60 * 1000;
+                            break;
+                    }
+                    
+                    reminderTime = new Date(adjustedItemTime.getTime() - customValue * multiplier);
+                    break;
+                default:
+                    throw new Error(`Unsupported reminder type: ${reminderType}`);
+            }
+
+            return reminderTime;
+        } catch (error) {
+            logger.error(`Error calculating reminder time: ${error}`);
+            throw error;
+        }
     }
 
     /**

@@ -1,5 +1,5 @@
 import mongoose, { Types } from 'mongoose';
-import { ISubTask, RepeatSettings, Reminder, Reward, Attachment, Comment, Location, PriorityLevel, TaskCategory } from '../models/plans-shared';
+import { ISubTask, RepeatSettings, Reminder, Reward, Attachment, Comment, Location, PriorityLevel, TaskCategory, ReminderType, ReminderUnit } from '../models/plans-shared';
 import { IUser, User } from '../models/User';
 import { IProfile } from '../interfaces/profile.interface';
 import { TaskStatus } from 'twilio/lib/rest/taskrouter/v1/workspace/task';
@@ -9,6 +9,7 @@ import { checkTimeOverlap } from '../utils/timeUtils';
 import { SettingsService } from './settings.service';
 import { taskSettingsIntegration } from '../utils/taskSettingsIntegration';
 import { mapExternalToInternal } from '../utils/visibilityMapper';
+import { TimezoneUtils } from '../utils/timezoneUtils';
 
 class TaskService {
     private settingsService = new SettingsService();
@@ -40,6 +41,26 @@ class TaskService {
             }
         }
 
+        // Process reminders to calculate trigger times with timezone awareness
+        if (enhancedTaskData.startTime && (!enhancedTaskData.reminders || enhancedTaskData.reminders.length === 0)) {
+            // Mark that this task needs reminder processing
+            (enhancedTaskData as any).needsReminderProcessing = true;
+        } else if (enhancedTaskData.reminders && Array.isArray(enhancedTaskData.reminders) && enhancedTaskData.startTime) {
+            // Process existing reminders to calculate trigger times
+            const userId = enhancedTaskData.createdBy?.toString();
+            enhancedTaskData.reminders = await Promise.all(
+                enhancedTaskData.reminders.map(async reminder => ({
+                    ...reminder,
+                    triggered: false,
+                    triggerTime: await this.calculateReminderTime(
+                        enhancedTaskData.startTime!,
+                        reminder.amount || this.getMinutesFromReminderType(reminder.type),
+                        userId
+                    )
+                }))
+            );
+        }
+
         const task = new Task({
             ...enhancedTaskData,
             type: enhancedTaskData.type || 'Todo',
@@ -69,6 +90,13 @@ class TaskService {
         }
 
         await task.save();
+
+        // Process reminders asynchronously in background
+        if ((enhancedTaskData as any).needsReminderProcessing) {
+            this.processRemindersAsync((task._id as Types.ObjectId).toString(), enhancedTaskData.createdBy?.toString()).catch((error: any) => {
+                console.error('Failed to process reminders for task:', task._id, error);
+            });
+        }
 
         // If subtasks exist, create lists for each
         if (task.subTasks && task.subTasks.length > 0) {
@@ -676,6 +704,119 @@ class TaskService {
             .populate('participants', 'profileInformation.username')
             .populate('profile', 'profileInformation.username')
             .lean();
+    }
+
+    /**
+     * Calculate reminder time based on start time and minutes before with timezone awareness
+     */
+    private async calculateReminderTime(
+        startTime: Date,
+        minutesBefore: number,
+        userId?: string
+    ): Promise<Date> {
+        try {
+            // Get user timezone
+            const userTimezone = userId ? await TimezoneUtils.getUserTimezone(userId) : 'UTC';
+            
+            // Convert start time to user's timezone for accurate calculations
+            const adjustedStartTime = TimezoneUtils.convertToUserTimezone(startTime, userTimezone);
+            
+            // Calculate reminder time
+            const reminderTime = new Date(adjustedStartTime.getTime() - minutesBefore * 60 * 1000);
+            
+            return reminderTime;
+        } catch (error) {
+            console.error('Error calculating reminder time:', error);
+            // Fallback to simple calculation
+            return new Date(startTime.getTime() - minutesBefore * 60 * 1000);
+        }
+    }
+
+    /**
+     * Get reminder type enum from minutes before
+     */
+    private getReminderTypeFromMinutes(minutes: number): ReminderType {
+        switch (minutes) {
+            case 15:
+                return ReminderType.Minutes15;
+            case 30:
+                return ReminderType.Minutes30;
+            case 60:
+                return ReminderType.Hours1;
+            case 120:
+                return ReminderType.Hours2;
+            case 1440:
+                return ReminderType.Days1;
+            case 2880:
+                return ReminderType.Days2;
+            case 10080:
+                return ReminderType.Weeks1;
+            default:
+                return ReminderType.Custom;
+        }
+    }
+
+    /**
+     * Get minutes from reminder type enum
+     */
+    private getMinutesFromReminderType(type: ReminderType): number {
+        switch (type) {
+            case ReminderType.Minutes15:
+                return 15;
+            case ReminderType.Minutes30:
+                return 30;
+            case ReminderType.Hours1:
+                return 60;
+            case ReminderType.Hours2:
+                return 120;
+            case ReminderType.Days1:
+                return 1440;
+            case ReminderType.Days2:
+                return 2880;
+            case ReminderType.Weeks1:
+                return 10080;
+            default:
+                return 60; // Default to 1 hour
+        }
+    }
+
+    /**
+     * Process reminders asynchronously in the background
+     */
+    private async processRemindersAsync(taskId: string, userId?: string): Promise<void> {
+        try {
+            const task = await Task.findById(taskId);
+            if (!task || !task.startTime || !userId) {
+                return;
+            }
+
+            // Get default reminders from user settings
+            const defaultReminders = task.settings?.notifications?.reminderSettings?.defaultReminders || [15, 60];
+            
+            if (defaultReminders.length > 0) {
+                const reminders = await Promise.all(
+                    defaultReminders.map(async (minutesBefore: number) => ({
+                        type: this.getReminderTypeFromMinutes(minutesBefore),
+                        amount: minutesBefore,
+                        unit: ReminderUnit.Minutes,
+                        triggered: false,
+                        triggerTime: await this.calculateReminderTime(
+                            task.startTime!,
+                            minutesBefore,
+                            userId
+                        )
+                    }))
+                );
+
+                // Update task with reminders
+                await Task.findByIdAndUpdate(taskId, {
+                    reminders: reminders,
+                    $unset: { needsReminderProcessing: 1 }
+                });
+            }
+        } catch (error) {
+            console.error('Error processing reminders for task:', taskId, error);
+        }
     }
 }
 

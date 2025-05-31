@@ -27,10 +27,11 @@ export const addReminder = asyncHandler(async (req: Request, res: Response) => {
 
     const result = await reminderService.addReminder(
         itemId,
-        user._id,
-        { type, value: amount, unit, message, recipients },
         itemType as any,
-        itemType === 'list' && itemIndex !== undefined ? Number(itemIndex) : undefined
+        type,
+        amount,
+        unit,
+        user._id
     );
 
     res.status(201).json({

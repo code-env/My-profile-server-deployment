@@ -312,9 +312,60 @@ export class NotificationService {
       else if (notification.type === 'booking_request') {
         emailTemplate = 'event-notification';
         emailSubject = `New Booking Request - ${notification.title}`;
-        // Ensure metadata has the right structure for event-notification template
+        
+        // Access the nested metadata structure correctly
+        let bookingData = notification.metadata?.metadata || notification.metadata;
+        
+        // Convert MongooseMap to plain object
+        if (bookingData && bookingData.constructor && bookingData.constructor.name === 'MongooseMap') {
+          bookingData = Object.fromEntries(bookingData);
+        }
+        
+        console.log('=== BOOKING DATA AFTER MAP CONVERSION ===');
+        console.log(JSON.stringify(bookingData, null, 2));
+        
+        // Format location properly
+        let locationString = null;
+        if (bookingData?.location) {
+          if (typeof bookingData.location === 'string') {
+            locationString = bookingData.location;
+          } else if (bookingData.location.name || bookingData.location.address) {
+            const parts = [];
+            if (bookingData.location.name) parts.push(bookingData.location.name);
+            if (bookingData.location.address) parts.push(bookingData.location.address);
+            locationString = parts.join(', ');
+          }
+        }
+        
+        templateData.event = {
+          name: bookingData?.service?.name || bookingData?.itemTitle || 'Service Booking',
+          type: 'BOOKING',
+          icon: '📋',
+          startTime: bookingData?.startTime ? templateData.formatDateTime(bookingData.startTime) : null,
+          endTime: bookingData?.endTime ? templateData.formatDateTime(bookingData.endTime) : null,
+          location: locationString,
+          organizer: bookingData?.requester?.name || null,
+          participants: null,
+          duration: bookingData?.service?.duration || bookingData?.duration || null,
+          description: bookingData?.description || null,
+          status: bookingData?.status || 'pending'
+        };
+        
+        console.log('=== FINAL TEMPLATE DATA EVENT ===');
+        console.log(JSON.stringify(templateData.event, null, 2));
+        
+        templateData.greeting = `Hello ${templateData.recipientName},`;
+        templateData.description = `You have received a new booking request. Here are the details:`;
+        templateData.actions = [
+          {
+            text: notification.action?.text || 'View Booking',
+            url: notification.action?.url || '#',
+            secondary: false
+          }
+        ];
+        // Keep metadata for any additional template logic
         templateData.metadata = {
-          ...templateData.metadata,
+          ...bookingData,
           eventType: 'booking',
           notificationType: 'request'
         };

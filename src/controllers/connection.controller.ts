@@ -33,6 +33,21 @@ export class ConnectionController {
         details
       );
 
+      // Emit social interaction for connection request
+      try {
+        setImmediate(async () => {
+          await emitSocialInteraction(fromUserId, {
+            type: 'connection',
+            profile: new Types.ObjectId(fromProfileId),
+            targetProfile: new Types.ObjectId(toProfileId),
+            contentId: connection._id as Types.ObjectId,
+            content: `${connectionType} request`
+          });
+        });
+      } catch (error) {
+        console.error('Failed to emit social interaction for connection request:', error);
+      }
+
       res.status(201).json({ success: true, data: connection });
     } catch (error: any) {
       logger.error('Error in createConnectionRequest:', error);
@@ -60,15 +75,24 @@ export class ConnectionController {
       }
 
       const connection = await ConnectionService.updateConnectionStatus(connectionId, status);
-      // TODO: use the actual profile id here, not the user id and then emit the event
-      // if (status === 'accepted') {
-      //   await emitSocialInteraction(userId, {
-      //     type: 'connection',
-      //     profile: new Types.ObjectId(userId),
-      //     targetProfile: new Types.ObjectId(connection.toProfile),
-      //     contentId: connection._id as Types.ObjectId,
-      //   });
-      // }
+      
+      // Emit social interaction for connection status update
+      if (status === 'accepted') {
+        try {
+          setImmediate(async () => {
+            await emitSocialInteraction(userId, {
+              type: 'connection',
+              profile: new Types.ObjectId(connection.toProfile),
+              targetProfile: new Types.ObjectId(connection.fromProfile),
+              contentId: connection._id as Types.ObjectId,
+              content: 'connection accepted'
+            });
+          });
+        } catch (error) {
+          console.error('Failed to emit social interaction for connection acceptance:', error);
+        }
+      }
+      
       res.json({
         success: true,
         data: connection

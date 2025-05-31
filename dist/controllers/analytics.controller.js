@@ -8,6 +8,7 @@ const express_async_handler_1 = __importDefault(require("express-async-handler")
 const http_errors_1 = __importDefault(require("http-errors"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const analytics_service_1 = require("../services/analytics.service");
+const socketEmitter_1 = require("../utils/socketEmitter");
 const analyticsService = new analytics_service_1.AnalyticsService();
 // @desc    Track profile view
 // @route   POST /api/analytics/profiles/:id/view
@@ -17,6 +18,23 @@ exports.trackProfileView = (0, express_async_handler_1.default)(async (req, res)
     const { id: profileId } = req.params;
     const { ownerId } = req.body;
     const analytics = await analyticsService.trackProfileView(new mongoose_1.default.Types.ObjectId(profileId), ownerId, user === null || user === void 0 ? void 0 : user._id, req.headers['user-agent'], req.ip);
+    // Emit social interaction for profile view (only if user is authenticated and viewing someone else's profile)
+    if (user && user._id && ownerId && user._id.toString() !== ownerId.toString()) {
+        try {
+            setImmediate(async () => {
+                await (0, socketEmitter_1.emitSocialInteraction)(user._id, {
+                    type: 'share', // Using 'share' as closest match for profile view
+                    profile: new mongoose_1.default.Types.ObjectId(user.activeProfile || user._id),
+                    targetProfile: new mongoose_1.default.Types.ObjectId(profileId),
+                    contentId: new mongoose_1.default.Types.ObjectId(profileId),
+                    content: 'viewed profile'
+                });
+            });
+        }
+        catch (error) {
+            console.error('Failed to emit social interaction for profile view:', error);
+        }
+    }
     res.json(analytics);
 });
 // @desc    Track profile engagement
@@ -30,6 +48,23 @@ exports.trackEngagement = (0, express_async_handler_1.default)(async (req, res) 
         throw (0, http_errors_1.default)(400, 'Invalid engagement type');
     }
     const analytics = await analyticsService.trackEngagement(new mongoose_1.default.Types.ObjectId(profileId), ownerId, user._id, type, metadata);
+    // Emit social interaction for engagement tracking
+    if (user._id.toString() !== ownerId.toString()) {
+        try {
+            setImmediate(async () => {
+                await (0, socketEmitter_1.emitSocialInteraction)(user._id, {
+                    type: type,
+                    profile: new mongoose_1.default.Types.ObjectId(user.activeProfile || user._id),
+                    targetProfile: new mongoose_1.default.Types.ObjectId(profileId),
+                    contentId: new mongoose_1.default.Types.ObjectId(profileId),
+                    content: `${type} engagement${metadata ? `: ${JSON.stringify(metadata)}` : ''}`
+                });
+            });
+        }
+        catch (error) {
+            console.error('Failed to emit social interaction for engagement:', error);
+        }
+    }
     res.json(analytics);
 });
 // @desc    Get profile analytics
