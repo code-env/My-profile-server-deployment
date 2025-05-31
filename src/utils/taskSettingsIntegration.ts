@@ -1,6 +1,8 @@
 import { SettingsService } from '../services/settings.service';
 import { ITask } from '../models/Tasks';
 import { SettingsDocument } from '../models/settings';
+import { TimezoneUtils } from './timezoneUtils';
+import { logger } from '../utils/logger';
 
 /**
  * Utility functions for integrating task settings with user settings
@@ -249,54 +251,51 @@ export class TaskSettingsIntegration {
      * Format task time based on user's regional settings
      */
     async formatTaskTimeForUser(task: ITask, userId: string): Promise<{
-        startTime?: string;
-        endTime?: string;
-        duration?: string;
-        timezone?: string;
+        formattedStartTime?: string;
+        formattedEndTime?: string;
+        userTimezone: string;
+        timeUntilStart?: string;
     }> {
-        const userSettings = await this.settingsService.getSettings(userId);
-        
-        const result: any = {};
+        try {
+            const userTimezone = await TimezoneUtils.getUserTimezone(userId);
+            
+            const result: any = {
+                userTimezone
+            };
 
-        if (!userSettings?.general?.time) {
-            // Default formatting
-            if (task.startTime) result.startTime = task.startTime.toISOString();
-            if (task.endTime) result.endTime = task.endTime.toISOString();
-            if (task.duration) result.duration = `${task.duration.hours}h ${task.duration.minutes}m`;
+            if (task.startTime) {
+                result.formattedStartTime = await TimezoneUtils.formatDateForUser(
+                    new Date(task.startTime),
+                    userId,
+                    { includeTime: true, includeDate: true }
+                );
+
+                // Calculate time until start if task hasn't started yet
+                if (!TimezoneUtils.isTimeInPast(new Date(task.startTime), userTimezone)) {
+                    const timeDiff = TimezoneUtils.calculateTimeDifferenceInUserTimezone(
+                        new Date(),
+                        new Date(task.startTime),
+                        userTimezone
+                    );
+                    result.timeUntilStart = timeDiff.humanReadable;
+                }
+            }
+
+            if (task.endTime) {
+                result.formattedEndTime = await TimezoneUtils.formatDateForUser(
+                    new Date(task.endTime),
+                    userId,
+                    { includeTime: true, includeDate: true }
+                );
+            }
+
             return result;
+        } catch (error) {
+            logger.warn(`Error formatting task time for user ${userId}: ${error}`);
+            return {
+                userTimezone: 'UTC'
+            };
         }
-
-        const timeSettings = userSettings.general.time;
-        const timeFormat = timeSettings.timeFormat || '24h';
-        const dateFormat = timeSettings.dateFormat || 'YYYY-MM-DD';
-        const timezone = timeSettings.timeZone || 'UTC';
-
-        // Format times according to user preferences
-        if (task.startTime) {
-            const date = new Date(task.startTime);
-            // Here you would apply the user's preferred formatting
-            // For now, just return ISO string with timezone info
-            result.startTime = date.toLocaleString('en-US', { 
-                timeZone: timezone,
-                hour12: timeFormat === '12h'
-            });
-        }
-
-        if (task.endTime) {
-            const date = new Date(task.endTime);
-            result.endTime = date.toLocaleString('en-US', { 
-                timeZone: timezone,
-                hour12: timeFormat === '12h'
-            });
-        }
-
-        if (task.duration) {
-            result.duration = `${task.duration.hours}h ${task.duration.minutes}m`;
-        }
-
-        result.timezone = timezone;
-
-        return result;
     }
 }
 

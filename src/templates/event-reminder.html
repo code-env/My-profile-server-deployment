@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #1a202c;
+            background-color: #f7fafc;
+            margin: 0;
+            padding: 20px 0;
+        }
+        
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            padding: 32px 24px;
+            text-align: center;
+            color: white;
+        }
+        
+        .header-icon {
+            width: 64px;
+            height: 64px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+            margin: 0;
+        }
+        
+        .content {
+            padding: 32px 24px;
+        }
+        
+        .event-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border-left: 4px solid #4299e1;
+        }
+        
+        .event-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 12px;
+            line-height: 1.3;
+        }
+        
+        .event-description {
+            color: #4a5568;
+            font-size: 15px;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+        
+        .event-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .meta-item {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            color: #718096;
+        }
+        
+        .meta-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+        
+        .event-type-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .type-meeting {
+            background-color: #bee3f8;
+            color: #2b6cb0;
+        }
+        
+        .type-appointment {
+            background-color: #d6f5d6;
+            color: #2f855a;
+        }
+        
+        .type-booking {
+            background-color: #fbb6ce;
+            color: #b83280;
+        }
+        
+        .type-celebration {
+            background-color: #fef5e7;
+            color: #dd6b20;
+        }
+        
+        .event-time {
+            background-color: #edf2f7;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .event-time-label {
+            font-size: 14px;
+            color: #718096;
+            margin-bottom: 4px;
+        }
+        
+        .event-time-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .countdown {
+            background: linear-gradient(135deg, #fed7e2 0%, #fbb6ce 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .countdown-label {
+            font-size: 14px;
+            color: #702459;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .countdown-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #702459;
+        }
+        
+        .participants-section {
+            background-color: #f0fff4;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .participants-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2f855a;
+            margin-bottom: 12px;
+        }
+        
+        .participant-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .participant {
+            background-color: #c6f6d5;
+            color: #2f855a;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .action-buttons {
+            text-align: center;
+            margin: 32px 0;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 14px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            margin: 0 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+        }
+        
+        .btn-secondary {
+            background-color: #edf2f7;
+            color: #4a5568;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .location-section {
+            background-color: #fffaf0;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #ed8936;
+        }
+        
+        .location-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #c05621;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .location-address {
+            color: #744210;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .footer {
+            background-color: #f8fafc;
+            padding: 24px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .footer-text {
+            font-size: 13px;
+            color: #718096;
+            margin-bottom: 8px;
+        }
+        
+        .unsubscribe {
+            font-size: 12px;
+            color: #a0aec0;
+        }
+        
+        .unsubscribe a {
+            color: #4299e1;
+            text-decoration: none;
+        }
+        
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                margin: 0 10px;
+                border-radius: 12px;
+            }
+            
+            .header {
+                padding: 24px 16px;
+            }
+            
+            .content {
+                padding: 24px 16px;
+            }
+            
+            .event-card {
+                padding: 20px;
+            }
+            
+            .event-meta {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .btn {
+                display: block;
+                margin: 8px 0;
+                text-align: center;
+            }
+            
+            .participant-list {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <div class="header-icon">
+                📅
+            </div>
+            <h1>Event Reminder</h1>
+            <p>Your upcoming event is starting soon</p>
+        </div>
+        
+        <div class="content">
+            <div class="event-card">
+                <h2 class="event-title">{{metadata.itemTitle}}</h2>
+                
+                {{#if metadata.description}}
+                <p class="event-description">{{metadata.description}}</p>
+                {{/if}}
+                
+                <div class="event-meta">
+                    {{#if metadata.eventType}}
+                    <div class="meta-item">
+                        <span class="meta-icon">🎯</span>
+                        <span class="event-type-badge type-{{metadata.eventType}}">{{metadata.eventType}}</span>
+                    </div>
+                    {{/if}}
+                    
+                    {{#if metadata.category}}
+                    <div class="meta-item">
+                        <span class="meta-icon">📁</span>
+                        <span>{{metadata.category}}</span>
+                    </div>
+                    {{/if}}
+                    
+                    {{#if metadata.reminderType}}
+                    <div class="meta-item">
+                        <span class="meta-icon">⏰</span>
+                        <span>{{metadata.reminderType}} reminder</span>
+                    </div>
+                    {{/if}}
+                </div>
+                
+                {{#if metadata.startTime}}
+                <div class="event-time">
+                    <div class="event-time-label">Event Time</div>
+                    <div class="event-time-value">{{formatDateTime metadata.startTime}}</div>
+                </div>
+                {{/if}}
+                
+                {{#if metadata.timeUntilEvent}}
+                <div class="countdown">
+                    <div class="countdown-label">Starting in</div>
+                    <div class="countdown-value">{{metadata.timeUntilEvent}}</div>
+                </div>
+                {{/if}}
+            </div>
+            
+            {{#if metadata.location}}
+            <div class="location-section">
+                <div class="location-title">
+                    📍 Location
+                </div>
+                <div class="location-address">{{metadata.location}}</div>
+            </div>
+            {{/if}}
+            
+            {{#if metadata.participants}}
+            <div class="participants-section">
+                <div class="participants-title">👥 Participants</div>
+                <div class="participant-list">
+                    {{#each metadata.participants}}
+                    <span class="participant">{{this}}</span>
+                    {{/each}}
+                </div>
+            </div>
+            {{/if}}
+            
+            <div class="action-buttons">
+                {{#if action.url}}
+                <a href="{{action.url}}" class="btn btn-primary">{{action.text}}</a>
+                {{/if}}
+                <a href="{{baseUrl}}/events" class="btn btn-secondary">View All Events</a>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p class="footer-text">© {{year}} {{appName}}. All rights reserved.</p>
+            <p class="unsubscribe">
+                <a href="{{baseUrl}}/settings/notifications">Manage notification preferences</a> | 
+                <a href="{{baseUrl}}/unsubscribe?token={{unsubscribeToken}}">Unsubscribe</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html> 

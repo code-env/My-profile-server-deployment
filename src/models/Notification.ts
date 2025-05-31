@@ -81,7 +81,7 @@ const notificationSchema = new Schema<INotification>(
     relatedTo: {
       model: {
         type: String,
-        enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction', 'Event', 'CommunityGroupInvitation'],
+        enum: ['Profile', 'User', 'Comment', 'Message', 'Transaction', 'Event', 'Task', 'CommunityGroupInvitation'],
       },
       id: {
         type: Schema.Types.ObjectId,

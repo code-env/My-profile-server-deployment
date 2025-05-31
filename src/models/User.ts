@@ -133,6 +133,7 @@ export interface IUser extends Document {
   mpts: number;
   profileImage?: string;
   profiles: mongoose.Types.ObjectId[];
+  activeProfile?: mongoose.Types.ObjectId;
   referrals: mongoose.Types.ObjectId[];
   twoFactorSecret?: string;
   isTwoFactorEnabled: boolean;
@@ -290,6 +291,11 @@ const userSchema = new Schema<IUser>(
       type: Schema.Types.ObjectId,
       ref: 'Profile',
     }],
+    activeProfile: {
+      type: Schema.Types.ObjectId,
+      ref: 'Profile',
+      sparse: true,
+    },
     referrals: [{
       type: Schema.Types.ObjectId,
       ref: 'User',

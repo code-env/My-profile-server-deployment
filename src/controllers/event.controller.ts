@@ -21,6 +21,7 @@ import { TransactionType } from '../interfaces/my-pts.interface';
 import { User } from '../models/User';
 import { vaultService } from '../services/vault.service';
 import { mapTaskEventDataToInternal, mapTaskEventDataToExternal } from '../utils/visibilityMapper';
+import { ProfileModel } from '../models/profile.model';
 
 const notificationService = new NotificationService();
 
@@ -160,51 +161,89 @@ export const createEvent = asyncHandler(async (req: Request, res: Response) => {
     const event = await eventService.createEvent(eventData);
 
     if (event.booking?.serviceProvider?.profileId) {
-        console.log('Looking for user with profile ID:', event.booking.serviceProvider.profileId);
-        const profileUser = await User.findOne({ profiles: new mongoose.Types.ObjectId(event.booking.serviceProvider.profileId) });
-        console.log("profileUser", profileUser);
-        if (profileUser) {
-            await notificationService.createNotification({
-                recipient: profileUser._id,
-                type: 'booking_request',
-                title: 'New Booking Request',
-                message: `${user.fullName} has requested to book your service: ${event.booking?.service?.name}`,
-                relatedTo: {
-                    model: 'Event',
-                    id: event._id
-                },
-                action: {
-                    text: 'View Booking',
-                    url: `/bookings/${event._id}`
-                },
-                priority: 'high',
-                isRead: false,
-                isArchived: false,
-                metadata: {
-                    bookingId: event._id,
-                    itemTitle: event.booking?.service?.name || 'Service Booking',
-                    eventType: 'booking',
-                    notificationType: 'request',
-                    startTime: event.startTime,
-                    endTime: event.endTime,
-                    location: event.location,
-                    duration: event.booking?.service?.duration,
-                    description: event.description,
-                    status: 'pending',
-                    service: {
-                        name: event.booking?.service?.name,
-                        duration: event.booking?.service?.duration
+        // Find the profile first, then get the user who owns it
+        const profile = await ProfileModel.findById(event.booking.serviceProvider.profileId);
+        if (profile && profile.profileInformation?.creator) {
+            const profileUser = await User.findById(profile.profileInformation.creator);
+            if (profileUser) {
+                await notificationService.createNotification({
+                    recipient: profileUser._id,
+                    type: 'booking_request',
+                    title: 'New Booking Request',
+                    message: `${user.fullName} has requested to book your service: ${event.booking?.service?.name}`,
+                    relatedTo: {
+                        model: 'Event',
+                        id: event._id
                     },
-                    provider: {
-                        profileId: event.booking?.serviceProvider?.profileId,
-                        role: event.booking?.serviceProvider?.role
+                    action: {
+                        text: 'View Booking',
+                        url: `/bookings/${event._id}`
                     },
-                    requester: {
-                        name: user.fullName,
-                        id: user._id
+                    priority: 'high',
+                    isRead: false,
+                    isArchived: false,
+                    metadata: {
+                        bookingId: event._id,
+                        itemTitle: event.booking?.service?.name || 'Service Booking',
+                        eventType: 'booking',
+                        notificationType: 'request',
+                        startTime: event.startTime,
+                        endTime: event.endTime,
+                        location: event.location,
+                        duration: event.booking?.service?.duration,
+                        description: event.description,
+                        status: 'pending',
+                        service: {
+                            name: event.booking?.service?.name,
+                            duration: event.booking?.service?.duration
+                        },
+                        provider: {
+                            profileId: event.booking?.serviceProvider?.profileId,
+                            role: event.booking?.serviceProvider?.role
+                        },
+                        requester: {
+                            name: user.fullName,
+                            id: user._id
+                        }
+                    }
+                });
+
+                // Emit social interaction for booking request
+                try {
+                    setImmediate(async () => {
+                        await emitSocialInteraction(user._id, {
+                            type: 'connection',
+                            profile: new mongoose.Types.ObjectId(req.body.profileId || user.activeProfile),
+                            targetProfile: new mongoose.Types.ObjectId(event.booking?.serviceProvider?.profileId),
+                            contentId: event._id as mongoose.Types.ObjectId,
+                            content: `booking request: ${event.booking?.service?.name || 'service'}`
+                        });
+                    });
+                } catch (error) {
+                    console.error('Failed to emit social interaction for booking request:', error);
+                }
+            }
+        }
+    }
+
+    // Emit social interaction for event creation with participants
+    if (event.participants && event.participants.length > 0) {
+        try {
+            setImmediate(async () => {
+                for (const participant of event.participants) {
+                    if (participant.profile && participant.profile.toString() !== (req.body.profileId || user.activeProfile).toString()) {
+                        await emitSocialInteraction(user._id, {
+                            type: 'connection',
+                            profile: new mongoose.Types.ObjectId(req.body.profileId || user.activeProfile),
+                            targetProfile: new mongoose.Types.ObjectId(participant.profile),
+                            contentId: event._id as mongoose.Types.ObjectId,
+                            content: `event invitation: ${event.name || 'event'}`
+                        });
                     }
                 }
             });
+        } catch (error) {
+            console.error('Failed to emit social interaction for event participants:', error);
         }
     }
     
@@ -791,52 +830,55 @@ export const createBooking = async (req: Request, res: Response) => {
 
         // Notify the service provider about the new booking request
         if (event.booking?.serviceProvider?.profileId) {
-            // Get the user account associated with the profile
-            const profileUser = await User.findOne({ profiles: new mongoose.Types.ObjectId(event.booking.serviceProvider.profileId) });
-            if (profileUser) {
-                setImmediate(async () => {
-                await notificationService.createNotification({
-                    recipient: profileUser._id,
-                    type: 'booking_request',
-                    title: 'New Booking Request',
-                    message: `${user.fullName} has requested to book your service: ${event.booking?.service?.name}`,
-                    relatedTo: {
-                        model: 'Event',
-                        id: event._id
-                    },
-                    action: {
-                        text: 'View Booking',
-                        url: `/bookings/${event._id}`
-                    },
-                    priority: 'high',
-                    isRead: false,
-                    isArchived: false,
-                    metadata: {
-                        bookingId: event._id,
-                        itemTitle: event.booking?.service?.name || 'Service Booking',
-                        eventType: 'booking',
-                        notificationType: 'request',
-                        startTime: event.startTime,
-                        endTime: event.endTime,
-                        location: event.location,
-                        duration: event.booking?.service?.duration,
-                        description: event.description,
-                        status: 'pending',
-                        service: {
-                            name: event.booking?.service?.name,
-                            duration: event.booking?.service?.duration
-                        },
-                        provider: {
-                            profileId: event.booking?.serviceProvider?.profileId,
-                            role: event.booking?.serviceProvider?.role
-                        },
-                        requester: {
-                            name: user.fullName,
-                            id: user._id
-                        }
-                    }
-                });
-                });
+            // Find the profile first, then get the user who owns it
+            const profile = await ProfileModel.findById(event.booking.serviceProvider.profileId);
+            if (profile && profile.profileInformation?.creator) {
+                const profileUser = await User.findById(profile.profileInformation.creator);
+                if (profileUser) {
+                    setImmediate(async () => {
+                        await notificationService.createNotification({
+                            recipient: profileUser._id,
+                            type: 'booking_request',
+                            title: 'New Booking Request',
+                            message: `${user.fullName} has requested to book your service: ${event.booking?.service?.name}`,
+                            relatedTo: {
+                                model: 'Event',
+                                id: event._id
+                            },
+                            action: {
+                                text: 'View Booking',
+                                url: `/bookings/${event._id}`
+                            },
+                            priority: 'high',
+                            isRead: false,
+                            isArchived: false,
+                            metadata: {
+                                bookingId: event._id,
+                                itemTitle: event.booking?.service?.name || 'Service Booking',
+                                eventType: 'booking',
+                                notificationType: 'request',
+                                startTime: event.startTime,
+                                endTime: event.endTime,
+                                location: event.location,
+                                duration: event.booking?.service?.duration,
+                                description: event.description,
+                                status: 'pending',
+                                service: {
+                                    name: event.booking?.service?.name,
+                                    duration: event.booking?.service?.duration
+                                },
+                                provider: {
+                                    profileId: event.booking?.serviceProvider?.profileId,
+                                    role: event.booking?.serviceProvider?.role
+                                },
+                                requester: {
+                                    name: user.fullName,
+                                    id: user._id
+                                }
+                            }
+                        });
+                    });
+                }
             }
         }
 

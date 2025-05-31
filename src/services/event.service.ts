@@ -9,7 +9,9 @@ import {
     BookingStatus,
     EventStatus,
     RepeatFrequency,
-    EndCondition
+    EndCondition,
+    ReminderType,
+    ReminderUnit
 } from '../models/plans-shared';
 
 import { IEvent, Event } from '../models/Event';
@@ -20,19 +22,53 @@ import { TransactionType } from '../interfaces/my-pts.interface';
 import { NotificationService } from '../services/notification.service';
 import participantService from './participant.service';
 import eventSettingsIntegration from '../utils/eventSettingsIntegration';
+import { SettingsService } from './settings.service';
+import { logger } from '../utils/logger';
+import { TimezoneUtils } from '../utils/timezoneUtils';
 
 class EventService {
     private notificationService: NotificationService;
+    private settingsService: SettingsService;
 
     constructor() {
         this.notificationService = new NotificationService();
+        this.settingsService = new SettingsService();
     }
 
     /**
-     * Calculate reminder trigger time based on reminder type and event start time
+     * Calculate reminder time based on start time and reminder settings with timezone awareness
      */
-    private calculateReminderTime(startTime: Date, reminderType: string, amount?: number, unit?: string): Date {
-        const reminderTime = new Date(startTime);
+    private async calculateReminderTime(
+        startTime: Date, 
+        reminderType: string, 
+        amount?: number, 
+        unit?: string,
+        userId?: string
+    ): Promise<Date> {
+        // Get user's timezone settings
+        let userTimezone = 'UTC';
+        if (userId) {
+            try {
+                const userSettings = await this.settingsService.getSettings(userId);
+                userTimezone = userSettings?.general?.time?.timeZone || 'UTC';
+            } catch (error) {
+                logger.warn(`Failed to get user settings for timezone, using UTC: ${error}`);
+            }
+        }
+
+        // Convert start time to user's timezone for calculation
+        let adjustedStartTime = new Date(startTime);
+        if (userTimezone !== 'UTC') {
+            try {
+                const userTimeString = startTime.toLocaleString('en-US', { timeZone: userTimezone });
+                adjustedStartTime = new Date(userTimeString);
+            } catch (error) {
+                logger.warn(`Invalid timezone ${userTimezone}, falling back to UTC`);
+                adjustedStartTime = new Date(startTime);
+            }
+        }
+
+        const reminderTime = new Date(adjustedStartTime);
         
         switch (reminderType) {
             case 'AtEventTime':
@@ -87,31 +123,79 @@ class EventService {
     }
 
     /**
-     * Create a new event with all fields
+     * Calculate reminder time based on start time and minutes before with timezone awareness
+     */
+    private async calculateReminderTimeFromMinutes(
+        startTime: Date,
+        minutesBefore: number,
+        userId?: string
+    ): Promise<Date> {
+        try {
+            // Get user timezone
+            const userTimezone = userId ? await TimezoneUtils.getUserTimezone(userId) : 'UTC';
+            
+            // Convert start time to user's timezone for accurate calculations
+            const adjustedStartTime = TimezoneUtils.convertToUserTimezone(startTime, userTimezone);
+            
+            // Calculate reminder time
+            const reminderTime = new Date(adjustedStartTime.getTime() - minutesBefore * 60 * 1000);
+            
+            return reminderTime;
+        } catch (error) {
+            console.error('Error calculating reminder time:', error);
+            // Fallback to simple calculation
+            return new Date(startTime.getTime() - minutesBefore * 60 * 1000);
+        }
+    }
+
+    /**
+     * Get reminder type enum from minutes before
+     */
+    private getReminderTypeFromMinutes(minutes: number): ReminderType {
+        switch (minutes) {
+            case 15:
+                return ReminderType.Minutes15;
+            case 30:
+                return ReminderType.Minutes30;
+            case 60:
+                return ReminderType.Hours1;
+            case 120:
+                return ReminderType.Hours2;
+            case 1440:
+                return ReminderType.Days1;
+            case 2880:
+                return ReminderType.Days2;
+            case 10080:
+                return ReminderType.Weeks1;
+            default:
+                return ReminderType.Custom;
+        }
+    }
+
+    /**
+     * Create a new event with all fields and apply user settings
      */
     async createEvent(eventData: Partial<IEvent>): Promise<IEvent> {
         // Validate meeting-specific requirements
-        if (eventData.eventType === EventType.Appointment && !eventData.serviceProvider) {
-            throw new Error('Service provider is required for appointments');
+        if (eventData.eventType === 'meeting' && !eventData.title) {
+            throw new Error('Title is required for meetings');
         }
 
-        // Apply user's default settings to the event
-        if (eventData.createdBy) {
-            eventData = await eventSettingsIntegration.applyUserDefaultsToEvent(
-                eventData.createdBy.toString(),
-                eventData
-            );
-        }
+        // Apply user settings defaults using the integration utility
+        const enhancedEventData = await eventSettingsIntegration.applyUserDefaultsToEvent(
+            eventData.createdBy?.toString() || '', 
+            eventData
+        );
 
         // Check for time overlap if the event has a time range
-        if (eventData.startTime && eventData.endTime) {
+        if (enhancedEventData.startTime && enhancedEventData.endTime) {
             const overlapCheck = await checkTimeOverlap(
-                eventData.createdBy?.toString() || '',
-                eventData.profile?.toString() || '',
+                enhancedEventData.createdBy?.toString() || '',
+                enhancedEventData.profile?.toString() || '',
                 {
-                    startTime: eventData.startTime,
-                    endTime: eventData.endTime,
-                    isAllDay: eventData.isAllDay || false
+                    startTime: enhancedEventData.startTime,
+                    endTime: enhancedEventData.endTime,
+                    isAllDay: enhancedEventData.isAllDay || false
                 }
             );
 
@@ -120,48 +204,56 @@ class EventService {
             }
         }
 
-        // Process reminders to calculate trigger times
-        if (eventData.reminders && Array.isArray(eventData.reminders)) {
-            eventData.reminders = eventData.reminders.map(reminder => ({
-                ...reminder,
-                triggered: false,
-                triggerTime: this.calculateReminderTime(
-                    eventData.startTime!, 
-                    reminder.type,
-                    reminder.amount,
-                    reminder.unit
-                ),
-                minutesBefore: reminder.type === 'Minutes15' ? 15 : 
-                             reminder.type === 'Minutes30' ? 30 : 
-                             reminder.type === 'Hours1' ? 60 :
-                             reminder.type === 'Hours2' ? 120 :
-                             reminder.type === 'Custom' ? reminder.amount :
-                             undefined
-            }));
+        // Process reminders to calculate trigger times with timezone awareness
+        if (enhancedEventData.startTime && (!enhancedEventData.reminders || enhancedEventData.reminders.length === 0)) {
+            // Mark that this event needs reminder processing
+            enhancedEventData.needsReminderProcessing = true;
+        } else if (enhancedEventData.reminders && Array.isArray(enhancedEventData.reminders) && enhancedEventData.startTime) {
+            // Process existing reminders to calculate trigger times
+            const userId = enhancedEventData.createdBy?.toString();
+            enhancedEventData.reminders = await Promise.all(
+                enhancedEventData.reminders.map(async reminder => ({
+                    ...reminder,
+                    triggered: false,
+                    triggerTime: await this.calculateReminderTime(
+                        enhancedEventData.startTime!, 
+                        reminder.type,
+                        reminder.amount,
+                        reminder.unit,
+                        userId
+                    ),
+                    minutesBefore: reminder.type === 'Minutes15' ? 15 : 
+                                 reminder.type === 'Minutes30' ? 30 : 
+                                 reminder.type === 'Hours1' ? 60 :
+                                 reminder.type === 'Hours2' ? 120 :
+                                 reminder.type === 'Custom' ? reminder.amount :
+                                 undefined
+                }))
+            );
         }
 
         const event = new Event({
-            ...eventData,
-            createdBy: eventData.createdBy || null,
-            profile: eventData.profile || null,
-            eventType: eventData.eventType || 'meeting',
-            isAllDay: eventData.isAllDay || false,
-            repeat: eventData.repeat || {
+            ...enhancedEventData,
+            createdBy: enhancedEventData.createdBy || null,
+            profile: enhancedEventData.profile || null,
+            eventType: enhancedEventData.eventType || 'meeting',
+            isAllDay: enhancedEventData.isAllDay || false,
+            repeat: enhancedEventData.repeat || {
                 isRepeating: false,
                 frequency: 'None',
                 endCondition: 'Never'
             },
-            reminders: eventData.reminders || [],
-            visibility: eventData.visibility || 'Public',
-            participants: eventData.participants || [],
-            color: eventData.color || '#1DA1F2',
-            category: eventData.category || 'Personal',
-            priority: eventData.priority || 'Low',
-            status: eventData.status || 'upcoming',
-            attachments: eventData.attachments || [],
-            comments: eventData.comments || [],
-            agendaItems: eventData.agendaItems || [],
-            isGroupEvent: eventData.isGroupEvent || false
+            reminders: enhancedEventData.reminders || [],
+            visibility: enhancedEventData.visibility || 'Public',
+            participants: enhancedEventData.participants || [],
+            color: enhancedEventData.color || '#1DA1F2',
+            category: enhancedEventData.category || 'Personal',
+            priority: enhancedEventData.priority || 'Low',
+            status: enhancedEventData.status || 'upcoming',
+            attachments: enhancedEventData.attachments || [],
+            comments: enhancedEventData.comments || [],
+            agendaItems: enhancedEventData.agendaItems || [],
+            isGroupEvent: enhancedEventData.isGroupEvent || false
         });
 
         // Handle all-day event adjustments
@@ -170,6 +262,14 @@ class EventService {
         }
 
         await event.save();
+
+        // Process reminders asynchronously in background
+        if (enhancedEventData.needsReminderProcessing) {
+            this.processRemindersAsync((event._id as Types.ObjectId).toString(), enhancedEventData.createdBy?.toString()).catch((error: any) => {
+                console.error('Failed to process reminders for event:', event._id, error);
+            });
+        }
+
         return event.toObject();
     }
 
@@ -1505,6 +1605,46 @@ class EventService {
 
         await event.save();
         return event;
+    }
+
+    /**
+     * Process reminders asynchronously in the background
+     */
+    private async processRemindersAsync(eventId: string, userId?: string): Promise<void> {
+        try {
+            const event = await Event.findById(eventId);
+            if (!event || !event.startTime || !userId) {
+                return;
+            }
+
+            // Get default reminders from user settings
+            const defaultReminders = event.settings?.notifications?.reminderSettings?.defaultReminders || [15, 60];
+            
+            if (defaultReminders.length > 0) {
+                const reminders = await Promise.all(
+                    defaultReminders.map(async (minutesBefore: number) => ({
+                        type: this.getReminderTypeFromMinutes(minutesBefore),
+                        amount: minutesBefore,
+                        unit: ReminderUnit.Minutes,
+                        triggered: false,
+                        triggerTime: await this.calculateReminderTimeFromMinutes(
+                            event.startTime!,
+                            minutesBefore,
+                            userId
+                        ),
+                        minutesBefore: minutesBefore
+                    }))
+                );
+
+                // Update event with reminders
+                await Event.findByIdAndUpdate(eventId, {
+                    reminders: reminders,
+                    $unset: { needsReminderProcessing: 1 }
+                });
+            }
+        } catch (error) {
+            console.error('Error processing reminders for event:', eventId, error);
+        }
     }
 }
 

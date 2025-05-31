@@ -2,6 +2,8 @@ import { SettingsService } from '../services/settings.service';
 import { IEvent } from '../models/Event';
 import { SettingsDocument } from '../models/settings';
 import { Types } from 'mongoose';
+import { TimezoneUtils } from './timezoneUtils';
+import { logger } from '../utils/logger';
 
 /**
  * Utility functions for integrating event settings with user settings
@@ -308,83 +310,62 @@ export class EventSettingsIntegration {
      * Format event time for user based on their timezone and format preferences
      */
     async formatEventTimeForUser(event: IEvent, userId: string): Promise<{
-        startTime?: string;
-        endTime?: string;
+        formattedStartTime?: string;
+        formattedEndTime?: string;
+        userTimezone: string;
+        timeUntilStart?: string;
         duration?: string;
-        timezone?: string;
     }> {
-        const userSettings = await this.settingsService.getSettings(userId);
-        
-        const result: any = {};
+        try {
+            const userTimezone = await TimezoneUtils.getUserTimezone(userId);
+            
+            const result: any = {
+                userTimezone
+            };
 
-        if (userSettings?.general?.time) {
-            const timeSettings = userSettings.general.time;
-            
-            // Apply user's timezone
-            result.timezone = timeSettings.timeZone;
-            
-            // Format dates according to user's preferences
-            const dateFormat = timeSettings.dateFormat || 'MM/DD/YYYY';
-            const timeFormat = timeSettings.timeFormat || '12h';
-            
             if (event.startTime) {
-                const startDate = new Date(event.startTime);
-                result.startTime = this.formatDateTime(startDate, dateFormat, timeFormat);
+                result.formattedStartTime = await TimezoneUtils.formatDateForUser(
+                    new Date(event.startTime),
+                    userId,
+                    { includeTime: true, includeDate: true }
+                );
+
+                // Calculate time until start if event hasn't started yet
+                if (!TimezoneUtils.isTimeInPast(new Date(event.startTime), userTimezone)) {
+                    const timeDiff = TimezoneUtils.calculateTimeDifferenceInUserTimezone(
+                        new Date(),
+                        new Date(event.startTime),
+                        userTimezone
+                    );
+                    result.timeUntilStart = timeDiff.humanReadable;
+                }
             }
-            
+
             if (event.endTime) {
-                const endDate = new Date(event.endTime);
-                result.endTime = this.formatDateTime(endDate, dateFormat, timeFormat);
-            }
-            
-            // Calculate duration
-            if (event.startTime && event.endTime) {
-                const durationMs = new Date(event.endTime).getTime() - new Date(event.startTime).getTime();
-                const hours = Math.floor(durationMs / (1000 * 60 * 60));
-                const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-                result.duration = `${hours}h ${minutes}m`;
-            }
-        }
+                result.formattedEndTime = await TimezoneUtils.formatDateForUser(
+                    new Date(event.endTime),
+                    userId,
+                    { includeTime: true, includeDate: true }
+                );
 
-        return result;
-    }
+                // Calculate duration if both start and end times exist
+                if (event.startTime) {
+                    const timeDiff = TimezoneUtils.calculateTimeDifferenceInUserTimezone(
+                        new Date(event.startTime),
+                        new Date(event.endTime),
+                        userTimezone
+                    );
+                    result.duration = timeDiff.humanReadable;
+                }
+            }
 
-    /**
-     * Helper method to format date and time according to user preferences
-     */
-    private formatDateTime(date: Date, dateFormat: string, timeFormat: string): string {
-        // This is a simplified implementation
-        // In a real application, you'd use a proper date formatting library like date-fns or moment.js
-        const day = date.getDate().toString().padStart(2, '0');
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const year = date.getFullYear();
-        
-        let formattedDate = '';
-        switch (dateFormat) {
-            case 'DD/MM/YYYY':
-                formattedDate = `${day}/${month}/${year}`;
-                break;
-            case 'YYYY-MM-DD':
-                formattedDate = `${year}-${month}-${day}`;
-                break;
-            default: // MM/DD/YYYY
-                formattedDate = `${month}/${day}/${year}`;
-                break;
+            return result;
+        } catch (error) {
+            logger.error(`Error formatting event time for user ${userId}: ${error}`);
+            return {
+                userTimezone: 'UTC'
+            };
         }
-        
-        const hours = date.getHours();
-        const minutes = date.getMinutes().toString().padStart(2, '0');
-        
-        let formattedTime = '';
-        if (timeFormat === '24h') {
-            formattedTime = `${hours.toString().padStart(2, '0')}:${minutes}`;
-        } else {
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            const displayHours = hours % 12 || 12;
-            formattedTime = `${displayHours}:${minutes} ${ampm}`;
-        }
-        
-        return `${formattedDate} ${formattedTime}`;
     }
 }
 

@@ -1,158 +1,497 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Purchase Confirmation</title>
-  <style>
-    body {
-      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      margin: 0;
-      padding: 0;
-      background-color: #f9f9f9;
-    }
-    .container {
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-      background-color: #ffffff;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    .header {
-      text-align: center;
-      padding: 20px 0;
-      border-bottom: 1px solid #eee;
-    }
-    .logo {
-      max-width: 150px;
-      height: auto;
-    }
-    .content {
-      padding: 20px 0;
-    }
-    .transaction-details {
-      background-color: #f5f5f5;
-      border-radius: 4px;
-      padding: 15px;
-      margin: 15px 0;
-    }
-    .transaction-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid #eee;
-    }
-    .transaction-row:last-child {
-      border-bottom: none;
-    }
-    .transaction-label {
-      font-weight: bold;
-      color: #555;
-    }
-    .transaction-value {
-      text-align: right;
-    }
-    .footer {
-      text-align: center;
-      padding: 20px 0;
-      font-size: 12px;
-      color: #999;
-      border-top: 1px solid #eee;
-    }
-    .button {
-      display: inline-block;
-      padding: 10px 20px;
-      background-color: #28a745;
-      color: #ffffff !important;
-      text-decoration: none;
-      border-radius: 4px;
-      font-weight: bold;
-      margin-top: 15px;
-    }
-    .amount {
-      color: #28a745;
-      font-weight: bold;
-    }
-    .success-icon {
-      width: 60px;
-      height: 60px;
-      background-color: #28a745;
-      border-radius: 50%;
-      margin: 0 auto 15px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .success-icon svg {
-      width: 30px;
-      height: 30px;
-      fill: #ffffff;
-    }
-    @media only screen and (max-width: 600px) {
-      .container {
-        width: 100%;
-        border-radius: 0;
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="x-apple-disable-message-reformatting">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Purchase Confirmation - MyProfile</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
+            background: #000000 !important;
+            margin: 0 !important;
+            padding: 10px !important;
+            min-height: 100vh !important;
+            -webkit-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
+        }
+        
+        /* Mobile-first container */
+        .email-container {
+            max-width: 600px !important;
+            margin: 0 auto !important;
+            background: #ffffff !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+        }
+        
+        /* Header optimized for mobile */
+        .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            padding: 30px 20px !important;
+            text-align: center !important;
+            color: white !important;
+        }
+        
+        .logo {
+            width: 50px !important;
+            height: 50px !important;
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-radius: 8px !important;
+            margin: 0 auto 16px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        .logo img {
+            width: 26px !important;
+            height: 26px !important;
+            object-fit: contain !important;
+        }
+        
+        .header h1 {
+            font-size: 22px !important;
+            font-weight: 700 !important;
+            margin-bottom: 6px !important;
+            line-height: 1.2 !important;
+        }
+        
+        .header p {
+            font-size: 14px !important;
+            opacity: 0.9 !important;
+            font-weight: 400 !important;
+        }
+        
+        /* Content with better mobile spacing */
+        .content {
+            padding: 30px 20px !important;
+        }
+        
+        .success-section {
+            text-align: center !important;
+            margin-bottom: 30px !important;
+        }
+        
+        .success-icon {
+            width: 60px !important;
+            height: 60px !important;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            border-radius: 50% !important;
+            margin: 0 auto 15px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+            font-size: 24px !important;
+            color: white !important;
+        }
+        
+        .success-title {
+            font-size: 22px !important;
+            font-weight: 600 !important;
+            color: #000000 !important;
+            margin-bottom: 12px !important;
+            line-height: 1.3 !important;
+        }
+        
+        .success-message {
+            font-size: 16px !important;
+            color: #666666 !important;
+            line-height: 1.6 !important;
+            margin-bottom: 20px !important;
+        }
+        
+        .amount {
+            color: #10b981 !important;
+            font-weight: 700 !important;
+            font-size: 18px !important;
+        }
+        
+        /* Transaction details card */
+        .transaction-card {
+            background: #f8f8f8 !important;
+            border: 1px solid #d0d0d0 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 25px 0 !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+        }
+        
+        .card-header {
+            display: table !important;
+            width: 100% !important;
+            margin-bottom: 20px !important;
+        }
+        
+        .card-icon {
+            display: table-cell !important;
+            width: 50px !important;
+            height: 50px !important;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            border-radius: 10px !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+            font-size: 20px !important;
+            color: white !important;
+        }
+        
+        .card-info {
+            display: table-cell !important;
+            vertical-align: middle !important;
+            padding-left: 15px !important;
+        }
+        
+        .card-title {
+            font-size: 18px !important;
+            font-weight: 600 !important;
+            color: #000000 !important;
+            margin-bottom: 6px !important;
+            line-height: 1.3 !important;
+        }
+        
+        .card-subtitle {
+            display: inline-block !important;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            color: white !important;
+            padding: 4px 10px !important;
+            border-radius: 12px !important;
+            font-size: 11px !important;
+            font-weight: 500 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+        }
+        
+        /* Transaction details grid */
+        .transaction-details {
+            display: block !important;
+            margin: 20px 0 !important;
+        }
+        
+        .detail-item {
+            background: #ffffff !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            border: 1px solid #e0e0e0 !important;
+            margin-bottom: 10px !important;
+        }
+        
+        .detail-item:last-child {
+            margin-bottom: 0 !important;
+        }
+        
+        .detail-label {
+            font-size: 11px !important;
+            color: #666666 !important;
+            font-weight: 600 !important;
+            margin-bottom: 3px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+        }
+        
+        .detail-value {
+            font-size: 13px !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            line-height: 1.4 !important;
+            word-wrap: break-word !important;
+        }
+        
+        /* Action buttons */
+        .action-buttons {
+            text-align: center !important;
+            margin: 25px 0 !important;
+        }
+        
+        .action-button {
+            display: inline-block !important;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            padding: 12px 20px !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin: 5px !important;
+            font-size: 14px !important;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+        }
+        
+        .action-button.secondary {
+            background: #f8f8f8 !important;
+            color: #333333 !important;
+            border: 1px solid #d0d0d0 !important;
+            box-shadow: none !important;
+        }
+        
+        /* Footer */
+        .footer {
+            background: #f8f8f8 !important;
+            padding: 25px 20px !important;
+            text-align: center !important;
+            border-top: 1px solid #e0e0e0 !important;
+        }
+        
+        .support-link {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            padding: 10px 16px !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin-bottom: 12px !important;
+            font-size: 13px !important;
+        }
+        
+        .footer-text {
+            font-size: 12px !important;
+            color: #666666 !important;
+            line-height: 1.5 !important;
+        }
+        
+        /* Enhanced mobile styles */
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 5px !important;
+            }
+            
+            .email-container {
+                border-radius: 8px !important;
+            }
+            
+            .header {
+                padding: 25px 15px !important;
+            }
+            
+            .content {
+                padding: 25px 15px !important;
+            }
+            
+            .header h1 {
+                font-size: 20px !important;
+            }
+            
+            .success-title {
+                font-size: 20px !important;
+            }
+            
+            .success-message {
+                font-size: 15px !important;
+            }
+            
+            .logo {
+                width: 35px !important;
+                height: 35px !important;
+            }
+            
+            .logo img {
+                width: 18px !important;
+                height: 18px !important;
+            }
+            
+            .transaction-card {
+                padding: 15px !important;
+                margin: 20px 0 !important;
+            }
+            
+            .card-header {
+                margin-bottom: 15px !important;
+            }
+            
+            .card-icon {
+                width: 45px !important;
+                height: 45px !important;
+                font-size: 18px !important;
+            }
+            
+            .card-info {
+                padding-left: 12px !important;
+            }
+            
+            .card-title {
+                font-size: 16px !important;
+            }
+            
+            .detail-item {
+                padding: 10px !important;
+                margin-bottom: 8px !important;
+            }
+            
+            .action-button {
+                padding: 10px 16px !important;
+                font-size: 13px !important;
+                margin: 3px !important;
+                display: block !important;
+                margin-bottom: 8px !important;
+            }
+            
+            .footer {
+                padding: 20px 15px !important;
+            }
+        }
+        
+        /* Extra small screens */
+        @media only screen and (max-width: 320px) {
+            .content {
+                padding: 20px 12px !important;
+            }
+            
+            .logo {
+                width: 30px !important;
+                height: 30px !important;
+            }
+            
+            .logo img {
+                width: 16px !important;
+                height: 16px !important;
+            }
+            
+            .transaction-card {
+                padding: 12px !important;
+            }
+            
+            .card-header {
+                display: block !important;
+                text-align: center !important;
+            }
+            
+            .card-icon {
+                display: inline-block !important;
+                width: 40px !important;
+                height: 40px !important;
+                font-size: 16px !important;
+                margin-bottom: 10px !important;
+            }
+            
+            .card-info {
+                display: block !important;
+                padding-left: 0 !important;
+            }
+            
+            .card-title {
+                font-size: 15px !important;
+            }
+            
+            .detail-item {
+                padding: 8px !important;
+            }
+        }
+    </style>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <img src="cid:company-logo" alt="{{appName}}" class="logo">
-      <h1>Purchase Confirmation</h1>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #000000; margin: 0; padding: 10px; min-height: 100vh; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+        <div class="header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px 20px; text-align: center; color: white;">
+            <div class="logo" style="width: 50px; height: 50px; background: rgba(255, 255, 255, 0.15); border-radius: 8px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.2);">
+                <img src="cid:company-logo" alt="MyProfile Logo" style="width: 40px; height: 40px; object-fit: contain;">
+            </div>
+            <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 6px; line-height: 1.2; color: white;">Purchase Confirmation</h1>
+            <p style="font-size: 14px; opacity: 0.9; font-weight: 400; color: white;">Your transaction was successful</p>
+        </div>
+        
+        <div class="content" style="padding: 30px 20px;">
+            <div class="success-section" style="text-align: center; margin-bottom: 30px;">
+                <div class="success-icon" style="width: 60px; height: 60px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); font-size: 24px; color: white;">
+                    ✓
+                </div>
+                <h2 class="success-title" style="font-size: 22px; font-weight: 600; color: #000000; margin-bottom: 12px; line-height: 1.3;">Payment Successful!</h2>
+                <p class="success-message" style="font-size: 16px; color: #666666; line-height: 1.6; margin-bottom: 20px;">
+                    Thank you for your purchase. Your payment of <span class="amount" style="color: #10b981; font-weight: 700; font-size: 18px;">{{amount}}</span> has been processed successfully.
+                </p>
+            </div>
+            
+            <div class="transaction-card" style="background: #f8f8f8; border: 1px solid #d0d0d0; border-radius: 12px; padding: 20px; margin: 25px 0; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+                <table class="card-header" style="display: table; width: 100%; margin-bottom: 20px;" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td class="card-icon" style="display: table-cell; width: 50px; height: 50px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 10px; text-align: center; vertical-align: middle; font-size: 20px; color: white;">
+                            💳
+                        </td>
+                        <td class="card-info" style="display: table-cell; vertical-align: middle; padding-left: 15px;">
+                            <h3 class="card-title" style="font-size: 18px; font-weight: 600; color: #000000; margin-bottom: 6px; line-height: 1.3;">Transaction Details</h3>
+                            <div class="card-subtitle" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Completed</div>
+                        </td>
+                    </tr>
+                </table>
+                
+                <div class="transaction-details" style="display: block; margin: 20px 0;">
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Transaction ID</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{transactionId}}</div>
+                    </div>
+                    
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Amount</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{amount}}</div>
+                    </div>
+                    
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Date & Time</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{date}}</div>
+                    </div>
+                    
+                    {{#if description}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Description</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{description}}</div>
+                    </div>
+                    {{/if}}
+                    
+                    {{#if paymentMethod}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Payment Method</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{paymentMethod}}</div>
+                    </div>
+                    {{/if}}
+                    
+                    {{#if status}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 0;">
+                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Status</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{status}}</div>
+                    </div>
+                    {{/if}}
+                </div>
+            </div>
+            
+            <div class="action-buttons" style="text-align: center; margin: 25px 0;">
+                {{#if viewTransactionUrl}}
+                <a href="{{viewTransactionUrl}}" class="action-button" style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">View Transaction</a>
+                {{/if}}
+                {{#if downloadReceiptUrl}}
+                <a href="{{downloadReceiptUrl}}" class="action-button secondary" style="display: inline-block; background: #f8f8f8; color: #333333; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px; border: 1px solid #d0d0d0;">Download Receipt</a>
+                {{/if}}
+            </div>
+        </div>
+        
+        <div class="footer" style="background: #f8f8f8; padding: 25px 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+            <a href="mailto:support@getmyprofile.online" class="support-link" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; margin-bottom: 12px; font-size: 13px;">
+                📧 Contact Support
+            </a>
+            <p class="footer-text" style="font-size: 12px; color: #666666; line-height: 1.5;">
+                This is an automated purchase confirmation from MyProfile. Please keep this email for your records.<br>
+                If you have any questions, please contact our support team.
+            </p>
+        </div>
     </div>
-    <div class="content">
-      <div style="text-align: center;">
-        <div class="success-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="#ffffff"/>
-          </svg>
-        </div>
-        <h2>Thank You for Your Purchase!</h2>
-        <p>Your purchase of <span class="amount">{{metadata.amount}} MyPts</span> has been completed successfully.</p>
-      </div>
-      
-      <div class="transaction-details">
-        <div class="transaction-row">
-          <span class="transaction-label">Transaction ID:</span>
-          <span class="transaction-value">{{transactionId}}</span>
-        </div>
-        
-        <div class="transaction-row">
-          <span class="transaction-label">Date:</span>
-          <span class="transaction-value">{{formatDate metadata.timestamp}}</span>
-        </div>
-        
-        <div class="transaction-row">
-          <span class="transaction-label">Amount:</span>
-          <span class="transaction-value amount">{{metadata.amount}} MyPts</span>
-        </div>
-        
-        <div class="transaction-row">
-          <span class="transaction-label">New Balance:</span>
-          <span class="transaction-value">{{metadata.balance}} MyPts</span>
-        </div>
-        
-        <div class="transaction-row">
-          <span class="transaction-label">Status:</span>
-          <span class="transaction-value">{{metadata.status}}</span>
-        </div>
-      </div>
-      
-      <div style="text-align: center;">
-        <a href="{{actionUrl}}" class="button">View Transaction Details</a>
-      </div>
-      
-      <p style="margin-top: 20px;">If you have any questions about this transaction, please contact our support team.</p>
-    </div>
-    <div class="footer">
-      <p>&copy; {{year}} {{appName}}. All rights reserved.</p>
-      <p>This is an automated message, please do not reply to this email.</p>
-    </div>
-  </div>
 </body>
 </html>

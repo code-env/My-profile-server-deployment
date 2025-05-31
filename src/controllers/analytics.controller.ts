@@ -4,6 +4,7 @@ import createHttpError from 'http-errors';
 import mongoose from 'mongoose';
 import { AnalyticsService } from '../services/analytics.service';
 import { logger } from '../utils/logger';
+import { emitSocialInteraction } from '../utils/socketEmitter';
 
 const analyticsService = new AnalyticsService();
 
@@ -22,6 +23,23 @@ export const trackProfileView = asyncHandler(async (req: Request, res: Response)
     req.headers['user-agent'],
     req.ip
   );
+
+  // Emit social interaction for profile view (only if user is authenticated and viewing someone else's profile)
+  if (user && user._id && ownerId && user._id.toString() !== ownerId.toString()) {
+    try {
+      setImmediate(async () => {
+        await emitSocialInteraction(user._id, {
+          type: 'share', // Using 'share' as closest match for profile view
+          profile: new mongoose.Types.ObjectId(user.activeProfile || user._id),
+          targetProfile: new mongoose.Types.ObjectId(profileId),
+          contentId: new mongoose.Types.ObjectId(profileId),
+          content: 'viewed profile'
+        });
+      });
+    } catch (error) {
+      console.error('Failed to emit social interaction for profile view:', error);
+    }
+  }
 
   res.json(analytics);
 });
@@ -45,6 +63,23 @@ export const trackEngagement = asyncHandler(async (req: Request, res: Response) 
     type,
     metadata
   );
+
+  // Emit social interaction for engagement tracking
+  if (user._id.toString() !== ownerId.toString()) {
+    try {
+      setImmediate(async () => {
+        await emitSocialInteraction(user._id, {
+          type: type as 'like' | 'comment' | 'share' | 'connection',
+          profile: new mongoose.Types.ObjectId(user.activeProfile || user._id),
+          targetProfile: new mongoose.Types.ObjectId(profileId),
+          contentId: new mongoose.Types.ObjectId(profileId),
+          content: `${type} engagement${metadata ? `: ${JSON.stringify(metadata)}` : ''}`
+        });
+      });
+    } catch (error) {
+      console.error('Failed to emit social interaction for engagement:', error);
+    }
+  }
 
   res.json(analytics);
 });

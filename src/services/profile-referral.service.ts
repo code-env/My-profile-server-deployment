@@ -5,6 +5,7 @@ import { MyPtsModel } from "../models/my-pts.model";
 import { logger } from "../utils/logger";
 import { generateReferralCode } from "../utils/crypto";
 import { LeaderboardTimeFrame } from "../interfaces/profile-referral.interface";
+import { emitSocialInteraction } from "../utils/socketEmitter";
 
 export class ProfileReferralService {
   /**
@@ -215,6 +216,25 @@ export class ProfileReferralService {
 
       // Add the referred profile to the referrer's list
       await referrerReferral.addReferredProfile(referredObjId);
+
+      // Emit social interaction for referral
+      try {
+        // Get the referrer's user ID from their profile
+        const referrerProfile = await ProfileModel.findById(referrerObjId);
+        if (referrerProfile && referrerProfile.profileInformation?.creator) {
+          setImmediate(async () => {
+            await emitSocialInteraction(referrerProfile.profileInformation.creator, {
+              type: 'share', // Using 'share' as closest match for referral
+              profile: referrerObjId,
+              targetProfile: referredObjId,
+              contentId: referrerReferral._id as mongoose.Types.ObjectId,
+              content: `referred profile using referral code: ${referrerReferral.referralCode}`
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Failed to emit social interaction for referral:', error);
+      }
 
       logger.info(
         `Processed referral: ${referrerObjId} referred ${referredObjId}`
