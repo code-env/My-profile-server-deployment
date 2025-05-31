@@ -39,8 +39,8 @@ import { Application } from 'express';
 import authRoutes from './auth.routes';
 import userRoutes from './user.routes'
 import profileRoutes from './profile.routes';
-// import connectionRoutes from './connection.routes';
-import profileConnectionRoutes from './profile-connection.routes';
+import connectionRoutes from './connection.routes';
+// import profileConnectionRoutes from './profile-connection.routes';
 import contactRoutes from './contact.route';
 import RelationshipTypeRoutes from './relationshipType.routes';
 import logsRoutes from './logs.routes';
@@ -52,6 +52,7 @@ import adminNotificationRoutes from './admin-notification.routes';
 import adminModuleRoutes from './admin/index';
 import stripeRoutes from './stripe.routes';
 import taskRoutes from './task.routes';
+import profileDataRoutes from './data.routes';
 import settingsRoutes from './settings.routes';
 import listRoutes from './list.routes';
 import eventRoutes from './event.routes';
@@ -138,13 +139,19 @@ export const setupRoutes = (app: Application): void => {
     // settings routes
   app.use('/api/settings', protect, settingsRoutes);
 
+  // profile data routes
+  app.use('/api/p/data', profileDataRoutes);
+
+
+
+
   // Protected routes
   app.use('/api/profiles', protect, profileRoutes);
   app.use('/api/profiles', protect, scansRoutes);
   app.use('/api/nfc', protect, nfcRoutes);
   app.use('/api/vault', protect, vaultRoutes);
   // app.use('/api/connections', protect, connectionRoutes);
-  app.use('/api/p/connections', protect, profileConnectionRoutes);
+  app.use('/api/p/connections', protect, connectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
   
   app.use('/api/tasks', protect, taskRoutes);

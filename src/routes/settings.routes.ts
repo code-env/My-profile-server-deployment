@@ -11,7 +11,7 @@ router.post("/", settingsController.createDefault);
 
 router.get("/:pId", settingsController.getSettings);
 
-router.patch("/", settingsController.updateSettings);
+router.patch("/:profileId", settingsController.updateSettings);
 
 router.get("/g/new", settingsController.generatesettings.bind(settingsController));
 
