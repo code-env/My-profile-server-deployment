@@ -146,6 +146,7 @@ export const setupRoutes = (app: Application): void => {
   // app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/p/connections', protect, profileConnectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
+  
   app.use('/api/tasks', protect, taskRoutes);
   app.use('/api/lists', protect, listRoutes);
   app.use('/api/events', protect, eventRoutes);
