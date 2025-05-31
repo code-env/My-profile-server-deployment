@@ -11,8 +11,8 @@
     "postinstall": "npm run build",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
-    "test": "jest",
-    "test:watch": "jest --watch",
+    "test": "jest --config jest.config.js",
+    "test:watch": "jest --watch --config jest.config.js",
     "validate-logs": "ts-node src/tests/validate-logging.ts",
     "test-tracking": "ts-node src/tests/test-tracking.ts",
     "verify-tracking": "npm run validate-logs && npm run test-tracking",
@@ -123,7 +123,7 @@
     "@types/handlebars": "^4.0.40",
     "@types/http-errors": "^2.0.4",
     "@types/ioredis": "^4.28.10",
-    "@types/jest": "^29.5.0",
+    "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/morgan": "^1.9.9",
     "@types/node": "^20.10.5",
@@ -143,21 +143,12 @@
     "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.15.0",
     "eslint": "^8.56.0",
-    "jest": "^29.5.0",
+    "jest": "^29.7.0",
+    "jest-extended": "^5.0.3",
     "nodemon": "^3.0.2",
     "prettier": "^3.1.1",
-    "ts-jest": "^29.1.0",
+    "ts-jest": "^29.3.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
-  },
-  "jest": {
-    "preset": "ts-jest",
-    "testEnvironment": "node",
-    "testMatch": [
-      "**/__tests__/**/*.test.ts"
-    ],
-    "setupFilesAfterEnv": [
-      "./jest.setup.js"
-    ]
+    "typescript": "^5.8.3"
   }
 }
