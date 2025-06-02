@@ -1,9 +1,10 @@
 import mongoose from 'mongoose';
-import { Types } from 'mongoose';
+import { Types, ObjectId } from 'mongoose';
 import { InteractionService } from '../services/interaction.service';
 import { Interaction, InteractionMode, InteractionCategory } from '../models/Interaction';
 import { ProfileModel } from '../models/profile.model';
 import { IProfile } from '../interfaces/profile.interface';
+
 
 async function setupTestData() {
     try {
@@ -58,7 +59,7 @@ async function setupTestData() {
 
         // Create some test interactions
         await interactionService.createManualInteraction(
-            profile1.owner,
+            profile1.profileInformation.creator,
             {
                 profile: profile1._id,
                 relationship: profile2._id,
@@ -66,12 +67,13 @@ async function setupTestData() {
                 title: 'Coffee Meeting',
                 notes: 'Met for coffee and discussed project',
                 category: InteractionCategory.BUSINESS,
-                isPhysical: true
+                isPhysical: true,
+                targetProfile: new Types.ObjectId()
             }
         );
 
         await interactionService.createManualInteraction(
-            profile2.owner,
+            profile2.profileInformation.creator,
             {
                 profile: profile2._id,
                 relationship: profile1._id,
@@ -79,7 +81,8 @@ async function setupTestData() {
                 title: 'Phone Call',
                 notes: 'Discussed collaboration opportunities',
                 category: InteractionCategory.BUSINESS,
-                isPhysical: false
+                isPhysical: false,
+                targetProfile: new Types.ObjectId()
             }
         );
 

@@ -1,374 +1,447 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <meta name="format-detection" content="telephone=no">
-  <meta name="x-apple-disable-message-reformatting">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <title>Connection Request</title>
-  <!--[if mso]>
-  <noscript>
-      <xml>
-          <o:OfficeDocumentSettings>
-              <o:PixelsPerInch>96</o:PixelsPerInch>
-          </o:OfficeDocumentSettings>
-      </xml>
-  </noscript>
-  <![endif]-->
-  <style>
-    /* Reset and base styles */
-    * {
-      margin: 0 !important;
-      padding: 0 !important;
-      box-sizing: border-box !important;
-    }
-    
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
-      line-height: 1.6 !important;
-      color: #333 !important;
-      margin: 0 !important;
-      padding: 10px !important;
-      background-color: #000000 !important;
-      -webkit-text-size-adjust: 100% !important;
-      -ms-text-size-adjust: 100% !important;
-    }
-    
-    /* Mobile-first container */
-    .container {
-      max-width: 600px !important;
-      margin: 0 auto !important;
-      padding: 20px !important;
-      background-color: #ffffff !important;
-      border-radius: 12px !important;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
-    }
-    
-    /* Header */
-    .header {
-      text-align: center !important;
-      padding: 0 0 20px 0 !important;
-      border-bottom: 1px solid #eee !important;
-      margin-bottom: 20px !important;
-    }
-    
-    .logo {
-      width: 50px !important;
-      height: 50px !important;
-      margin: 0 auto 12px !important;
-      display: block !important;
-    }
-    
-    .title {
-      font-size: 20px !important;
-      color: #000000 !important;
-      margin: 0 !important;
-      font-weight: 600 !important;
-      line-height: 1.3 !important;
-    }
-    
-    .subtitle {
-      font-size: 14px !important;
-      color: #718096 !important;
-      margin: 8px 0 0 0 !important;
-      font-weight: 400 !important;
-    }
-    
-    /* Content */
-    .content {
-      padding: 0 !important;
-      color: #4a5568 !important;
-      font-size: 15px !important;
-    }
-    
-    .greeting {
-      font-size: 16px !important;
-      color: #2d3748 !important;
-      margin-bottom: 20px !important;
-      font-weight: 500 !important;
-    }
-    
-    /* Profile section */
-    .profile-section {
-      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
-      border-radius: 12px !important;
-      padding: 20px !important;
-      margin: 25px 0 !important;
-      border-left: 3px solid #000000 !important;
-      text-align: center !important;
-    }
-    
-    .profile-avatar {
-      width: 80px !important;
-      height: 80px !important;
-      border-radius: 50% !important;
-      margin: 0 auto 15px !important;
-      display: block !important;
-      border: 3px solid #e2e8f0 !important;
-    }
-    
-    .profile-name {
-      font-size: 18px !important;
-      font-weight: 600 !important;
-      color: #000000 !important;
-      margin-bottom: 8px !important;
-    }
-    
-    .profile-title {
-      font-size: 14px !important;
-      color: #718096 !important;
-      margin-bottom: 15px !important;
-    }
-    
-    .profile-bio {
-      font-size: 14px !important;
-      color: #4a5568 !important;
-      line-height: 1.6 !important;
-      margin-bottom: 20px !important;
-    }
-    
-    /* Connection details */
-    .connection-details {
-      background: linear-gradient(135deg, #fef7f7 0%, #fee2e2 100%) !important;
-      border-left: 4px solid #3b82f6 !important;
-      border-radius: 8px !important;
-      padding: 15px !important;
-      margin: 20px 0 !important;
-      color: #4a5568 !important;
-      line-height: 1.6 !important;
-    }
-    
-    /* Buttons */
-    .button-container {
-      text-align: center !important;
-      margin: 25px 0 !important;
-    }
-    
-    .button-group {
-      display: flex !important;
-      gap: 15px !important;
-      justify-content: center !important;
-      flex-wrap: wrap !important;
-    }
-    
-    .button {
-      display: inline-block !important;
-      padding: 12px 24px !important;
-      text-decoration: none !important;
-      border-radius: 8px !important;
-      font-weight: 600 !important;
-      font-size: 14px !important;
-      min-width: 120px !important;
-      text-align: center !important;
-    }
-    
-    .button-accept {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-      color: #ffffff !important;
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
-    }
-    
-    .button-decline {
-      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
-      color: #ffffff !important;
-      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3) !important;
-    }
-    
-    .button-view {
-      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
-      color: #ffffff !important;
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3) !important;
-    }
-    
-    /* Message section */
-    .message-section {
-      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%) !important;
-      border-left: 3px solid #3b82f6 !important;
-      border-radius: 8px !important;
-      padding: 15px !important;
-      margin: 20px 0 !important;
-      color: #4a5568 !important;
-      line-height: 1.6 !important;
-    }
-    
-    .message-title {
-      font-size: 16px !important;
-      font-weight: 600 !important;
-      color: #000000 !important;
-      margin-bottom: 10px !important;
-    }
-    
-    /* Footer */
-    .footer {
-      text-align: center !important;
-      padding: 20px 0 0 0 !important;
-      font-size: 12px !important;
-      color: #718096 !important;
-      border-top: 1px solid #eee !important;
-      margin-top: 25px !important;
-    }
-    
-    /* Mobile optimizations */
-    @media only screen and (max-width: 480px) {
-      body {
-        padding: 5px !important;
-      }
-      
-      .container {
-        margin: 0 !important;
-        padding: 15px !important;
-        border-radius: 8px !important;
-      }
-      
-      .logo {
-        width: 35px !important;
-        height: 35px !important;
-      }
-      
-      .title {
-        font-size: 18px !important;
-      }
-      
-      .content {
-        font-size: 14px !important;
-      }
-      
-      .profile-section {
-        padding: 15px !important;
-        margin: 20px 0 !important;
-      }
-      
-      .profile-avatar {
-        width: 60px !important;
-        height: 60px !important;
-      }
-      
-      .profile-name {
-        font-size: 16px !important;
-      }
-      
-      .button-group {
-        flex-direction: column !important;
-        gap: 10px !important;
-      }
-      
-      .button {
-        padding: 10px 20px !important;
-        font-size: 13px !important;
-        min-width: auto !important;
-        width: 100% !important;
-      }
-      
-      .connection-details,
-      .message-section {
-        padding: 12px !important;
-        margin: 15px 0 !important;
-      }
-      
-      .footer {
-        padding: 15px 0 0 0 !important;
-        margin-top: 20px !important;
-      }
-    }
-    
-    /* Extra small screens */
-    @media only screen and (max-width: 320px) {
-      .container {
-        padding: 12px !important;
-      }
-      
-      .logo {
-        width: 30px !important;
-        height: 30px !important;
-      }
-      
-      .title {
-        font-size: 16px !important;
-      }
-      
-      .content {
-        font-size: 13px !important;
-      }
-      
-      .profile-section {
-        padding: 12px !important;
-      }
-      
-      .profile-avatar {
-        width: 50px !important;
-        height: 50px !important;
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="x-apple-disable-message-reformatting">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Connection Request - <b>My</b>Profile</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
+            background: transparent !important;
+            margin: 0 !important;
+            padding: 10px !important;
+            min-height: 100vh !important;
+            -webkit-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
+        }
+        
+        /* Mobile-first container */
+        .email-container {
+            max-width: 600px !important;
+            margin: 0 auto !important;
+            background: #ffffff !important;
+            border-radius: 16px !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+        }
+        
+        /* Header optimized for mobile */
+        .header {
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            padding: 30px 20px !important;
+            text-align: center !important;
+            color: white !important;
+            border-radius: 16px 16px 0 0 !important;
+        }
+        
+        .logo {
+            width: 45px !important;
+            width: 45px !important;
+            margin: 0 auto 16px !important;
+            display: block !important;
+        }
+        
+        .logo img {
+            width: 45px !important;
+            height: 45px !important;
+            object-fit: contain !important;
+            display: block !important;
+            margin: 0 auto !important;
+        }
+        
+        .header h1 {
+            font-size: 22px !important;
+            font-weight: 700 !important;
+            margin-bottom: 6px !important;
+            line-height: 1.2 !important;
+        }
+        
+        .header p {
+            font-size: 14px !important;
+            opacity: 0.9 !important;
+            font-weight: 400 !important;
+        }
+        
+        /* Content with better mobile spacing */
+        .content {
+            padding: 30px 20px !important;
+        }
+        
+        .greeting {
+            font-size: 16px !important;
+            color: #2d3748 !important;
+            margin-bottom: 20px !important;
+            font-weight: 500 !important;
+        }
+        
+        /* Profile section */
+        .profile-section {
+            background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+            padding: 25px !important;
+            margin: 25px 0 !important;
+            text-align: center !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+        }
+        
+        .profile-avatar {
+            width: 100px !important;
+            height: 100px !important;
+            border-radius: 50% !important;
+            margin: 0 auto 20px !important;
+            display: block !important;
+            border: 4px solid #e2e8f0 !important;
+            object-fit: cover !important;
+        }
+        
+        .profile-name {
+            font-size: 20px !important;
+            font-weight: 700 !important;
+            color: #000000 !important;
+            margin-bottom: 8px !important;
+            line-height: 1.3 !important;
+        }
+        
+        .profile-title {
+            font-size: 14px !important;
+            color: #444444 !important;
+            margin-bottom: 15px !important;
+            font-weight: 500 !important;
+        }
+        
+        .profile-bio {
+            font-size: 14px !important;
+            color: #4a5568 !important;
+            line-height: 1.6 !important;
+            margin-bottom: 20px !important;
+            text-align: left !important;
+            background: #ffffff !important;
+            padding: 15px !important;
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+        
+        /* Connection details */
+        .connection-details {
+            background: #f0f9ff !important;
+            border: 1px solid #bae6fd !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 25px 0 !important;
+            text-align: left !important;
+        }
+        
+        .connection-title {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            color: #0369a1 !important;
+            margin-bottom: 12px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+        }
+        
+        /* Message section */
+        .message-section {
+            background: #fffbeb !important;
+            border: 1px solid #fef3c7 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 25px 0 !important;
+            text-align: left !important;
+        }
+        
+        .message-title {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            color: #92400e !important;
+            margin-bottom: 12px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+        }
+        
+        /* Action buttons */
+        .action-buttons {
+            text-align: center !important;
+            margin: 25px 0 !important;
+        }
+        
+        .button-group {
+            display: flex !important;
+            gap: 15px !important;
+            justify-content: center !important;
+            flex-wrap: wrap !important;
+        }
+        
+        .action-button {
+            display: inline-block !important;
+            padding: 12px 20px !important;
+            text-decoration: none !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin: 5px !important;
+            font-size: 14px !important;
+            min-width: 120px !important;
+            text-align: center !important;
+        }
+        
+        .action-button.accept {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            color: white !important;
+        }
+        
+        .action-button.decline {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+            color: white !important;
+        }
+        
+        .action-button.view {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+            color: white !important;
+        }
+        
+        /* Footer */
+        .footer {
+            background: #f8f8f8 !important;
+            padding: 25px 20px !important;
+            text-align: center !important;
+            border-top: 1px solid #e0e0e0 !important;
+        }
+        
+        .support-link {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            padding: 10px 16px !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin-bottom: 12px !important;
+            font-size: 13px !important;
+        }
+        
+        .footer-text {
+            font-size: 12px !important;
+            color: #444444 !important;
+            line-height: 1.5 !important;
+        }
+        
+        /* Mobile optimizations */
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 10px !important;
+            }
+            
+            .header {
+                padding: 25px 15px !important;
+            }
+            
+            .content {
+                padding: 25px 15px !important;
+            }
+            
+            .header h1 {
+                font-size: 20px !important;
+            }
+            
+            .logo {
+                width: 45px !important;
+                height: 45px !important;
+            }
+            
+            .logo img {
+                width: 45px !important;
+                height: 45px !important;
+            }
+            
+            .profile-section {
+                padding: 20px !important;
+                margin: 20px 0 !important;
+            }
+            
+            .profile-avatar {
+                width: 80px !important;
+                height: 80px !important;
+                border-width: 3px !important;
+            }
+            
+            .profile-name {
+                font-size: 18px !important;
+            }
+            
+            .profile-bio {
+                padding: 12px !important;
+            }
+            
+            .button-group {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            
+            .action-button {
+                padding: 10px 16px !important;
+                font-size: 13px !important;
+                margin: 3px !important;
+                min-width: auto !important;
+                width: 100% !important;
+            }
+            
+            .connection-details,
+            .message-section {
+                padding: 15px !important;
+                margin: 20px 0 !important;
+            }
+            
+            .footer {
+                padding: 20px 15px !important;
+            }
+        }
+        
+        /* Extra small screens */
+        @media only screen and (max-width: 320px) {
+            .content {
+                padding: 20px 12px !important;
+            }
+            
+            .logo {
+                width: 30px !important;
+                height: 30px !important;
+            }
+            
+            .logo img {
+                width: 16px !important;
+                height: 16px !important;
+            }
+            
+            .profile-section {
+                padding: 15px !important;
+            }
+            
+            .profile-avatar {
+                width: 70px !important;
+                height: 70px !important;
+            }
+            
+            .profile-name {
+                font-size: 16px !important;
+            }
+            
+            .profile-bio {
+                padding: 10px !important;
+            }
+            
+            .connection-details,
+            .message-section {
+                padding: 12px !important;
+            }
+        }
+    </style>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 10px; background-color: #000000; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
-  <div class="container" style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
-    <div class="header" style="text-align: center; padding: 0 0 20px 0; border-bottom: 1px solid #eee; margin-bottom: 20px;">
-      <img src="cid:company-logo" alt="{{appName}}" class="logo" style="width: 50px; height: 50px; margin: 0 auto 12px; display: block;">
-      <h1 class="title" style="font-size: 20px; color: #000000; margin: 0; font-weight: 600; line-height: 1.3;">Connection Request</h1>
-      <p class="subtitle" style="font-size: 14px; color: #718096; margin: 8px 0 0 0; font-weight: 400;">New Connection Request</p>
-    </div>
-    
-    <div class="content" style="padding: 0; color: #4a5568; font-size: 15px;">
-      <p class="greeting" style="font-size: 16px; color: #2d3748; margin-bottom: 20px; font-weight: 500;">
-        Hello {{recipientName}},
-      </p>
-      
-      <p style="margin-bottom: 20px; line-height: 1.6;">
-        You have received a new connection request from:
-      </p>
-      
-      <div class="profile-section" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; padding: 20px; margin: 25px 0; border-left: 3px solid #000000; text-align: center;">
-        {{#if senderAvatar}}
-        <img src="{{senderAvatar}}" alt="{{senderName}}" class="profile-avatar" style="width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 15px; display: block; border: 3px solid #e2e8f0;">
-        {{/if}}
-        
-        <h3 class="profile-name" style="font-size: 18px; font-weight: 600; color: #000000; margin-bottom: 8px;">{{senderName}}</h3>
-        
-        {{#if senderTitle}}
-        <p class="profile-title" style="font-size: 14px; color: #718096; margin-bottom: 15px;">{{senderTitle}}</p>
-        {{/if}}
-        
-        {{#if senderBio}}
-        <p class="profile-bio" style="font-size: 14px; color: #4a5568; line-height: 1.6; margin-bottom: 20px;">{{senderBio}}</p>
-        {{/if}}
-      </div>
-      
-      {{#if message}}
-      <div class="message-section" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 3px solid #3b82f6; border-radius: 8px; padding: 15px; margin: 20px 0; color: #4a5568; line-height: 1.6;">
-        <h4 class="message-title" style="font-size: 16px; font-weight: 600; color: #000000; margin-bottom: 10px;">Personal Message:</h4>
-        <p>{{message}}</p>
-      </div>
-      {{/if}}
-      
-      <div class="connection-details" style="background: linear-gradient(135deg, #fef7f7 0%, #fee2e2 100%); border-left: 4px solid #3b82f6; border-radius: 8px; padding: 15px; margin: 20px 0; color: #4a5568; line-height: 1.6;">
-        <p>
-          <strong>Connection Type:</strong> {{connectionType}}<br>
-          <strong>Requested on:</strong> {{formatDate requestDate}}
-        </p>
-      </div>
-      
-      <div class="button-container" style="text-align: center; margin: 25px 0;">
-        <div class="button-group" style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-          <a href="{{acceptUrl}}" class="button button-accept" style="display: inline-block; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; min-width: 120px; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">Accept</a>
-          <a href="{{declineUrl}}" class="button button-decline" style="display: inline-block; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; min-width: 120px; text-align: center; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: #ffffff; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">Decline</a>
-          <a href="{{profileUrl}}" class="button button-view" style="display: inline-block; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; min-width: 120px; text-align: center; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #ffffff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">View Profile</a>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 10px; min-height: 100vh; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+        <div class="header" style="background: linear-gradient(135deg, #000000 0%, #444444 100%); padding: 30px 20px; text-align: center; color: white; border-radius: 16px 16px 0 0;">
+            <div class="logo" style="width: 45px; height: 45px; margin: 0 auto 16px; display: block;">
+              <img src="cid:company-logo" alt="<b>My</b>Profile Logo" style="width: 45px; height: 45px; object-fit: contain; display: block; margin: auto;">
+            </div>
+            <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 6px; line-height: 1.2; color: white;">Connection Request</h1>
+            <p style="font-size: 14px; opacity: 0.9; font-weight: 400; color: white;">New connection request received</p>
         </div>
-      </div>
-      
-      <p style="margin-top: 20px; color: #4a5568; line-height: 1.6;">
-        You can also manage your connection requests by visiting your dashboard.
-      </p>
+        
+        <div class="content" style="padding: 30px 20px;">
+            <p class="greeting" style="font-size: 16px; color: #2d3748; margin-bottom: 20px; font-weight: 500;">
+                Hello {{recipientName}},
+            </p>
+            
+            <p style="margin-bottom: 20px; line-height: 1.6; color: #4a5568;">
+                You have received a new connection request from:
+            </p>
+            
+            <div class="profile-section" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 25px 0; text-align: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);">
+                {{#if senderAvatar}}
+                <img src="{{senderAvatar}}" alt="{{senderName}}" class="profile-avatar" style="width: 100px; height: 100px; border-radius: 50%; margin: 0 auto 20px; display: block; border: 4px solid #e2e8f0; object-fit: cover;">
+                {{else}}
+                <div class="profile-avatar" style="width: 100px; height: 100px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-size: 40px; font-weight: 700; border: 4px solid #e2e8f0;">
+                    {{substring senderName 0 1}}
+                </div>
+                {{/if}}
+                
+                <h3 class="profile-name" style="font-size: 20px; font-weight: 700; color: #000000; margin-bottom: 8px; line-height: 1.3;">{{senderName}}</h3>
+                
+                {{#if senderTitle}}
+                <p class="profile-title" style="font-size: 14px; color: #444444; margin-bottom: 15px; font-weight: 500;">{{senderTitle}}</p>
+                {{/if}}
+                
+                {{#if senderBio}}
+                <div class="profile-bio" style="font-size: 14px; color: #4a5568; line-height: 1.6; margin-bottom: 20px; text-align: left; background: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">{{senderBio}}</div>
+                {{/if}}
+            </div>
+            
+            {{#if message}}
+            <div class="message-section" style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: left;">
+                <h4 class="message-title" style="font-size: 16px; font-weight: 600; color: #92400e; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    💬 Personal Message
+                </h4>
+                <p style="font-size: 14px; color: #374151; line-height: 1.6;">{{message}}</p>
+            </div>
+            {{/if}}
+            
+            <div class="connection-details" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: left;">
+                <h4 class="connection-title" style="font-size: 16px; font-weight: 600; color: #0369a1; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    🔗 Connection Details
+                </h4>
+                <p style="font-size: 14px; color: #374151; margin-bottom: 8px;">
+                    <strong>Connection Type:</strong> {{connectionType}}
+                </p>
+                <p style="font-size: 14px; color: #374151;">
+                    <strong>Requested on:</strong> {{formatDate requestDate}}
+                </p>
+            </div>
+            
+            <div class="action-buttons" style="text-align: center; margin: 25px 0;">
+                <div class="button-group" style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                    <a href="{{acceptUrl}}" class="action-button accept" style="display: inline-block; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px; min-width: 120px; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">Accept</a>
+                    <a href="{{declineUrl}}" class="action-button decline" style="display: inline-block; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px; min-width: 120px; text-align: center; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white;">Decline</a>
+                    <a href="{{profileUrl}}" class="action-button view" style="display: inline-block; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px; min-width: 120px; text-align: center; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white;">View Profile</a>
+                </div>
+            </div>
+            
+            <p style="margin-top: 20px; color: #444444; line-height: 1.6; text-align: center;">
+                You can also manage your connection requests by visiting your dashboard.
+            </p>
+        </div>
+        
+        <div class="footer" style="background: #f8f8f8; padding: 25px 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+            <a href="mailto:support@getmyprofile.online" class="support-link" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; margin-bottom: 12px; font-size: 13px;">
+                📧 Contact Support
+            </a>
+            <p class="footer-text" style="font-size: 12px; color: #444444; line-height: 1.5;">
+                This is an automated message from <b>My</b>Profile. Please do not reply to this email.<br>
+                If you need assistance, please contact our support team.
+            </p>
+        </div>
     </div>
-    
-    <div class="footer" style="text-align: center; padding: 20px 0 0 0; font-size: 12px; color: #718096; border-top: 1px solid #eee; margin-top: 25px;">
-      <p>
-        &copy; {{year}} {{appName}}. All rights reserved.<br>
-        This is an automated message from {{#if appName}}{{appName}}{{else}}MyProfile{{/if}}. Please do not reply to this email.<br>
-        If you need assistance, please contact our support team.
-      </p>
-    </div>
-  </div>
 </body>
 </html> 
