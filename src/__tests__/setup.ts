@@ -1,4 +1,16 @@
 import mongoose from 'mongoose';
+import '@jest/globals';
+
+// Extend NodeJS.Global interface to include Jest functions
+declare global {
+  namespace NodeJS {
+    interface Global {
+      beforeAll: typeof beforeAll;
+      afterAll: typeof afterAll;
+      jest: typeof jest;
+    }
+  }
+}
 
 beforeAll(async () => {
   // Increase timeout for slow operations
