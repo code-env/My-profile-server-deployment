@@ -129,6 +129,11 @@ export class AppServer {
     this.configureErrorHandling();
   }
 
+  // Add getter for app instance
+  public getApp(): Application {
+    return this.app;
+  }
+
   /**
    * @private
    * @method configureMiddleware

@@ -12,6 +12,7 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const email_service_1 = __importDefault(require("./email.service"));
 const telegram_service_1 = __importDefault(require("./telegram.service"));
 const firebase_service_1 = __importDefault(require("./firebase.service"));
+const config_1 = require("../config/config");
 exports.notificationEvents = new events_1.EventEmitter();
 class NotificationService {
     constructor() {
@@ -238,7 +239,7 @@ class NotificationService {
                 actionText: ((_b = notification.action) === null || _b === void 0 ? void 0 : _b.text) || '',
                 action: notification.action || {},
                 metadata: notification.metadata || {},
-                appName: 'MyPts',
+                appName: config_1.config.APP_NAME,
                 year: new Date().getFullYear(),
                 baseUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
                 unsubscribeToken: user.unsubscribeToken || '',
@@ -367,11 +368,11 @@ class NotificationService {
                 // Choose template based on transaction type
                 if (templateData.metadata.transactionType === 'BUY_MYPTS') {
                     emailTemplate = 'purchase-confirmation-email';
-                    emailSubject = 'Purchase Confirmation - MyPts';
+                    emailSubject = `Purchase Confirmation - ${config_1.config.APP_NAME}`;
                 }
                 else if (templateData.metadata.transactionType === 'SELL_MYPTS') {
                     emailTemplate = 'sale-confirmation-email';
-                    emailSubject = 'Sale Confirmation - MyPts';
+                    emailSubject = `Sale Confirmation - ${config_1.config.APP_NAME}`;
                 }
                 else {
                     emailTemplate = 'transaction-notification';

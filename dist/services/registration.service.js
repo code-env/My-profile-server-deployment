@@ -119,7 +119,7 @@ class RegistrationService {
                 registrationStep: 'VERIFICATION'
             }, { new: true });
             if (user.verificationMethod === 'EMAIL') {
-                await email_service_1.default.sendVerificationEmail(user.email, otp);
+                await email_service_1.default.sendAccountVerificationOTP(user.email, otp);
             }
             else {
                 throw new errors_1.CustomError('SMS_NOT_IMPLEMENTED', 'SMS service not implemented');

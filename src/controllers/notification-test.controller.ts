@@ -5,7 +5,7 @@ import telegramService from '../services/telegram.service';
 import firebaseService from '../services/firebase.service';
 import { User } from '../models/User';
 import axios from 'axios';
-
+import { config } from '../config/config';
 // Helper function to check if user is admin
 const isAdmin = (req: Request): boolean => {
   const user: any = req.user;
@@ -52,7 +52,7 @@ export const testEmailNotification = customAsyncHandler(async (req: Request, res
         message,
         actionUrl: req.body.actionUrl || '',
         actionText: req.body.actionText || 'View Details',
-        appName: 'MyPts',
+        appName: config.APP_NAME,
         year: new Date().getFullYear(),
         metadata: req.body.metadata || {}
       };

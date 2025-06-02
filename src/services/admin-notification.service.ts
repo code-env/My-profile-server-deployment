@@ -11,6 +11,7 @@ import { ProfileModel } from "../models/profile.model";
 import { NotificationService } from "./notification.service";
 import { User } from "../models/User";
 import { Notification } from "../models/Notification";
+import { config } from "../config/config";
 
 /**
  * Send a transaction notification to the admin hub email
@@ -125,7 +126,7 @@ export const notifyAdminsOfTransaction = async (
     );
 
     // Create email subject
-    const emailSubject = `MyPts Transaction: ${transaction.type} - ${Math.abs(transaction.amount)} MyPts`;
+    const emailSubject = `${config.APP_NAME} Transaction: ${transaction.type} - ${Math.abs(transaction.amount)} MyPts`;
 
     // Extract profile information safely
     const getProfileData = () => {
@@ -185,7 +186,7 @@ export const notifyAdminsOfTransaction = async (
 
     // Prepare template data
     const templateData = {
-      appName: "MyPts",
+      appName: config.APP_NAME,
       title: "New MyPts Transaction",
       subtitle: `${Math.abs(transaction.amount)} MyPts ${transaction.amount > 0 ? "added to" : "removed from"} profile`,
       isTransaction: true,
@@ -340,7 +341,7 @@ export const notifyAdminsOfProfileRegistration = async (profile: {
 
     // Prepare template data
     const templateData = {
-      appName: "MyPts",
+      appName: config.APP_NAME,
       title: "New Profile Registration",
       subtitle: "A new profile has been registered in the system",
       isTransaction: false,

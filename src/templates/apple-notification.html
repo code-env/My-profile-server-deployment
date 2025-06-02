@@ -1,612 +1,451 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{subject}}</title>
-  <style>
-    /* Apple-inspired styles with improved mobile responsiveness */
-    * {
-      box-sizing: border-box;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      line-height: 1.5;
-      color: #1d1d1f;
-      background-color: #f5f5f7;
-      margin: 0;
-      padding: 0;
-      width: 100%;
-    }
-
-    .container {
-      max-width: 800px;
-      width: 100%;
-      margin: 0 auto;
-      background-color: #ffffff;
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .header {
-      padding: 24px 16px;
-      text-align: center;
-      background: linear-gradient(135deg, #f2f2f2, #ffffff);
-      border-bottom: 1px solid #e5e5e5;
-    }
-
-    .logo {
-      margin-bottom: 20px;
-    }
-
-    .logo img {
-      width: 50px;
-      height: auto;
-    }
-
-    .title {
-      font-size: 24px;
-      font-weight: 600;
-      color: #1d1d1f;
-      margin: 0;
-      letter-spacing: -0.5px;
-      line-height: 1.2;
-    }
-
-    .subtitle {
-      font-size: 16px;
-      color: #6e6e73;
-      margin: 10px auto 0;
-      max-width: 600px;
-      padding: 0 8px;
-    }
-
-    .content {
-      padding: 20px 16px;
-    }
-
-    .section {
-      margin-bottom: 24px;
-    }
-
-    .section-title {
-      font-size: 20px;
-      font-weight: 600;
-      margin: 0 0 14px;
-      color: #1d1d1f;
-      letter-spacing: -0.3px;
-    }
-
-    .info-card {
-      background-color: #f5f5f7;
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 20px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-    }
-
-    .profile-header {
-      display: flex;
-      align-items: flex-start;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .profile-image {
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      background-color: #0071e3;
-      color: white;
-      font-size: 20px;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 6px rgba(0, 113, 227, 0.2);
-      flex-shrink: 0;
-    }
-
-    .profile-details {
-      flex: 1;
-      min-width: 200px;
-    }
-
-    .profile-name {
-      font-size: 18px;
-      font-weight: 600;
-      margin: 0 0 6px;
-      color: #1d1d1f;
-      word-break: break-word;
-    }
-
-    .profile-type {
-      font-size: 14px;
-      color: #6e6e73;
-      margin: 0;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .detail-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px 0;
-      border-bottom: 1px solid #e5e5e5;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .detail-row:last-child {
-      border-bottom: none;
-    }
-
-    .detail-label {
-      font-size: 15px;
-      color: #6e6e73;
-      flex: 1;
-      min-width: 100px;
-      padding-right: 12px;
-    }
-
-    .detail-value {
-      font-size: 15px;
-      font-weight: 500;
-      color: #1d1d1f;
-      text-align: right;
-      flex: 2;
-      min-width: 0; /* Prevents overflow in flex items */
-      word-break: break-word;
-      overflow-wrap: break-word;
-    }
-
-    .highlight {
-      background-color: #0071e3;
-      color: white;
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-weight: 500;
-      display: inline-block;
-      margin: 2px 0;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 500;
-      margin: 2px 0;
-      transition: all 0.2s ease;
-      white-space: nowrap;
-    }
-
-    .badge-blue {
-      background-color: #e8f0fe;
-      color: #0066cc;
-    }
-
-    .badge-green {
-      background-color: #e6f7ed;
-      color: #1d8348;
-    }
-
-    .badge-purple {
-      background-color: #f0e7f7;
-      color: #7d3c98;
-    }
-
-    .badge-red {
-      background-color: #fce8e8;
-      color: #c0392b;
-    }
-
-    .footer {
-      background-color: #f5f5f7;
-      padding: 20px 16px;
-      text-align: center;
-      font-size: 13px;
-      color: #86868b;
-      border-top: 1px solid #e5e5e5;
-    }
-
-    .button {
-      display: inline-block;
-      background-color: #0071e3;
-      color: white;
-      text-decoration: none;
-      padding: 12px 24px;
-      border-radius: 28px;
-      font-weight: 500;
-      font-size: 15px;
-      margin-top: 20px;
-      text-align: center;
-      box-shadow: 0 2px 8px rgba(0, 113, 227, 0.3);
-      transition: all 0.2s ease;
-      width: 100%;
-      max-width: 300px;
-    }
-
-    .button:hover {
-      background-color: #0077ed;
-      box-shadow: 0 4px 12px rgba(0, 113, 227, 0.4);
-    }
-
-    .metadata {
-      background-color: #f5f5f7;
-      border-radius: 12px;
-      padding: 14px;
-      margin-top: 16px;
-      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
-      font-size: 12px;
-      color: #6e6e73;
-      white-space: pre-wrap;
-      overflow-x: auto;
-      line-height: 1.6;
-      border: 1px solid #e5e5e5;
-      word-break: break-all;
-    }
-
-    /* Two-column layout for larger screens */
-    .two-columns {
-      display: block;
-    }
-
-    .column {
-      width: 100%;
-      margin-bottom: 24px;
-    }
-
-    /* Media Queries for Responsive Design */
-    /* Small phones */
-    @media (max-width: 375px) {
-      .profile-details {
-        min-width: 100%;
-        margin-top: 10px;
-      }
-
-      .detail-label,
-      .detail-value {
-        font-size: 14px;
-        width: 100%;
-        text-align: left;
-      }
-
-      .detail-value {
-        margin-top: 4px;
-      }
-
-      .detail-row {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-    }
-
-    /* Medium phones to small tablets */
-    @media (min-width: 376px) and (max-width: 767px) {
-      .header {
-        padding: 30px 20px;
-      }
-
-      .content {
-        padding: 24px 20px;
-      }
-
-      .info-card {
-        padding: 18px;
-      }
-
-      .button {
-        width: 100%;
-        max-width: none;
-      }
-
-      .profile-image {
-        width: 55px;
-        height: 55px;
-      }
-    }
-
-    /* Tablets and small desktops */
-    @media (min-width: 768px) and (max-width: 1023px) {
-      .header {
-        padding: 36px 32px;
-      }
-
-      .content {
-        padding: 32px 32px;
-      }
-
-      .title {
-        font-size: 26px;
-      }
-
-      .subtitle {
-        font-size: 17px;
-      }
-
-      .two-columns {
-        display: flex;
-        gap: 24px;
-      }
-
-      .column {
-        flex: 1;
-        margin-bottom: 0;
-      }
-
-      .button {
-        width: auto;
-        min-width: 200px;
-      }
-
-      .container {
-        width: 95%;
-        margin: 15px auto;
-      }
-
-      .section-title {
-        font-size: 21px;
-      }
-    }
-
-    /* Regular desktops */
-    @media (min-width: 1024px) {
-      .header {
-        padding: 40px 48px;
-      }
-
-      .content {
-        padding: 40px 48px;
-      }
-
-      .title {
-        font-size: 28px;
-      }
-
-      .subtitle {
-        font-size: 18px;
-      }
-
-      .two-columns {
-        display: flex;
-        gap: 32px;
-      }
-
-      .column {
-        flex: 1;
-        margin-bottom: 0;
-      }
-
-      .container {
-        width: 85%;
-        max-width: 900px;
-        margin: 30px auto;
-        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
-      }
-
-      .section-title {
-        font-size: 22px;
-      }
-
-      .info-card {
-        padding: 24px;
-      }
-
-      .profile-image {
-        width: 60px;
-        height: 60px;
-        font-size: 24px;
-      }
-
-      .profile-name {
-        font-size: 20px;
-      }
-
-      .detail-label,
-      .detail-value {
-        font-size: 16px;
-      }
-
-      .button {
-        padding: 14px 32px;
-        font-size: 16px;
-        width: auto;
-        min-width: 200px;
-      }
-
-      .footer {
-        padding: 30px;
-        font-size: 14px;
-      }
-    }
-
-    /* Very large screens */
-    @media (min-width: 1440px) {
-      .container {
-        max-width: 1000px;
-        margin: 40px auto;
-      }
-
-      .title {
-        font-size: 32px;
-      }
-
-      .subtitle {
-        font-size: 19px;
-        max-width: 700px;
-      }
-
-      .content {
-        padding: 48px 56px;
-      }
-
-      .two-columns {
-        gap: 48px;
-      }
-
-      .info-card {
-        padding: 30px;
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="x-apple-disable-message-reformatting">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Apple Notification - MyProfile</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
+            background: transparent !important;
+            margin: 0 !important;
+            padding: 10px !important;
+            min-height: 100vh !important;
+            -webkit-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
+        }
+        
+        /* Mobile-first container */
+        .email-container {
+            max-width: 600px !important;
+            margin: 0 auto !important;
+            background: #ffffff !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+        }
+        
+        /* Header optimized for mobile */
+        .header {
+            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            padding: 30px 20px !important;
+            text-align: center !important;
+            color: white !important;
+        }
+        
+        .logo {
+            width: 50px !important;
+            height: 50px !important;
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-radius: 8px !important;
+            margin: 0 auto 16px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        .logo img {
+            width: 45px !important;
+            height: 45px !important;
+            object-fit: contain !important;
+        }
+        
+        .header h1 {
+            font-size: 22px !important;
+            font-weight: 700 !important;
+            margin-bottom: 6px !important;
+            line-height: 1.2 !important;
+        }
+        
+        .header p {
+            font-size: 14px !important;
+            opacity: 0.9 !important;
+            font-weight: 400 !important;
+        }
+        
+        /* Content with better mobile spacing */
+        .content {
+            padding: 30px 20px !important;
+        }
+        
+        .notification-section {
+            text-align: center !important;
+            margin-bottom: 30px !important;
+        }
+        
+        .notification-icon {
+            width: 60px !important;
+            height: 60px !important;
+            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            border-radius: 50% !important;
+            margin: 0 auto 20px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 24px !important;
+            color: white !important;
+        }
+        
+        .notification-title {
+            font-size: 20px !important;
+            font-weight: 600 !important;
+            color: #000000 !important;
+            margin-bottom: 10px !important;
+            line-height: 1.3 !important;
+        }
+        
+        .notification-message {
+            font-size: 16px !important;
+            color: #333333 !important;
+            margin-bottom: 16px !important;
+            font-weight: 500 !important;
+        }
+        
+        .notification-description {
+            font-size: 15px !important;
+            color: #666666 !important;
+            line-height: 1.6 !important;
+            margin-bottom: 25px !important;
+        }
+        
+        /* Notification card for mobile */
+        .notification-card {
+            background: #f8f8f8 !important;
+            border: 1px solid #d0d0d0 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 25px 0 !important;
+            text-align: left !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+        }
+        
+        .notification-header {
+            display: table !important;
+            width: 100% !important;
+            margin-bottom: 20px !important;
+        }
+        
+        .notification-type-icon {
+            display: table-cell !important;
+            width: 50px !important;
+            height: 50px !important;
+            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            border-radius: 10px !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+            font-size: 20px !important;
+            color: white !important;
+        }
+        
+        .notification-info {
+            display: table-cell !important;
+            vertical-align: middle !important;
+            padding-left: 15px !important;
+        }
+        
+        .notification-name {
+            font-size: 18px !important;
+            font-weight: 600 !important;
+            color: #000000 !important;
+            margin-bottom: 6px !important;
+            line-height: 1.3 !important;
+            word-wrap: break-word !important;
+        }
+        
+        .notification-type {
+            display: inline-block !important;
+            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            color: white !important;
+            padding: 4px 10px !important;
+            border-radius: 12px !important;
+            font-size: 11px !important;
+            font-weight: 500 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            margin-bottom: 10px !important;
+        }
+        
+        /* Mobile-optimized notification details grid */
+        .notification-details {
+            display: block !important;
+            margin: 20px 0 !important;
+        }
+        
+        .detail-item {
+            background: #ffffff !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            border: 1px solid #e0e0e0 !important;
+            margin-bottom: 10px !important;
+        }
+        
+        .detail-item:last-child {
+            margin-bottom: 0 !important;
+        }
+        
+        .detail-icon {
+            font-size: 14px !important;
+            margin-bottom: 6px !important;
+        }
+        
+        .detail-label {
+            font-size: 11px !important;
+            color: #666666 !important;
+            font-weight: 600 !important;
+            margin-bottom: 3px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+        }
+        
+        .detail-value {
+            font-size: 13px !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            line-height: 1.4 !important;
+            word-wrap: break-word !important;
+        }
+        
+        /* Action buttons */
+        .action-buttons {
+            text-align: center !important;
+            margin: 25px 0 !important;
+        }
+        
+        .action-button {
+            display: inline-block !important;
+            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            padding: 12px 20px !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin: 5px !important;
+            font-size: 14px !important;
+        }
+        
+        .action-button.secondary {
+            background: #f8f8f8 !important;
+            color: #333333 !important;
+            border: 1px solid #d0d0d0 !important;
+        }
+        
+        /* Footer */
+        .footer {
+            background: #f8f8f8 !important;
+            padding: 25px 20px !important;
+            text-align: center !important;
+            border-top: 1px solid #e0e0e0 !important;
+        }
+        
+        .support-link {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            padding: 10px 16px !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin-bottom: 12px !important;
+            font-size: 13px !important;
+        }
+        
+        .footer-text {
+            font-size: 12px !important;
+            color: #666666 !important;
+            line-height: 1.5 !important;
+        }
+        
+        /* Enhanced mobile styles */
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 5px !important;
+            }
+            
+            .email-container {
+                border-radius: 8px !important;
+            }
+            
+            .header {
+                padding: 25px 15px !important;
+            }
+            
+            .content {
+                padding: 25px 15px !important;
+            }
+            
+            .header h1 {
+                font-size: 20px !important;
+            }
+            
+            .notification-title {
+                font-size: 18px !important;
+            }
+            
+            .notification-message {
+                font-size: 15px !important;
+            }
+            
+            .notification-description {
+                font-size: 14px !important;
+            }
+            
+            .logo {
+                width: 45px !important;
+                width: 45px !important;
+            }
+            
+            .logo img {
+                width: 18px !important;
+                height: 18px !important;
+            }
+            
+            .notification-icon {
+                width: 50px !important;
+                height: 50px !important;
+                font-size: 20px !important;
+            }
+            
+            .notification-card {
+                padding: 15px !important;
+                margin: 20px 0 !important;
+            }
+            
+            .notification-header {
+                margin-bottom: 15px !important;
+            }
+            
+            .notification-type-icon {
+                width: 45px !important;
+                height: 45px !important;
+                font-size: 18px !important;
+            }
+            
+            .notification-info {
+                padding-left: 12px !important;
+            }
+            
+            .notification-name {
+                font-size: 16px !important;
+            }
+            
+            .detail-item {
+                padding: 10px !important;
+                margin-bottom: 8px !important;
+            }
+            
+            .action-button {
+                padding: 10px 16px !important;
+                font-size: 13px !important;
+                margin: 3px !important;
+                display: block !important;
+                margin-bottom: 8px !important;
+            }
+            
+            .footer {
+                padding: 20px 15px !important;
+            }
+        }
+    </style>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div class="logo">
-        <img src="cid:company-logo" alt="{{appName}} Logo">
-      </div>
-      <h1 class="title">{{title}}</h1>
-      <p class="subtitle">{{subtitle}}</p>
-    </div>
-
-    <div class="content">
-      <!-- Two-column layout for transaction and profile information -->
-      <div class="two-columns">
-        {{#if isTransaction}}
-        <div class="column">
-          <div class="section">
-            <h2 class="section-title">Transaction Details</h2>
-
-            <div class="info-card">
-              <div class="detail-row">
-                <span class="detail-label">Transaction Type</span>
-                <span class="detail-value">
-                  {{transactionType}}
-                  {{#if transactionBadge}}
-                  <span class="badge {{transactionBadge}}">{{transactionBadgeText}}</span>
-                  {{/if}}
-                </span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">Amount</span>
-                <span class="detail-value">
-                  <span style="font-size: 22px; font-weight: 600; color: #1d1d1f;">{{amount}}</span>
-                  <span style="font-size: 16px; color: #6e6e73;">MyPts</span>
-                </span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">New Balance</span>
-                <span class="detail-value">
-                  <span style="font-weight: 600;">{{balance}}</span>
-                  <span style="color: #6e6e73;">MyPts</span>
-                </span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">Date</span>
-                <span class="detail-value">{{date}}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">Transaction ID</span>
-                <span class="detail-value" style="font-size: 14px;">{{transactionId}}</span>
-              </div>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 10px; min-height: 100vh; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+        <div class="header" style="background: linear-gradient(135deg, #000000 0%, #333333 100%); padding: 30px 20px; text-align: center; color: white;">
+            <div class="logo" style="width: 50px; height: 50px; background: rgba(255, 255, 255, 0.15); border-radius: 8px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.2);">
+                <img src="cid:company-logo" alt="MyProfile Logo" style="width: 45px; height: 45px; object-fit: contain;">
             </div>
-          </div>
+            <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 6px; line-height: 1.2; color: white;">Apple Notification</h1>
+            <p style="font-size: 14px; opacity: 0.9; font-weight: 400; color: white;">Stay connected with MyProfile</p>
         </div>
-        {{/if}}
-
-        {{#if profile}}
-        <div class="column">
-          <div class="section">
-            <h2 class="section-title">Profile Information</h2>
-
-            <div class="info-card">
-              <div class="profile-header">
-                {{#if profile.profileImage}}
-                <img src="{{profile.profileImage}}" alt="{{profile.name}}" class="profile-image">
-                {{else}}
-                <div class="profile-image">{{profile.initial}}</div>
-                {{/if}}
-
-                <div class="profile-details">
-                  <h3 class="profile-name">{{profile.name}}</h3>
-                  <div class="profile-type">
-                    {{profile.category}}
-                    {{#if profile.type}}
-                    <span class="badge {{profile.badgeClass}}">{{profile.type}}</span>
-                    {{/if}}
-                  </div>
+        
+        <div class="content" style="padding: 30px 20px;">
+            <div class="notification-section" style="text-align: center; margin-bottom: 30px;">
+                <div class="notification-icon" style="width: 60px; height: 60px; background: linear-gradient(135deg, #000000 0%, #333333 100%); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white;">
+                    🍎
                 </div>
-              </div>
-
-              <div class="detail-row">
-                <span class="detail-label">Profile ID</span>
-                <span class="detail-value" style="font-size: 14px;">{{profile.id}}</span>
-              </div>
-
-              {{#if profile.email}}
-              <div class="detail-row">
-                <span class="detail-label">Email</span>
-                <span class="detail-value">{{profile.email}}</span>
-              </div>
-              {{/if}}
-
-              {{#if profile.description}}
-              <div class="detail-row">
-                <span class="detail-label">Description</span>
-                <span class="detail-value">{{profile.description}}</span>
-              </div>
-              {{/if}}
-
-              <div class="detail-row">
-                <span class="detail-label">Status</span>
-                <span class="detail-value">
-                  {{#if profile.claimed}}
-                  <span class="badge badge-green">Claimed</span>
-                  {{else}}
-                  <span class="badge badge-blue">Unclaimed</span>
-                  {{/if}}
-                </span>
-              </div>
-
-              {{#if profile.createdAt}}
-              <div class="detail-row">
-                <span class="detail-label">Created</span>
-                <span class="detail-value">{{profile.createdAt}}</span>
-              </div>
-              {{/if}}
+                <h2 class="notification-title" style="font-size: 20px; font-weight: 600; color: #000000; margin-bottom: 10px; line-height: 1.3;">Apple Device Notification</h2>
+                <p class="notification-message" style="font-size: 16px; color: #333333; margin-bottom: 16px; font-weight: 500;">Your Apple device has been connected to MyProfile</p>
+                <p class="notification-description" style="font-size: 15px; color: #666666; line-height: 1.6; margin-bottom: 25px;">
+                    We've successfully connected your Apple device to your MyProfile account. You can now enjoy seamless integration across all your Apple devices.
+                </p>
             </div>
-          </div>
+            
+            <div class="notification-card" style="background: #f8f8f8; border: 1px solid #d0d0d0; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: left; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+                <table class="notification-header" style="display: table; width: 100%; margin-bottom: 20px;" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td class="notification-type-icon" style="display: table-cell; width: 50px; height: 50px; background: linear-gradient(135deg, #000000 0%, #333333 100%); border-radius: 10px; text-align: center; vertical-align: middle; font-size: 20px; color: white;">
+                            📱
+                        </td>
+                        <td class="notification-info" style="display: table-cell; vertical-align: middle; padding-left: 15px;">
+                            <h3 class="notification-name" style="font-size: 18px; font-weight: 600; color: #000000; margin-bottom: 6px; line-height: 1.3; word-wrap: break-word;">Device Connection</h3>
+                            <div class="notification-type" style="display: inline-block; background: linear-gradient(135deg, #000000 0%, #333333 100%); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Apple Integration</div>
+                        </td>
+                    </tr>
+                </table>
+                
+                <div class="notification-details" style="display: block; margin: 20px 0;">
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">🕒</div>
+                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Connected At</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{timestamp}}</div>
+                    </div>
+                    
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">📱</div>
+                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Device Type</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{deviceType}}</div>
+                    </div>
+                    
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">🔗</div>
+                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Connection Status</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{status}}</div>
+                    </div>
+                    
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 0;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">🆔</div>
+                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Device ID</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{deviceId}}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-buttons" style="text-align: center; margin: 25px 0;">
+                <a href="{{manageDevicesUrl}}" class="action-button" style="display: inline-block; background: linear-gradient(135deg, #000000 0%, #333333 100%); color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px;">Manage Devices</a>
+                <a href="{{settingsUrl}}" class="action-button secondary" style="display: inline-block; background: #f8f8f8; color: #333333; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px; border: 1px solid #d0d0d0;">Settings</a>
+            </div>
         </div>
-        {{/if}}
-      </div>
-
-      {{#if description}}
-      <div class="section">
-        <h2 class="section-title">Description</h2>
-        <div class="info-card">
-          <p style="font-size: 16px; line-height: 1.6; color: #1d1d1f; margin: 0;">{{description}}</p>
+        
+        <div class="footer" style="background: #f8f8f8; padding: 25px 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+            <a href="mailto:support@getmyprofile.online" class="support-link" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #000000 0%, #333333 100%); color: white; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; margin-bottom: 12px; font-size: 13px;">
+                📧 Contact Support
+            </a>
+            <p class="footer-text" style="font-size: 12px; color: #666666; line-height: 1.5;">
+                This is an automated message from MyProfile. Please do not reply to this email.<br>
+                If you need assistance, please contact our support team.
+            </p>
         </div>
-      </div>
-      {{/if}}
-
-      {{#if metadata}}
-      <div class="section">
-        <h2 class="section-title">Additional Information</h2>
-        <div class="metadata">{{metadata}}</div>
-      </div>
-      {{/if}}
-
-      <div style="text-align: center; margin-top: 32px;">
-        {{#if actionUrl}}
-        <a href="{{actionUrl}}" class="button">{{actionText}}</a>
-        {{/if}}
-      </div>
     </div>
-
-    <div class="footer">
-      <p style="margin-bottom: 12px;">This is an automated message from the {{appName}} system.</p>
-      <p style="margin: 0;">© {{year}} {{appName}}. All rights reserved.</p>
-    </div>
-  </div>
 </body>
 </html>
