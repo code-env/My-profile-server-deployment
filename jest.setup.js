@@ -1,11 +1,20 @@
-// Jest setup file
-jest.setTimeout(30000); // Set timeout to 30 seconds
+// Import Jest types
+require('@jest/globals');
 
-// Mock console methods to reduce noise in tests
+// Increase the default timeout
+jest.setTimeout(10000);
+
+// Suppress console output during tests
 global.console = {
   ...console,
-  // Uncomment the following lines to suppress specific console methods during tests
-  // log: jest.fn(),
-  // error: jest.fn(),
-  // warn: jest.fn(),
-}; 
+  log: jest.fn(),
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+};
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+}); 
