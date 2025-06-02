@@ -16,6 +16,14 @@ handlebars_1.default.registerHelper('gt', (a, b) => a > b);
 handlebars_1.default.registerHelper('formatNumber', function (num) {
     return num.toLocaleString();
 });
+handlebars_1.default.registerHelper('split', function (str, delimiter) {
+    if (!str)
+        return [];
+    return str.split(delimiter || '');
+});
+handlebars_1.default.registerHelper('now', function () {
+    return new Date();
+});
 handlebars_1.default.registerHelper('formatDate', function (timestamp) {
     if (!timestamp)
         return '';
@@ -242,6 +250,155 @@ class EmailService {
         catch (error) {
             logger_1.logger.error('Failed to send admin notification email:', error);
             throw new Error(error instanceof Error ? error.message : 'Failed to send admin notification email');
+        }
+    }
+    /**
+     * Send login verification OTP email
+     * @param email User's email address
+     * @param code 6-digit OTP code
+     * @param deviceInfo Optional device information
+     */
+    static async sendLoginVerificationOTP(email, code, deviceInfo) {
+        try {
+            const template = await this.loadTemplate('login-verification-otp');
+            const digits = code.split('');
+            // Get user's first name for personalization
+            const User = require('../models/user.model').default;
+            const user = await User.findOne({ email });
+            const firstName = (user === null || user === void 0 ? void 0 : user.firstName) || 'User';
+            const html = template({
+                firstName,
+                digits,
+                loginTime: new Date(),
+                ipAddress: (deviceInfo === null || deviceInfo === void 0 ? void 0 : deviceInfo.ipAddress) || 'Not detected',
+                deviceInfo: (deviceInfo === null || deviceInfo === void 0 ? void 0 : deviceInfo.userAgent) || 'Not detected',
+                location: (deviceInfo === null || deviceInfo === void 0 ? void 0 : deviceInfo.location) || 'Not detected',
+                expiryMinutes: this.OTP_EXPIRY_MINUTES,
+                baseUrl: config_1.config.BASE_URL || 'http://localhost:3000'
+            });
+            await this.sendEmail(email, `Login Verification Code - ${config_1.config.APP_NAME}`, html);
+            logger_1.logger.info(`Login verification OTP sent to ${email}`);
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to send login verification OTP:', error);
+            throw new Error(error instanceof Error ? error.message : 'Failed to send login verification OTP');
+        }
+    }
+    /**
+     * Send password reset OTP email
+     * @param email User's email address
+     * @param code 6-digit OTP code
+     * @param name User's name
+     * @param resetContext Context information about what is being reset
+     */
+    static async sendPasswordResetOTP(email, code, name, resetContext) {
+        try {
+            const template = await this.loadTemplate('password-reset-otp');
+            // Default context if not provided
+            const context = resetContext || {
+                type: 'password',
+                identifier: email,
+                requestedBy: 'password'
+            };
+            // Generate dynamic content based on reset type
+            const getResetTitle = () => {
+                switch (context.type) {
+                    case 'email':
+                        return 'Email Change Verification';
+                    case 'username':
+                        return 'Username Recovery';
+                    case 'phone':
+                        return 'Phone Number Change';
+                    case 'account_recovery':
+                        return 'Account Recovery';
+                    default:
+                        return 'Password Reset Code';
+                }
+            };
+            const getResetSubtitle = () => {
+                switch (context.type) {
+                    case 'email':
+                        return 'Secure email change verification';
+                    case 'username':
+                        return 'Recover your username securely';
+                    case 'phone':
+                        return 'Secure phone number change';
+                    case 'account_recovery':
+                        return 'Secure account recovery process';
+                    default:
+                        return 'Secure password reset verification';
+                }
+            };
+            const getResetMessage = () => {
+                switch (context.type) {
+                    case 'email':
+                        return `Hello ${name}, we've received a request to change your email address. Use the verification code below to confirm this change.`;
+                    case 'username':
+                        return `Hello ${name}, we've received a request to recover your username. Use the verification code below to proceed with username recovery.`;
+                    case 'phone':
+                        return `Hello ${name}, we've received a request to change your phone number. Use the verification code below to confirm this change.`;
+                    case 'account_recovery':
+                        return `Hello ${name}, we've received a request for account recovery. Use the verification code below to proceed with recovering your account.`;
+                    default:
+                        return `Hello ${name}, we've received a request to reset your password. Use the verification code below to proceed with resetting your password.`;
+                }
+            };
+            const getSecurityMessage = () => {
+                switch (context.type) {
+                    case 'email':
+                        return 'This email change verification code is for your protection. If you didn\'t request an email change, please ignore this email and contact our support team immediately.';
+                    case 'username':
+                        return 'This username recovery code is for your protection. If you didn\'t request username recovery, please ignore this email and contact our support team immediately.';
+                    case 'phone':
+                        return 'This phone number change verification code is for your protection. If you didn\'t request a phone number change, please ignore this email and contact our support team immediately.';
+                    case 'account_recovery':
+                        return 'This account recovery code is for your protection. If you didn\'t request account recovery, please ignore this email and contact our support team immediately.';
+                    default:
+                        return 'This password reset code is for your protection. If you didn\'t request a password reset, please ignore this email and contact our support team immediately.';
+                }
+            };
+            const html = template({
+                name,
+                otpCode: code,
+                expiryMinutes: this.OTP_EXPIRY_MINUTES,
+                appName: config_1.config.APP_NAME || 'MyProfile',
+                resetTitle: getResetTitle(),
+                resetSubtitle: getResetSubtitle(),
+                resetMessage: getResetMessage(),
+                securityMessage: getSecurityMessage(),
+                identifier: context.identifier || email,
+                requestedBy: context.requestedBy || 'password reset'
+            });
+            await this.sendEmail(email, `${getResetTitle()} - ${config_1.config.APP_NAME}`, html);
+            logger_1.logger.info(`${getResetTitle()} OTP sent to ${email}`);
+        }
+        catch (error) {
+            logger_1.logger.error(`Failed to send ${(resetContext === null || resetContext === void 0 ? void 0 : resetContext.type) || 'password reset'} OTP:`, error);
+            throw new Error(error instanceof Error ? error.message : `Failed to send ${(resetContext === null || resetContext === void 0 ? void 0 : resetContext.type) || 'password reset'} OTP`);
+        }
+    }
+    /**
+     * Send account verification OTP email (for registration)
+     * @param email User's email address
+     * @param code 6-digit OTP code
+     * @param deviceInfo Optional device information
+     */
+    static async sendAccountVerificationOTP(email, code, deviceInfo) {
+        try {
+            const template = await this.loadTemplate('verification-email');
+            const digits = code.split('');
+            const html = template({
+                digits,
+                ipAddress: (deviceInfo === null || deviceInfo === void 0 ? void 0 : deviceInfo.ipAddress) || 'Unknown',
+                deviceInfo: (deviceInfo === null || deviceInfo === void 0 ? void 0 : deviceInfo.userAgent) || 'Unknown Device',
+                baseUrl: config_1.config.BASE_URL || 'http://localhost:3000'
+            });
+            await this.sendEmail(email, `Verify Your Account - ${config_1.config.APP_NAME}`, html);
+            logger_1.logger.info(`Account verification OTP sent to ${email}`);
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to send account verification OTP:', error);
+            throw new Error(error instanceof Error ? error.message : 'Failed to send account verification OTP');
         }
     }
 }
