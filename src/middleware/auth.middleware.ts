@@ -64,9 +64,9 @@ export const protect = async (
     ) {
       // Only set admin role if the user actually has it in the database
       if (user.role === 'admin') {
-        logger.info(`Admin access granted for user ${user._id}`);
+        // logger.info(`Admin access granted for user ${user._id}`);
       } else {
-        logger.warn(`Admin role requested but not authorized for user ${user._id}`);
+        // logger.warn(`Admin role requested but not authorized for user ${user._id}`);
       }
     }
 
