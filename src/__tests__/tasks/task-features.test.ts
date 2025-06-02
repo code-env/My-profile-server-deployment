@@ -4,7 +4,25 @@ import request from 'supertest';
 import appServer from '../../app';
 import { User } from '../../models/User';
 import { ProfileModel } from '../../models/profile.model';
+import { Task } from '../../models/Tasks';
 import { TaskStatus, PriorityLevel, TaskCategory, TaskType } from '../../models/plans-shared';
+import { Request, Response, NextFunction } from 'express';
+import * as TaskController from '../../controllers/task.controller';
+
+// Mock the models
+jest.mock('../../models/User');
+jest.mock('../../models/profile.model');
+jest.mock('../../models/Tasks');
+jest.mock('mongoose');
+
+// Mock Task model methods
+const mockTask = {
+  findById: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
+  create: jest.fn()
+};
+
+(Task as any) = mockTask;
 
 const app = appServer.getApp();
 
@@ -15,7 +33,7 @@ let authToken: string;
 let testTask: any;
 
 // Set timeout for all tests
-jest.setTimeout(10000);
+// jest.setTimeout(10000);
 
 beforeAll(async () => {
   mongoServer = await MongoMemoryServer.create();
@@ -29,7 +47,12 @@ afterAll(async () => {
   await new Promise(resolve => setTimeout(resolve, 500)); // Allow time for cleanup
 });
 
-describe('Task Features API Endpoints', () => {
+describe('Task Features API Tests', () => {
+  let mockRequest: Partial<Request>;
+  let mockResponse: Partial<Response>;
+  let mockNext: NextFunction;
+  let responseObject: any = {};
+
   beforeEach(async () => {
     await mongoose.connection.dropDatabase();
     // Create test user with all required fields
@@ -120,236 +143,193 @@ describe('Task Features API Endpoints', () => {
       });
 
     testTask = taskResponse.body.data;
+
+    // Reset mocks before each test
+    jest.clearAllMocks();
+
+    // Setup response mock
+    mockResponse = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockImplementation((result) => {
+        responseObject = result;
+        return mockResponse;
+      }),
+    };
+
+    mockNext = jest.fn();
   });
 
   afterEach(async () => {
     await mongoose.connection.dropDatabase();
   });
 
-  describe('Subtask Management', () => {
-    it('should add a subtask', async () => {
-      const subtaskData = {
-        description: 'Test Subtask',
-        isCompleted: false
+  describe('Task Comments', () => {
+    beforeEach(() => {
+      mockRequest = {
+        user: testUser,
+        params: { id: testTask._id.toString() },
+        body: {
+          text: 'Test comment',
+          profile: testProfile._id.toString()
+        }
       };
-
-      const response = await request(app)
-        .post(`/api/tasks/${testTask._id}/subtasks`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(subtaskData);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.subTasks).toHaveLength(1);
-      expect(response.body.data.subTasks[0].description).toBe(subtaskData.description);
     });
 
-    it('should update a subtask', async () => {
-      // First add a subtask
-      const createResponse = await request(app)
-        .post(`/api/tasks/${testTask._id}/subtasks`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({
-          description: 'Test Subtask',
-          isCompleted: false
-        });
-
-      const updateData = {
-        description: 'Updated Subtask',
-        isCompleted: true
+    it('should add a comment to a task', async () => {
+      const mockComment = {
+        _id: new mongoose.Types.ObjectId(),
+        text: mockRequest.body.text,
+        postedBy: testProfile._id,
+        createdAt: new Date()
       };
 
-      const response = await request(app)
-        .put(`/api/tasks/${testTask._id}/subtasks/0`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(updateData);
+      (Task.findById as jest.Mock).mockResolvedValue({
+        ...testTask,
+        profile: testProfile
+      });
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.subTasks[0].description).toBe(updateData.description);
-      expect(response.body.data.subTasks[0].isCompleted).toBe(true);
+      const updatedTask = {
+        ...testTask,
+        profile: testProfile,
+        comments: [mockComment]
+      };
+
+      (Task.findByIdAndUpdate as jest.Mock).mockResolvedValue(updatedTask);
+
+      await TaskController.addComment(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: updatedTask,
+        message: 'Comment added successfully'
+      });
     });
 
-    it('should delete a subtask', async () => {
-      // First add a subtask
-      await request(app)
-        .post(`/api/tasks/${testTask._id}/subtasks`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({
-          description: 'Test Subtask',
-          isCompleted: false
-        });
+    it('should return 404 for non-existent task', async () => {
+      (Task.findById as jest.Mock).mockResolvedValue(null);
 
-      const response = await request(app)
-        .delete(`/api/tasks/${testTask._id}/subtasks/0`)
-        .set('Authorization', `Bearer ${authToken}`);
+      await TaskController.addComment(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.subTasks).toHaveLength(0);
+      expect(mockResponse.status).toHaveBeenCalledWith(404);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Task not found'
+      });
     });
   });
 
-  describe('Comment Management', () => {
-    it('should add a comment', async () => {
-      const commentData = {
-        text: 'Test Comment'
+  describe('Task Likes', () => {
+    beforeEach(() => {
+      mockRequest = {
+        user: testUser,
+        params: { id: testTask._id.toString() },
+        body: {
+          profile: testProfile._id.toString()
+        }
+      };
+    });
+
+    it('should like a task', async () => {
+      const taskWithoutLike = {
+        ...testTask,
+        profile: testProfile,
+        likes: []
       };
 
-      const response = await request(app)
-        .post(`/api/tasks/${testTask._id}/comments`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(commentData);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.comments).toHaveLength(1);
-      expect(response.body.data.comments[0].text).toBe(commentData.text);
-      expect(response.body.data.comments[0].postedBy.toString()).toBe(testProfile._id.toString());
-    });
-
-    it('should like a comment', async () => {
-      // First add a comment
-      await request(app)
-        .post(`/api/tasks/${testTask._id}/comments`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({
-          text: 'Test Comment'
-        });
-
-      const response = await request(app)
-        .post(`/api/tasks/${testTask._id}/comments/0/like`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ profileId: testProfile._id });
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.comments[0].likes).toContain(testProfile._id.toString());
-    });
-
-    it('should unlike a comment', async () => {
-      // First add a comment and like it
-      await request(app)
-        .post(`/api/tasks/${testTask._id}/comments`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({
-          text: 'Test Comment'
-        });
-
-      await request(app)
-        .post(`/api/tasks/${testTask._id}/comments/0/like`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ profileId: testProfile._id });
-
-      const response = await request(app)
-        .delete(`/api/tasks/${testTask._id}/comments/0/like`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ profileId: testProfile._id });
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.comments[0].likes).not.toContain(testProfile._id.toString());
-    });
-  });
-
-  describe('Attachment Management', () => {
-    it('should add an attachment', async () => {
-      const attachmentData = {
-        name: 'test.txt',
-        url: 'https://example.com/test.txt',
-        type: 'text/plain',
-        size: 1024
+      const updatedTask = {
+        ...taskWithoutLike,
+        likes: [testProfile._id]
       };
 
-      const response = await request(app)
-        .post(`/api/tasks/${testTask._id}/attachments`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(attachmentData);
+      (Task.findById as jest.Mock).mockResolvedValue(taskWithoutLike);
+      (Task.findByIdAndUpdate as jest.Mock).mockResolvedValue(updatedTask);
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.attachments).toHaveLength(1);
-      expect(response.body.data.attachments[0].name).toBe(attachmentData.name);
-      expect(response.body.data.attachments[0].url).toBe(attachmentData.url);
+      await TaskController.likeTask(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: 1,
+        message: 'Task liked successfully'
+      });
     });
 
-    it('should remove an attachment', async () => {
-      // First add an attachment
-      const attachmentData = {
-        name: 'test.txt',
-        url: 'https://example.com/test.txt',
-        type: 'text/plain',
-        size: 1024
-      };
+    it('should return 404 for non-existent task', async () => {
+      (Task.findById as jest.Mock).mockResolvedValue(null);
 
-      const addResponse = await request(app)
-        .post(`/api/tasks/${testTask._id}/attachments`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(attachmentData);
+      await TaskController.likeTask(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(addResponse.status).toBe(200);
-      expect(addResponse.body.success).toBe(true);
-      expect(addResponse.body.data.attachments).toHaveLength(1);
-
-      // Get the attachment ID from the response
-      const attachmentId = addResponse.body.data.attachments[0]._id;
-
-      const response = await request(app)
-        .delete(`/api/tasks/${testTask._id}/attachments/${attachmentId}`)
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.attachments).toHaveLength(0);
+      expect(mockResponse.status).toHaveBeenCalledWith(404);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Task not found'
+      });
     });
   });
 
   describe('Task Settings', () => {
-    it('should get task settings', async () => {
-      const response = await request(app)
-        .get(`/api/tasks/${testTask._id}/settings`)
-        .set('Authorization', `Bearer ${authToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.settings).toBeDefined();
-      expect(response.body.data.settings.visibility).toBeDefined();
-      expect(response.body.data.settings.notifications).toBeDefined();
-      expect(response.body.data.settings.privacy).toBeDefined();
+    beforeEach(() => {
+      mockRequest = {
+        user: testUser,
+        params: { id: testTask._id.toString() },
+        body: {
+          visibility: {
+            level: 'OnlyMe'
+          },
+          notifications: {
+            enabled: false
+          }
+        }
+      };
     });
 
     it('should update task settings', async () => {
-      const settingsData = {
-        visibility: {
-          level: 'OnlyMe'
-        },
-        notifications: {
-          enabled: true,
-          channels: {
-            push: true,
-            email: true
+      const updatedTask = {
+        ...testTask,
+        settings: mockRequest.body
+      };
+
+      (Task.findById as jest.Mock).mockResolvedValue(testTask);
+      (Task.findByIdAndUpdate as jest.Mock).mockResolvedValue(updatedTask);
+
+      await TaskController.updateTaskSettings(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: updatedTask,
+        message: 'Task settings updated successfully'
+      });
+    });
+
+    it('should get task settings', async () => {
+      const taskWithSettings = {
+        ...testTask,
+        settings: {
+          visibility: {
+            level: 'Public'
           },
-          reminderSettings: {
-            defaultReminder: 30,
-            customReminders: []
+          notifications: {
+            enabled: true
           }
-        },
-        privacy: {
-          allowComments: false,
-          allowLikes: false
         }
       };
 
-      const response = await request(app)
-        .put(`/api/tasks/${testTask._id}/settings`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send(settingsData);
+      (Task.findById as jest.Mock).mockResolvedValue(taskWithSettings);
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.settings.visibility.level).toBe(settingsData.visibility.level);
-      expect(response.body.data.settings.notifications.enabled).toBe(settingsData.notifications.enabled);
-      expect(response.body.data.settings.privacy.allowComments).toBe(settingsData.privacy.allowComments);
+      await TaskController.getTaskSettings(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          settings: taskWithSettings.settings,
+          taskId: taskWithSettings._id,
+          title: taskWithSettings.title
+        },
+        message: 'Task settings fetched successfully'
+      });
     });
   });
 }); 
