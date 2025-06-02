@@ -32,7 +32,47 @@ export class ActivityTrackingService {
       const profileObjectId = new mongoose.Types.ObjectId(profileId.toString());
 
       // Check if activity is eligible for rewards
-      const activityReward = await ActivityRewardModel.findByActivityType(activityType);
+      logger.info(`🔍 Looking up activity reward for type: "${activityType}"`);
+
+      // Try direct database query as fallback
+      let activityReward = await ActivityRewardModel.findByActivityType(activityType);
+
+      if (!activityReward) {
+        logger.warn(`🔍 Model lookup failed, trying direct database query...`);
+        try {
+          // Direct database query as fallback
+          if (mongoose.connection.db) {
+            const directResult = await mongoose.connection.db.collection('activityrewards').findOne({
+              activityType: activityType
+            });
+
+            if (directResult) {
+              logger.info(`🔍 Direct database query found result:`, {
+                activityType: directResult.activityType,
+                pointsRewarded: directResult.pointsRewarded,
+                isEnabled: directResult.isEnabled,
+                description: directResult.description
+              });
+
+              // Convert to model-like object (cast as any to bypass type checking)
+              activityReward = directResult as any;
+            } else {
+              logger.warn(`🔍 Direct database query also returned null`);
+            }
+          } else {
+            logger.warn(`🔍 Database connection not available`);
+          }
+        } catch (directError) {
+          logger.error(`🔍 Direct database query failed:`, directError);
+        }
+      }
+
+      logger.info(`🔍 Final activity reward lookup result:`, activityReward ? {
+        activityType: activityReward.activityType,
+        pointsRewarded: activityReward.pointsRewarded,
+        isEnabled: activityReward.isEnabled,
+        description: activityReward.description
+      } : null);
 
       if (!activityReward || !activityReward.isEnabled) {
         // Activity not configured for rewards or disabled
@@ -95,6 +135,73 @@ export class ActivityTrackingService {
         try {
           const myPts = await MyPtsModel.findOrCreate(profileObjectId);
 
+          // **CRITICAL FIX: Move tokens from holding/reserve to circulation**
+          const { myPtsHubService } = require('./my-pts-hub.service');
+
+          // Get the hub and check if we need to issue new MyPts
+          const hub = await myPtsHubService.getHubState();
+
+          // Check if we need to move MyPts from holding to reserve first
+          if (hub.reserveSupply < pointsEarned) {
+            logger.warn(`⚠️ Insufficient reserves (${hub.reserveSupply}) for ${pointsEarned} MyPts reward. Moving from holding to reserve...`);
+
+            // Calculate how much we need to move from holding to reserve (with buffer)
+            const neededAmount = pointsEarned - hub.reserveSupply + 1000; // Add 1000 MyPts buffer
+
+            if (hub.holdingSupply >= neededAmount) {
+              // Move from holding to reserve first (proper token flow)
+              await myPtsHubService.moveFromHoldingToReserve(
+                neededAmount,
+                `Automatic reserve replenishment for activity: ${activityType}`,
+                undefined,
+                { activityType, automatic: true, profileId: profileObjectId.toString() }
+              );
+              logger.info(`✅ Moved ${neededAmount} MyPts from holding to reserve for ${activityType}`);
+            } else if (hub.holdingSupply > 0) {
+              // Move whatever is available in holding to reserve
+              await myPtsHubService.moveFromHoldingToReserve(
+                hub.holdingSupply,
+                `Automatic reserve replenishment (partial) for activity: ${activityType}`,
+                undefined,
+                { activityType, automatic: true, profileId: profileObjectId.toString() }
+              );
+              logger.info(`✅ Moved ${hub.holdingSupply} MyPts from holding to reserve (partial) for ${activityType}`);
+
+              // Issue new MyPts for the remaining amount
+              const remainingAmount = pointsEarned - hub.reserveSupply - hub.holdingSupply;
+              await myPtsHubService.issueMyPts(
+                remainingAmount,
+                `Automatic issuance for activity: ${activityType}`,
+                undefined,
+                { automatic: true, activityType, profileId: profileObjectId.toString() }
+              );
+              logger.info(`✅ Issued ${remainingAmount} new MyPts for ${activityType}`);
+            } else {
+              // No holding supply available, issue new MyPts
+              await myPtsHubService.issueMyPts(
+                pointsEarned,
+                `Automatic issuance for activity: ${activityType}`,
+                undefined,
+                { automatic: true, activityType, profileId: profileObjectId.toString() }
+              );
+              logger.info(`✅ Issued ${pointsEarned} new MyPts for ${activityType}`);
+            }
+          }
+
+          // Move MyPts from reserve to circulation
+          const hubResult = await myPtsHubService.moveToCirculation(
+            pointsEarned,
+            `Earned through activity: ${activityType}`,
+            undefined,
+            { activityType, profileId: profileObjectId.toString() }
+          );
+
+          if (hubResult.success) {
+            logger.info(`✅ Successfully moved ${pointsEarned} MyPts from reserve to circulation for ${activityType}`);
+          } else {
+            logger.error(`❌ Failed to move ${pointsEarned} MyPts from reserve to circulation for ${activityType}`);
+          }
+
           await myPts.addMyPts(
             pointsEarned,
             TransactionType.EARN_MYPTS,
@@ -102,21 +209,44 @@ export class ActivityTrackingService {
             { activityType, activityId: activity._id }
           );
 
-          // Update profile's MyPts balance
-          await ProfileModel.findByIdAndUpdate(profileObjectId, {
-            $inc: {
-              'ProfileMypts.currentBalance': pointsEarned,
-              'ProfileMypts.lifetimeMypts': pointsEarned
+          // Note: Profile balance is automatically updated by myPts.addMyPts() method
+          // No need for duplicate profile update here
+
+          // **UPDATE REFERRAL MODEL BALANCE FOR REFERRAL ACTIVITIES**
+          if (activityType === 'referral') {
+            try {
+              const { ProfileReferralModel } = require('../models/profile-referral.model');
+              await ProfileReferralModel.findOneAndUpdate(
+                { profileId: profileObjectId },
+                {
+                  $inc: {
+                    earnedPoints: pointsEarned
+                  }
+                },
+                { new: true }
+              );
+              logger.info(`✅ Updated referral model: added ${pointsEarned} to earnedPoints for profile ${profileObjectId}`);
+            } catch (referralUpdateError) {
+              logger.error(`❌ Failed to update referral model earnedPoints:`, referralUpdateError);
             }
-          });
+          }
 
           // Update milestone based on new balance
           await this.updateMilestoneFromMyPts(profileObjectId);
 
+          // **CHECK REFERRAL THRESHOLD STATUS**
+          try {
+            const { ProfileReferralService } = require('./profile-referral.service');
+            await ProfileReferralService.checkThresholdAndUpdateStatus(profileObjectId);
+            logger.info(`✅ Checked referral threshold status for profile ${profileObjectId}`);
+          } catch (thresholdError) {
+            logger.error(`❌ Failed to check referral threshold status:`, thresholdError);
+          }
+
           // Update analytics
           await this.updateActivityAnalytics(profileObjectId, activityType, pointsEarned);
 
-          logger.info(`Awarded ${pointsEarned} MyPts to profile ${profileId} for activity ${activityType}`);
+          logger.info(`🎉 Successfully awarded ${pointsEarned} MyPts to profile ${profileId} for activity ${activityType} with token movement`);
         } catch (error) {
           logger.error(`Error awarding MyPts for activity ${activityType}:`, error);
           // Continue execution even if MyPts award fails

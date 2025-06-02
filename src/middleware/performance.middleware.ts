@@ -37,16 +37,16 @@ export const monitorPerformance = () => {
         host: req.get('host') || req.hostname
       };
 
-      // Log API access with http level
-      if (req.path.startsWith('/api/')) {
-        logger.http(`${req.method} ${req.path} ${res.statusCode} ${duration}ms`, { host: metrics.host });
-      }
+      // Disable verbose API access logging and slow response warnings
+      // to reduce log clutter and improve performance monitoring clarity
 
-      // Log slow responses with warn level
-      if (duration > SLOW_RESPONSE_THRESHOLD) {
-        logger.warn('Slow response detected:', {
-          ...metrics,
-          threshold: SLOW_RESPONSE_THRESHOLD,
+      // Only log extremely slow responses (over 5 seconds) as errors
+      if (duration > 5000) {
+        logger.error('Extremely slow response detected:', {
+          path: metrics.path,
+          method: metrics.method,
+          duration,
+          statusCode: metrics.statusCode
         });
       }
     });

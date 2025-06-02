@@ -87,18 +87,9 @@ export class AuthUpdateController {
 
       // Handle referral if provided and user wasn't already referred
       if (wasReferred && referralCode && !userToUpdate.referredBy) {
-        try {
-          const { ReferralService } = require('../services/referral.service');
-          const referralResult = await ReferralService.processReferral(userToUpdate._id.toString(), referralCode);
-
-          if (referralResult.success) {
-            logger.info(`Successfully processed referral for user ${userToUpdate._id} with code: ${referralCode}`);
-          } else {
-            logger.warn(`Failed to process referral for user ${userToUpdate._id} with code: ${referralCode}`);
-          }
-        } catch (referralError) {
-          logger.error(`Error processing referral for user ${userToUpdate._id}:`, referralError);
-        }
+        // NOTE: Referral processing is already handled during profile creation in ProfileService.createDefaultProfile
+        // No need to process referrals again here to avoid duplicate rewards
+        logger.info(`Referral code ${referralCode} provided for user ${userToUpdate._id} - will be processed during profile creation`);
       }
 
       // Mark profile as complete if ALL required fields are provided

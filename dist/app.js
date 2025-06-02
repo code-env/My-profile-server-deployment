@@ -61,7 +61,6 @@ const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const compression_1 = __importDefault(require("compression"));
-const morgan_1 = __importDefault(require("morgan"));
 const chalk_1 = __importDefault(require("chalk"));
 // Internal imports
 const config_1 = require("./config/config");
@@ -75,7 +74,6 @@ const whatsapp_service_1 = __importDefault(require("./services/whatsapp.service"
 const initialize_my_pts_hub_1 = require("./startup/initialize-my-pts-hub");
 const initialize_profile_templates_1 = require("./startup/initialize-profile-templates");
 const initialize_gradient_updates_1 = require("./startup/initialize-gradient-updates");
-const advanced_tracking_middleware_1 = require("./middleware/advanced-tracking.middleware");
 const cleanupTokens_1 = require("./jobs/cleanupTokens");
 const scalableTokenCleanup_1 = require("./jobs/scalableTokenCleanup");
 const reminderScheduler_1 = require("./jobs/reminderScheduler");
@@ -246,17 +244,8 @@ class AppServer {
             exposedHeaders: ["Content-Range", "X-Content-Range", "Set-Cookie"],
             maxAge: 600,
         }));
-        // Add advanced tracking middleware after security headers but before routes
-        // Configure morgan with advanced tracking format
-        const morganFormat = ":method :url :status :response-time ms - :res[content-length] - IP: :remote-addr - :user-agent";
-        this.app.use((0, morgan_1.default)(morganFormat, {
-            stream: {
-                write: (message) => {
-                    logger_1.logger.http(message.trim());
-                },
-            },
-        }));
-        this.app.use(advanced_tracking_middleware_1.advancedTrackingMiddleware);
+        // Remove verbose HTTP request logging to reduce log clutter
+        // this.app.use(advancedTrackingMiddleware);
         // Special handling for Stripe webhook route - needs raw body
         this.app.use((req, res, next) => {
             if (req.originalUrl === '/api/stripe/webhook') {

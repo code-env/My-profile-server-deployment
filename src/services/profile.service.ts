@@ -12,6 +12,7 @@ import { FieldWidget } from '../models/profiles/profile-template';
 import geoip from 'geoip-lite';
 import { ProfileFilter } from '../types/profiles';
 import { getDefaultProfileSettings, UpdateDefaultProfileSettings } from '../models/profile-types/default-settings';
+import { ActivityTrackingService } from './activity-tracking.service';
 
 export class ProfileService {
 
@@ -324,12 +325,12 @@ export class ProfileService {
     if (template.profileCategory === 'group' || template.profileType === 'group') {
       // Add the creator as a member by default
       profile.members = [new mongoose.Types.ObjectId(userId)];
-      
+
       // Add any provided members from the members parameter
       if (members && members.length > 0) {
         const validMemberIds = members.filter(id => isValidObjectId(id));
         profile.members = [...profile.members, ...validMemberIds.map(id => new mongoose.Types.ObjectId(id))];
-        
+
         // Also add to the members field in info section if it exists
         const infoSection = profile.sections.find(s => s.key === 'info');
         if (infoSection) {
@@ -344,7 +345,7 @@ export class ProfileService {
       if (groups && groups.length > 0) {
         const validGroupIds = groups.filter(id => isValidObjectId(id));
         profile.groups = validGroupIds.map(id => new mongoose.Types.ObjectId(id));
-        
+
         // Also add to the groups field in info section if it exists
         const infoSection = profile.sections.find(s => s.key === 'info');
         if (infoSection) {
@@ -788,7 +789,7 @@ export class ProfileService {
 
     if (existingPersonalProfile) {
       logger.info(`User ${userId} already has a personal profile: ${existingPersonalProfile._id}. Returning existing profile.`);
-      
+
       // Update user's profiles array if needed
       if (!user.profiles || !user.profiles.includes(existingPersonalProfile._id)) {
         if (!user.profiles) user.profiles = [];
@@ -895,6 +896,33 @@ export class ProfileService {
       // Don't throw the error to avoid disrupting the profile creation process
     }
 
+    // **AUTOMATIC MYPTS REWARD FOR JOINING PLATFORM**
+    try {
+      logger.info(`🎯 Starting platform join reward for profile ${profile._id}`);
+      const activityTrackingService = new ActivityTrackingService();
+      const rewardResult = await activityTrackingService.trackActivity(
+        profile._id,
+        'platform_join',
+        {
+          userId,
+          profileId: profile._id.toString(),
+          timestamp: new Date(),
+          description: 'Welcome bonus for joining the platform'
+        }
+      );
+
+      logger.info(`🎯 Platform join reward result:`, rewardResult);
+
+      if (rewardResult.success && rewardResult.pointsEarned > 0) {
+        logger.info(`✅ Awarded ${rewardResult.pointsEarned} MyPts to profile ${profile._id} for joining platform`);
+      } else {
+        logger.warn(`❌ Platform join reward failed or 0 points earned:`, rewardResult);
+      }
+    } catch (error) {
+      logger.error(`❌ Error awarding MyPts for platform join to profile ${profile._id}:`, error);
+      // Don't throw the error to avoid disrupting the profile creation process
+    }
+
     // Add profile to user's profiles array
     await User.findByIdAndUpdate(userId, {
       $addToSet: { profiles: profile._id }
@@ -938,6 +966,9 @@ export class ProfileService {
 
             if (referralProcessed) {
               logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${referralCode}`);
+
+              // NOTE: Referral rewards are automatically handled by ProfileReferralService.processReferral
+              // No need to duplicate the reward logic here
 
               // Initialize referral record for the new profile
               await ProfileReferralService.initializeReferralCode(profile._id);
@@ -1057,13 +1088,13 @@ export class ProfileService {
 
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayOfWeek = dayNames[date.getDay()];
-    
+
     // Handle both Map and object formats for workingHours
-    const workingHours = profile.availability.workingHours instanceof Map 
+    const workingHours = profile.availability.workingHours instanceof Map
       ? profile.availability.workingHours.get(dayOfWeek)
       : profile.availability.workingHours[dayOfWeek];
     console.log('Debug - Working hours:', workingHours);
-    
+
     if (!workingHours?.isWorking) {
       console.log('Debug - Not a working day');
       return [];
@@ -1073,7 +1104,7 @@ export class ProfileService {
     const slots: Array<{start: Date, end: Date}> = [];
 
     // Check for exceptions
-    const exception = profile.availability.exceptions?.find(e => 
+    const exception = profile.availability.exceptions?.find(e =>
       e.date.toISOString().split('T')[0] === dateStr
     );
     console.log('Debug - Exception found:', exception);
@@ -1114,7 +1145,7 @@ export class ProfileService {
           if (!breakTime.days.includes(dayOfWeek)) return false;
           const breakStart = new Date(`${dateStr}T${breakTime.start}`);
           const breakEnd = new Date(`${dateStr}T${breakTime.end}`);
-          return (currentTime >= breakStart && currentTime < breakEnd) || 
+          return (currentTime >= breakStart && currentTime < breakEnd) ||
                  (slotEnd > breakStart && slotEnd <= breakEnd);
         });
 
@@ -1333,7 +1364,7 @@ export class ProfileService {
             if (Array.isArray(memberIds)) {
               const members = await Profile.find({ _id: { $in: memberIds } })
                 .select('profileInformation.username profileInformation.title _id');
-              
+
               (field as any).value = members.map(member => ({
                 id: member._id,
                 name: (member as any).profileInformation?.title || (member as any).profileInformation?.username
@@ -1445,7 +1476,7 @@ export class ProfileService {
       for (const userGroup of usersWithPersonalProfiles) {
         const userId = userGroup._id;
         const profiles: ProfileInfo[] = userGroup.profiles;
-        
+
         results.totalUsersProcessed++;
         results.usersWithDuplicates++;
 
@@ -1458,7 +1489,7 @@ export class ProfileService {
 
         // Find profiles with non-zero balance
         const profilesWithBalance = profiles.filter((p: ProfileInfo) => p.balance > 0);
-        
+
         let profileToKeep: ProfileInfo;
         let profilesToDelete: ProfileInfo[];
 
@@ -1469,15 +1500,15 @@ export class ProfileService {
             if (current.balance === prev.balance && new Date(current.createdAt) > new Date(prev.createdAt)) return current;
             return prev;
           });
-          
+
           // Delete all other profiles
           profilesToDelete = profiles.filter((p: ProfileInfo) => p.id !== profileToKeep.id);
         } else {
           // All profiles have zero balance, keep the most recent one
-          profileToKeep = profiles.reduce((prev: ProfileInfo, current: ProfileInfo) => 
+          profileToKeep = profiles.reduce((prev: ProfileInfo, current: ProfileInfo) =>
             new Date(current.createdAt) > new Date(prev.createdAt) ? current : prev
           );
-          
+
           // Delete all other profiles
           profilesToDelete = profiles.filter((p: ProfileInfo) => p.id !== profileToKeep.id);
         }
@@ -1490,10 +1521,10 @@ export class ProfileService {
         for (const profileToDelete of profilesToDelete) {
           try {
             logger.info(`Deleting profile: ${profileToDelete.id} (${profileToDelete.name}) with balance ${profileToDelete.balance}`);
-            
+
             // Delete the profile
             await Profile.findByIdAndDelete(profileToDelete.id);
-            
+
             // Remove from user's profiles array
             await User.findByIdAndUpdate(userId, {
               $pull: { profiles: profileToDelete.id }
@@ -1501,7 +1532,7 @@ export class ProfileService {
 
             deletedProfiles.push(profileToDelete);
             results.totalProfilesDeleted++;
-            
+
             logger.info(`Successfully deleted profile: ${profileToDelete.id}`);
           } catch (error) {
             logger.error(`Error deleting profile ${profileToDelete.id}:`, error);
@@ -1529,7 +1560,7 @@ export class ProfileService {
       }
 
       logger.info(`Duplicate profile deletion completed. Processed ${results.totalUsersProcessed} users, deleted ${results.totalProfilesDeleted} profiles`);
-      
+
       return results;
     } catch (error) {
       logger.error('Error during duplicate profile deletion:', error);

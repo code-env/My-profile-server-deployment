@@ -25,17 +25,12 @@ export const requireRole = (roles: Role[]) => {
       const isAdminHeader = req.header('X-Is-Admin');
       const isAdminCookie = req.cookies['X-User-Is-Admin'];
 
-      // Log headers and cookies for debugging
-      logger.debug(`Role middleware headers: ${JSON.stringify(req.headers)}`);
-      logger.debug(`Role middleware cookies: ${JSON.stringify(req.cookies)}`);
-
       // Get the role from various sources
       let userRole = user.role;
 
       // Try to get role from _doc if it exists
       if (!userRole && (user as any)._doc && (user as any)._doc.role) {
         userRole = (user as any)._doc.role;
-        logger.debug(`Using role from _doc: ${userRole}`);
       }
 
       // Check if admin role is indicated in headers or cookies
@@ -46,7 +41,6 @@ export const requireRole = (roles: Role[]) => {
 
       // If any admin indicator is present, set role to admin
       if (isAdminHeader || isAdminCookie || isAdminFlagHeader || isAdminFlagCookie) {
-        logger.debug(`Admin role indicated in headers/cookies for user ${user._id}`);
         userRole = 'admin';
       }
 
@@ -54,9 +48,6 @@ export const requireRole = (roles: Role[]) => {
       if (!userRole) {
         userRole = 'user';
       }
-
-      // Log for debugging
-      logger.debug(`Role check for user ${user._id}: role=${userRole}, headers=${adminRoleHeader}, allowed=[${roles.join(', ')}]`);
 
       // For admin routes, also check if the user has the admin role in the database
       if (roles.includes('admin') && userRole === 'admin') {

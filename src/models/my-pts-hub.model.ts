@@ -88,7 +88,7 @@ const myPtsHubSchema = new Schema<IMyPtsHub>(
     reserveSupply: {
       type: Number,
       required: true,
-      default: totalSupply * 0.05,  // No MyPts in reserve initially
+      default: totalSupply * 0.85,  // 85% of total supply in reserve
       min: 0
     },
     holdingSupply: {

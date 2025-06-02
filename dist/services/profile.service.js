@@ -15,6 +15,7 @@ const gradient_generator_1 = require("../utils/gradient-generator");
 const mongoose_2 = __importDefault(require("mongoose"));
 const geoip_lite_1 = __importDefault(require("geoip-lite"));
 const default_settings_1 = require("../models/profile-types/default-settings");
+const activity_tracking_service_1 = require("./activity-tracking.service");
 class ProfileService {
     /**
      * Creates a profile with content in one step
@@ -740,6 +741,28 @@ class ProfileService {
             logger_1.logger.error(`Error initializing referral code for profile ${profile._id}:`, error);
             // Don't throw the error to avoid disrupting the profile creation process
         }
+        // **AUTOMATIC MYPTS REWARD FOR JOINING PLATFORM**
+        try {
+            logger_1.logger.info(`🎯 Starting platform join reward for profile ${profile._id}`);
+            const activityTrackingService = new activity_tracking_service_1.ActivityTrackingService();
+            const rewardResult = await activityTrackingService.trackActivity(profile._id, 'platform_join', {
+                userId,
+                profileId: profile._id.toString(),
+                timestamp: new Date(),
+                description: 'Welcome bonus for joining the platform'
+            });
+            logger_1.logger.info(`🎯 Platform join reward result:`, rewardResult);
+            if (rewardResult.success && rewardResult.pointsEarned > 0) {
+                logger_1.logger.info(`✅ Awarded ${rewardResult.pointsEarned} MyPts to profile ${profile._id} for joining platform`);
+            }
+            else {
+                logger_1.logger.warn(`❌ Platform join reward failed or 0 points earned:`, rewardResult);
+            }
+        }
+        catch (error) {
+            logger_1.logger.error(`❌ Error awarding MyPts for platform join to profile ${profile._id}:`, error);
+            // Don't throw the error to avoid disrupting the profile creation process
+        }
         // Add profile to user's profiles array
         await User_1.User.findByIdAndUpdate(userId, {
             $addToSet: { profiles: profile._id }
@@ -776,6 +799,8 @@ class ProfileService {
                         }
                         if (referralProcessed) {
                             logger_1.logger.info(`Successfully processed referral for profile ${profile._id} with referral code ${referralCode}`);
+                            // NOTE: Referral rewards are automatically handled by ProfileReferralService.processReferral
+                            // No need to duplicate the reward logic here
                             // Initialize referral record for the new profile
                             await ProfileReferralService.initializeReferralCode(profile._id);
                         }

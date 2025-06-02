@@ -41,9 +41,7 @@ const logger_1 = require("../utils/logger");
 const protect = async (req, res, next) => {
     try {
         const token = extractToken(req);
-        logger_1.logger.debug('Processing authentication token');
         if (!token) {
-            // Removed warning log to prevent brute force detection
             return res.status(401).json({
                 status: 'error',
                 message: 'Authentication required'
@@ -70,26 +68,20 @@ const protect = async (req, res, next) => {
         const adminCookie = req.cookies['X-User-Role'];
         const isAdminHeader = req.header('X-User-Is-Admin');
         const isAdminCookie = req.cookies['X-User-Is-Admin'];
-        // Log all headers for debugging
-        logger_1.logger.debug(`Auth headers: ${JSON.stringify(req.headers)}`);
-        logger_1.logger.debug(`Auth cookies: ${JSON.stringify(req.cookies)}`);
         // If admin role is indicated in headers or cookies, ensure it's set in the user object
         if ((adminRoleHeader === 'admin' || adminCookie === 'admin') ||
             (isAdminHeader === 'true' || isAdminCookie === 'true')) {
             // Only set admin role if the user actually has it in the database
             if (user.role === 'admin') {
-                logger_1.logger.info(`Admin role confirmed for user ${user._id}`);
+                logger_1.logger.info(`Admin access granted for user ${user._id}`);
             }
             else {
-                logger_1.logger.warn(`Admin role requested but not found in database for user ${user._id}`);
+                logger_1.logger.warn(`Admin role requested but not authorized for user ${user._id}`);
             }
         }
-        // Log the user's role for debugging
-        logger_1.logger.debug(`User ${user._id} authenticated with role: ${user.role || 'none'}`);
         // Ensure the user object has the role property from the database
         if (!user.role && user._doc && user._doc.role) {
             user.role = user._doc.role;
-            logger_1.logger.debug(`Set user role from _doc: ${user.role}`);
         }
         req.user = user;
         req.token = token;

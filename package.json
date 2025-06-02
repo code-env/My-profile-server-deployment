@@ -33,8 +33,15 @@
     "update-gradients": "ts-node src/scripts/update-profiles-with-gradients.ts",
     "fix-profile-completion-status": "ts-node src/scripts/fix-profile-completion-status.ts",
     "add-missing-profile-complete": "ts-node src/scripts/add-missing-profile-complete-field.ts",
+    "fix-mypts-allocation": "ts-node src/scripts/fix-mypts-allocation.ts",
+    "quick-fix-mypts": "ts-node src/scripts/quick-fix-mypts-allocation.ts",
     "update-gradients:prod": "node dist/scripts/update-profiles-with-gradients.js",
-    "update-gradients:render": "NODE_ENV=production node dist/scripts/update-profiles-with-gradients.js"
+    "update-gradients:render": "NODE_ENV=production node dist/scripts/update-profiles-with-gradients.js",
+    "seed:activity-rewards": "ts-node src/scripts/seed-activity-rewards.ts",
+    "retroactive:platform-join": "ts-node src/scripts/retroactive-platform-join-rewards.ts",
+    "test:mypts-rewards": "ts-node src/scripts/test-mypts-rewards.ts",
+    "check:database-state": "ts-node src/scripts/check-database-state.ts",
+    "verify:mypts-system": "npm run check:database-state && npm run seed:activity-rewards && npm run test:mypts-rewards"
   },
   "keywords": [
     "authentication",

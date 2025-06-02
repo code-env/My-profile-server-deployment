@@ -257,21 +257,8 @@ export class AppServer {
       })
     );
 
-    // Add advanced tracking middleware after security headers but before routes
-    // Configure morgan with advanced tracking format
-    const morganFormat =
-      ":method :url :status :response-time ms - :res[content-length] - IP: :remote-addr - :user-agent";
-    this.app.use(
-      morgan(morganFormat, {
-        stream: {
-          write: (message: string) => {
-            logger.http(message.trim());
-          },
-        },
-      })
-    );
-
-    this.app.use(advancedTrackingMiddleware);
+    // Remove verbose HTTP request logging to reduce log clutter
+    // this.app.use(advancedTrackingMiddleware);
 
     // Special handling for Stripe webhook route - needs raw body
     this.app.use((req, res, next) => {

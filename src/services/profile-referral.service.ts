@@ -236,6 +236,47 @@ export class ProfileReferralService {
         console.error('Failed to emit social interaction for referral:', error);
       }
 
+      // **AUTOMATIC MYPTS REWARD FOR SUCCESSFUL REFERRAL**
+      try {
+        logger.info(`🔗 Starting referral rewards for referrer ${referrerObjId} and referred ${referredObjId}`);
+        logger.info(`🔗 DEBUG: referrerObjId = ${referrerObjId}, referredObjId = ${referredObjId}`);
+        logger.info(`🔗 DEBUG: referrerReferral.referralCode = ${referrerReferral.referralCode}`);
+
+        const { ActivityTrackingService } = require('./activity-tracking.service');
+        const activityTrackingService = new ActivityTrackingService();
+
+        // Award referrer for successful referral
+        logger.info(`🔗 Awarding referrer ${referrerObjId} for successful referral`);
+        logger.info(`🔗 DEBUG: Calling trackActivity with profileId=${referrerObjId}, activityType='referral'`);
+
+        const referralRewardResult = await activityTrackingService.trackActivity(
+          referrerObjId,
+          'referral',
+          {
+            referredProfileId: referredObjId.toString(),
+            referralCode: referrerReferral.referralCode,
+            timestamp: new Date(),
+            description: 'Successfully referred a new user'
+          }
+        );
+
+        logger.info(`🔗 Referrer reward result:`, referralRewardResult);
+
+        if (referralRewardResult.success && referralRewardResult.pointsEarned > 0) {
+          logger.info(`✅ Awarded ${referralRewardResult.pointsEarned} MyPts to profile ${referrerObjId} for successful referral`);
+        } else {
+          logger.warn(`❌ Referrer reward failed or 0 points earned:`, referralRewardResult);
+        }
+
+        // **NO EXTRA REWARD FOR REFERRED USER**
+        // The referred user already gets 100 MyPts for joining the platform
+        // No additional reward needed for using a referral code
+        logger.info(`🔗 Referred user ${referredObjId} already received platform join reward - no additional referral reward needed`);
+      } catch (error) {
+        logger.error(`❌ Error awarding MyPts for referral:`, error);
+        // Continue execution even if referral reward fails
+      }
+
       logger.info(
         `Processed referral: ${referrerObjId} referred ${referredObjId}`
       );
