@@ -1570,6 +1570,11 @@ class EventService {
         const comment = event.comments[commentIndex];
         const profileIdObj = new mongoose.Types.ObjectId(profileId);
 
+        // Initialize likes array if it doesn't exist
+        if (!comment.likes) {
+            comment.likes = [];
+        }
+
         // Add the like if not already present
         if (!comment.likes.some(id => id.equals(profileIdObj))) {
             comment.likes.push(profileIdObj);

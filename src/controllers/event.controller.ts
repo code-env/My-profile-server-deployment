@@ -798,9 +798,11 @@ export const likeComment = async (req: Request, res: Response) => {
             message: 'Comment liked successfully'
         });
     } catch (error) {
+        console.error('Error in likeComment controller:', error);
         return res.status(500).json({
             success: false,
-            message: 'Failed to like comment'
+            message: 'Failed to like comment',
+            error: error instanceof Error ? error.message : 'Unknown error'
         });
     }
 };
@@ -882,7 +884,11 @@ export const createBooking = async (req: Request, res: Response) => {
             }
         }
 
-        res.status(201).json(event);
+        res.status(201).json({
+            success: true,
+            data: event,
+            message: 'Booking created successfully'
+        });
     } catch (error) {
         console.error('Error creating booking:', error);
         res.status(500).json({ message: 'Error creating booking' });

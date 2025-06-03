@@ -378,28 +378,6 @@ userSchema.pre('save', async function (next) {
         next(error);
     }
 });
-// Compare password method
-userSchema.methods.comparePassword = async function (candidatePassword) {
-    try {
-        const isMatch = await bcryptjs_1.default.compare(candidatePassword, this.password);
-        if (!isMatch) {
-            logger_1.logger.warn(`Failed login attempt for user ${this.email}`);
-            this.failedLoginAttempts += 1;
-            await this.save();
-        }
-        else if (this.failedLoginAttempts > 0) {
-            logger_1.logger.info(`Successful login after failed attempts for user ${this.email} - resetting counter`);
-            this.failedLoginAttempts = 0;
-            this.lockUntil = undefined;
-            await this.save();
-        }
-        return isMatch;
-    }
-    catch (error) {
-        logger_1.logger.error(`Error comparing password for user ${this.email}:`, error);
-        return false;
-    }
-};
 // Create indexes
 userSchema.index({ phoneNumber: 1 }, { sparse: true });
 userSchema.index({ googleId: 1 }, { sparse: true });

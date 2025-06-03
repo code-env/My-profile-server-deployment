@@ -73,10 +73,10 @@ const protect = async (req, res, next) => {
             (isAdminHeader === 'true' || isAdminCookie === 'true')) {
             // Only set admin role if the user actually has it in the database
             if (user.role === 'admin') {
-                logger_1.logger.info(`Admin access granted for user ${user._id}`);
+                // logger.info(`Admin access granted for user ${user._id}`);
             }
             else {
-                logger_1.logger.warn(`Admin role requested but not authorized for user ${user._id}`);
+                // logger.warn(`Admin role requested but not authorized for user ${user._id}`);
             }
         }
         // Ensure the user object has the role property from the database
