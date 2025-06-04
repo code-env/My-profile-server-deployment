@@ -2,411 +2,520 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{title}}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="x-apple-disable-message-reformatting">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Event Reminder - <b>My</b>Profile</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
     <style>
+        /* Reset and base styles */
         * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #1a202c;
-            background-color: #f7fafc;
-            margin: 0;
-            padding: 20px 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
+            background: transparent !important;
+            margin: 0 !important;
+            padding: 10px !important;
+            min-height: 100vh !important;
+            -webkit-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
         }
         
+        /* Mobile-first container */
         .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            max-width: 600px !important;
+            margin: 0 auto !important;
+            background: #ffffff !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
         }
         
+        /* Header optimized for mobile */
         .header {
-            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
-            padding: 32px 24px;
-            text-align: center;
-            color: white;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            padding: 30px 20px !important;
+            text-align: center !important;
+            color: white !important;
+            border-radius: 16px 16px 0 0 !important;
         }
         
-        .header-icon {
-            width: 64px;
-            height: 64px;
-            background-color: rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            margin: 0 auto 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
+        .logo {
+            width: 45px !important;
+            width: 45px !important;
+            margin: 0 auto 16px !important;
+            display: block !important;
+        }
+        
+        .logo img {
+            width: 45px !important;
+            height: 45px !important;
+            object-fit: contain !important;
+            display: block !important;
+            margin: 0 auto !important;
         }
         
         .header h1 {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            letter-spacing: -0.5px;
+            font-size: 22px !important;
+            font-weight: 700 !important;
+            margin-bottom: 6px !important;
+            line-height: 1.2 !important;
         }
         
         .header p {
-            font-size: 16px;
-            opacity: 0.9;
-            margin: 0;
+            font-size: 14px !important;
+            opacity: 0.9 !important;
+            font-weight: 400 !important;
         }
         
+        /* Content with better mobile spacing */
         .content {
-            padding: 32px 24px;
+            padding: 30px 20px !important;
         }
         
-        .event-card {
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 24px;
-            border-left: 4px solid #4299e1;
+        .event-section {
+            text-align: center !important;
+            margin-bottom: 30px !important;
         }
         
         .event-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #2d3748;
-            margin-bottom: 12px;
-            line-height: 1.3;
+            font-size: 20px !important;
+            font-weight: 600 !important;
+            color: #000000 !important;
+            margin-bottom: 10px !important;
+            line-height: 1.3 !important;
+        }
+        
+        .greeting {
+            font-size: 16px !important;
+            color: #333333 !important;
+            margin-bottom: 16px !important;
+            font-weight: 500 !important;
         }
         
         .event-description {
-            color: #4a5568;
-            font-size: 15px;
-            margin-bottom: 16px;
-            line-height: 1.5;
+            font-size: 15px !important;
+            color: #444444 !important;
+            line-height: 1.6 !important;
+            margin-bottom: 25px !important;
         }
         
-        .event-meta {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 16px;
-            margin-bottom: 20px;
+        /* Simplified event card for mobile */
+        .event-card {
+            background: #f8f8f8 !important;
+            border: 1px solid #d0d0d0 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 25px 0 !important;
+            text-align: left !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
         
-        .meta-item {
-            display: flex;
-            align-items: center;
-            font-size: 14px;
-            color: #718096;
+        .event-header {
+            display: table !important;
+            width: 100% !important;
+            margin-bottom: 20px !important;
         }
         
-        .meta-icon {
-            width: 16px;
-            height: 16px;
-            margin-right: 8px;
-            opacity: 0.7;
+        .event-icon {
+            display: table-cell !important;
+            width: 50px !important;
+            height: 50px !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            border-radius: 10px !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+            font-size: 20px !important;
+            color: white !important;
         }
         
-        .event-type-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .event-info {
+            display: table-cell !important;
+            vertical-align: middle !important;
+            padding-left: 15px !important;
         }
         
-        .type-meeting {
-            background-color: #bee3f8;
-            color: #2b6cb0;
+        .event-name {
+            font-size: 18px !important;
+            font-weight: 600 !important;
+            color: #000000 !important;
+            margin-bottom: 6px !important;
+            line-height: 1.3 !important;
+            word-wrap: break-word !important;
         }
         
-        .type-appointment {
-            background-color: #d6f5d6;
-            color: #2f855a;
+        .event-type {
+            display: inline-block !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            color: white !important;
+            padding: 4px 10px !important;
+            border-radius: 12px !important;
+            font-size: 11px !important;
+            font-weight: 500 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            margin-bottom: 10px !important;
         }
         
-        .type-booking {
-            background-color: #fbb6ce;
-            color: #b83280;
+        /* Mobile-optimized event details grid */
+        .event-details {
+            display: block !important;
+            margin: 20px 0 !important;
         }
         
-        .type-celebration {
-            background-color: #fef5e7;
-            color: #dd6b20;
+        .detail-item {
+            background: #ffffff !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            border: 1px solid #e0e0e0 !important;
+            margin-bottom: 10px !important;
         }
         
-        .event-time {
-            background-color: #edf2f7;
-            border-radius: 8px;
-            padding: 16px;
-            margin: 20px 0;
-            text-align: center;
+        .detail-item:last-child {
+            margin-bottom: 0 !important;
         }
         
-        .event-time-label {
-            font-size: 14px;
-            color: #718096;
-            margin-bottom: 4px;
+        .detail-icon {
+            font-size: 14px !important;
+            margin-bottom: 6px !important;
         }
         
-        .event-time-value {
-            font-size: 18px;
-            font-weight: 600;
-            color: #2d3748;
+        .detail-label {
+            font-size: 11px !important;
+            color: #444444 !important;
+            font-weight: 600 !important;
+            margin-bottom: 3px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
         }
         
-        .countdown {
-            background: linear-gradient(135deg, #fed7e2 0%, #fbb6ce 100%);
-            border-radius: 12px;
-            padding: 20px;
-            margin: 20px 0;
-            text-align: center;
+        .detail-value {
+            font-size: 13px !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            line-height: 1.4 !important;
+            word-wrap: break-word !important;
         }
         
-        .countdown-label {
-            font-size: 14px;
-            color: #702459;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-        
-        .countdown-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: #702459;
-        }
-        
-        .participants-section {
-            background-color: #f0fff4;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        
-        .participants-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #2f855a;
-            margin-bottom: 12px;
-        }
-        
-        .participant-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        
-        .participant {
-            background-color: #c6f6d5;
-            color: #2f855a;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 500;
-        }
-        
+        /* Action buttons */
         .action-buttons {
-            text-align: center;
-            margin: 32px 0;
+            text-align: center !important;
+            margin: 25px 0 !important;
         }
         
-        .btn {
-            display: inline-block;
-            padding: 14px 28px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 15px;
-            margin: 0 8px;
-            transition: all 0.2s ease;
+        .action-button {
+            display: inline-block !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            padding: 12px 20px !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin: 5px !important;
+            font-size: 14px !important;
         }
         
-        .btn-primary {
-            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
-            color: white;
-            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.4);
+        .action-button.secondary {
+            background: #f8f8f8 !important;
+            color: #333333 !important;
+            border: 1px solid #d0d0d0 !important;
         }
         
-        .btn-secondary {
-            background-color: #edf2f7;
-            color: #4a5568;
-            border: 1px solid #e2e8f0;
-        }
-        
-        .location-section {
-            background-color: #fffaf0;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 20px 0;
-            border-left: 4px solid #ed8936;
-        }
-        
-        .location-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #c05621;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-        }
-        
-        .location-address {
-            color: #744210;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-        
+        /* Footer */
         .footer {
-            background-color: #f8fafc;
-            padding: 24px;
-            text-align: center;
-            border-top: 1px solid #e2e8f0;
+            background: #f8f8f8 !important;
+            padding: 25px 20px !important;
+            text-align: center !important;
+            border-top: 1px solid #e0e0e0 !important;
+        }
+        
+        .support-link {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            padding: 10px 16px !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin-bottom: 12px !important;
+            font-size: 13px !important;
         }
         
         .footer-text {
-            font-size: 13px;
-            color: #718096;
-            margin-bottom: 8px;
+            font-size: 12px !important;
+            color: #444444 !important;
+            line-height: 1.5 !important;
         }
         
-        .unsubscribe {
-            font-size: 12px;
-            color: #a0aec0;
-        }
-        
-        .unsubscribe a {
-            color: #4299e1;
-            text-decoration: none;
-        }
-        
-        @media only screen and (max-width: 600px) {
-            .email-container {
-                margin: 0 10px;
-                border-radius: 12px;
+        /* Mobile optimizations */
+        @media only screen and (max-width: 480px) {
+            body {
+                padding: 10px !important;
             }
             
             .header {
-                padding: 24px 16px;
+                padding: 25px 15px !important;
             }
             
             .content {
-                padding: 24px 16px;
+                padding: 25px 15px !important;
+            }
+            
+            .header h1 {
+                font-size: 20px !important;
+            }
+            
+            .event-title {
+                font-size: 18px !important;
+            }
+            
+            .greeting {
+                font-size: 15px !important;
+            }
+            
+            .event-description {
+                font-size: 14px !important;
+            }
+            
+            .logo {
+                width: 45px !important;
+                height: 45px !important;
+            }
+            
+            .logo img {
+                width: 45px !important;
+                height: 45px !important;
             }
             
             .event-card {
-                padding: 20px;
+                padding: 15px !important;
+                margin: 20px 0 !important;
             }
             
-            .event-meta {
-                flex-direction: column;
-                gap: 8px;
+            .event-header {
+                margin-bottom: 15px !important;
             }
             
-            .btn {
-                display: block;
-                margin: 8px 0;
-                text-align: center;
+            .event-icon {
+                width: 45px !important;
+                height: 45px !important;
+                font-size: 18px !important;
             }
             
-            .participant-list {
-                justify-content: center;
+            .event-info {
+                padding-left: 12px !important;
+            }
+            
+            .event-name {
+                font-size: 16px !important;
+            }
+            
+            .detail-item {
+                padding: 10px !important;
+                margin-bottom: 8px !important;
+            }
+            
+            .action-button {
+                padding: 10px 16px !important;
+                font-size: 13px !important;
+                margin: 3px !important;
+                display: block !important;
+                margin-bottom: 8px !important;
+            }
+            
+            .footer {
+                padding: 20px 15px !important;
+            }
+        }
+        
+        /* Extra small screens */
+        @media only screen and (max-width: 320px) {
+            .content {
+                padding: 20px 12px !important;
+            }
+            
+            .logo {
+                width: 45px !important;
+                height: 45px !important;
+            }
+            
+            .logo img {
+                width: 45px !important;
+                height: 45px !important;
+            }
+            
+            .event-card {
+                padding: 12px !important;
+            }
+            
+            .event-header {
+                display: block !important;
+                text-align: center !important;
+            }
+            
+            .event-icon {
+                display: inline-block !important;
+                width: 40px !important;
+                height: 40px !important;
+                font-size: 16px !important;
+                margin-bottom: 10px !important;
+            }
+            
+            .event-info {
+                display: block !important;
+                padding-left: 0 !important;
+            }
+            
+            .event-name {
+                font-size: 15px !important;
+            }
+            
+            .detail-item {
+                padding: 8px !important;
             }
         }
     </style>
 </head>
-<body>
-    <div class="email-container">
-        <div class="header">
-            <div class="header-icon">
-                📅
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 10px; min-height: 100vh; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+        <div class="header" style="background: linear-gradient(135deg, #000000 0%, #444444 100%); padding: 30px 20px; text-align: center; color: white; border-radius: 16px 16px 0 0;">
+            <div class="logo" style="width: 45px; height: 45px; margin: 0 auto 16px; display: block;">
+                <img src="cid:company-logo" alt="<b>My</b>Profile Logo" style="width: 45px; height: 45px; object-fit: contain; display: block; margin: 0 auto;">
             </div>
-            <h1>Event Reminder</h1>
-            <p>Your upcoming event is starting soon</p>
+            <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 6px; line-height: 1.2; color: white;">Event Reminder</h1>
+            <p style="font-size: 14px; opacity: 0.9; font-weight: 400; color: white;">Don't miss your upcoming event</p>
         </div>
         
-        <div class="content">
-            <div class="event-card">
-                <h2 class="event-title">{{metadata.itemTitle}}</h2>
-                
-                {{#if metadata.description}}
-                <p class="event-description">{{metadata.description}}</p>
+        <div class="content" style="padding: 30px 20px;">
+            <div class="event-section" style="text-align: center; margin-bottom: 30px;">
+                <h2 class="event-title" style="font-size: 20px; font-weight: 600; color: #000000; margin-bottom: 10px; line-height: 1.3;">{{title}}</h2>
+                {{#if recipientName}}
+                <p class="greeting" style="font-size: 16px; color: #333333; margin-bottom: 16px; font-weight: 500;">Hello {{recipientName}},</p>
                 {{/if}}
+                <p class="event-description" style="font-size: 15px; color: #444444; line-height: 1.6; margin-bottom: 25px;">This is a reminder about your upcoming event.</p>
+            </div>
+            
+            <div class="event-card" style="background: #f8f8f8; border: 1px solid #d0d0d0; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: left; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+                <table class="event-header" style="display: table; width: 100%; margin-bottom: 20px;" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td class="event-icon" style="display: table-cell; width: 50px; height: 50px; background: linear-gradient(135deg, #000000 0%, #444444 100%); border-radius: 10px; text-align: center; vertical-align: middle; font-size: 20px; color: white;">
+                            📅
+                        </td>
+                        <td class="event-info" style="display: table-cell; vertical-align: middle; padding-left: 15px;">
+                            <h3 class="event-name" style="font-size: 18px; font-weight: 600; color: #000000; margin-bottom: 6px; line-height: 1.3; word-wrap: break-word;">{{eventTitle}}</h3>
+                            {{#if eventType}}
+                            <div class="event-type" style="display: inline-block; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">{{eventType}}</div>
+                            {{/if}}
+                        </td>
+                    </tr>
+                </table>
                 
-                <div class="event-meta">
-                    {{#if metadata.eventType}}
-                    <div class="meta-item">
-                        <span class="meta-icon">🎯</span>
-                        <span class="event-type-badge type-{{metadata.eventType}}">{{metadata.eventType}}</span>
+                <div class="event-details" style="display: block; margin: 20px 0;">
+                    {{#if startTime}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">🕒</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Start Time</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{formatTime startTime}}</div>
                     </div>
                     {{/if}}
                     
-                    {{#if metadata.category}}
-                    <div class="meta-item">
-                        <span class="meta-icon">📁</span>
-                        <span>{{metadata.category}}</span>
+                    {{#if endTime}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">⏰</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">End Time</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{formatTime endTime}}</div>
                     </div>
                     {{/if}}
                     
-                    {{#if metadata.reminderType}}
-                    <div class="meta-item">
-                        <span class="meta-icon">⏰</span>
-                        <span>{{metadata.reminderType}} reminder</span>
+                    {{#if location}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">📍</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Location</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{location}}</div>
+                    </div>
+                    {{/if}}
+                    
+                    {{#if duration}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">⏱️</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Duration</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{duration}}</div>
+                    </div>
+                    {{/if}}
+                    
+                    {{#if description}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">📝</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Description</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{description}}</div>
+                    </div>
+                    {{/if}}
+                    
+                    {{#if organizer}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">👤</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Organizer</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{organizer}}</div>
+                    </div>
+                    {{/if}}
+                    
+                    {{#if attendees}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">👥</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Attendees</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{attendees}} people</div>
+                    </div>
+                    {{/if}}
+                    
+                    {{#if eventId}}
+                    <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 0;">
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">🆔</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Event ID</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{eventId}}</div>
                     </div>
                     {{/if}}
                 </div>
-                
-                {{#if metadata.startTime}}
-                <div class="event-time">
-                    <div class="event-time-label">Event Time</div>
-                    <div class="event-time-value">{{formatDateTime metadata.startTime}}</div>
-                </div>
+            </div>
+            
+            <div class="action-buttons" style="text-align: center; margin: 25px 0;">
+                {{#if joinUrl}}
+                <a href="{{joinUrl}}" class="action-button" style="display: inline-block; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px;">Join Event</a>
                 {{/if}}
-                
-                {{#if metadata.timeUntilEvent}}
-                <div class="countdown">
-                    <div class="countdown-label">Starting in</div>
-                    <div class="countdown-value">{{metadata.timeUntilEvent}}</div>
-                </div>
+                {{#if viewUrl}}
+                <a href="{{viewUrl}}" class="action-button secondary" style="display: inline-block; background: #f8f8f8; color: #333333; border: 1px solid #d0d0d0; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px;">View Details</a>
+                {{/if}}
+                {{#if calendarUrl}}
+                <a href="{{calendarUrl}}" class="action-button" style="display: inline-block; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px;">Add to Calendar</a>
                 {{/if}}
             </div>
             
-            {{#if metadata.location}}
-            <div class="location-section">
-                <div class="location-title">
-                    📍 Location
-                </div>
-                <div class="location-address">{{metadata.location}}</div>
-            </div>
-            {{/if}}
-            
-            {{#if metadata.participants}}
-            <div class="participants-section">
-                <div class="participants-title">👥 Participants</div>
-                <div class="participant-list">
-                    {{#each metadata.participants}}
-                    <span class="participant">{{this}}</span>
-                    {{/each}}
-                </div>
-            </div>
-            {{/if}}
-            
-            <div class="action-buttons">
-                {{#if action.url}}
-                <a href="{{action.url}}" class="btn btn-primary">{{action.text}}</a>
-                {{/if}}
-                <a href="{{baseUrl}}/events" class="btn btn-secondary">View All Events</a>
-            </div>
+            <p style="margin-top: 20px; color: #444444; line-height: 1.6; text-align: center;">
+                We look forward to seeing you at the event. If you have any questions, please don't hesitate to contact the organizer.
+            </p>
         </div>
         
-        <div class="footer">
-            <p class="footer-text">© {{year}} {{appName}}. All rights reserved.</p>
-            <p class="unsubscribe">
-                <a href="{{baseUrl}}/settings/notifications">Manage notification preferences</a> | 
-                <a href="{{baseUrl}}/unsubscribe?token={{unsubscribeToken}}">Unsubscribe</a>
+        <div class="footer" style="background: #f8f8f8; padding: 25px 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+            <a href="mailto:support@getmyprofile.online" class="support-link" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; margin-bottom: 12px; font-size: 13px;">
+                📧 Contact Support
+            </a>
+            <p class="footer-text" style="font-size: 12px; color: #444444; line-height: 1.5;">
+                This is an automated message from <b>My</b>Profile. Please do not reply to this email.<br>
+                If you need assistance, please contact our support team.
             </p>
         </div>
     </div>

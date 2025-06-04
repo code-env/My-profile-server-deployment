@@ -1,11 +1,7 @@
 // Jest setup file
-jest.setTimeout(30000); // Set timeout to 30 seconds
+// Add any global test setup here
 
-// Mock console methods to reduce noise in tests
-global.console = {
-  ...console,
-  // Uncomment the following lines to suppress specific console methods during tests
-  // log: jest.fn(),
-  // error: jest.fn(),
-  // warn: jest.fn(),
-}; 
+// For example, if you want to increase the default timeout for all tests
+// jest.setTimeout(10000);
+
+// You can add custom matchers, global mocks, or other test configurations here 

@@ -125,6 +125,10 @@ class AppServer {
         this.configureRoutes();
         this.configureErrorHandling();
     }
+    // Add getter for app instance
+    getApp() {
+        return this.app;
+    }
     /**
      * @private
      * @method configureMiddleware

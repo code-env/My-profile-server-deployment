@@ -187,7 +187,7 @@ export class RegistrationService {
       );
 
       if (user.verificationMethod === 'EMAIL') {
-        await EmailService.sendVerificationEmail(user.email, otp);
+        await EmailService.sendAccountVerificationOTP(user.email, otp);
       } else {
         throw new CustomError('SMS_NOT_IMPLEMENTED', 'SMS service not implemented');
       }

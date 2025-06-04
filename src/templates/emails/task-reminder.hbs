@@ -6,7 +6,7 @@
     <meta name="format-detection" content="telephone=no">
     <meta name="x-apple-disable-message-reformatting">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Task Reminder - MyProfile</title>
+    <title>Task Reminder - <b>My</b>Profile</title>
     <!--[if mso]>
     <noscript>
         <xml>
@@ -26,7 +26,7 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
-            background: #000000 !important;
+            background: transparent !important;
             margin: 0 !important;
             padding: 10px !important;
             min-height: 100vh !important;
@@ -39,35 +39,35 @@
             max-width: 600px !important;
             margin: 0 auto !important;
             background: #ffffff !important;
-            border-radius: 12px !important;
+            border-radius: 16px !important;
             overflow: hidden !important;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
         }
         
         /* Header optimized for mobile */
         .header {
-            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
             padding: 30px 20px !important;
             text-align: center !important;
             color: white !important;
+            border-radius: 16px 16px 0 0 !important;
         }
         
         .logo {
-            width: 50px !important;
-            height: 50px !important;
-            background: rgba(255, 255, 255, 0.15) !important;
-            border-radius: 8px !important;
+            width: 45px !important;
+            width: 45px !important;
             margin: 0 auto 16px !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            display: block !important;
+            filter: brightness(0) invert(1) !important;
         }
         
         .logo img {
-            width: 26px !important;
-            height: 26px !important;
+            width: 45px !important;
+            height: 45px !important;
             object-fit: contain !important;
+            display: block !important;
+            margin: 0 auto !important;
+            filter: brightness(0) invert(1) !important;
         }
         
         .header h1 {
@@ -110,7 +110,7 @@
         
         .task-description {
             font-size: 15px !important;
-            color: #666666 !important;
+            color: #444444 !important;
             line-height: 1.6 !important;
             margin-bottom: 25px !important;
         }
@@ -136,7 +136,7 @@
             display: table-cell !important;
             width: 50px !important;
             height: 50px !important;
-            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
             border-radius: 10px !important;
             text-align: center !important;
             vertical-align: middle !important;
@@ -161,7 +161,7 @@
         
         .task-type {
             display: inline-block !important;
-            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
             color: white !important;
             padding: 4px 10px !important;
             border-radius: 12px !important;
@@ -197,7 +197,7 @@
         
         .detail-label {
             font-size: 11px !important;
-            color: #666666 !important;
+            color: #444444 !important;
             font-weight: 600 !important;
             margin-bottom: 3px !important;
             text-transform: uppercase !important;
@@ -220,7 +220,7 @@
         
         .action-button {
             display: inline-block !important;
-            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
             color: white !important;
             text-decoration: none !important;
             padding: 12px 20px !important;
@@ -248,7 +248,7 @@
             display: inline-flex !important;
             align-items: center !important;
             gap: 6px !important;
-            background: linear-gradient(135deg, #000000 0%, #333333 100%) !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
             color: white !important;
             text-decoration: none !important;
             padding: 10px 16px !important;
@@ -260,18 +260,14 @@
         
         .footer-text {
             font-size: 12px !important;
-            color: #666666 !important;
+            color: #444444 !important;
             line-height: 1.5 !important;
         }
         
-        /* Enhanced mobile styles */
+        /* Mobile optimizations */
         @media only screen and (max-width: 480px) {
             body {
-                padding: 5px !important;
-            }
-            
-            .email-container {
-                border-radius: 8px !important;
+                padding: 10px !important;
             }
             
             .header {
@@ -299,13 +295,13 @@
             }
             
             .logo {
-                width: 35px !important;
-                height: 35px !important;
+                width: 45px !important;
+                height: 45px !important;
             }
             
             .logo img {
-                width: 18px !important;
-                height: 18px !important;
+                width: 45px !important;
+                height: 45px !important;
             }
             
             .task-card {
@@ -356,13 +352,13 @@
             }
             
             .logo {
-                width: 30px !important;
-                height: 30px !important;
+                width: 45px !important;
+                height: 45px !important;
             }
             
             .logo img {
-                width: 16px !important;
-                height: 16px !important;
+                width: 45px !important;
+                height: 45px !important;
             }
             
             .task-card {
@@ -397,14 +393,14 @@
         }
     </style>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #000000; margin: 0; padding: 10px; min-height: 100vh; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
-    <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
-        <div class="header" style="background: linear-gradient(135deg, #000000 0%, #333333 100%); padding: 30px 20px; text-align: center; color: white;">
-            <div class="logo" style="width: 50px; height: 50px; background: rgba(255, 255, 255, 0.15); border-radius: 8px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255, 255, 255, 0.2);">
-                <img src="cid:company-logo" alt="MyProfile Logo" style="width: 40px; height: 40px; object-fit: contain;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 10px; min-height: 100vh; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+        <div class="header" style="background: linear-gradient(135deg, #000000 0%, #444444 100%); padding: 30px 20px; text-align: center; color: white; border-radius: 16px 16px 0 0;">
+            <div class="logo" style="width: 45px; height: 45px; margin: 0 auto 16px; display: block;">
+                <img src="cid:company-logo" alt="<b>My</b>Profile Logo" style="width: 45px; height: 45px; object-fit: contain; display: block; margin: 0 auto;">
             </div>
             <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 6px; line-height: 1.2; color: white;">Task Reminder</h1>
-            <p style="font-size: 14px; opacity: 0.9; font-weight: 400; color: white;">Don't forget your important tasks</p>
+            <p style="font-size: 14px; opacity: 0.9; font-weight: 400; color: white;">Stay on top of your tasks</p>
         </div>
         
         <div class="content" style="padding: 30px 20px;">
@@ -414,7 +410,7 @@
                 <p class="greeting" style="font-size: 16px; color: #333333; margin-bottom: 16px; font-weight: 500;">{{greeting}}</p>
                 {{/if}}
                 {{#if description}}
-                <p class="task-description" style="font-size: 15px; color: #666666; line-height: 1.6; margin-bottom: 25px;">{{description}}</p>
+                <p class="task-description" style="font-size: 15px; color: #444444; line-height: 1.6; margin-bottom: 25px;">{{description}}</p>
                 {{/if}}
             </div>
             
@@ -422,13 +418,13 @@
             <div class="task-card" style="background: #f8f8f8; border: 1px solid #d0d0d0; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: left; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
                 <table class="task-header" style="display: table; width: 100%; margin-bottom: 20px;" cellpadding="0" cellspacing="0" border="0">
                     <tr>
-                        <td class="task-icon" style="display: table-cell; width: 50px; height: 50px; background: linear-gradient(135deg, #000000 0%, #333333 100%); border-radius: 10px; text-align: center; vertical-align: middle; font-size: 20px; color: white;">
+                        <td class="task-icon" style="display: table-cell; width: 50px; height: 50px; background: linear-gradient(135deg, #000000 0%, #444444 100%); border-radius: 10px; text-align: center; vertical-align: middle; font-size: 20px; color: white;">
                             {{#if task.icon}}{{task.icon}}{{else}}✅{{/if}}
                         </td>
                         <td class="task-info" style="display: table-cell; vertical-align: middle; padding-left: 15px;">
                             <h3 class="task-name" style="font-size: 18px; font-weight: 600; color: #000000; margin-bottom: 6px; line-height: 1.3; word-wrap: break-word;">{{task.title}}</h3>
-                            {{#if task.type}}
-                            <div class="task-type" style="display: inline-block; background: linear-gradient(135deg, #000000 0%, #333333 100%); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">{{task.type}}</div>
+                            {{#if task.category}}
+                            <div class="task-type" style="display: inline-block; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">{{task.category}}</div>
                             {{/if}}
                         </td>
                     </tr>
@@ -438,23 +434,23 @@
                     {{#if task.startTime}}
                     <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
                         <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">🕒</div>
-                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Start Time</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Start Time</div>
                         <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{task.startTime}}</div>
                     </div>
                     {{/if}}
                     
-                    {{#if task.endTime}}
+                    {{#if task.dueTime}}
                     <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
                         <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">⏰</div>
-                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Due Time</div>
-                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{task.endTime}}</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Due Time</div>
+                        <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{task.dueTime}}</div>
                     </div>
                     {{/if}}
                     
                     {{#if task.priority}}
                     <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
-                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">⚡</div>
-                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Priority</div>
+                        <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">🔥</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Priority</div>
                         <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{task.priority}}</div>
                     </div>
                     {{/if}}
@@ -462,7 +458,7 @@
                     {{#if task.category}}
                     <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
                         <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">📂</div>
-                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Category</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Category</div>
                         <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{task.category}}</div>
                     </div>
                     {{/if}}
@@ -470,7 +466,7 @@
                     {{#if task.description}}
                     <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
                         <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">📝</div>
-                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Description</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Description</div>
                         <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{task.description}}</div>
                     </div>
                     {{/if}}
@@ -478,7 +474,7 @@
                     {{#if task.status}}
                     <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 10px;">
                         <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">📊</div>
-                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Status</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Status</div>
                         <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{task.status}}</div>
                     </div>
                     {{/if}}
@@ -486,7 +482,7 @@
                     {{#if task.assignedTo}}
                     <div class="detail-item" style="background: #ffffff; border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; margin-bottom: 0;">
                         <div class="detail-icon" style="font-size: 14px; margin-bottom: 6px;">👤</div>
-                        <div class="detail-label" style="font-size: 11px; color: #666666; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Assigned To</div>
+                        <div class="detail-label" style="font-size: 11px; color: #444444; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px;">Assigned To</div>
                         <div class="detail-value" style="font-size: 13px; color: #000000; font-weight: 600; line-height: 1.4; word-wrap: break-word;">{{task.assignedTo}}</div>
                     </div>
                     {{/if}}
@@ -497,18 +493,18 @@
             {{#if actions}}
             <div class="action-buttons" style="text-align: center; margin: 25px 0;">
                 {{#each actions}}
-                <a href="{{url}}" class="action-button {{#if secondary}}secondary{{/if}}" style="display: inline-block; background: linear-gradient(135deg, #000000 0%, #333333 100%); color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px;">{{text}}</a>
+                <a href="{{url}}" class="action-button {{#if secondary}}secondary{{/if}}" style="display: inline-block; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px;">{{text}}</a>
                 {{/each}}
             </div>
             {{/if}}
         </div>
         
         <div class="footer" style="background: #f8f8f8; padding: 25px 20px; text-align: center; border-top: 1px solid #e0e0e0;">
-            <a href="mailto:support@getmyprofile.online" class="support-link" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #000000 0%, #333333 100%); color: white; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; margin-bottom: 12px; font-size: 13px;">
+            <a href="mailto:support@getmyprofile.online" class="support-link" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; margin-bottom: 12px; font-size: 13px;">
                 📧 Contact Support
             </a>
-            <p class="footer-text" style="font-size: 12px; color: #666666; line-height: 1.5;">
-                This is an automated task reminder from MyProfile. Please do not reply to this email.<br>
+            <p class="footer-text" style="font-size: 12px; color: #444444; line-height: 1.5;">
+                This is an automated message from <b>My</b>Profile. Please do not reply to this email.<br>
                 If you need assistance, please contact our support team.
             </p>
         </div>

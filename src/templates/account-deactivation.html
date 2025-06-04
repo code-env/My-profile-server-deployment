@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="x-apple-disable-message-reformatting">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Account Deactivated - <b>My</b>Profile</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
+            background: transparent !important;
+            margin: 0 !important;
+            padding: 10px !important;
+            min-height: 100vh !important;
+            -webkit-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
+        }
+        
+        .email-container {
+            max-width: 600px !important;
+            margin: 0 auto !important;
+            background: #ffffff !important;
+            border-radius: 16px !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            padding: 30px 20px !important;
+            text-align: center !important;
+            color: white !important;
+            border-radius: 16px 16px 0 0 !important;
+        }
+        
+        .logo {
+            width: 45px !important;
+            height: 45px !important;
+            margin: 0 auto 16px !important;
+            display: block !important;
+        }
+        
+        .logo img {
+            width: 45px !important;
+            height: 45px !important;
+            object-fit: contain !important;
+            display: block !important;
+            margin: 0 auto !important;
+        }
+        
+        .content {
+            padding: 30px 20px !important;
+        }
+        
+        .deactivation-card {
+            background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 25px 0 !important;
+            text-align: center !important;
+        }
+        
+        .action-button {
+            display: inline-block !important;
+            padding: 12px 24px !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            font-size: 14px !important;
+            margin: 15px 0 !important;
+        }
+        
+        .footer {
+            background: #f8f8f8 !important;
+            padding: 25px 20px !important;
+            text-align: center !important;
+            border-top: 1px solid #e0e0e0 !important;
+        }
+        
+        .support-link {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            padding: 10px 16px !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin-bottom: 12px !important;
+            font-size: 13px !important;
+        }
+        
+        @media only screen and (max-width: 480px) {
+            .header {
+                padding: 25px 15px !important;
+            }
+            
+            .content {
+                padding: 25px 15px !important;
+            }
+            
+            .deactivation-card {
+                padding: 15px !important;
+            }
+        }
+    </style>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 10px; min-height: 100vh; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+        <div class="header" style="background: linear-gradient(135deg, #000000 0%, #444444 100%); padding: 30px 20px; text-align: center; color: white; border-radius: 16px 16px 0 0;">
+            <div class="logo" style="width: 45px; height: 45px; margin: 0 auto 16px; display: block;">
+                <img src="cid:company-logo" alt="<b>My</b>Profile Logo" style="width: 45px; height: 45px; object-fit: contain; display: block; margin: 0 auto;">
+            </div>
+            <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 6px; line-height: 1.2; color: white;">👋 Account Deactivated</h1>
+            <p style="font-size: 14px; opacity: 0.9; font-weight: 400; color: white;">We're sorry to see you go</p>
+        </div>
+        
+        <div class="content" style="padding: 30px 20px;">
+            <p style="font-size: 16px; color: #2d3748; margin-bottom: 20px; font-weight: 500;">
+                Hi {{firstName}},
+            </p>
+            
+            <p style="margin-bottom: 20px; line-height: 1.6; color: #4a5568;">
+                Your <b>My</b>Profile account has been successfully deactivated as requested on {{formatDate deactivationDate}}.
+            </p>
+            
+            <div class="deactivation-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 15px;">📦</div>
+                <h3 style="font-size: 18px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                    Account Status: Deactivated
+                </h3>
+                <p style="font-size: 14px; color: #6b7280; line-height: 1.5; margin-bottom: 15px;">
+                    Your profile and data have been safely archived. You can reactivate your account anytime within the next 30 days.
+                </p>
+                <p style="font-size: 12px; color: #9ca3af; font-style: italic;">
+                    After 30 days, your data will be permanently deleted.
+                </p>
+            </div>
+            
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                <h4 style="font-size: 14px; font-weight: 600; color: #0369a1; margin-bottom: 8px;">💡 Want to come back?</h4>
+                <p style="font-size: 13px; color: #374151; line-height: 1.4;">
+                    You can reactivate your account by simply logging in again. All your data and connections will be restored.
+                </p>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{reactivateUrl}}" class="action-button" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; margin: 15px 0;">
+                    🔄 Reactivate Account
+                </a>
+            </div>
+            
+            <p style="margin: 20px 0; line-height: 1.6; color: #4a5568; text-align: center;">
+                Thank you for being part of the <b>My</b>Profile community. We hope to see you again soon!
+            </p>
+        </div>
+        
+        <div class="footer" style="background: #f8f8f8; padding: 25px 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+            <a href="mailto:support@getmyprofile.online" class="support-link" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; margin-bottom: 12px; font-size: 13px;">
+                📧 Contact Support
+            </a>
+            <p style="font-size: 12px; color: #444444; line-height: 1.5;">
+                This is an automated message from <b>My</b>Profile. Please do not reply to this email.<br>
+                If you need assistance, please contact our support team.
+            </p>
+        </div>
+    </div>
+</body>
+</html> 

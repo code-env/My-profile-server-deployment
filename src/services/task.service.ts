@@ -10,6 +10,7 @@ import { SettingsService } from './settings.service';
 import { taskSettingsIntegration } from '../utils/taskSettingsIntegration';
 import { mapExternalToInternal } from '../utils/visibilityMapper';
 import { TimezoneUtils } from '../utils/timezoneUtils';
+import createHttpError from 'http-errors';
 
 class TaskService {
     private settingsService = new SettingsService();
@@ -351,10 +352,19 @@ class TaskService {
      * Delete a task
      */
     async deleteTask(taskId: string, userId: string): Promise<boolean> {
-        const result = await Task.deleteOne({ _id: taskId, createdBy: userId });
-        if (result.deletedCount === 0) {
-            throw new Error('Task not found or access denied');
+        // First check if task exists
+        const task = await Task.findById(taskId);
+        if (!task) {
+            throw createHttpError(404, 'Task not found');
         }
+
+        // Then check if user has access
+        if (task.createdBy.toString() !== userId) {
+            throw createHttpError(403, 'Access denied');
+        }
+
+        // Finally delete the task
+        await task.deleteOne();
         return true;
     }
 

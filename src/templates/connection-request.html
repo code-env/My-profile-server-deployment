@@ -2,403 +2,443 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>New Connection Request - MyProfile</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="x-apple-disable-message-reformatting">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Connection Request - <b>My</b>Profile</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
     <style>
+        /* Reset and base styles */
         * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
         }
         
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%);
-            margin: 0;
-            padding: 20px;
-            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
+            background: transparent !important;
+            margin: 0 !important;
+            padding: 10px !important;
+            min-height: 100vh !important;
+            -webkit-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
         }
         
+        /* Mobile-first container */
         .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: #ffffff;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-            border: 1px solid #e5e5e5;
+            max-width: 600px !important;
+            margin: 0 auto !important;
+            background: #ffffff !important;
+            border-radius: 16px !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
         }
         
+        /* Header optimized for mobile */
         .header {
-            background: linear-gradient(135deg, #000000 0%, #333333 50%, #000000 100%);
-            padding: 40px 30px;
-            text-align: center;
-            color: white;
-            position: relative;
-        }
-        
-        .header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
-            pointer-events: none;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            padding: 30px 20px !important;
+            text-align: center !important;
+            color: white !important;
+            border-radius: 16px 16px 0 0 !important;
         }
         
         .logo {
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
-            border-radius: 15px;
-            margin: 0 auto 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            width: 45px !important;
+            width: 45px !important;
+            margin: 0 auto 16px !important;
+            display: block !important;
         }
         
         .logo img {
-            width: 35px;
-            height: 35px;
-            object-fit: contain;
+            width: 45px !important;
+            height: 45px !important;
+            object-fit: contain !important;
+            display: block !important;
+            margin: 0 auto !important;
         }
         
         .header h1 {
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 8px;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            font-size: 22px !important;
+            font-weight: 700 !important;
+            margin-bottom: 6px !important;
+            line-height: 1.2 !important;
         }
         
         .header p {
-            font-size: 16px;
-            opacity: 0.9;
-            font-weight: 400;
+            font-size: 14px !important;
+            opacity: 0.9 !important;
+            font-weight: 400 !important;
         }
         
+        /* Content with better mobile spacing */
         .content {
-            padding: 40px 30px;
-        }
-        
-        .connection-section {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-        
-        .connection-title {
-            font-size: 24px;
-            font-weight: 600;
-            color: #000000;
-            margin-bottom: 12px;
+            padding: 30px 20px !important;
         }
         
         .greeting {
-            font-size: 18px;
-            color: #333333;
-            margin-bottom: 20px;
-            font-weight: 500;
+            font-size: 16px !important;
+            color: #2d3748 !important;
+            margin-bottom: 20px !important;
+            font-weight: 500 !important;
         }
         
-        .connection-description {
-            font-size: 16px;
-            color: #666666;
-            line-height: 1.6;
-            margin-bottom: 30px;
+        /* Profile section */
+        .profile-section {
+            background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+            padding: 25px !important;
+            margin: 25px 0 !important;
+            text-align: center !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
         }
         
-        .connection-card {
-            background: linear-gradient(135deg, #f8f8f8 0%, #f0f0f0 100%);
-            border: 1px solid #d0d0d0;
-            border-radius: 16px;
-            padding: 30px;
-            margin: 30px 0;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        .profile-avatar {
+            width: 100px !important;
+            height: 100px !important;
+            border-radius: 50% !important;
+            margin: 0 auto 20px !important;
+            display: block !important;
+            border: 4px solid #e2e8f0 !important;
+            object-fit: cover !important;
         }
         
-        .sender-avatar {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #e0e0e0 0%, #d0d0d0 100%);
-            border-radius: 50%;
-            margin: 0 auto 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            color: #333333;
-            border: 3px solid #ffffff;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        .profile-name {
+            font-size: 20px !important;
+            font-weight: 700 !important;
+            color: #000000 !important;
+            margin-bottom: 8px !important;
+            line-height: 1.3 !important;
         }
         
-        .sender-name {
-            font-size: 20px;
-            font-weight: 600;
-            color: #000000;
-            margin-bottom: 8px;
+        .profile-title {
+            font-size: 14px !important;
+            color: #444444 !important;
+            margin-bottom: 15px !important;
+            font-weight: 500 !important;
         }
         
-        .sender-title {
-            font-size: 14px;
-            color: #666666;
-            margin-bottom: 16px;
+        .profile-bio {
+            font-size: 14px !important;
+            color: #4a5568 !important;
+            line-height: 1.6 !important;
+            margin-bottom: 20px !important;
+            text-align: left !important;
+            background: #ffffff !important;
+            padding: 15px !important;
+            border-radius: 8px !important;
+            border: 1px solid #e2e8f0 !important;
         }
         
-        .connection-type {
-            display: inline-block;
-            background: linear-gradient(135deg, #000000 0%, #333333 100%);
-            color: white;
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 20px;
+        /* Connection details */
+        .connection-details {
+            background: #f0f9ff !important;
+            border: 1px solid #bae6fd !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 25px 0 !important;
+            text-align: left !important;
         }
         
-        .connection-message {
-            font-size: 14px;
-            color: #333333;
-            line-height: 1.6;
-            font-style: italic;
-            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
-            padding: 16px;
-            border-radius: 8px;
-            border-left: 3px solid #000000;
-            margin-top: 16px;
+        .connection-title {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            color: #0369a1 !important;
+            margin-bottom: 12px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
         }
         
+        /* Message section */
+        .message-section {
+            background: #fffbeb !important;
+            border: 1px solid #fef3c7 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 25px 0 !important;
+            text-align: left !important;
+        }
+        
+        .message-title {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            color: #92400e !important;
+            margin-bottom: 12px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+        }
+        
+        /* Action buttons */
         .action-buttons {
-            display: flex;
-            gap: 16px;
-            justify-content: center;
-            margin: 30px 0;
-            flex-wrap: wrap;
+            text-align: center !important;
+            margin: 25px 0 !important;
         }
         
-        .btn {
-            padding: 14px 28px;
-            border-radius: 10px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 140px;
-            justify-content: center;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        .button-group {
+            display: flex !important;
+            gap: 15px !important;
+            justify-content: center !important;
+            flex-wrap: wrap !important;
         }
         
-        .btn-accept {
-            background: linear-gradient(135deg, #000000 0%, #333333 100%);
-            color: white;
+        .action-button {
+            display: inline-block !important;
+            padding: 12px 20px !important;
+            text-decoration: none !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin: 5px !important;
+            font-size: 14px !important;
+            min-width: 120px !important;
+            text-align: center !important;
         }
         
-        .btn-accept:hover {
-            background: linear-gradient(135deg, #333333 0%, #000000 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        .action-button.accept {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            color: white !important;
         }
         
-        .btn-decline {
-            background: linear-gradient(135deg, #f8f8f8 0%, #f0f0f0 100%);
-            color: #333333;
-            border: 1px solid #d0d0d0;
+        .action-button.decline {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+            color: white !important;
         }
         
-        .btn-decline:hover {
-            background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        .action-button.view {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+            color: white !important;
         }
         
-        .privacy-notice {
-            background: linear-gradient(135deg, #f8f8f8 0%, #f0f0f0 100%);
-            border: 1px solid #d0d0d0;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 30px 0;
-            text-align: center;
-        }
-        
-        .privacy-notice .icon {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, #e0e0e0 0%, #d0d0d0 100%);
-            border-radius: 50%;
-            margin: 0 auto 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #333333;
-            font-size: 18px;
-        }
-        
-        .privacy-notice p {
-            font-size: 14px;
-            color: #333333;
-            line-height: 1.5;
-            margin: 0;
-        }
-        
+        /* Footer */
         .footer {
-            background: linear-gradient(135deg, #f8f8f8 0%, #f0f0f0 100%);
-            padding: 30px;
-            text-align: center;
-            border-top: 1px solid #e0e0e0;
+            background: #f8f8f8 !important;
+            padding: 25px 20px !important;
+            text-align: center !important;
+            border-top: 1px solid #e0e0e0 !important;
         }
         
         .support-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: linear-gradient(135deg, #000000 0%, #333333 100%);
-            color: white;
-            text-decoration: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        }
-        
-        .support-link:hover {
-            background: linear-gradient(135deg, #333333 0%, #000000 100%);
-            transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            padding: 10px 16px !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin-bottom: 12px !important;
+            font-size: 13px !important;
         }
         
         .footer-text {
-            font-size: 12px;
-            color: #666666;
-            line-height: 1.5;
+            font-size: 12px !important;
+            color: #444444 !important;
+            line-height: 1.5 !important;
         }
         
-        .team-signature {
-            font-size: 14px;
-            color: #333333;
-            margin-bottom: 20px;
-            font-weight: 500;
-        }
-        
-        @media only screen and (max-width: 600px) {
+        /* Mobile optimizations */
+        @media only screen and (max-width: 480px) {
             body {
-                padding: 10px;
+                padding: 10px !important;
             }
             
             .header {
-                padding: 30px 20px;
+                padding: 25px 15px !important;
             }
             
             .content {
-                padding: 30px 20px;
+                padding: 25px 15px !important;
             }
             
             .header h1 {
-                font-size: 24px;
+                font-size: 20px !important;
             }
             
-            .connection-title {
-                font-size: 20px;
+            .logo {
+                width: 45px !important;
+                height: 45px !important;
             }
             
-            .action-buttons {
-                flex-direction: column;
-                align-items: center;
+            .logo img {
+                width: 45px !important;
+                height: 45px !important;
             }
             
-            .btn {
-                width: 100%;
-                max-width: 280px;
+            .profile-section {
+                padding: 20px !important;
+                margin: 20px 0 !important;
             }
             
-            .connection-card,
-            .privacy-notice {
-                padding: 20px;
+            .profile-avatar {
+                width: 80px !important;
+                height: 80px !important;
+                border-width: 3px !important;
+            }
+            
+            .profile-name {
+                font-size: 18px !important;
+            }
+            
+            .profile-bio {
+                padding: 12px !important;
+            }
+            
+            .button-group {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            
+            .action-button {
+                padding: 10px 16px !important;
+                font-size: 13px !important;
+                margin: 3px !important;
+                min-width: auto !important;
+                width: 100% !important;
+            }
+            
+            .connection-details,
+            .message-section {
+                padding: 15px !important;
+                margin: 20px 0 !important;
+            }
+            
+            .footer {
+                padding: 20px 15px !important;
+            }
+        }
+        
+        /* Extra small screens */
+        @media only screen and (max-width: 320px) {
+            .content {
+                padding: 20px 12px !important;
+            }
+            
+            .logo {
+                width: 30px !important;
+                height: 30px !important;
+            }
+            
+            .logo img {
+                width: 16px !important;
+                height: 16px !important;
+            }
+            
+            .profile-section {
+                padding: 15px !important;
+            }
+            
+            .profile-avatar {
+                width: 70px !important;
+                height: 70px !important;
+            }
+            
+            .profile-name {
+                font-size: 16px !important;
+            }
+            
+            .profile-bio {
+                padding: 10px !important;
+            }
+            
+            .connection-details,
+            .message-section {
+                padding: 12px !important;
             }
         }
     </style>
 </head>
-<body>
-    <div class="email-container">
-        <div class="header">
-            <div class="logo">
-                <img src="cid:company-logo" alt="MyProfile Logo">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 10px; min-height: 100vh; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+        <div class="header" style="background: linear-gradient(135deg, #000000 0%, #444444 100%); padding: 30px 20px; text-align: center; color: white; border-radius: 16px 16px 0 0;">
+            <div class="logo" style="width: 45px; height: 45px; margin: 0 auto 16px; display: block;">
+              <img src="cid:company-logo" alt="<b>My</b>Profile Logo" style="width: 45px; height: 45px; object-fit: contain; display: block; margin: auto;">
             </div>
-            <h1>Connection Request</h1>
-            <p>Someone wants to connect with you</p>
+            <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 6px; line-height: 1.2; color: white;">Connection Request</h1>
+            <p style="font-size: 14px; opacity: 0.9; font-weight: 400; color: white;">New connection request received</p>
         </div>
         
-        <div class="content">
-            <div class="connection-section">
-                <h2 class="connection-title">New Connection Request</h2>
-                <p class="greeting">Hello {{recipientName}},</p>
-                <p class="connection-description">
-                    You have received a new connection request on MyProfile. 
-                    Review the details below and choose how you'd like to respond.
-                </p>
-                
-                <div class="connection-card">
-                    <div class="sender-avatar">
-                        {{#if senderAvatar}}
-                            <img src="{{senderAvatar}}" alt="{{senderName}}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
-                        {{else}}
-                            {{substring senderName 0 1}}
-                        {{/if}}
-                    </div>
-                    
-                    <div class="sender-name">{{senderName}}</div>
-                    <div class="sender-title">{{senderTitle}}</div>
-                    
-                    <div class="connection-type">{{connectionType}}</div>
-                    
-                    {{#if message}}
-                        <div class="connection-message">
-                            "{{message}}"
-                        </div>
-                    {{/if}}
-                </div>
-                
-                <div class="action-buttons">
-                    <a href="{{acceptUrl}}" class="btn btn-accept">
-                        ✓ Accept Request
-                    </a>
-                    <a href="{{declineUrl}}" class="btn btn-decline">
-                        ✗ Decline Request
-                    </a>
-                </div>
-            </div>
-            
-            <div class="privacy-notice">
-                <div class="icon">🔒</div>
-                <p>
-                    <strong>Privacy Protected:</strong> Your contact information remains private until you accept this connection request. 
-                    Only basic profile information is shared with the requester.
-                </p>
-            </div>
-        </div>
-        
-        <div class="footer">
-            <p class="team-signature">
-                Thanks,<br>
-                The {{appName}} Team
+        <div class="content" style="padding: 30px 20px;">
+            <p class="greeting" style="font-size: 16px; color: #2d3748; margin-bottom: 20px; font-weight: 500;">
+                Hello {{recipientName}},
             </p>
             
-            <a href="mailto:support@getmyprofile.online" class="support-link">
+            <p style="margin-bottom: 20px; line-height: 1.6; color: #4a5568;">
+                You have received a new connection request from:
+            </p>
+            
+            <div class="profile-section" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 25px 0; text-align: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);">
+                {{#if senderAvatar}}
+                <img src="{{senderAvatar}}" alt="{{senderName}}" class="profile-avatar" style="width: 100px; height: 100px; border-radius: 50%; margin: 0 auto 20px; display: block; border: 4px solid #e2e8f0; object-fit: cover;">
+                {{else}}
+                <div class="profile-avatar" style="width: 100px; height: 100px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-size: 40px; font-weight: 700; border: 4px solid #e2e8f0;">
+                    {{substring senderName 0 1}}
+                </div>
+                {{/if}}
+                
+                <h3 class="profile-name" style="font-size: 20px; font-weight: 700; color: #000000; margin-bottom: 8px; line-height: 1.3;">{{senderName}}</h3>
+                
+                {{#if senderTitle}}
+                <p class="profile-title" style="font-size: 14px; color: #444444; margin-bottom: 15px; font-weight: 500;">{{senderTitle}}</p>
+                {{/if}}
+                
+                {{#if senderBio}}
+                <div class="profile-bio" style="font-size: 14px; color: #4a5568; line-height: 1.6; margin-bottom: 20px; text-align: left; background: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">{{senderBio}}</div>
+                {{/if}}
+            </div>
+            
+            {{#if message}}
+            <div class="message-section" style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: left;">
+                <h4 class="message-title" style="font-size: 16px; font-weight: 600; color: #92400e; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    💬 Personal Message
+                </h4>
+                <p style="font-size: 14px; color: #374151; line-height: 1.6;">{{message}}</p>
+            </div>
+            {{/if}}
+            
+            <div class="connection-details" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: left;">
+                <h4 class="connection-title" style="font-size: 16px; font-weight: 600; color: #0369a1; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    🔗 Connection Details
+                </h4>
+                <p style="font-size: 14px; color: #374151; margin-bottom: 8px;">
+                    <strong>Connection Type:</strong> {{connectionType}}
+                </p>
+                <p style="font-size: 14px; color: #374151;">
+                    <strong>Requested on:</strong> {{formatDate requestDate}}
+                </p>
+            </div>
+            
+            <div class="action-buttons" style="text-align: center; margin: 25px 0;">
+                <div class="button-group" style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                    <a href="{{acceptUrl}}" class="action-button accept" style="display: inline-block; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px; min-width: 120px; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">Accept</a>
+                    <a href="{{declineUrl}}" class="action-button decline" style="display: inline-block; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px; min-width: 120px; text-align: center; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white;">Decline</a>
+                    <a href="{{profileUrl}}" class="action-button view" style="display: inline-block; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: 500; margin: 5px; font-size: 14px; min-width: 120px; text-align: center; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white;">View Profile</a>
+                </div>
+            </div>
+            
+            <p style="margin-top: 20px; color: #444444; line-height: 1.6; text-align: center;">
+                You can also manage your connection requests by visiting your dashboard.
+            </p>
+        </div>
+        
+        <div class="footer" style="background: #f8f8f8; padding: 25px 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+            <a href="mailto:support@getmyprofile.online" class="support-link" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; margin-bottom: 12px; font-size: 13px;">
                 📧 Contact Support
             </a>
-            
-            <p class="footer-text">
-                This is an automated message from MyProfile. Please do not reply to this email.<br>
+            <p class="footer-text" style="font-size: 12px; color: #444444; line-height: 1.5;">
+                This is an automated message from <b>My</b>Profile. Please do not reply to this email.<br>
                 If you need assistance, please contact our support team.
             </p>
         </div>

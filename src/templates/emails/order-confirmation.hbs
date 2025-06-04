@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="x-apple-disable-message-reformatting">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Order Confirmation - <b>My</b>Profile</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
+            background: transparent !important;
+            margin: 0 !important;
+            padding: 10px !important;
+            min-height: 100vh !important;
+            -webkit-text-size-adjust: 100% !important;
+            -ms-text-size-adjust: 100% !important;
+        }
+        
+        .email-container {
+            max-width: 600px !important;
+            margin: 0 auto !important;
+            background: #ffffff !important;
+            border-radius: 16px !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            padding: 30px 20px !important;
+            text-align: center !important;
+            color: white !important;
+            border-radius: 16px 16px 0 0 !important;
+        }
+        
+        .logo {
+            width: 45px !important;
+            height: 45px !important;
+            margin: 0 auto 16px !important;
+            display: block !important;
+            filter: brightness(0) invert(1) !important;
+        }
+        
+        .logo img {
+            width: 45px !important;
+            height: 45px !important;
+            object-fit: contain !important;
+            display: block !important;
+            margin: 0 auto !important;
+            filter: brightness(0) invert(1) !important;
+        }
+        
+        .content {
+            padding: 30px 20px !important;
+        }
+        
+        .order-card {
+            background: #f0fdf4 !important;
+            border: 1px solid #bbf7d0 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 25px 0 !important;
+        }
+        
+        .order-item {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            padding: 12px 0 !important;
+            border-bottom: 1px solid #e5e7eb !important;
+        }
+        
+        .order-item:last-child {
+            border-bottom: none !important;
+        }
+        
+        .action-button {
+            display: inline-block !important;
+            padding: 12px 24px !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            font-size: 14px !important;
+            margin: 15px 0 !important;
+        }
+        
+        .footer {
+            background: #f8f8f8 !important;
+            padding: 25px 20px !important;
+            text-align: center !important;
+            border-top: 1px solid #e0e0e0 !important;
+        }
+        
+        .support-link {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            background: linear-gradient(135deg, #000000 0%, #444444 100%) !important;
+            color: white !important;
+            text-decoration: none !important;
+            padding: 10px 16px !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            margin-bottom: 12px !important;
+            font-size: 13px !important;
+        }
+        
+        @media only screen and (max-width: 480px) {
+            .header {
+                padding: 25px 15px !important;
+            }
+            
+            .content {
+                padding: 25px 15px !important;
+            }
+            
+            .order-card {
+                padding: 15px !important;
+            }
+            
+            .order-item {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 8px !important;
+            }
+        }
+    </style>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f2f2f2; margin: 0; padding: 10px; min-height: 100vh; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+        <div class="header" style="background: linear-gradient(135deg, #000000 0%, #444444 100%); padding: 30px 20px; text-align: center; color: white; border-radius: 16px 16px 0 0;">
+            <div class="logo" style="width: 45px; height: 45px; margin: 0 auto 16px; display: block;">
+                <img src="cid:company-logo" alt="<b>My</b>Profile Logo" style="width: 45px; height: 45px; object-fit: contain; display: block; margin: 0 auto;">
+            </div>
+            <h1 style="font-size: 22px; font-weight: 700; margin-bottom: 6px; line-height: 1.2; color: white;">✅ Order Confirmed</h1>
+            <p style="font-size: 14px; opacity: 0.9; font-weight: 400; color: white;">Thank you for your order</p>
+        </div>
+        
+        <div class="content" style="padding: 30px 20px;">
+            <p style="font-size: 16px; color: #2d3748; margin-bottom: 20px; font-weight: 500;">
+                Hi {{firstName}},
+            </p>
+            
+            <p style="margin-bottom: 20px; line-height: 1.6; color: #4a5568;">
+                Thank you for your order! We've received your order and it's being processed. Here are your order details:
+            </p>
+            
+            <div class="order-card" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin: 25px 0;">
+                <h3 style="font-size: 18px; font-weight: 600; color: #166534; margin-bottom: 15px;">
+                    📦 Order #{{orderNumber}}
+                </h3>
+                
+                <div style="background: #ffffff; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                    <h4 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px;">Order Details:</h4>
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span style="font-size: 13px; color: #6b7280;">Order Date:</span>
+                        <span style="font-size: 13px; font-weight: 600; color: #374151;">{{formatDate orderDate}}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span style="font-size: 13px; color: #6b7280;">Status:</span>
+                        <span style="font-size: 13px; font-weight: 600; color: #16a34a;">{{orderStatus}}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span style="font-size: 13px; color: #6b7280;">Estimated Delivery:</span>
+                        <span style="font-size: 13px; font-weight: 600; color: #374151;">{{formatDate estimatedDelivery}}</span>
+                    </div>
+                </div>
+                
+                <h4 style="font-size: 14px; font-weight: 600; color: #374151; margin: 20px 0 10px;">Items Ordered:</h4>
+                {{#each orderItems}}
+                <div class="order-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                    <div style="flex: 1;">
+                        <div style="font-size: 14px; font-weight: 600; color: #374151;">{{name}}</div>
+                        <div style="font-size: 12px; color: #6b7280;">Qty: {{quantity}}</div>
+                        {{#if description}}
+                        <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">{{description}}</div>
+                        {{/if}}
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 14px; font-weight: 600; color: #374151;">${{price}}</div>
+                    </div>
+                </div>
+                {{/each}}
+                
+                <div style="background: #f8fafc; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span style="font-size: 13px; color: #6b7280;">Subtotal:</span>
+                        <span style="font-size: 13px; font-weight: 600; color: #374151;">${{subtotal}}</span>
+                    </div>
+                    {{#if shipping}}
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span style="font-size: 13px; color: #6b7280;">Shipping:</span>
+                        <span style="font-size: 13px; font-weight: 600; color: #374151;">${{shipping}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if tax}}
+                    <div style="display: flex; justify-content: space-between; margin: 5px 0;">
+                        <span style="font-size: 13px; color: #6b7280;">Tax:</span>
+                        <span style="font-size: 13px; font-weight: 600; color: #374151;">${{tax}}</span>
+                    </div>
+                    {{/if}}
+                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 10px 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 16px; font-weight: 700; color: #374151;">Total:</span>
+                        <span style="font-size: 18px; font-weight: 700; color: #166534;">${{total}}</span>
+                    </div>
+                </div>
+            </div>
+            
+            {{#if shippingAddress}}
+            <div style="background: #f8fafc; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                <h4 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px;">🚚 Shipping Address:</h4>
+                <div style="font-size: 13px; color: #6b7280; line-height: 1.4;">
+                    {{shippingAddress.name}}<br>
+                    {{shippingAddress.street}}<br>
+                    {{shippingAddress.city}}, {{shippingAddress.state}} {{shippingAddress.zipCode}}<br>
+                    {{shippingAddress.country}}
+                </div>
+            </div>
+            {{/if}}
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{trackingUrl}}" class="action-button" style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; margin: 15px 0;">
+                    📦 Track Your Order
+                </a>
+            </div>
+            
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                <h4 style="font-size: 14px; font-weight: 600; color: #0369a1; margin-bottom: 8px;">📋 What's Next:</h4>
+                <ul style="font-size: 13px; color: #374151; line-height: 1.4; margin-left: 15px;">
+                    <li>You'll receive a shipping confirmation email with tracking details</li>
+                    <li>Your order will be processed within 1-2 business days</li>
+                    <li>Estimated delivery: {{formatDate estimatedDelivery}}</li>
+                    <li>Questions? Contact our support team anytime</li>
+                </ul>
+            </div>
+            
+            <p style="margin: 20px 0; line-height: 1.6; color: #4a5568; text-align: center;">
+                Thank you for choosing <b>My</b>Profile! We appreciate your business.
+            </p>
+        </div>
+        
+        <div class="footer" style="background: #f8f8f8; padding: 25px 20px; text-align: center; border-top: 1px solid #e0e0e0;">
+            <a href="mailto:support@getmyprofile.online" class="support-link" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #000000 0%, #444444 100%); color: white; text-decoration: none; padding: 10px 16px; border-radius: 8px; font-weight: 500; margin-bottom: 12px; font-size: 13px;">
+                📧 Contact Support
+            </a>
+            <p style="font-size: 12px; color: #444444; line-height: 1.5;">
+                This is an automated message from <b>My</b>Profile. Please do not reply to this email.<br>
+                If you need assistance, please contact our support team.
+            </p>
+        </div>
+    </div>
+</body>
+</html> 

@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 import EmailService from './email.service';
 import telegramService from './telegram.service';
 import firebaseService from './firebase.service';
+import { config } from '../config/config';
 
 export const notificationEvents = new EventEmitter();
 
@@ -284,7 +285,7 @@ export class NotificationService {
         actionText: notification.action?.text || '',
         action: notification.action || {},
         metadata: notification.metadata || {},
-        appName: 'MyPts',
+        appName: config.APP_NAME,
         year: new Date().getFullYear(),
         baseUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
         unsubscribeToken: user.unsubscribeToken || '',
@@ -416,10 +417,10 @@ export class NotificationService {
         // Choose template based on transaction type
         if (templateData.metadata.transactionType === 'BUY_MYPTS') {
           emailTemplate = 'purchase-confirmation-email';
-          emailSubject = 'Purchase Confirmation - MyPts';
+          emailSubject = `Purchase Confirmation - ${config.APP_NAME}`;
         } else if (templateData.metadata.transactionType === 'SELL_MYPTS') {
           emailTemplate = 'sale-confirmation-email';
-          emailSubject = 'Sale Confirmation - MyPts';
+          emailSubject = `Sale Confirmation - ${config.APP_NAME}`;
         } else {
           emailTemplate = 'transaction-notification';
         }

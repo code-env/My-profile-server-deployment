@@ -1085,7 +1085,11 @@ class AuthController {
             // Get request info for security tracking
             const clientInfo = await getClientInfo(req);
             // Send 2FA code via email with security info
-            await email_service_1.default.sendTwoFactorAuthEmail(user.email, secretData.secret, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
+            await email_service_1.default.sendLoginVerificationOTP(user.email, secretData.secret, {
+                ipAddress: clientInfo.ip,
+                userAgent: clientInfo.os,
+                location: `${clientInfo.device || 'Unknown Device'} - ${clientInfo.browser || 'Unknown Browser'}`
+            });
             res.status(200).json({
                 message: "2FA code sent successfully",
                 qrCode: secretData.qrCode
@@ -1470,7 +1474,7 @@ class AuthController {
                 return commonSteps[issue] || commonSteps.default;
             };
             // Function to handle password reset
-            const handlePasswordReset = async (method, identifier) => {
+            const handlePasswordReset = async (method, identifier, issue) => {
                 const otp = generateOTP(6); // Generate 6-digit OTP
                 const expiry = new Date(Date.now() + auth_service_1.AuthService.OTP_EXPIRY_MINUTES * 60 * 1000);
                 // Store OTP in user record
@@ -1482,21 +1486,54 @@ class AuthController {
                 };
                 await user.save();
                 console.log("Updated user verification data:", user.verificationData);
-                if (method.toLocaleLowerCase() === "email") {
-                    await email_service_1.default.sendVerificationEmail(user.email, otp, {
-                        ipAddress: req.ip,
-                        userAgent: req.get("user-agent") || "unknown",
-                    });
-                    logger_1.logger.info(`🔐 Password Reset OTP (Email): ${otp}`);
+                // Determine reset context based on issue
+                const getResetContext = (issue) => {
+                    switch (issue) {
+                        case 'forgot_username':
+                            return {
+                                type: 'username',
+                                identifier: user.email,
+                                requestedBy: 'username recovery'
+                            };
+                        case 'forgot_email':
+                            return {
+                                type: 'email',
+                                identifier: user.username || user.email,
+                                requestedBy: 'email recovery'
+                            };
+                        case 'phone_number_change':
+                            return {
+                                type: 'phone',
+                                identifier: user.email,
+                                requestedBy: 'phone number change'
+                            };
+                        case 'email_change':
+                            return {
+                                type: 'email',
+                                identifier: user.email,
+                                requestedBy: 'email change'
+                            };
+                        case 'forgot_password':
+                        default:
+                            return {
+                                type: 'password',
+                                identifier: user.email,
+                                requestedBy: 'password reset'
+                            };
+                    }
+                };
+                if (method === "EMAIL") {
+                    await email_service_1.default.sendPasswordResetOTP(user.email, otp, user.fullName || user.username || 'User', getResetContext(issue));
+                    logger_1.logger.info(`${getResetContext(issue).requestedBy} OTP sent via email to ${user.email}`);
                 }
-                else {
+                else if (method === "PHONE") {
                     try {
                         await twilio_service_1.default.sendOTPMessage(user.phoneNumber, otp);
-                        logger_1.logger.info(`🔐 Password Reset OTP (SMS): ${otp}`);
+                        logger_1.logger.info(`${getResetContext(issue).requestedBy} OTP sent via SMS to ${user.phoneNumber}`);
                     }
                     catch (error) {
-                        logger_1.logger.error("Failed to send OTP via Twilio", error);
-                        throw new Error("Unable to send OTP via SMS. Please try again.");
+                        logger_1.logger.error('Failed to send SMS OTP:', error);
+                        throw new Error('Failed to send SMS verification. Please try email verification.');
                     }
                 }
                 return otp;
@@ -1505,7 +1542,7 @@ class AuthController {
             let otpSent = null;
             const resetIssues = ["forgot_password", "forgot_username", "forgot_email", "phone_number_change", "email_change"];
             if (resetIssues.includes(issue)) {
-                otpSent = await handlePasswordReset(verificationMethod, identifier.toLowerCase());
+                otpSent = await handlePasswordReset(verificationMethod, identifier.toLowerCase(), issue);
             }
             // Response with next steps
             return res.json({
