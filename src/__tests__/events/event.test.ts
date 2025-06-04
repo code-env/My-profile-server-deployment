@@ -783,6 +783,92 @@ describe('Event System Tests', () => {
         expect(updatedEvent.celebration?.gifts?.[0]?.description).toBe('New Book');
       });
     });
+
+    describe('POST /events/:id/comments - Add Comment', () => {
+      let testEvent: any;
+
+      beforeEach(async () => {
+        testEvent = await Event.create({
+          title: 'Event with Comments',
+          startTime: new Date('2024-12-01T10:00:00Z'),
+          endTime: new Date('2024-12-01T11:00:00Z'),
+          profile: testProfile._id,
+          createdBy: testUser._id,
+          eventType: EventType.Meeting,
+          status: EventStatus.Upcoming,
+          comments: [],
+          settings: {
+            permissions: {
+              canEdit: [testUser._id],
+              canComment: [testUser._id],
+              canView: [testUser._id]
+            }
+          }
+        });
+      });
+
+      it('should add comment with mentions and attachments', async () => {
+        const commentData = {
+          text: 'Test comment with mentions and attachments',
+          profileId: testProfile._id,
+          mentions: [testUser._id],
+          attachments: [{
+            type: 'Photo',
+            url: 'https://example.com/photo.jpg',
+            name: 'test.jpg'
+          }]
+        };
+
+        const response = await request(app)
+          .post(`/events/${testEvent.id}/comments`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .send(commentData)
+          .expect(200);
+
+        expect(response.body.success).toBe(true);
+        expect(response.body.data).toBeDefined();
+        expect(response.body.data.text).toBe(commentData.text);
+        expect(response.body.data.postedBy.toString()).toBe(testProfile._id.toString());
+      });
+
+      it('should handle empty mentions and attachments arrays', async () => {
+        const commentData = {
+          text: 'Test comment with empty arrays',
+          profileId: testProfile._id,
+          mentions: [],
+          attachments: []
+        };
+
+        const response = await request(app)
+          .post(`/events/${testEvent.id}/comments`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .send(commentData)
+          .expect(200);
+
+        expect(response.body.success).toBe(true);
+        expect(response.body.data).toBeDefined();
+        expect(response.body.data.text).toBe(commentData.text);
+        expect(response.body.data.postedBy.toString()).toBe(testProfile._id.toString());
+      });
+
+      it('should handle missing mentions and attachments fields', async () => {
+        const commentData = {
+          text: 'Test comment without optional fields',
+          profileId: testProfile._id
+        };
+
+        const response = await request(app)
+          .post(`/events/${testEvent.id}/comments`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .send(commentData)
+          .expect(200);
+
+        expect(response.body.success).toBe(true);
+        expect(response.body.data).toBeDefined();
+        expect(response.body.data.text).toBe(commentData.text);
+        expect(response.body.data.postedBy.toString()).toBe(testProfile._id.toString());
+      });
+    });
   });
 
   describe('Event Model Tests', () => {
