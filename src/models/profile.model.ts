@@ -101,7 +101,7 @@ interface IProfile {
   };
 
   ProfileBadges?: {
-    
+
     badges?: Array<{
       id: string;
       name: string;
@@ -293,7 +293,7 @@ const ProfileSchema = new Schema<IProfile>(
       accountHolder: { type: String, trim: true },
       pid: { type: String, trim: true },
       relationshipToAccountHolder: { type: String, trim: true },
-      creator: { type: Schema.Types.ObjectId, ref: 'Users', required: true, index: true },
+      creator: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
       connectLink: { type: String, required: true, unique: true, index: true },
       followLink: { type: String, required: true, unique: true, index: true },
       followers: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
@@ -690,5 +690,3 @@ interface IProfileModel extends Model<IProfile> {
 }
 
 export const ProfileModel: Model<IProfile> = mongoose.model<IProfile, IProfileModel>('Profile', ProfileSchema);
-
-

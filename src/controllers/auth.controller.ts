@@ -231,6 +231,41 @@ export class AuthController {
 
       const result: any = await AuthService.register(user, clientInfo.ip, clientInfo.os, referralCode);
 
+      // CRITICAL: Link user to device fingerprint after successful registration
+      logger.info('🔗 Attempting to link user to device fingerprint', {
+        hasDeviceFingerprint: !!req.deviceFingerprint,
+        fingerprintValue: req.deviceFingerprint?.fingerprint?.substring(0, 8) + '...',
+        hasUserId: !!result.user?._id,
+        userId: result.user?._id,
+        email: result.user?.email,
+      });
+
+      if (req.deviceFingerprint?.fingerprint && result.user?._id) {
+        try {
+          const { FraudDetectionService } = require('../services/fraudDetection.service');
+          await FraudDetectionService.linkUserToDevice(
+            req.deviceFingerprint.fingerprint,
+            result.user._id.toString(),
+            result.user.email
+          );
+          logger.info('✅ User successfully linked to device fingerprint', {
+            userId: result.user._id,
+            email: result.user.email,
+            fingerprint: req.deviceFingerprint.fingerprint.substring(0, 8) + '...',
+          });
+        } catch (linkError) {
+          logger.error('❌ Failed to link user to device fingerprint:', linkError);
+          // Don't fail registration if linking fails, but log it
+        }
+      } else {
+        logger.warn('⚠️ Cannot link user to device - missing data', {
+          hasDeviceFingerprint: !!req.deviceFingerprint,
+          hasFingerprint: !!req.deviceFingerprint?.fingerprint,
+          hasUserId: !!result.user?._id,
+          hasUserEmail: !!result.user?.email,
+        });
+      }
+
       // Return the response
       res.status(201).json({
         success: true,

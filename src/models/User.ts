@@ -545,4 +545,4 @@ userSchema.index({ otpData: 1 }, { sparse: true });
 
 logger.info('User model indexes created successfully');
 
-export const User = mongoose.model<IUser>('Users', userSchema);
+export const User = mongoose.model<IUser>('User', userSchema);

@@ -21,7 +21,7 @@ const connectionSchema = new Schema<IConnection>(
   {
     fromUser: {
       type: Schema.Types.ObjectId,
-      ref: 'Users',
+      ref: 'User',
       required: true,
     },
     fromProfile: {
@@ -49,8 +49,8 @@ const connectionSchema = new Schema<IConnection>(
       enum: ['connection', 'affiliation'],
       required: true,
     },
-    
-   
+
+
     metadata: {
       type: Map,
       of: Schema.Types.Mixed,

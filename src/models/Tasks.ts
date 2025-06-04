@@ -3,8 +3,8 @@ import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import { IProfile } from '../interfaces/profile.interface';
 import { IList } from './List';
 import { IUser } from './User';
-import { 
-  ISubTask, 
+import {
+  ISubTask,
   Comment,
   RepeatSettings,
   Reminder,
@@ -16,7 +16,7 @@ import {
   TaskStatus,
   TaskType
 } from './plans-shared';
-import { 
+import {
   repeatSettingsSchema,
   reminderSchema,
   rewardSchema,
@@ -59,7 +59,7 @@ export interface ITask extends Document {
   createdAt: Date;
   relatedList?: mongoose.Types.ObjectId | IList;
   likes: mongoose.Types.ObjectId[];
-  
+
   // Settings integration fields
   settings?: {
     visibility?: VisibilitySetting;
@@ -107,8 +107,8 @@ const taskSchema = new Schema<ITask>(
     },
     repeat: repeatSettingsSchema,
     reminders: [reminderSchema],
-    visibility: { 
-      type: String, 
+    visibility: {
+      type: String,
       enum: ['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom'],
       default: 'Public'
     },
@@ -118,18 +118,18 @@ const taskSchema = new Schema<ITask>(
     }],
     reward: rewardSchema,
     color: { type: String, default: '#1DA1F2' },
-    category: { 
-      type: String, 
+    category: {
+      type: String,
       enum: Object.values(TaskCategory),
       default: TaskCategory.Personal
     },
-    priority: { 
-      type: String, 
+    priority: {
+      type: String,
       enum: Object.values(PriorityLevel),
       default: PriorityLevel.Low
     },
-    status: { 
-      type: String, 
+    status: {
+      type: String,
       enum: Object.values(TaskStatus),
       default: TaskStatus.Upcoming
     },
@@ -147,14 +147,14 @@ const taskSchema = new Schema<ITask>(
       likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }]
     }],
     location: locationSchema,
-    profile: { 
-      type: Schema.Types.ObjectId, 
+    profile: {
+      type: Schema.Types.ObjectId,
       ref: 'Profile',
       required: true
     },
-    createdBy: { 
+    createdBy: {
       type: Schema.Types.ObjectId,
-      ref: 'Users',
+      ref: 'User',
       required: true
     },
     relatedList: {
@@ -164,10 +164,10 @@ const taskSchema = new Schema<ITask>(
     likes: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
     settings: {
       visibility: {
-        level: { 
-          type: String, 
-          enum: ['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom'], 
-          default: 'ConnectionsOnly' 
+        level: {
+          type: String,
+          enum: ['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom'],
+          default: 'ConnectionsOnly'
         },
         customUsers: [{ type: Schema.Types.ObjectId, ref: 'Profile' }]
       },
@@ -230,11 +230,11 @@ taskSchema.pre('save', function(next) {
     const start = new Date(this.startTime || new Date());
     start.setHours(0, 0, 0, 0);
     this.startTime = start;
-    
+
     const end = new Date(start);
     end.setHours(23, 59, 59, 999);
     this.endTime = end;
-    
+
     this.duration = { hours: 24, minutes: 0 };
   }
   next();

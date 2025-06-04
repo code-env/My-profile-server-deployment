@@ -358,6 +358,33 @@ export class SocialAuthController {
         }
       }
 
+      // Link user to device fingerprint after successful authentication
+      if (req.deviceFingerprint?.fingerprint && user?._id) {
+        try {
+          const { FraudDetectionService } = require('../services/fraudDetection.service');
+          await FraudDetectionService.linkUserToDevice(
+            req.deviceFingerprint.fingerprint,
+            user._id.toString(),
+            user.email
+          );
+          logger.info('✅ SocialAuth Google user successfully linked to device fingerprint', {
+            userId: user._id,
+            email: user.email,
+            fingerprint: req.deviceFingerprint.fingerprint.substring(0, 8) + '...',
+          });
+        } catch (linkError) {
+          logger.error('❌ Failed to link SocialAuth Google user to device fingerprint:', linkError);
+          // Don't fail authentication if linking fails, but log it
+        }
+      } else {
+        logger.warn('⚠️ Cannot link SocialAuth Google user to device - missing data', {
+          hasDeviceFingerprint: !!req.deviceFingerprint,
+          hasFingerprint: !!req.deviceFingerprint?.fingerprint,
+          hasUserId: !!user?._id,
+          hasUserEmail: !!user?.email,
+        });
+      }
+
       // Generate JWT tokens with profile ID
       const accessToken = jwt.sign(
         {

@@ -409,4 +409,4 @@ userSchema.index({ verificationToken: 1 }, { sparse: true });
 userSchema.index({ resetPasswordToken: 1 }, { sparse: true });
 userSchema.index({ otpData: 1 }, { sparse: true });
 logger_1.logger.info('User model indexes created successfully');
-exports.User = mongoose_1.default.model('Users', userSchema);
+exports.User = mongoose_1.default.model('User', userSchema);

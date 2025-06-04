@@ -101,8 +101,8 @@ const listItemSchema = new Schema<ListItem>({
 listItemSchema.add({ subTasks: [listItemSchema] });
 
 const likeSchema = new Schema<Like>({
-  profile: { 
-    type: Schema.Types.ObjectId, 
+  profile: {
+    type: Schema.Types.ObjectId,
     ref: 'Profile',
     required: true
   },
@@ -110,8 +110,8 @@ const likeSchema = new Schema<Like>({
 });
 
 const rewardSchema = new Schema<Reward>({
-  type: { 
-    type: String, 
+  type: {
+    type: String,
     enum: ['Reward', 'Punishment'],
     required: true
   },
@@ -122,33 +122,33 @@ const listSchema = new Schema<IList>(
   {
     name: { type: String, required: true },
     items: [listItemSchema],
-    visibility: { 
-      type: String, 
+    visibility: {
+      type: String,
       enum: ['Public', 'ConnectionsOnly', 'OnlyMe', 'Custom'],
       default: 'Public'
     },
     reward: rewardSchema,
     color: { type: String, default: '#1DA1F2' },
-    type: { 
-      type: String, 
+    type: {
+      type: String,
       enum: Object.values(ListType),
       default: ListType.Todo
     },
-    importance: { 
-      type: String, 
+    importance: {
+      type: String,
       enum: Object.values(ImportanceLevel),
       default: ImportanceLevel.Low
     },
     notes: { type: String },
-    profile: { 
-      type: Schema.Types.ObjectId, 
+    profile: {
+      type: Schema.Types.ObjectId,
       ref: 'Profile'
     },
     participants: [{ type: Schema.Types.ObjectId, ref: 'Profile' }],
     category: { type: String },
-    createdBy: { 
+    createdBy: {
       type: Schema.Types.ObjectId,
-      ref: 'Users',
+      ref: 'User',
     },
     relatedTask: {
       type: Schema.Types.ObjectId,

@@ -80,6 +80,7 @@ import reminderRoutes from './reminder.routes';
 import plansRoutes from './plans.routes';
 import communityRoutes from './community.routes';
 import profileFullRoutes from './profile-full.routes';
+import fraudRoutes from './fraud.routes';
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -122,13 +123,51 @@ export const setupRoutes = (app: Application): void => {
   app.use(passport.session());
 
   // Direct route for Google OAuth callback to match what's configured in Google Developer Console
-  app.get('/api/auth/google/callback', (req, res, next) => {
-    console.log('Received Google callback at /api/auth/google/callback');
-    // Import the controller
-    const { SocialAuthController } = require('../controllers/auth.social.controller');
-    // Call the controller method directly
-    SocialAuthController.googleCallback(req, res, next);
-  });
+  // Import fraud detection middleware
+  const {
+    fraudDetectionMiddleware,
+    deviceFingerprintMiddleware,
+    suspiciousActivityLogger
+  } = require('../middleware/fraudDetection.middleware');
+
+  app.get('/api/auth/google/callback',
+    deviceFingerprintMiddleware(),
+    fraudDetectionMiddleware({
+      blockOnCritical: true,
+      requireVerificationOnHigh: false, // Social auth users are already verified by provider
+      logAllAttempts: true,
+      customThresholds: {
+        block: 100,   // Block immediately if device already registered (score = 100)
+        flag: 80,     // Flag if risk score >= 80
+        verify: 60,   // Require verification if risk score >= 60
+      }
+    }),
+    suspiciousActivityLogger(),
+    async (req, res, next) => {
+      console.log('Received Google callback at /api/auth/google/callback');
+
+      // Check if fraud detection blocked the request
+      if (req.fraudDetection && req.fraudDetection.shouldBlock) {
+        const { logger } = require('../utils/logger');
+        logger.warn('Google OAuth callback blocked due to fraud detection', {
+          riskScore: req.fraudDetection.riskScore,
+          flags: req.fraudDetection.flags,
+        });
+
+        // Get frontend URL from environment or default
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+        const blockedUrl = `${frontendUrl}/auth/blocked?provider=google&reason=fraud_detection&riskScore=${req.fraudDetection.riskScore}&flags=${req.fraudDetection.flags.join(',')}`;
+
+        logger.info('Redirecting blocked OAuth to frontend', { blockedUrl });
+        return res.redirect(blockedUrl);
+      }
+
+      // Import the controller
+      const { SocialAuthController } = require('../controllers/auth.social.controller');
+      // Call the controller method directly
+      await SocialAuthController.googleCallback(req, res, next);
+    }
+  );
 
   // Public routes
   app.use('/api/auth', authRoutes);
@@ -153,7 +192,7 @@ export const setupRoutes = (app: Application): void => {
   // app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/p/connections', protect, connectionRoutes);
   app.use('/api/contacts', protect, contactRoutes);
-  
+
   app.use('/api/tasks', protect, taskRoutes);
   app.use('/api/lists', protect, listRoutes);
   app.use('/api/events', protect, eventRoutes);
@@ -168,6 +207,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/admin', protect, adminRoutes);
   app.use('/api/admin/notifications', protect, adminNotificationRoutes);
   app.use('/api/admin', adminModuleRoutes);
+  app.use('/api/fraud', fraudRoutes);
   app.use('/api/stripe', stripeRoutes);
   app.use('/api/notifications', protect, notificationRoutes);
   app.use('/api/user/notification-preferences', protect, userNotificationPreferencesRoutes);
@@ -217,12 +257,13 @@ export const setupRoutes = (app: Application): void => {
   });
 
   // Test routes for advanced tracking (development only)
+  // Use a more specific prefix to avoid intercepting other API routes
   if (process.env.NODE_ENV !== 'production') {
-    app.use('/api', testRoutes);
+    app.use('/api/test', testRoutes);
   }
 
   // Health check endpoint
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', (_req, res) => {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
   });
 

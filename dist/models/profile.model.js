@@ -75,7 +75,7 @@ const ProfileSchema = new mongoose_1.Schema({
         accountHolder: { type: String, trim: true },
         pid: { type: String, trim: true },
         relationshipToAccountHolder: { type: String, trim: true },
-        creator: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Users', required: true, index: true },
+        creator: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
         connectLink: { type: String, required: true, unique: true, index: true },
         followLink: { type: String, required: true, unique: true, index: true },
         followers: [{ type: mongoose_1.Schema.Types.ObjectId, ref: 'Profile' }],

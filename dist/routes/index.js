@@ -84,6 +84,7 @@ const reminder_routes_1 = __importDefault(require("./reminder.routes"));
 const plans_routes_1 = __importDefault(require("./plans.routes"));
 const community_routes_1 = __importDefault(require("./community.routes"));
 const profile_full_routes_1 = __importDefault(require("./profile-full.routes"));
+const fraud_routes_1 = __importDefault(require("./fraud.routes"));
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -118,12 +119,36 @@ const setupRoutes = (app) => {
     app.use(passport_1.default.initialize());
     app.use(passport_1.default.session());
     // Direct route for Google OAuth callback to match what's configured in Google Developer Console
-    app.get('/api/auth/google/callback', (req, res, next) => {
+    // Import fraud detection middleware
+    const { fraudDetectionMiddleware, deviceFingerprintMiddleware, suspiciousActivityLogger } = require('../middleware/fraudDetection.middleware');
+    app.get('/api/auth/google/callback', deviceFingerprintMiddleware(), fraudDetectionMiddleware({
+        blockOnCritical: true,
+        requireVerificationOnHigh: false, // Social auth users are already verified by provider
+        logAllAttempts: true,
+        customThresholds: {
+            block: 100, // Block immediately if device already registered (score = 100)
+            flag: 80, // Flag if risk score >= 80
+            verify: 60, // Require verification if risk score >= 60
+        }
+    }), suspiciousActivityLogger(), async (req, res, next) => {
         console.log('Received Google callback at /api/auth/google/callback');
+        // Check if fraud detection blocked the request
+        if (req.fraudDetection && req.fraudDetection.shouldBlock) {
+            const { logger } = require('../utils/logger');
+            logger.warn('Google OAuth callback blocked due to fraud detection', {
+                riskScore: req.fraudDetection.riskScore,
+                flags: req.fraudDetection.flags,
+            });
+            // Get frontend URL from environment or default
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+            const blockedUrl = `${frontendUrl}/auth/blocked?provider=google&reason=fraud_detection&riskScore=${req.fraudDetection.riskScore}&flags=${req.fraudDetection.flags.join(',')}`;
+            logger.info('Redirecting blocked OAuth to frontend', { blockedUrl });
+            return res.redirect(blockedUrl);
+        }
         // Import the controller
         const { SocialAuthController } = require('../controllers/auth.social.controller');
         // Call the controller method directly
-        SocialAuthController.googleCallback(req, res, next);
+        await SocialAuthController.googleCallback(req, res, next);
     });
     // Public routes
     app.use('/api/auth', auth_routes_1.default);
@@ -156,6 +181,7 @@ const setupRoutes = (app) => {
     app.use('/api/admin', auth_middleware_1.protect, admin_routes_1.default);
     app.use('/api/admin/notifications', auth_middleware_1.protect, admin_notification_routes_1.default);
     app.use('/api/admin', index_1.default);
+    app.use('/api/fraud', fraud_routes_1.default);
     app.use('/api/stripe', stripe_routes_1.default);
     app.use('/api/notifications', auth_middleware_1.protect, notification_routes_1.default);
     app.use('/api/user/notification-preferences', auth_middleware_1.protect, user_notification_preferences_routes_1.default);
@@ -198,11 +224,12 @@ const setupRoutes = (app) => {
         }
     });
     // Test routes for advanced tracking (development only)
+    // Use a more specific prefix to avoid intercepting other API routes
     if (process.env.NODE_ENV !== 'production') {
-        app.use('/api', test_routes_1.testRoutes);
+        app.use('/api/test', test_routes_1.testRoutes);
     }
     // Health check endpoint
-    app.get('/api/health', (req, res) => {
+    app.get('/api/health', (_req, res) => {
         res.json({ status: 'healthy', timestamp: new Date().toISOString() });
     });
     // Register additional routes here

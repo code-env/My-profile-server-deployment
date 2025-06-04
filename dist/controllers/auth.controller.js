@@ -142,7 +142,7 @@ class AuthController {
      * @route POST /auth/register
      */
     static async register(req, res) {
-        var _a;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
         try {
             // Validate request body against schema
             const validatedData = await auth_types_1.registerSchema.parseAsync(req.body);
@@ -186,6 +186,37 @@ class AuthController {
             // Check if referral code was provided
             const referralCode = validatedData.referralCode || undefined;
             const result = await auth_service_1.AuthService.register(user, clientInfo.ip, clientInfo.os, referralCode);
+            // CRITICAL: Link user to device fingerprint after successful registration
+            logger_1.logger.info('🔗 Attempting to link user to device fingerprint', {
+                hasDeviceFingerprint: !!req.deviceFingerprint,
+                fingerprintValue: ((_b = (_a = req.deviceFingerprint) === null || _a === void 0 ? void 0 : _a.fingerprint) === null || _b === void 0 ? void 0 : _b.substring(0, 8)) + '...',
+                hasUserId: !!((_c = result.user) === null || _c === void 0 ? void 0 : _c._id),
+                userId: (_d = result.user) === null || _d === void 0 ? void 0 : _d._id,
+                email: (_e = result.user) === null || _e === void 0 ? void 0 : _e.email,
+            });
+            if (((_f = req.deviceFingerprint) === null || _f === void 0 ? void 0 : _f.fingerprint) && ((_g = result.user) === null || _g === void 0 ? void 0 : _g._id)) {
+                try {
+                    const { FraudDetectionService } = require('../services/fraudDetection.service');
+                    await FraudDetectionService.linkUserToDevice(req.deviceFingerprint.fingerprint, result.user._id.toString(), result.user.email);
+                    logger_1.logger.info('✅ User successfully linked to device fingerprint', {
+                        userId: result.user._id,
+                        email: result.user.email,
+                        fingerprint: req.deviceFingerprint.fingerprint.substring(0, 8) + '...',
+                    });
+                }
+                catch (linkError) {
+                    logger_1.logger.error('❌ Failed to link user to device fingerprint:', linkError);
+                    // Don't fail registration if linking fails, but log it
+                }
+            }
+            else {
+                logger_1.logger.warn('⚠️ Cannot link user to device - missing data', {
+                    hasDeviceFingerprint: !!req.deviceFingerprint,
+                    hasFingerprint: !!((_h = req.deviceFingerprint) === null || _h === void 0 ? void 0 : _h.fingerprint),
+                    hasUserId: !!((_j = result.user) === null || _j === void 0 ? void 0 : _j._id),
+                    hasUserEmail: !!((_k = result.user) === null || _k === void 0 ? void 0 : _k.email),
+                });
+            }
             // Return the response
             res.status(201).json({
                 success: true,
@@ -199,7 +230,7 @@ class AuthController {
         catch (error) {
             logger_1.logger.error("Registration error:", error);
             res
-                .status(error instanceof errors_1.CustomError ? ((_a = error.statusCode) !== null && _a !== void 0 ? _a : 400) : 400)
+                .status(error instanceof errors_1.CustomError ? ((_l = error.statusCode) !== null && _l !== void 0 ? _l : 400) : 400)
                 .json({
                 success: false,
                 message: error instanceof Error ? error.message : "Registration failed",

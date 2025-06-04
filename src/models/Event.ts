@@ -1,11 +1,11 @@
 import { Schema, model, Document, Types } from 'mongoose';
-import { 
-  Location, 
-  Attachment, 
-  Comment, 
-  EventType, 
-  EventStatus, 
-  BookingStatus, 
+import {
+  Location,
+  Attachment,
+  Comment,
+  EventType,
+  EventStatus,
+  BookingStatus,
   PriorityLevel,
   RepeatSettings,
   Reminder,
@@ -211,7 +211,7 @@ const EventSchema = new Schema<IEvent>({
   }],
   createdBy: {
     type: Schema.Types.ObjectId,
-    ref: 'Users',
+    ref: 'User',
     required: true
   },
   profile: {
@@ -224,7 +224,7 @@ const EventSchema = new Schema<IEvent>({
     name: String,
     uploadedBy: {
       type: Schema.Types.ObjectId,
-      ref: 'Users'
+      ref: 'User'
     }
   }],
   comments: [{
@@ -269,14 +269,14 @@ const EventSchema = new Schema<IEvent>({
   },
   repeat: {
     isRepeating: { type: Boolean, default: false },
-    frequency: { 
-      type: String, 
+    frequency: {
+      type: String,
       enum: ['None', 'Daily', 'Weekdays', 'Weekends', 'Weekly', 'BiWeekly', 'Monthly', 'Yearly', 'Custom'],
       default: 'None'
     },
     interval: { type: Number, min: 1 },
-    endCondition: { 
-      type: String, 
+    endCondition: {
+      type: String,
       enum: ['Never', 'UntilDate', 'AfterOccurrences'],
       default: 'Never'
     },
@@ -333,8 +333,8 @@ const EventSchema = new Schema<IEvent>({
       description: String,
       duration: { type: Number },  // in minutes
       reward: {
-        type: { 
-          type: String, 
+        type: {
+          type: String,
           enum: ['Reward', 'Punishment'],
           default: 'Reward'
         },
@@ -349,8 +349,8 @@ const EventSchema = new Schema<IEvent>({
       default: BookingStatus.Pending
     },
     reward: {
-      type: { 
-        type: String, 
+      type: {
+        type: String,
         enum: ['Reward', 'Punishment'],
         default: 'Reward'
       },
@@ -418,7 +418,7 @@ const EventSchema = new Schema<IEvent>({
     reason: String,
     updatedBy: {
       type: Schema.Types.ObjectId,
-      ref: 'Users'
+      ref: 'User'
     },
     notes: String
   }],
@@ -504,7 +504,7 @@ EventSchema.pre('save', function(next) {
     const start = new Date(this.startTime);
     start.setHours(0, 0, 0, 0);
     this.startTime = start;
-    
+
     const end = new Date(start);
     end.setHours(23, 59, 59, 999);
     this.endTime = end;

@@ -11,6 +11,12 @@ import WhatsAppService from "../services/whatsapp.service";
 import { User } from "../models/User";
 // Import the TypeScript version of the controller
 import { AuthUpdateController } from "../controllers/auth.update.controller";
+// Import fraud detection middleware
+import {
+  fraudDetectionMiddleware,
+  deviceFingerprintMiddleware,
+  suspiciousActivityLogger
+} from "../middleware/fraudDetection.middleware";
 
 const router = express.Router();
 
@@ -51,9 +57,43 @@ router.use("/login", authLimiter);
 router.use("/forgot-password", authLimiter);
 router.use("/reset-password", authLimiter);
 
-// Auth routes
-router.post("/register", AuthController.register);
-router.post("/login", AuthController.login);
+// Enhanced registration rate limiting for fraud prevention
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Limit each IP to 5 registration attempts per hour
+  message: {
+    success: false,
+    error: {
+      code: 'REGISTRATION_RATE_LIMIT',
+      message: 'Too many registration attempts from this IP. Please try again after 1 hour.',
+    }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Auth routes with STRICT fraud detection - ONE ACCOUNT PER DEVICE
+router.post("/register",
+  registrationLimiter,
+  deviceFingerprintMiddleware(),
+  fraudDetectionMiddleware({
+    blockOnCritical: true,
+    requireVerificationOnHigh: true,
+    logAllAttempts: true,
+    customThresholds: {
+      block: 100,   // Block immediately if device already registered (score = 100)
+      flag: 80,     // Flag if risk score >= 80
+      verify: 60,   // Require verification if risk score >= 60
+    }
+  }),
+  suspiciousActivityLogger(),
+  AuthController.register
+);
+router.post("/login",
+  deviceFingerprintMiddleware(),
+  suspiciousActivityLogger(),
+  AuthController.login
+);
 router.post("/refresh-token", AuthController.refreshToken);
 router.post("/logout", authenticateToken, AuthController.logout);
 router.post("/logout-all", authenticateToken, AuthController.logoutAll);
@@ -269,11 +309,66 @@ router.delete("/user/:id", async (req, res) => {
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(
   '/google/callback',
+  deviceFingerprintMiddleware(),
+  fraudDetectionMiddleware({
+    blockOnCritical: true,
+    requireVerificationOnHigh: false, // Social auth users are already verified by provider
+    logAllAttempts: true,
+    customThresholds: {
+      block: 100,   // Block immediately if device already registered (score = 100)
+      flag: 80,     // Flag if risk score >= 80
+      verify: 60,   // Require verification if risk score >= 60
+    }
+  }),
+  suspiciousActivityLogger(),
   passport.authenticate('google', { session: false }),
-  (req: express.Request, res: express.Response) => {
+  async (req: express.Request, res: express.Response) => {
     const data = req.user as any;
     if (!data) {
       return res.redirect('/auth/login?error=google_auth_failed');
+    }
+
+    // Check if fraud detection blocked the request
+    if (req.fraudDetection && req.fraudDetection.shouldBlock) {
+      logger.warn('Google OAuth blocked due to fraud detection', {
+        email: data.user?.email,
+        riskScore: req.fraudDetection.riskScore,
+        flags: req.fraudDetection.flags,
+      });
+
+      // Get frontend URL from environment or default
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+      const blockedUrl = `${frontendUrl}/auth/blocked?provider=google&reason=fraud_detection&riskScore=${req.fraudDetection.riskScore}&flags=${req.fraudDetection.flags.join(',')}`;
+
+      logger.info('Redirecting blocked Google OAuth to frontend', { blockedUrl });
+      return res.redirect(blockedUrl);
+    }
+
+    // Link user to device fingerprint after successful authentication
+    if (req.deviceFingerprint?.fingerprint && data.user?._id) {
+      try {
+        const { FraudDetectionService } = require('../services/fraudDetection.service');
+        await FraudDetectionService.linkUserToDevice(
+          req.deviceFingerprint.fingerprint,
+          data.user._id.toString(),
+          data.user.email
+        );
+        logger.info('✅ Google OAuth user successfully linked to device fingerprint', {
+          userId: data.user._id,
+          email: data.user.email,
+          fingerprint: req.deviceFingerprint.fingerprint.substring(0, 8) + '...',
+        });
+      } catch (linkError) {
+        logger.error('❌ Failed to link Google OAuth user to device fingerprint:', linkError);
+        // Don't fail authentication if linking fails, but log it
+      }
+    } else {
+      logger.warn('⚠️ Cannot link Google OAuth user to device - missing data', {
+        hasDeviceFingerprint: !!req.deviceFingerprint,
+        hasFingerprint: !!req.deviceFingerprint?.fingerprint,
+        hasUserId: !!data.user?._id,
+        hasUserEmail: !!data.user?.email,
+      });
     }
 
     // Set tokens in cookies
@@ -297,11 +392,66 @@ router.get(
 router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
 router.get(
   '/facebook/callback',
+  deviceFingerprintMiddleware(),
+  fraudDetectionMiddleware({
+    blockOnCritical: true,
+    requireVerificationOnHigh: false, // Social auth users are already verified by provider
+    logAllAttempts: true,
+    customThresholds: {
+      block: 100,   // Block immediately if device already registered (score = 100)
+      flag: 80,     // Flag if risk score >= 80
+      verify: 60,   // Require verification if risk score >= 60
+    }
+  }),
+  suspiciousActivityLogger(),
   passport.authenticate('facebook', { session: false }),
-  (req: express.Request, res: express.Response) => {
+  async (req: express.Request, res: express.Response) => {
     const data = req.user as any;
     if (!data) {
       return res.redirect('/auth/login?error=facebook_auth_failed');
+    }
+
+    // Check if fraud detection blocked the request
+    if (req.fraudDetection && req.fraudDetection.shouldBlock) {
+      logger.warn('Facebook OAuth blocked due to fraud detection', {
+        email: data.user?.email,
+        riskScore: req.fraudDetection.riskScore,
+        flags: req.fraudDetection.flags,
+      });
+
+      // Get frontend URL from environment or default
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+      const blockedUrl = `${frontendUrl}/auth/blocked?provider=facebook&reason=fraud_detection&riskScore=${req.fraudDetection.riskScore}&flags=${req.fraudDetection.flags.join(',')}`;
+
+      logger.info('Redirecting blocked Facebook OAuth to frontend', { blockedUrl });
+      return res.redirect(blockedUrl);
+    }
+
+    // Link user to device fingerprint after successful authentication
+    if (req.deviceFingerprint?.fingerprint && data.user?._id) {
+      try {
+        const { FraudDetectionService } = require('../services/fraudDetection.service');
+        await FraudDetectionService.linkUserToDevice(
+          req.deviceFingerprint.fingerprint,
+          data.user._id.toString(),
+          data.user.email
+        );
+        logger.info('✅ Facebook OAuth user successfully linked to device fingerprint', {
+          userId: data.user._id,
+          email: data.user.email,
+          fingerprint: req.deviceFingerprint.fingerprint.substring(0, 8) + '...',
+        });
+      } catch (linkError) {
+        logger.error('❌ Failed to link Facebook OAuth user to device fingerprint:', linkError);
+        // Don't fail authentication if linking fails, but log it
+      }
+    } else {
+      logger.warn('⚠️ Cannot link Facebook OAuth user to device - missing data', {
+        hasDeviceFingerprint: !!req.deviceFingerprint,
+        hasFingerprint: !!req.deviceFingerprint?.fingerprint,
+        hasUserId: !!data.user?._id,
+        hasUserEmail: !!data.user?.email,
+      });
     }
 
     // Set tokens in cookies
@@ -325,11 +475,60 @@ router.get(
 router.get('/linkedin', passport.authenticate('linkedin', { scope: ['r_emailaddress', 'r_liteprofile'] }));
 router.get(
   '/linkedin/callback',
+  deviceFingerprintMiddleware(),
+  fraudDetectionMiddleware({
+    blockOnCritical: true,
+    requireVerificationOnHigh: false, // Social auth users are already verified by provider
+    logAllAttempts: true,
+    customThresholds: {
+      block: 100,   // Block immediately if device already registered (score = 100)
+      flag: 80,     // Flag if risk score >= 80
+      verify: 60,   // Require verification if risk score >= 60
+    }
+  }),
+  suspiciousActivityLogger(),
   passport.authenticate('linkedin', { session: false }),
-  (req: express.Request, res: express.Response) => {
+  async (req: express.Request, res: express.Response) => {
     const data = req.user as any;
     if (!data) {
       return res.redirect('/auth/login?error=linkedin_auth_failed');
+    }
+
+    // Check if fraud detection blocked the request
+    if (req.fraudDetection && req.fraudDetection.shouldBlock) {
+      logger.warn('LinkedIn OAuth blocked due to fraud detection', {
+        email: data.user?.email,
+        riskScore: req.fraudDetection.riskScore,
+        flags: req.fraudDetection.flags,
+      });
+      return res.redirect('/auth/blocked?provider=linkedin&reason=fraud_detection');
+    }
+
+    // Link user to device fingerprint after successful authentication
+    if (req.deviceFingerprint?.fingerprint && data.user?._id) {
+      try {
+        const { FraudDetectionService } = require('../services/fraudDetection.service');
+        await FraudDetectionService.linkUserToDevice(
+          req.deviceFingerprint.fingerprint,
+          data.user._id.toString(),
+          data.user.email
+        );
+        logger.info('✅ LinkedIn OAuth user successfully linked to device fingerprint', {
+          userId: data.user._id,
+          email: data.user.email,
+          fingerprint: req.deviceFingerprint.fingerprint.substring(0, 8) + '...',
+        });
+      } catch (linkError) {
+        logger.error('❌ Failed to link LinkedIn OAuth user to device fingerprint:', linkError);
+        // Don't fail authentication if linking fails, but log it
+      }
+    } else {
+      logger.warn('⚠️ Cannot link LinkedIn OAuth user to device - missing data', {
+        hasDeviceFingerprint: !!req.deviceFingerprint,
+        hasFingerprint: !!req.deviceFingerprint?.fingerprint,
+        hasUserId: !!data.user?._id,
+        hasUserEmail: !!data.user?.email,
+      });
     }
 
     // Set tokens in cookies
@@ -351,7 +550,20 @@ router.get(
 );
 
 // Mobile OAuth endpoints
-router.post('/google/mobile', async (req, res) => {
+router.post('/google/mobile',
+  deviceFingerprintMiddleware(),
+  fraudDetectionMiddleware({
+    blockOnCritical: true,
+    requireVerificationOnHigh: false, // Social auth users are already verified by provider
+    logAllAttempts: true,
+    customThresholds: {
+      block: 100,   // Block immediately if device already registered (score = 100)
+      flag: 80,     // Flag if risk score >= 80
+      verify: 60,   // Require verification if risk score >= 60
+    }
+  }),
+  suspiciousActivityLogger(),
+  async (req, res) => {
   try {
     const { idToken } = req.body;
     if (!idToken) {
@@ -370,6 +582,26 @@ router.post('/google/mobile', async (req, res) => {
     const payload = ticket.getPayload();
     if (!payload) {
       return res.status(401).json({ error: 'Invalid ID token' });
+    }
+
+    // Check if fraud detection blocked the request
+    if (req.fraudDetection && req.fraudDetection.shouldBlock) {
+      logger.warn('Google Mobile OAuth blocked due to fraud detection', {
+        email: payload.email,
+        riskScore: req.fraudDetection.riskScore,
+        flags: req.fraudDetection.flags,
+      });
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'DEVICE_ALREADY_REGISTERED',
+          message: 'This device is not eligible for registration. Only one account per device is allowed.',
+          riskScore: req.fraudDetection.riskScore,
+          flags: req.fraudDetection.flags,
+          deviceBlocked: true,
+          requiresManualReview: true,
+        },
+      });
     }
 
     // Find or create user
@@ -415,6 +647,33 @@ router.post('/google/mobile', async (req, res) => {
           logger.error(`Error creating default profile for Google user ${user._id}:`, profileError);
         }
       }
+    }
+
+    // Link user to device fingerprint after successful authentication
+    if (req.deviceFingerprint?.fingerprint && user?._id) {
+      try {
+        const { FraudDetectionService } = require('../services/fraudDetection.service');
+        await FraudDetectionService.linkUserToDevice(
+          req.deviceFingerprint.fingerprint,
+          user._id.toString(),
+          user.email
+        );
+        logger.info('✅ Google Mobile OAuth user successfully linked to device fingerprint', {
+          userId: user._id,
+          email: user.email,
+          fingerprint: req.deviceFingerprint.fingerprint.substring(0, 8) + '...',
+        });
+      } catch (linkError) {
+        logger.error('❌ Failed to link Google Mobile OAuth user to device fingerprint:', linkError);
+        // Don't fail authentication if linking fails, but log it
+      }
+    } else {
+      logger.warn('⚠️ Cannot link Google Mobile OAuth user to device - missing data', {
+        hasDeviceFingerprint: !!req.deviceFingerprint,
+        hasFingerprint: !!req.deviceFingerprint?.fingerprint,
+        hasUserId: !!user?._id,
+        hasUserEmail: !!user?.email,
+      });
     }
 
     // Generate tokens

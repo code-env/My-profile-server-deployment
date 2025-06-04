@@ -38,7 +38,7 @@ const mongoose_1 = __importStar(require("mongoose"));
 const connectionSchema = new mongoose_1.Schema({
     fromUser: {
         type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'Users',
+        ref: 'User',
         required: true,
     },
     fromProfile: {

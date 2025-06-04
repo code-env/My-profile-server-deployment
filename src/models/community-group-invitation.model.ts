@@ -15,7 +15,7 @@ export interface ICommunityGroupInvitation extends Document {
 const CommunityGroupInvitationSchema = new Schema<ICommunityGroupInvitation>({
   communityId: { type: Schema.Types.ObjectId, ref: 'Profile', required: true, index: true },
   groupId: { type: Schema.Types.ObjectId, ref: 'Profile', required: true, index: true },
-  invitedBy: { type: Schema.Types.ObjectId, ref: 'Users', required: true },
+  invitedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   status: { type: String, enum: ['pending', 'accepted', 'rejected', 'cancelled'], default: 'pending', index: true },
   createdAt: { type: Date, default: Date.now },
   respondedAt: { type: Date },
@@ -27,4 +27,4 @@ CommunityGroupInvitationSchema.index({ communityId: 1, groupId: 1 }, { unique: t
 export const CommunityGroupInvitation: Model<ICommunityGroupInvitation> = mongoose.model<ICommunityGroupInvitation>(
   'CommunityGroupInvitation',
   CommunityGroupInvitationSchema
-); 
+);
