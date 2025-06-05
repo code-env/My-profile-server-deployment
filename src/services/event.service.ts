@@ -15,6 +15,7 @@ import {
 } from '../models/plans-shared';
 
 import { IEvent, Event } from '../models/Event';
+import { List, ListType, ImportanceLevel } from '../models/List';
 import { User } from '../models/User';
 import { checkTimeOverlap } from '../utils/timeUtils';
 import { MyPtsModel } from '../models/my-pts.model';
@@ -25,6 +26,7 @@ import eventSettingsIntegration from '../utils/eventSettingsIntegration';
 import { SettingsService } from './settings.service';
 import { logger } from '../utils/logger';
 import { TimezoneUtils } from '../utils/timezoneUtils';
+import { mapExternalToInternal } from '../utils/visibilityMapper';
 
 class EventService {
     private notificationService: NotificationService;
@@ -249,7 +251,7 @@ class EventService {
             color: enhancedEventData.color || '#1DA1F2',
             category: enhancedEventData.category || 'Personal',
             priority: enhancedEventData.priority || 'Low',
-            status: enhancedEventData.status || 'upcoming',
+            status: enhancedEventData.status || EventStatus.Upcoming,
             attachments: enhancedEventData.attachments || [],
             comments: enhancedEventData.comments || [],
             agendaItems: enhancedEventData.agendaItems || [],
@@ -262,6 +264,11 @@ class EventService {
         }
 
         await event.save();
+
+        // If agenda items exist, create lists for each
+        if (event.agendaItems && event.agendaItems.length > 0) {
+            await this.createListsFromAgendaItems(event);
+        }
 
         // Process reminders asynchronously in background
         if (enhancedEventData.needsReminderProcessing) {
@@ -514,6 +521,28 @@ class EventService {
             throw new Error('Event not found or access denied');
         }
 
+        // Check if there's already a related list for this event
+        const existingList = await List.findOne({
+            name: `${event.title} - Agenda`,
+            createdBy: event.createdBy,
+            profile: event.profile
+        });
+
+        if (existingList) {
+            // Add the new agenda item to the existing list
+            existingList.items.push({
+                _id: new mongoose.Types.ObjectId(),
+                name: agendaItem.description || 'Complete agenda item',
+                isCompleted: agendaItem.completed || false,
+                assignedTo: agendaItem.assignedTo,
+                createdAt: new Date()
+            });
+            await existingList.save();
+        } else if (event.agendaItems && event.agendaItems.length === 1) {
+            // This is the first agenda item, create a new list
+            await this.createListsFromAgendaItems(event);
+        }
+
         return event;
     }
 
@@ -555,6 +584,33 @@ class EventService {
         }
 
         await event.save();
+
+        // Update corresponding list item if it exists
+        const existingList = await List.findOne({
+            name: `${event.title} - Agenda`,
+            createdBy: event.createdBy,
+            profile: event.profile
+        });
+
+        if (existingList && existingList.items && existingList.items[agendaItemIndex]) {
+            const listItem = existingList.items[agendaItemIndex];
+            if (updateData.description !== undefined) {
+                listItem.name = updateData.description;
+            }
+            if (updateData.assignedTo !== undefined) {
+                listItem.assignedTo = updateData.assignedTo;
+            }
+            if (updateData.completed !== undefined) {
+                listItem.isCompleted = updateData.completed;
+                if (updateData.completed) {
+                    listItem.completedAt = new Date();
+                } else {
+                    listItem.completedAt = undefined;
+                }
+            }
+            await existingList.save();
+        }
+
         return event;
     }
 
@@ -581,6 +637,19 @@ class EventService {
             throw new Error('Agenda items are undefined');
         }
         await event.save();
+
+        // Remove corresponding list item if it exists
+        const existingList = await List.findOne({
+            name: `${event.title} - Agenda`,
+            createdBy: event.createdBy,
+            profile: event.profile
+        });
+
+        if (existingList && existingList.items && existingList.items[agendaItemIndex]) {
+            existingList.items.splice(agendaItemIndex, 1);
+            await existingList.save();
+        }
+
         return event;
     }
 
@@ -1650,6 +1719,46 @@ class EventService {
         } catch (error) {
             console.error('Error processing reminders for event:', eventId, error);
         }
+    }
+
+    /**
+     * Map PriorityLevel to ImportanceLevel for list creation
+     */
+    private mapPriorityToImportance(priority: PriorityLevel): ImportanceLevel {
+        switch (priority) {
+            case PriorityLevel.Low:
+                return ImportanceLevel.Low;
+            case PriorityLevel.Medium:
+                return ImportanceLevel.Medium;
+            case PriorityLevel.High:
+                return ImportanceLevel.High;
+            default:
+                return ImportanceLevel.Low;
+        }
+    }
+
+    /**
+     * Create lists from event agenda items
+     */
+    private async createListsFromAgendaItems(event: IEvent): Promise<void> {
+        const listPromise = new List({
+            name: `${event.title} - Agenda` || 'Event Agenda',
+            type: ListType.Todo,
+            createdBy: event.createdBy,
+            profile: event.profile,
+            items: event.agendaItems.map((agendaItem: any) => ({
+                name: agendaItem.description || 'Complete agenda item',
+                isCompleted: agendaItem.completed || false,
+                assignedTo: agendaItem.assignedTo,
+                createdAt: new Date()
+            })),
+            // Copy relevant properties from the event
+            visibility: mapExternalToInternal(event.visibility as any),
+            color: event.color,
+            importance: this.mapPriorityToImportance(event.priority),
+            category: event.category
+        });
+        await listPromise.save();
     }
 }
 

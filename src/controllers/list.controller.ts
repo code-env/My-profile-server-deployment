@@ -264,7 +264,7 @@ export const addListComment = async (req: Request, res: Response) => {
                 type: 'comment',
                 profile: new Types.ObjectId(req.body.profileId),
                 targetProfile: new Types.ObjectId(list.profile?._id as Types.ObjectId),
-                contentId: (list as mongoose.Document).get('_id').toString(),
+                contentId: (list as any)._id.toString(),
                 content: req.body.text
             });
         } catch (error) {
@@ -306,7 +306,7 @@ export const likeComment = async (req: Request, res: Response) => {
                 type: 'like',
                 profile: new Types.ObjectId(req.body.profileId),
                 targetProfile: new Types.ObjectId(list.profile?._id as Types.ObjectId),
-                contentId: (list as mongoose.Document).get('_id').toString(),
+                contentId: (list as any)._id.toString(),
                 content: 'liked comment'
             });
         } catch (error) {
@@ -371,7 +371,7 @@ export const likeList = async (req: Request, res: Response) => {
                 type: 'like',
                 profile: new Types.ObjectId(req.body.profileId),
                 targetProfile: new Types.ObjectId(list.profile?._id as Types.ObjectId),
-                contentId: (list as mongoose.Document).get('_id').toString(),
+                contentId: (list as any)._id.toString(),
                 content: 'liked list'
             });
         } catch (error) {

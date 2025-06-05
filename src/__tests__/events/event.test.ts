@@ -104,8 +104,8 @@ describe('Event System Tests', () => {
     app.post('/events/:id/agenda', eventController.addAgendaItem);
     app.put('/events/:id/agenda/:agendaItemIndex', eventController.updateAgendaItem);
     app.delete('/events/:id/agenda/:agendaItemIndex', eventController.deleteAgendaItem);
-    app.post('/events/:id/attachments', eventController.addAttachment);
-    app.delete('/events/:id/attachments/:attachmentIndex', eventController.removeAttachment);
+    app.post('/events/:id/attachment', eventController.addAttachment);
+    app.delete('/events/:id/attachment/:attachmentIndex', eventController.removeAttachment);
     app.put('/events/:id/service-provider', eventController.setServiceProvider);
     app.post('/events/:id/comments', eventController.addComment);
     app.post('/events/:id/like', eventController.likeEvent);
@@ -554,7 +554,7 @@ describe('Event System Tests', () => {
         };
 
         const response = await request(app)
-          .post(`/events/${event._id.toString()}/attachments`)
+          .post(`/events/${event._id.toString()}/attachment`)
           .send(attachmentData)
           .expect(200);
 
@@ -578,7 +578,7 @@ describe('Event System Tests', () => {
         });
 
         const response = await request(app)
-          .delete(`/events/${event._id.toString()}/attachments/0`)
+          .delete(`/events/${event._id.toString()}/attachment/0`)
           .send({ profileId: testProfile._id })
           .expect(200);
 
