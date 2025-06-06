@@ -40,6 +40,7 @@ import authRoutes from './auth.routes';
 import userRoutes from './user.routes'
 import profileRoutes from './profile.routes';
 import connectionRoutes from './connection.routes';
+import connectionAnalyticsRoutes from './connection-analytics.routes';
 // import profileConnectionRoutes from './profile-connection.routes';
 import contactRoutes from './contact.route';
 import RelationshipTypeRoutes from './relationshipType.routes';
@@ -191,6 +192,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/vault', protect, vaultRoutes);
   // app.use('/api/connections', protect, connectionRoutes);
   app.use('/api/p/connections', protect, connectionRoutes);
+  app.use('/api/connections/analytics', protect, connectionAnalyticsRoutes);
   app.use('/api/contacts', protect, contactRoutes);
 
   app.use('/api/tasks', protect, taskRoutes);

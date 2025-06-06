@@ -26,7 +26,16 @@ import {
   getVaultAccessSummary,
   getItemById,
   uploadAndAddToVault,
-  deleteUserVault
+  deleteUserVault,
+  advancedSearch,
+  getVaultAnalytics,
+  getAuditTrail,
+  trackAccess,
+  getVersions,
+  restoreVersion,
+  batchUpdate,
+  batchDelete,
+  batchMove
 } from '../controllers/vault.controller';
 import { authenticateToken } from '../middleware/authMiddleware';
 
@@ -346,6 +355,7 @@ router.post('/subcategories/move',
 router.delete('/subcategories',
   authenticateToken,
   validate([
+    body('profileId').notEmpty().isMongoId().withMessage('Valid profile ID is required'),
     body('subcategoryId').notEmpty().isMongoId().withMessage('Valid subcategory ID is required')
   ]),
   deleteSubcategory
@@ -440,6 +450,115 @@ router.get('/access-summary/:profileId',
     query('requestingProfileId').isMongoId().withMessage('Valid requesting profile ID is required')
   ]),
   getVaultAccessSummary
+);
+
+// Advanced search route
+router.post('/search',
+  authenticateToken,
+  validate([
+    ...profileIdQueryValidation,
+    body('query').optional().isString(),
+    body('categories').optional().isArray(),
+    body('subcategories').optional().isArray(),
+    body('dateRange').optional().isObject(),
+    body('dateRange.from').optional().isISO8601(),
+    body('dateRange.to').optional().isISO8601(),
+    body('tags').optional().isArray(),
+    body('metadata').optional().isObject(),
+    body('accessLevel').optional().isIn(['private', 'shared', 'public']),
+    body('isEncrypted').optional().isBoolean(),
+    body('isFavorite').optional().isBoolean(),
+    body('sortBy').optional().isString(),
+    body('sortOrder').optional().isIn(['asc', 'desc']),
+    body('limit').optional().isInt({ min: 1, max: 100 }),
+    body('offset').optional().isInt({ min: 0 })
+  ]),
+  advancedSearch
+);
+
+// Analytics route
+router.get('/analytics/:profileId',
+  authenticateToken,
+  validate([
+    param('profileId').isMongoId().withMessage('Valid profile ID is required')
+  ]),
+  getVaultAnalytics
+);
+
+// Audit trail route
+router.get('/items/:itemId/audit-trail',
+  authenticateToken,
+  validate([
+    ...profileIdQueryValidation,
+    param('itemId').isMongoId().withMessage('Valid item ID is required'),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('offset').optional().isInt({ min: 0 })
+  ]),
+  getAuditTrail
+);
+
+// Add access tracking middleware to relevant routes
+router.use('/items/:itemId', trackAccess);
+
+// Version Control Routes
+router.get(
+  '/items/:itemId/versions',
+  authenticateToken,
+  validate([
+    param('itemId').isMongoId().withMessage('Invalid item ID'),
+    query('profileId').isMongoId().withMessage('Invalid profile ID'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+    query('offset').optional().isInt({ min: 0 }).withMessage('Offset must be a non-negative integer')
+  ]),
+  getVersions
+);
+
+router.post(
+  '/items/:itemId/versions/restore',
+  authenticateToken,
+  validate([
+    param('itemId').isMongoId().withMessage('Invalid item ID'),
+    query('profileId').isMongoId().withMessage('Invalid profile ID'),
+    body('version').isInt({ min: 1 }).withMessage('Version must be a positive integer')
+  ]),
+  restoreVersion
+);
+
+// Batch Operations Routes
+router.post(
+  '/batch/update',
+  authenticateToken,
+  validate([
+    query('profileId').isMongoId().withMessage('Invalid profile ID'),
+    body('updates').isArray().withMessage('Updates must be an array'),
+    body('updates.*.itemId').isMongoId().withMessage('Invalid item ID'),
+    body('updates.*.updates').isObject().withMessage('Updates must be an object')
+  ]),
+  batchUpdate
+);
+
+router.post(
+  '/batch/delete',
+  authenticateToken,
+  validate([
+    query('profileId').isMongoId().withMessage('Invalid profile ID'),
+    body('itemIds').isArray().withMessage('Item IDs must be an array'),
+    body('itemIds.*').isMongoId().withMessage('Invalid item ID')
+  ]),
+  batchDelete
+);
+
+router.post(
+  '/batch/move',
+  authenticateToken,
+  validate([
+    query('profileId').isMongoId().withMessage('Invalid profile ID'),
+    body('items').isArray().withMessage('Items must be an array'),
+    body('items.*.itemId').isMongoId().withMessage('Invalid item ID'),
+    body('items.*.categoryId').isMongoId().withMessage('Invalid category ID'),
+    body('items.*.subcategoryId').isMongoId().withMessage('Invalid subcategory ID')
+  ]),
+  batchMove
 );
 
 export default router;

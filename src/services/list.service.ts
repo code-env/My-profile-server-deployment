@@ -1,8 +1,16 @@
 import mongoose from 'mongoose';
 import { IList, List, ListItem } from '../models/List';
 import { mapExternalToInternal } from '../utils/visibilityMapper';
+import crypto from 'crypto';
 
 class ListService {
+  /**
+   * Generate a unique shareable link
+   */
+  private generateUniqueLink(): string {
+    return crypto.randomBytes(16).toString('hex');
+  }
+
   /**
    * Create a new list
    */
@@ -12,10 +20,80 @@ class ListService {
       createdBy: userId,
       profile: profileId,
       visibility: listData.visibility ? mapExternalToInternal(listData.visibility as any) : 'Public',
+      shareableLink: this.generateUniqueLink(),
+      linkAccess: 'edit'  // Default to edit access for the owner
     });
 
     await list.save();
     return list.toObject();
+  }
+
+  /**
+   * Generate a new shareable link for a list
+   */
+  async generateShareableLink(listId: string, userId: string, profileId: string, access: 'view' | 'edit') {
+    const list = await List.findOne({ _id: listId, profile: profileId });
+    if (!list) {
+      throw new Error('List not found or access denied');
+    }
+
+    list.shareableLink = this.generateUniqueLink();
+    list.linkAccess = access;
+    await list.save();
+
+    return list.toObject();
+  }
+
+  /**
+   * Disable shareable link
+   */
+  async disableShareableLink(listId: string, userId: string, profileId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
+    if (!list) {
+      throw new Error('List not found or access denied');
+    }
+
+    list.shareableLink = '';
+    list.linkAccess = 'none';
+    await list.save();
+
+    return list.toObject();
+  }
+
+  /**
+   * Get list by shareable link
+   */
+  async getListByShareableLink(shareableLink: string, accessInfo?: { profileId?: string; ipAddress?: string; userAgent?: string }) {
+    const list = await List.findOne({ shareableLink })
+      .populate('participants', 'profileInformation.username profileType')
+      .populate('profile', 'profileInformation.username profileType')
+      .populate('likes.profile', 'profileInformation.username profileType')
+      .populate('comments.postedBy', 'profileInformation.username profileType')
+      .populate('shareHistory.sharedBy', 'profileInformation.username profileType')
+      .populate('shareHistory.sharedWith', 'profileInformation.username profileType')
+      .populate('accessHistory.accessedBy', 'profileInformation.username profileType')
+      .lean();
+
+    if (!list) {
+      throw new Error('List not found');
+    }
+
+    // Track access if profileId is provided
+    if (accessInfo?.profileId) {
+      await List.findByIdAndUpdate(list._id, {
+        $push: {
+          accessHistory: {
+            accessedBy: new mongoose.Types.ObjectId(accessInfo.profileId),
+            accessedAt: new Date(),
+            accessType: list.linkAccess,
+            ipAddress: accessInfo.ipAddress,
+            userAgent: accessInfo.userAgent
+          }
+        }
+      });
+    }
+
+    return list;
   }
 
   /**
@@ -27,6 +105,8 @@ class ListService {
       .populate('profile', 'profileInformation.username profileType')
       .populate('likes.profile', 'profileInformation.username profileType')
       .populate('comments.postedBy', 'profileInformation.username profileType')
+      .populate('shareHistory.sharedBy', 'profileInformation.username profileType')
+      .populate('shareHistory.sharedWith', 'profileInformation.username profileType')
       .lean();
 
     if (!list) {
@@ -315,9 +395,18 @@ class ListService {
   async removeParticipant(listId: string, userId: string, profileId: string, participantProfileId: string) {
     const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
+    
+    // Add to share history before removing
+    list.shareHistory.push({
+      sharedBy: new mongoose.Types.ObjectId(profileId),
+      sharedWith: new mongoose.Types.ObjectId(participantProfileId),
+      sharedAt: new Date(),
+      action: 'unshared'
+    });
+    
     list.participants = list.participants.filter(p => p.toString() !== participantProfileId);
     await list.save();
-    return list.toObject();
+    return list;
   }
 
   /**
@@ -434,13 +523,36 @@ class ListService {
   async shareList(listId: string, userId: string, profileId: string, participantProfileIds: string[]) {
     const list = await List.findOne({ _id: listId, profile: profileId });
     if (!list) throw new Error('List not found or access denied');
+    
     participantProfileIds.forEach(pid => {
       if (!list.participants.some(existing => existing.toString() === pid)) {
         list.participants.push(new mongoose.Types.ObjectId(pid));
+        // Add to share history
+        list.shareHistory.push({
+          sharedBy: new mongoose.Types.ObjectId(profileId),
+          sharedWith: new mongoose.Types.ObjectId(pid),
+          sharedAt: new Date(),
+          action: 'shared'
+        });
       }
     });
+    
     await list.save();
     return list;
+  }
+
+  /**
+   * Toggle favorite status of a list
+   */
+  async toggleFavorite(listId: string, userId: string, profileId: string) {
+    const list = await List.findOne({ _id: listId, profile: profileId });
+    if (!list) {
+      throw new Error('List not found or access denied');
+    }
+
+    list.favorite = !list.favorite;
+    await list.save();
+    return list.toObject();
   }
 }
 

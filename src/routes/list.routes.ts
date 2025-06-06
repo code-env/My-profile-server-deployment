@@ -23,6 +23,10 @@ import {
   checkAllItems,
   uncheckAllItems,
   shareList,
+  toggleFavorite,
+  generateShareableLink,
+  disableShareableLink,
+  getListByShareableLink,
 } from '../controllers/list.controller';
 
 const router = express.Router();
@@ -52,6 +56,11 @@ router.patch('/:id/participants', addParticipant);
 router.delete('/:id/participants', removeParticipant);
 router.post('/:id/share', shareList);
 
+// Shareable link routes
+router.post('/:id/shareable-link', generateShareableLink);
+router.delete('/:id/shareable-link', disableShareableLink);
+router.get('/shared/:link', getListByShareableLink);
+
 // Bulk actions
 router.post('/:id/duplicate', duplicateList);
 router.patch('/:id/check-all', checkAllItems);
@@ -61,5 +70,8 @@ router.patch('/:id/uncheck-all', uncheckAllItems);
 router.post('/:id/comments', addListComment);
 router.post('/:id/like', likeList);
 router.delete('/:id/like', unlikeList);
+
+// Favorite route
+router.post('/:id/favorite', toggleFavorite);
 
 export default router;

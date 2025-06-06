@@ -552,6 +552,93 @@ export const shareList = async (req: Request, res: Response) => {
     } catch (error) { handleErrorResponse(error, res); }
 };
 
+export const toggleFavorite = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid list ID' });
+        }
+
+        if (!req.body.profileId) {
+            return res.status(400).json({ error: 'Profile ID is required' });
+        }
+
+        const list = await listService.toggleFavorite(req.params.id, user._id, req.body.profileId);
+        return successResponse(res, list, 'List favorite status toggled successfully');
+    } catch (error) {
+        handleErrorResponse(error, res);
+    }
+};
+
+export const generateShareableLink = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid list ID' });
+        }
+
+        if (!req.body.profileId) {
+            return res.status(400).json({ error: 'Profile ID is required' });
+        }
+
+        if (!req.body.access || !['view', 'edit'].includes(req.body.access)) {
+            return res.status(400).json({ error: 'Access type must be either "view" or "edit"' });
+        }
+
+        const list = await listService.generateShareableLink(
+            req.params.id,
+            user._id,
+            req.body.profileId,
+            req.body.access
+        );
+        return successResponse(res, list, 'Shareable link generated successfully');
+    } catch (error) {
+        handleErrorResponse(error, res);
+    }
+};
+
+export const disableShareableLink = async (req: Request, res: Response) => {
+    try {
+        const user: any = req.user!;
+        if (!req.params.id || !mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid list ID' });
+        }
+
+        if (!req.body.profileId) {
+            return res.status(400).json({ error: 'Profile ID is required' });
+        }
+
+        const list = await listService.disableShareableLink(
+            req.params.id,
+            user._id,
+            req.body.profileId
+        );
+        return successResponse(res, list, 'Shareable link disabled successfully');
+    } catch (error) {
+        handleErrorResponse(error, res);
+    }
+};
+
+export const getListByShareableLink = async (req: Request, res: Response) => {
+    try {
+        const { link } = req.params;
+        if (!link) {
+            return res.status(400).json({ error: 'Shareable link is required' });
+        }
+
+        const accessInfo = {
+            profileId: req.user?._id?.toString(),
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent']
+        };
+
+        const list = await listService.getListByShareableLink(link, accessInfo);
+        return successResponse(res, list, 'List fetched successfully');
+    } catch (error) {
+        handleErrorResponse(error, res);
+    }
+};
+
 // Helper functions
 function handleErrorResponse(error: unknown, res: Response) {
     if (error instanceof Error && error.message === 'Authentication required') {

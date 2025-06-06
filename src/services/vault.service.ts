@@ -1,4 +1,4 @@
-import { Vault, VaultCategory, VaultSubcategory, VaultItem, IVaultItem, IVaultSubcategory } from '../models/Vault';
+import { Vault, VaultCategory, VaultSubcategory, VaultItem, VaultActivity, IVaultItem, IVaultSubcategory, IVaultActivity } from '../models/Vault';
 import { Types } from 'mongoose';
 import CloudinaryService from '../services/cloudinary.service';
 import { User } from '../models/User';
@@ -8,6 +8,8 @@ import { ProfileModel } from '../models/profile.model';
 import { logger } from '../utils/logger';
 import { Connection } from '../models/Connection';
 import { ProfileConnectionModel } from '../models/profile-connection.model';
+import { VaultAuditLog } from '../models/VaultAuditLog';
+import { VaultVersion } from '../models/VaultVersion';
 
 interface ISubcategoryWithChildren {
   _id: Types.ObjectId;
@@ -19,6 +21,42 @@ interface ISubcategoryWithChildren {
   subcategories: ISubcategoryWithChildren[];
 }
 
+interface SearchCriteria {
+  query?: string;
+  categories?: string[];
+  subcategories?: string[];
+  dateRange?: {
+    from?: Date;
+    to?: Date;
+  };
+  tags?: string[];
+  metadata?: Record<string, any>;
+  accessLevel?: 'private' | 'shared' | 'public';
+  isEncrypted?: boolean;
+  isFavorite?: boolean;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+  // Enhanced search criteria
+  extractedText?: string;
+  processingStatus?: 'pending' | 'completed' | 'failed';
+  cardNetwork?: 'visa' | 'mastercard' | 'amex' | 'discover' | 'other';
+  isVerified?: boolean;
+  isExpired?: boolean;
+}
+
+// Enhanced activity tracking interface
+interface ActivityContext {
+  ipAddress?: string;
+  userAgent?: string;
+  location?: {
+    latitude?: number;
+    longitude?: number;
+    address?: string;
+  };
+}
+
 class VaultService {
   private cloudinaryService: CloudinaryService;
   private settingsService: SettingsService;
@@ -26,6 +64,124 @@ class VaultService {
   constructor() {
     this.cloudinaryService = new CloudinaryService();
     this.settingsService = new SettingsService();
+  }
+
+  // Enhanced activity logging using the new VaultActivity model
+  private async logActivity(
+    vaultId: Types.ObjectId,
+    profileId: Types.ObjectId,
+    action: 'created' | 'updated' | 'deleted' | 'viewed' | 'shared' | 'downloaded' | 'restored',
+    itemId?: Types.ObjectId,
+    details?: Record<string, any>,
+    context?: ActivityContext
+  ): Promise<void> {
+    try {
+      await VaultActivity.create({
+        vaultId,
+        profileId,
+        itemId,
+        action,
+        details,
+        ipAddress: context?.ipAddress,
+        userAgent: context?.userAgent,
+        location: context?.location,
+        createdAt: new Date()
+      });
+    } catch (error) {
+      logger.error('Failed to log vault activity:', error);
+      // Don't throw error to avoid breaking the main operation
+    }
+  }
+
+  // Enhanced OCR text extraction method
+  private async extractTextFromImage(imageUrl: string): Promise<{ extractedText: string; confidence: number }> {
+    try {
+      // This would integrate with an OCR service like Google Vision API, AWS Textract, etc.
+      // For now, returning mock data
+      return {
+        extractedText: '',
+        confidence: 0
+      };
+    } catch (error) {
+      logger.error('OCR extraction failed:', error);
+      return {
+        extractedText: '',
+        confidence: 0
+      };
+    }
+  }
+
+  // Enhanced image upload with processing status
+  private async uploadImageWithProcessing(
+    fileData: string,
+    folder: string,
+    resourceType: 'image' | 'video' | 'raw' | 'auto' = 'auto'
+  ): Promise<{
+    url: string;
+    storageId: string;
+    size: number;
+    cloudinaryPublicId: string;
+    dimensions?: { width: number; height: number };
+    thumbnailUrl: string;
+    isProcessed: boolean;
+  }> {
+    try {
+      const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(fileData, {
+        folder,
+        resourceType
+      });
+      
+      // Generate thumbnail for images using Cloudinary URL transformation
+      let thumbnailUrl = uploadResult.secure_url;
+      if (resourceType === 'image') {
+        // Create thumbnail URL by inserting transformation parameters
+        const transformationParams = 'w_200,h_200,c_fill,f_auto,q_auto';
+        thumbnailUrl = uploadResult.secure_url.replace('/upload/', `/upload/${transformationParams}/`);
+      }
+
+      return {
+        url: uploadResult.secure_url,
+        storageId: uploadResult.public_id,
+        size: uploadResult.bytes,
+        cloudinaryPublicId: uploadResult.public_id,
+        dimensions: uploadResult.width && uploadResult.height ? 
+          { width: uploadResult.width, height: uploadResult.height } : undefined,
+        thumbnailUrl,
+        isProcessed: true
+      };
+    } catch (error) {
+      logger.error('Image upload failed:', error);
+      throw error;
+    }
+  }
+
+  // Enhanced method to check access permissions
+  private async checkItemAccessPermissions(
+    requestingProfileId: string,
+    item: any
+  ): Promise<{ allowed: boolean; reason?: string }> {
+    // If item is private, only owner can access
+    if (item.accessLevel === 'private' && item.profileId.toString() !== requestingProfileId) {
+      return { allowed: false, reason: 'Item is private' };
+    }
+
+    // If item is shared, check if requesting profile is in sharedWith list
+    if (item.accessLevel === 'shared') {
+      if (item.profileId.toString() === requestingProfileId) {
+        return { allowed: true }; // Owner always has access
+      }
+      
+      const isSharedWith = item.sharedWith?.some((sharedProfileId: Types.ObjectId) => 
+        sharedProfileId.toString() === requestingProfileId
+      );
+      
+      if (!isSharedWith) {
+        return { allowed: false, reason: 'Item not shared with you' };
+      }
+    }
+
+    // Public items are accessible to all (if vault allows sharing)
+    return { allowed: true };
   }
 
   private getDefaultCategories() {
@@ -407,30 +563,34 @@ class VaultService {
     };
   }
 
-  async addItem(userId: string, profileId: string, category: string, subcategoryId: string, item: any) {
-    let fileSize = 0;
-    const uploadedImages: any = {};
+  async addItem(userId: string, profileId: string, category: string, subcategoryId: string, item: any, context?: ActivityContext) {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
 
-    // Get user settings for vault preferences
-    const profile = await ProfileModel.findById(profileId);
-    const settings = profile ? await this.settingsService.getSettings(userId, profileId) : null;
+    // Validate required parameters
+    if (!category || !subcategoryId || !item || !item.title) {
+      throw new Error('Missing required parameters: category, subcategoryId, item, and item.title are required');
+    }
 
-    // Check storage limits and file restrictions
-    await this.validateFileUpload(userId, profileId, item, settings);
-
-    // Get or create vault
     let vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
-    if (!vault) {
-      // Apply storage limit from settings when creating vault
-      const storageLimit = settings?.specificSettings?.vaultStorageLimit ?? 21474836480; // 20GB default
       
+    if (!vault) {
       vault = await Vault.create({
         userId: new Types.ObjectId(userId),
         profileId: new Types.ObjectId(profileId),
-        storageUsed: fileSize,
-        storageLimit: storageLimit
+        storageUsed: 0,
+        storageLimit: 21474836480 // 20GB default
       });
     }
+
+    // Get user settings
+    const settings = await this.settingsService.getSettings(userId, profileId);
+    await this.validateFileUpload(userId, profileId, item, settings);
+
+    let fileSize = 0;
+    let uploadedImages: any = {};
 
     // Get or create category
     let categoryDoc = await VaultCategory.findOne({ 
@@ -456,12 +616,25 @@ class VaultService {
       throw new Error('Subcategory not found or does not belong to the specified category');
     }
 
-    // Apply compression settings if enabled
+    // Enhanced: Set default access level and security settings
+    const accessLevel = item.accessLevel || 'private';
+    const sharedWith = item.sharedWith || [];
+    const pinRequired = item.pinRequired || false;
+    const biometricRequired = item.biometricRequired || false;
+
+    // Apply compression and encryption settings
     const compressionEnabled = settings?.specificSettings?.vaultCompressionEnabled ?? true;
     const encryptionEnabled = settings?.specificSettings?.vaultEncryptionEnabled ?? false;
 
-    // Handle main file upload if present
+    // Enhanced: Handle main file upload with processing status
+    let extractedText = '';
+    let ocrConfidence = 0;
+    let processingStatus: 'pending' | 'completed' | 'failed' = 'completed';
+
     if (item.fileData) {
+      try {
+        processingStatus = 'pending';
+        
       const uploadOptions = {
         folder: `vault/${profileId}/${category}/${subcategoryDoc.name}`,
         resourceType: this.getResourceTypeFromCategory(category),
@@ -472,11 +645,29 @@ class VaultService {
         ] : undefined
       };
 
-      const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(item.fileData, uploadOptions);
-      item.fileUrl = uploadResult.secure_url;
-      fileSize = uploadResult.bytes;
+        const uploadResult = await this.uploadImageWithProcessing(
+          item.fileData,
+          uploadOptions.folder,
+          uploadOptions.resourceType
+        );
+        
+        item.fileUrl = uploadResult.url;
+        fileSize = uploadResult.size;
       item.fileSize = fileSize;
-      item.publicId = uploadResult.public_id;
+        item.publicId = uploadResult.storageId;
+
+        // Enhanced: OCR processing for documents and images
+        if (uploadOptions.resourceType === 'image' && (category === 'Documents' || item.type === 'document')) {
+          try {
+            const ocrResult = await this.extractTextFromImage(uploadResult.url);
+            extractedText = ocrResult.extractedText;
+            ocrConfidence = ocrResult.confidence;
+          } catch (error) {
+            logger.warn('OCR processing failed:', error);
+          }
+        }
+
+        processingStatus = 'completed';
       
       // Add encryption metadata if enabled
       if (encryptionEnabled) {
@@ -488,54 +679,83 @@ class VaultService {
       }
       
       delete item.fileData;
+      } catch (error) {
+        processingStatus = 'failed';
+        logger.error('File upload failed:', error);
+        throw error;
+      }
     }
 
-    // Handle card images if present
+    // Enhanced: Handle card images with new image processing
     if (item.card?.images) {
       const cardImages = item.card.images;
+      
       if (cardImages.front?.fileData) {
-        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(cardImages.front.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/card/front`,
-          resourceType: 'image'
-        });
+        const uploadResult = await this.uploadImageWithProcessing(
+          cardImages.front.fileData,
+          `vault/${profileId}/${category}/${subcategoryDoc.name}/card/front`,
+          'image'
+        );
         uploadedImages.front = {
-          url: uploadResult.secure_url,
-          publicId: uploadResult.public_id,
+          url: uploadResult.url,
+          storageId: uploadResult.storageId,
+          storageProvider: 'cloudinary',
+          mimeType: 'image/jpeg',
+          size: uploadResult.size,
           uploadedAt: new Date(),
-          size: uploadResult.bytes
+          cloudinaryPublicId: uploadResult.cloudinaryPublicId,
+          thumbnailUrl: uploadResult.thumbnailUrl,
+          dimensions: uploadResult.dimensions,
+          isProcessed: uploadResult.isProcessed
         };
-        fileSize += uploadResult.bytes;
+        fileSize += uploadResult.size;
         delete cardImages.front.fileData;
       }
+
       if (cardImages.back?.fileData) {
-        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(cardImages.back.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/card/back`,
-          resourceType: 'image'
-        });
+        const uploadResult = await this.uploadImageWithProcessing(
+          cardImages.back.fileData,
+          `vault/${profileId}/${category}/${subcategoryDoc.name}/card/back`,
+          'image'
+        );
         uploadedImages.back = {
-          url: uploadResult.secure_url,
-          publicId: uploadResult.public_id,
+          url: uploadResult.url,
+          storageId: uploadResult.storageId,
+          storageProvider: 'cloudinary',
+          mimeType: 'image/jpeg',
+          size: uploadResult.size,
           uploadedAt: new Date(),
-          size: uploadResult.bytes
+          cloudinaryPublicId: uploadResult.cloudinaryPublicId,
+          thumbnailUrl: uploadResult.thumbnailUrl,
+          dimensions: uploadResult.dimensions,
+          isProcessed: uploadResult.isProcessed
         };
-        fileSize += uploadResult.bytes;
+        fileSize += uploadResult.size;
         delete cardImages.back.fileData;
       }
+
       if (cardImages.additional?.length) {
         uploadedImages.additional = await Promise.all(
-          cardImages.additional.map(async (img: any, index: number) => {
+          cardImages.additional.map(async (img: any) => {
             if (img.fileData) {
-              const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
-                folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/card/additional`,
-                resourceType: 'image'
-              });
-              fileSize += uploadResult.bytes;
+              const uploadResult = await this.uploadImageWithProcessing(
+                img.fileData,
+                `vault/${profileId}/${category}/${subcategoryDoc.name}/card/additional`,
+                'image'
+              );
+              fileSize += uploadResult.size;
               delete img.fileData;
               return {
-                url: uploadResult.secure_url,
-                publicId: uploadResult.public_id,
+                url: uploadResult.url,
+                storageId: uploadResult.storageId,
+                storageProvider: 'cloudinary',
+                mimeType: 'image/jpeg',
+                size: uploadResult.size,
                 uploadedAt: new Date(),
-                size: uploadResult.bytes,
+                cloudinaryPublicId: uploadResult.cloudinaryPublicId,
+                thumbnailUrl: uploadResult.thumbnailUrl,
+                dimensions: uploadResult.dimensions,
+                isProcessed: uploadResult.isProcessed,
                 description: img.description
               };
             }
@@ -546,175 +766,259 @@ class VaultService {
       item.card.images = uploadedImages;
     }
 
-    // Handle document images if present
+    // Enhanced: Handle document images with OCR
     if (item.document?.images) {
       const docImages = item.document.images;
+      let documentText = '';
+      
       if (docImages.front?.fileData) {
-        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(docImages.front.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/document/front`,
-          resourceType: 'image'
-        });
+        const uploadResult = await this.uploadImageWithProcessing(
+          docImages.front.fileData,
+          `vault/${profileId}/${category}/${subcategoryDoc.name}/document/front`,
+          'image'
+        );
+        
+        // OCR processing for document front image
+        try {
+          const ocrResult = await this.extractTextFromImage(uploadResult.url);
+          documentText += ocrResult.extractedText + ' ';
+          if (ocrResult.confidence > ocrConfidence) {
+            ocrConfidence = ocrResult.confidence;
+          }
+        } catch (error) {
+          logger.warn('OCR processing failed for document front:', error);
+        }
+
         uploadedImages.front = {
-          url: uploadResult.secure_url,
-          publicId: uploadResult.public_id,
+          url: uploadResult.url,
+          storageId: uploadResult.storageId,
+          storageProvider: 'cloudinary',
+          mimeType: 'image/jpeg',
+          size: uploadResult.size,
           uploadedAt: new Date(),
-          size: uploadResult.bytes
+          cloudinaryPublicId: uploadResult.cloudinaryPublicId,
+          thumbnailUrl: uploadResult.thumbnailUrl,
+          dimensions: uploadResult.dimensions,
+          isProcessed: uploadResult.isProcessed
         };
-        fileSize += uploadResult.bytes;
+        fileSize += uploadResult.size;
         delete docImages.front.fileData;
       }
+
       if (docImages.back?.fileData) {
-        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(docImages.back.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/document/back`,
-          resourceType: 'image'
-        });
+        const uploadResult = await this.uploadImageWithProcessing(
+          docImages.back.fileData,
+          `vault/${profileId}/${category}/${subcategoryDoc.name}/document/back`,
+          'image'
+        );
+        
+        // OCR processing for document back image
+        try {
+          const ocrResult = await this.extractTextFromImage(uploadResult.url);
+          documentText += ocrResult.extractedText + ' ';
+          if (ocrResult.confidence > ocrConfidence) {
+            ocrConfidence = ocrResult.confidence;
+          }
+        } catch (error) {
+          logger.warn('OCR processing failed for document back:', error);
+        }
+
         uploadedImages.back = {
-          url: uploadResult.secure_url,
-          publicId: uploadResult.public_id,
+          url: uploadResult.url,
+          storageId: uploadResult.storageId,
+          storageProvider: 'cloudinary',
+          mimeType: 'image/jpeg',
+          size: uploadResult.size,
           uploadedAt: new Date(),
-          size: uploadResult.bytes
+          cloudinaryPublicId: uploadResult.cloudinaryPublicId,
+          thumbnailUrl: uploadResult.thumbnailUrl,
+          dimensions: uploadResult.dimensions,
+          isProcessed: uploadResult.isProcessed
         };
-        fileSize += uploadResult.bytes;
+        fileSize += uploadResult.size;
         delete docImages.back.fileData;
       }
-      if (docImages.additional?.length) {
-        uploadedImages.additional = await Promise.all(
-          docImages.additional.map(async (img: any, index: number) => {
-            if (img.fileData) {
-              const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
-                folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/document/additional`,
-                resourceType: 'image'
-              });
-              fileSize += uploadResult.bytes;
-              delete img.fileData;
-              return {
-                url: uploadResult.secure_url,
-                publicId: uploadResult.public_id,
-                uploadedAt: new Date(),
-                size: uploadResult.bytes,
-                description: img.description
-              };
-            }
-            return img;
-          })
-        );
+
+      // Update extracted text with document content
+      if (documentText.trim()) {
+        extractedText = (extractedText + ' ' + documentText).trim();
       }
+
       item.document.images = uploadedImages;
     }
 
-    // Handle identification images if present
+    // Enhanced: Handle identification images with OCR
     if (item.identification?.images) {
       const idImages = item.identification.images;
+      let identificationText = '';
+      
       if (idImages.front?.fileData) {
-        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(idImages.front.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/front`,
-          resourceType: 'image'
-        });
+        const uploadResult = await this.uploadImageWithProcessing(
+          idImages.front.fileData,
+          `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/front`,
+          'image'
+        );
+        
+        // OCR processing for ID front
+        try {
+          const ocrResult = await this.extractTextFromImage(uploadResult.url);
+          identificationText += ocrResult.extractedText + ' ';
+          if (ocrResult.confidence > ocrConfidence) {
+            ocrConfidence = ocrResult.confidence;
+          }
+        } catch (error) {
+          logger.warn('OCR processing failed for ID front:', error);
+        }
+
         uploadedImages.front = {
-          url: uploadResult.secure_url,
-          publicId: uploadResult.public_id,
+          url: uploadResult.url,
+          storageId: uploadResult.storageId,
+          storageProvider: 'cloudinary',
+          mimeType: 'image/jpeg',
+          size: uploadResult.size,
           uploadedAt: new Date(),
-          size: uploadResult.bytes
+          cloudinaryPublicId: uploadResult.cloudinaryPublicId,
+          thumbnailUrl: uploadResult.thumbnailUrl,
+          dimensions: uploadResult.dimensions,
+          isProcessed: uploadResult.isProcessed
         };
-        fileSize += uploadResult.bytes;
+        fileSize += uploadResult.size;
         delete idImages.front.fileData;
       }
+
       if (idImages.back?.fileData) {
-        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(idImages.back.fileData, {
-          folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/back`,
-          resourceType: 'image'
-        });
+        const uploadResult = await this.uploadImageWithProcessing(
+          idImages.back.fileData,
+          `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/back`,
+          'image'
+        );
+        
+        // OCR processing for ID back
+        try {
+          const ocrResult = await this.extractTextFromImage(uploadResult.url);
+          identificationText += ocrResult.extractedText + ' ';
+          if (ocrResult.confidence > ocrConfidence) {
+            ocrConfidence = ocrResult.confidence;
+          }
+        } catch (error) {
+          logger.warn('OCR processing failed for ID back:', error);
+        }
+
         uploadedImages.back = {
-          url: uploadResult.secure_url,
-          publicId: uploadResult.public_id,
+          url: uploadResult.url,
+          storageId: uploadResult.storageId,
+          storageProvider: 'cloudinary',
+          mimeType: 'image/jpeg',
+          size: uploadResult.size,
           uploadedAt: new Date(),
-          size: uploadResult.bytes
+          cloudinaryPublicId: uploadResult.cloudinaryPublicId,
+          thumbnailUrl: uploadResult.thumbnailUrl,
+          dimensions: uploadResult.dimensions,
+          isProcessed: uploadResult.isProcessed
         };
-        fileSize += uploadResult.bytes;
+        fileSize += uploadResult.size;
         delete idImages.back.fileData;
       }
-      if (idImages.additional?.length) {
-        uploadedImages.additional = await Promise.all(
-          idImages.additional.map(async (img: any, index: number) => {
-            if (img.fileData) {
-              const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
-                folder: `vault/${profileId}/${category}/${subcategoryDoc.name}/identification/additional`,
-                resourceType: 'image'
-              });
-              fileSize += uploadResult.bytes;
-              delete img.fileData;
-              return {
-                url: uploadResult.secure_url,
-                publicId: uploadResult.public_id,
-                uploadedAt: new Date(),
-                size: uploadResult.bytes,
-                description: img.description
-              };
-            }
-            return img;
-          })
-        );
+
+      // Update extracted text with identification content
+      if (identificationText.trim()) {
+        extractedText = (extractedText + ' ' + identificationText).trim();
       }
+
       item.identification.images = uploadedImages;
     }
 
-    // Update vault storage
-    vault.storageUsed = (vault.storageUsed || 0) + fileSize;
-    await vault.save();
-
-    // Create the item with settings-based metadata
-    const newItem = await VaultItem.create({
-      vaultId: vault._id,
+    // Create vault item with enhanced features
+    const vaultItem = await VaultItem.create({
       profileId: new Types.ObjectId(profileId),
+      vaultId: vault._id,
       categoryId: categoryDoc._id,
       subcategoryId: subcategoryDoc._id,
-      type: item.type,
-      category: category,
+      category,
       title: item.title,
-      description: item.description || '',
+      description: item.description,
+      type: item.type,
+      status: item.status || 'active',
       fileUrl: item.fileUrl,
-      fileSize: fileSize,
-      publicId: item.publicId,
-      metadata: {
-        ...item.metadata,
-        compressed: compressionEnabled,
-        encrypted: encryptionEnabled,
-        uploadSettings: {
-          autoBackup: settings?.dataSettings?.autoDataBackup ?? true,
-          compressionEnabled,
-          encryptionEnabled
-        }
-      },
+      fileSize: item.fileSize,
+      isEncrypted: encryptionEnabled,
+      isFavorite: item.isFavorite || false,
+      tags: item.tags || [],
+      metadata: item.metadata || {},
+      
+      // Enhanced security features
+      accessLevel,
+      sharedWith: sharedWith.map((id: string) => new Types.ObjectId(id)),
+      pinRequired,
+      biometricRequired,
+      
+      // Enhanced intelligence features
+      extractedText: extractedText || undefined,
+      ocrConfidence: ocrConfidence > 0 ? ocrConfidence : undefined,
+      processingStatus,
+      
+      // Type-specific data
       card: item.card,
-      document: item.document ? {
-        ...item.document,
-        issueDate: item.document.issueDate ? new Date(item.document.issueDate) : undefined,
-        expiryDate: item.document.expiryDate ? new Date(item.document.expiryDate) : undefined
-      } : undefined,
+      document: item.document,
       location: item.location,
-      identification: item.identification
+      identification: item.identification,
+      media: item.media
     });
 
-    // Send notification if enabled
-    await this.sendVaultNotification(userId, profileId, 'item_added', {
-      itemTitle: item.title,
-      category: category,
-      subcategory: subcategoryDoc.name
+    // Update vault storage
+    await Vault.findByIdAndUpdate(vault._id, {
+      $inc: { storageUsed: fileSize },
+      lastAccessedAt: new Date()
     });
 
-    // Schedule backup if auto-backup is enabled
+    // Create audit log entry for item creation
+    await this.trackAccess(profileId, vaultItem._id.toString(), 'create', {
+      category,
+      subcategory: subcategoryDoc.name,
+      title: item.title,
+      fileSize,
+      accessLevel,
+      ipAddress: context?.ipAddress,
+      userAgent: context?.userAgent
+    });
+
+    // Schedule backup if enabled
     if (settings?.dataSettings?.autoDataBackup) {
-      await this.scheduleItemBackup(newItem._id.toString(), userId);
+      await this.scheduleItemBackup(vaultItem._id.toString(), userId);
     }
 
-    return newItem;
+    return {
+      item: vaultItem,
+      message: 'Item added successfully',
+      storageUsed: vault.storageUsed + fileSize,
+      processingStatus,
+      ocrConfidence: ocrConfidence > 0 ? ocrConfidence : undefined,
+      extractedText: extractedText || undefined
+    };
   }
 
-  async updateItem(userId: string, itemId: string, updates: any) {
-    const item = await VaultItem.findById(itemId);
+  async updateItem(userId: string, profileId: string, itemId: string, updates: any) {
+    const item = await VaultItem.findOne({
+      _id: new Types.ObjectId(itemId),
+      profileId: new Types.ObjectId(profileId)
+    });
+
       if (!item) {
         throw new Error('Item not found');
       }
+
+    // Create a version before updating
+    const currentVersion = new VaultVersion({
+      itemId: item._id,
+      versionNumber: (await VaultVersion.countDocuments({ itemId: item._id })) + 1,
+      data: item.toObject(),
+      metadata: {
+        changedBy: profileId,
+        changeReason: updates.changeReason || 'Item updated'
+      }
+    });
+
+    await currentVersion.save();
 
     let fileSize = 0;
     const uploadedImages: any = {};
@@ -739,7 +1043,11 @@ class VaultService {
       const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(updates.fileData, uploadOptions);
       updates.fileUrl = uploadResult.secure_url;
       updates.fileSize = uploadResult.bytes;
-      updates.publicId = uploadResult.public_id;
+      updates.metadata = {
+        ...updates.metadata,
+        publicId: uploadResult.public_id,
+        fileSize: uploadResult.bytes
+      };
       fileSize += uploadResult.bytes;
       delete updates.fileData;
     }
@@ -908,6 +1216,88 @@ class VaultService {
       updates.document.images = uploadedImages;
     }
 
+    // Handle identification images update if present
+    if (updates.identification?.images) {
+      const idImages = updates.identification.images;
+      if (idImages.front?.fileData) {
+        // Delete old front image if exists
+        if (item.identification?.images?.front?.storageId) {
+          await this.cloudinaryService.delete(item.identification.images.front.storageId);
+        }
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(idImages.front.fileData, {
+          folder: `vault/${item.profileId}/${category?.name}/${subcategory?.name}/identification/front`,
+          resourceType: 'image'
+        });
+        uploadedImages.front = {
+          url: uploadResult.secure_url,
+          storageId: uploadResult.public_id,
+          storageProvider: 'cloudinary',
+          mimeType: uploadResult.format,
+          size: uploadResult.bytes,
+          uploadedAt: new Date(),
+          metadata: {
+            originalFormat: uploadResult.format,
+            resourceType: uploadResult.resource_type
+          }
+        };
+        fileSize += uploadResult.bytes;
+        delete idImages.front.fileData;
+      }
+      if (idImages.back?.fileData) {
+        // Delete old back image if exists
+        if (item.identification?.images?.back?.storageId) {
+          await this.cloudinaryService.delete(item.identification.images.back.storageId);
+        }
+        const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(idImages.back.fileData, {
+          folder: `vault/${item.profileId}/${category?.name}/${subcategory?.name}/identification/back`,
+          resourceType: 'image'
+        });
+        uploadedImages.back = {
+          url: uploadResult.secure_url,
+          storageId: uploadResult.public_id,
+          storageProvider: 'cloudinary',
+          mimeType: uploadResult.format,
+          size: uploadResult.bytes,
+          uploadedAt: new Date(),
+          metadata: {
+            originalFormat: uploadResult.format,
+            resourceType: uploadResult.resource_type
+          }
+        };
+        fileSize += uploadResult.bytes;
+        delete idImages.back.fileData;
+      }
+      if (idImages.additional?.length) {
+        uploadedImages.additional = await Promise.all(
+          idImages.additional.map(async (img: any, index: number) => {
+            if (img.fileData) {
+              const uploadResult = await this.cloudinaryService.uploadAndReturnAllInfo(img.fileData, {
+                folder: `vault/${item.profileId}/${category?.name}/${subcategory?.name}/identification/additional`,
+                resourceType: 'image'
+              });
+              fileSize += uploadResult.bytes;
+              delete img.fileData;
+              return {
+                url: uploadResult.secure_url,
+                storageId: uploadResult.public_id,
+                storageProvider: 'cloudinary',
+                mimeType: uploadResult.format,
+                size: uploadResult.bytes,
+                uploadedAt: new Date(),
+                description: img.description,
+                metadata: {
+                  originalFormat: uploadResult.format,
+                  resourceType: uploadResult.resource_type
+                }
+              };
+            }
+            return img;
+          })
+        );
+      }
+      updates.identification.images = uploadedImages;
+    }
+
     // Update vault storage
     const vault = await Vault.findById(item.vaultId);
     if (vault) {
@@ -915,11 +1305,24 @@ class VaultService {
       await vault.save();
     }
 
-    return VaultItem.findByIdAndUpdate(
-      itemId,
-      { $set: updates },
-      { new: true }
-    );
+    // Apply updates
+    Object.assign(item, updates);
+    
+    // Ensure fileSize is set if we uploaded a file
+    if (updates.fileSize) {
+      item.fileSize = updates.fileSize;
+    }
+    
+    await item.save();
+
+    // Create audit log entry for item update
+    await this.trackAccess(profileId, itemId, 'update', {
+      updatedFields: Object.keys(updates),
+      fileUpdated: !!updates.fileData || !!(updates.card?.images || updates.document?.images || updates.identification?.images),
+      userId
+    });
+
+    return item;
   }
 
   async deleteItem(profileId: string, itemId: string) {
@@ -1409,23 +1812,25 @@ class VaultService {
   async getNestedSubcategories(profileId: string, subcategoryId: string): Promise<ISubcategoryWithChildren[]> {
     const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) {
-      throw new Error('Vault not found');
+      throw createHttpError(404, 'Vault not found');
     }
 
     const parentSubcategory = await VaultSubcategory.findOne({
       vaultId: vault._id,
-      _id: new Types.ObjectId(subcategoryId)
+      _id: new Types.ObjectId(subcategoryId),
+      status: { $ne: 'archived' }  // Exclude archived parent subcategory
     });
 
     if (!parentSubcategory) {
-      throw new Error('Subcategory not found');
+      throw createHttpError(404, 'Subcategory not found');
     }
 
     // Get immediate children
     const subcategories = await VaultSubcategory.find({
       vaultId: vault._id,
       categoryId: parentSubcategory.categoryId,
-      parentId: parentSubcategory._id
+      parentId: parentSubcategory._id,
+      status: { $ne: 'archived' }  // Exclude archived subcategories
     }).sort({ order: 1 });
 
     // Get item counts and items for each subcategory
@@ -1435,18 +1840,21 @@ class VaultService {
         const hasChildren = await VaultSubcategory.exists({
           vaultId: vault._id,
           categoryId: parentSubcategory.categoryId,
-          parentId: sub._id
+          parentId: sub._id,
+          status: { $ne: 'archived' }  // Exclude archived children
         });
 
         // Get item count and items for this subcategory
         const [count, items] = await Promise.all([
           VaultItem.countDocuments({
             vaultId: vault._id,
-            subcategoryId: sub._id
+            subcategoryId: sub._id,
+            status: { $ne: 'archived' }  // Exclude archived items
           }),
           VaultItem.find({
             vaultId: vault._id,
-            subcategoryId: sub._id
+            subcategoryId: sub._id,
+            status: { $ne: 'archived' }  // Exclude archived items
           }).sort({ createdAt: -1 })
         ]);
 
@@ -1454,7 +1862,8 @@ class VaultService {
         const childSubcategories = await VaultSubcategory.find({
           vaultId: vault._id,
           categoryId: parentSubcategory.categoryId,
-          parentId: sub._id
+          parentId: sub._id,
+          status: { $ne: 'archived' }  // Exclude archived children
         }).sort({ order: 1 });
 
         // Get items for child subcategories
@@ -1463,11 +1872,13 @@ class VaultService {
             const [childCount, childItems] = await Promise.all([
               VaultItem.countDocuments({
                 vaultId: vault._id,
-                subcategoryId: childSub._id
+                subcategoryId: childSub._id,
+                status: { $ne: 'archived' }  // Exclude archived items
               }),
               VaultItem.find({
                 vaultId: vault._id,
-                subcategoryId: childSub._id
+                subcategoryId: childSub._id,
+                status: { $ne: 'archived' }  // Exclude archived items
               }).sort({ createdAt: -1 })
             ]);
 
@@ -1595,6 +2006,17 @@ class VaultService {
   }
 
   async moveSubcategory(profileId: string, subcategoryId: string, newParentId?: string) {
+    // Validate ObjectId format
+    if (!Types.ObjectId.isValid(profileId)) {
+      throw new Error('Invalid profile ID format');
+    }
+    if (!Types.ObjectId.isValid(subcategoryId)) {
+      throw new Error('Subcategory not found');
+    }
+    if (newParentId && !Types.ObjectId.isValid(newParentId)) {
+      throw new Error('Invalid parent subcategory ID format');
+    }
+
     const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) {
       throw new Error('Vault not found');
@@ -1610,12 +2032,16 @@ class VaultService {
 
     // Prevent circular references
     if (newParentId) {
+      // Start from the new parent and traverse upward
       let currentParent = await VaultSubcategory.findById(newParentId);
+      
       while (currentParent) {
+        // If we encounter the subcategory we're trying to move in the ancestry chain, it's circular
         if (currentParent._id.toString() === subcategoryId) {
           throw new Error('Cannot move subcategory to its own descendant');
         }
-        currentParent = await VaultSubcategory.findById(currentParent.parentId);
+        // Move up to the next parent
+        currentParent = currentParent.parentId ? await VaultSubcategory.findById(currentParent.parentId) : null;
       }
     }
 
@@ -1632,6 +2058,14 @@ class VaultService {
   }
 
   async deleteSubcategory(profileId: string, subcategoryId: string): Promise<void> {
+    // Validate ObjectId format
+    if (!Types.ObjectId.isValid(profileId)) {
+      throw createHttpError(400, 'Invalid profile ID format');
+    }
+    if (!Types.ObjectId.isValid(subcategoryId)) {
+      throw createHttpError(404, 'Subcategory not found');
+    }
+
     const vault = await Vault.findOne({ profileId: new Types.ObjectId(profileId) });
     if (!vault) {
       throw createHttpError(404, 'Vault not found');
@@ -1653,7 +2087,7 @@ class VaultService {
     // Get all items to be archived
     const items = await VaultItem.find({
       vaultId: vault._id,
-      subcategoryId: { $in: [subcategoryId, ...childSubcategoryIds] }
+      subcategoryId: { $in: [new Types.ObjectId(subcategoryId), ...childSubcategoryIds.map(id => new Types.ObjectId(id))] }
     });
 
     // Archive items instead of deleting
@@ -1719,7 +2153,7 @@ class VaultService {
         $set: {
           status: 'archived',
           archivedAt: new Date(),
-          archivedBy: profileId
+          archivedBy: new Types.ObjectId(profileId)
         }
       });
     }
@@ -1728,13 +2162,13 @@ class VaultService {
     await VaultSubcategory.updateMany(
       {
         vaultId: vault._id,
-        _id: { $in: [subcategoryId, ...childSubcategoryIds] }
+        _id: { $in: [new Types.ObjectId(subcategoryId), ...childSubcategoryIds.map(id => new Types.ObjectId(id))] }
       },
       {
         $set: {
           status: 'archived',
           archivedAt: new Date(),
-          archivedBy: profileId
+          archivedBy: new Types.ObjectId(profileId)
         }
       }
     );
@@ -2400,6 +2834,437 @@ class VaultService {
     if (vault) {
       await Vault.findByIdAndDelete(vault._id);
     }
+  }
+
+  /**
+   * Advanced search functionality for vault items
+   */
+  async advancedSearch(profileId: string, criteria: SearchCriteria) {
+    const query: any = { profileId: new Types.ObjectId(profileId) };
+
+    // Text search
+    if (criteria.query) {
+      query.$or = [
+        { title: { $regex: criteria.query, $options: 'i' } },
+        { description: { $regex: criteria.query, $options: 'i' } },
+        { tags: { $regex: criteria.query, $options: 'i' } }
+      ];
+    }
+
+    // Category and subcategory filters
+    if (criteria.categories?.length) {
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { category: { $in: criteria.categories } },
+          { tags: { $in: criteria.categories } }
+        ]
+      });
+    }
+    if (criteria.subcategories?.length) {
+      query.subcategoryId = { $in: criteria.subcategories.map(id => new Types.ObjectId(id)) };
+    }
+
+    // Date range filter
+    if (criteria.dateRange) {
+      query.createdAt = {};
+      if (criteria.dateRange.from) {
+        query.createdAt.$gte = new Date(criteria.dateRange.from);
+      }
+      if (criteria.dateRange.to) {
+        query.createdAt.$lte = new Date(criteria.dateRange.to);
+      }
+    }
+
+    // Tags filter - check for items that have the specified tags
+    if (criteria.tags?.length) {
+      query.$and = query.$and || [];
+      query.$and.push({ tags: { $in: criteria.tags } });
+    }
+
+    // Metadata filter
+    if (criteria.metadata) {
+      Object.entries(criteria.metadata).forEach(([key, value]) => {
+        query[`metadata.${key}`] = value;
+      });
+    }
+
+    // Access level filter
+    if (criteria.accessLevel) {
+      query.accessLevel = criteria.accessLevel;
+    }
+
+    // Boolean filters
+    if (criteria.isEncrypted !== undefined) {
+      query.isEncrypted = criteria.isEncrypted;
+    }
+    if (criteria.isFavorite !== undefined) {
+      query.isFavorite = criteria.isFavorite;
+    }
+
+    // Build sort options
+    const sortOptions: any = {};
+    if (criteria.sortBy) {
+      sortOptions[criteria.sortBy] = criteria.sortOrder === 'desc' ? -1 : 1;
+    } else {
+      sortOptions.createdAt = -1; // Default sort by creation date
+    }
+
+    // Execute search with pagination
+    const items = await VaultItem.find(query)
+      .sort(sortOptions)
+      .skip(criteria.offset || 0)
+      .limit(criteria.limit || 50)
+      .populate('categoryId')
+      .populate('subcategoryId');
+
+    // Get total count for pagination
+    const total = await VaultItem.countDocuments(query);
+
+    return {
+      items,
+      total,
+      hasMore: total > (criteria.offset || 0) + (criteria.limit || 50)
+    };
+  }
+
+  /**
+   * Get vault analytics and statistics
+   */
+  async getVaultAnalytics(profileId: string) {
+    const stats = await VaultItem.aggregate([
+      { $match: { profileId: new Types.ObjectId(profileId) } },
+      {
+        $group: {
+          _id: null,
+          totalItems: { $sum: 1 },
+          totalStorage: { $sum: { $ifNull: ['$fileSize', 0] } },
+          encryptedItems: {
+            $sum: { $cond: [{ $eq: ['$isEncrypted', true] }, 1, 0] }
+          },
+          favoriteItems: {
+            $sum: { $cond: [{ $eq: ['$isFavorite', true] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    // Get recent activity
+    const recentActivity = await VaultItem.find({ profileId: new Types.ObjectId(profileId) })
+      .sort({ updatedAt: -1 })
+      .limit(10)
+      .select('title category updatedAt');
+
+    // Get storage usage by category
+    const storageByCategory = await VaultItem.aggregate([
+      { $match: { profileId: new Types.ObjectId(profileId) } },
+      {
+        $group: {
+          _id: '$category',
+          storageUsed: { $sum: { $ifNull: ['$fileSize', 0] } },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          category: '$_id',
+          storageUsed: 1,
+          count: 1,
+          _id: 0
+        }
+      }
+    ]);
+
+    return {
+      stats: stats[0] || {
+        totalItems: 0,
+        totalStorage: 0,
+        encryptedItems: 0,
+        favoriteItems: 0
+      },
+      recentActivity,
+      storageByCategory
+    };
+  }
+
+  /**
+   * Track vault item access and create audit log
+   */
+  async trackAccess(profileId: string, itemId: string, action: string, metadata: any = {}) {
+    const auditLog = new VaultAuditLog({
+      profileId: new Types.ObjectId(profileId),
+      itemId: new Types.ObjectId(itemId),
+      action,
+      metadata,
+      timestamp: new Date()
+    });
+
+    await auditLog.save();
+    return auditLog;
+  }
+
+  /**
+   * Get audit trail for a vault item
+   */
+  async getAuditTrail(profileId: string, itemId: string, options: { limit?: number; offset?: number } = {}) {
+    const query = {
+      profileId: new Types.ObjectId(profileId),
+      itemId: new Types.ObjectId(itemId)
+    };
+
+    const logs = await VaultAuditLog.find(query)
+      .sort({ timestamp: -1 })
+      .skip(options.offset || 0)
+      .limit(options.limit || 50);
+
+    const total = await VaultAuditLog.countDocuments(query);
+
+    return {
+      logs,
+      total,
+      hasMore: total > (options.offset || 0) + (options.limit || 50)
+    };
+  }
+
+  async createVersion(
+    profileId: string,
+    itemId: string,
+    changes: { field: string; oldValue: any; newValue: any }[],
+    metadata: { changedBy: string; changeReason?: string; ipAddress?: string; userAgent?: string }
+  ) {
+    const item = await VaultItem.findOne({ _id: itemId, profileId });
+    if (!item) {
+      throw new Error('Vault item not found');
+    }
+
+    // Get the latest version number
+    const latestVersion = await VaultVersion.findOne({ itemId })
+      .sort({ versionNumber: -1 })
+      .select('versionNumber');
+
+    const versionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
+
+    // Create a snapshot of the current item state
+    const { _id, __v, ...snapshot } = item.toObject();
+
+    const version = await VaultVersion.create({
+      itemId,
+      versionNumber,
+      data: snapshot,
+      metadata: {
+        changedBy: metadata.changedBy,
+        changeReason: metadata.changeReason
+      }
+    });
+
+    return version;
+  }
+
+  async getVersions(profileId: string, itemId: string, options: { limit?: number; offset?: number } = {}) {
+    const query = { itemId: new Types.ObjectId(itemId) };
+    const versions = await VaultVersion.find(query)
+      .sort({ versionNumber: -1 })
+      .skip(options.offset || 0)
+      .limit(options.limit || 10);
+
+    const total = await VaultVersion.countDocuments(query);
+
+    return {
+      versions,
+      total,
+      hasMore: total > (options.offset || 0) + versions.length
+    };
+  }
+
+  async restoreVersion(profileId: string, itemId: string, version: number) {
+    const versionDoc = await VaultVersion.findOne({ 
+      itemId: new Types.ObjectId(itemId), 
+      versionNumber: version 
+    });
+    if (!versionDoc) {
+      throw new Error('Version not found');
+    }
+
+    const item = await VaultItem.findOne({ 
+      _id: new Types.ObjectId(itemId), 
+      profileId: new Types.ObjectId(profileId) 
+    });
+    if (!item) {
+      throw new Error('Vault item not found');
+    }
+
+    // Create a new version before restoring
+    const currentVersion = new VaultVersion({
+      itemId: item._id,
+      versionNumber: (await VaultVersion.countDocuments({ itemId: item._id })) + 1,
+      data: item.toObject(),
+      metadata: {
+        changedBy: profileId,
+        changeReason: `Restored to version ${version}`
+      }
+    });
+    await currentVersion.save();
+
+    // Restore the item to the version state
+    Object.assign(item, versionDoc.data);
+    await item.save();
+
+    return item;
+  }
+
+  async batchUpdate(profileId: string, updates: Array<{ itemId: string; updates: any }>) {
+    const results = {
+      successful: [] as string[],
+      failed: [] as Array<{ itemId: string; error: string }>
+    };
+
+    for (const { itemId, updates: itemUpdates } of updates) {
+      try {
+        // Validate item exists
+        const item = await VaultItem.findOne({ 
+          _id: new Types.ObjectId(itemId), 
+          profileId: new Types.ObjectId(profileId) 
+        });
+        if (!item) {
+          throw new Error('Item not found');
+        }
+
+        // Validate card data if present
+        if (itemUpdates.card) {
+          if (itemUpdates.card.number && !/^\d{13,19}$/.test(itemUpdates.card.number)) {
+            throw new Error('Invalid card number format');
+          }
+          if (itemUpdates.card.cvv && !/^\d{3,4}$/.test(itemUpdates.card.cvv)) {
+            throw new Error('Invalid CVV format');
+          }
+        }
+
+        // Validate document data if present
+        if (itemUpdates.document) {
+          if (itemUpdates.document.expiryDate && new Date(itemUpdates.document.expiryDate) < new Date()) {
+            throw new Error('Document expiry date cannot be in the past');
+          }
+        }
+
+        // Validate identification data if present
+        if (itemUpdates.identification) {
+          if (itemUpdates.identification.expiryDate && new Date(itemUpdates.identification.expiryDate) < new Date()) {
+            throw new Error('Identification expiry date cannot be in the past');
+          }
+        }
+
+        // Create a version before updating
+        const currentVersion = new VaultVersion({
+          itemId: item._id,
+          versionNumber: (await VaultVersion.countDocuments({ itemId: item._id })) + 1,
+          data: item.toObject(),
+          metadata: {
+            changedBy: profileId,
+            changeReason: 'Batch update'
+          }
+        });
+        await currentVersion.save();
+
+        // Update the item
+        Object.assign(item, itemUpdates);
+        await item.save();
+
+        results.successful.push(itemId);
+      } catch (error: any) {
+        results.failed.push({
+          itemId,
+          error: error.message
+        });
+      }
+    }
+
+    return results;
+  }
+
+  async batchDelete(profileId: string, itemIds: string[]) {
+    const results = {
+      successful: [] as string[],
+      failed: [] as Array<{ itemId: string; error: string }>
+    };
+
+    for (const itemId of itemIds) {
+      try {
+        const item = await VaultItem.findOne({ _id: itemId, profileId });
+        if (!item) {
+          throw new Error('Item not found');
+        }
+
+        // Create a final version entry before deletion
+        await this.createVersion(profileId, itemId, [{
+          field: 'deletion',
+          oldValue: item.toObject(),
+          newValue: null
+        }], {
+          changedBy: profileId,
+          changeReason: 'Batch deletion'
+        });
+
+        await item.deleteOne();
+        results.successful.push(itemId);
+      } catch (error) {
+        results.failed.push({
+          itemId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    return results;
+  }
+
+  async batchMove(profileId: string, items: Array<{ itemId: string; categoryId: string; subcategoryId: string }>) {
+    const results = {
+      successful: [] as string[],
+      failed: [] as Array<{ itemId: string; error: string }>
+    };
+
+    for (const { itemId, categoryId, subcategoryId } of items) {
+      try {
+        const item = await VaultItem.findOne({ _id: itemId, profileId });
+        if (!item) {
+          throw new Error('Item not found');
+        }
+
+        // Track changes for versioning
+        const changes = [
+          {
+            field: 'categoryId',
+            oldValue: item.categoryId,
+            newValue: categoryId
+          },
+          {
+            field: 'subcategoryId',
+            oldValue: item.subcategoryId,
+            newValue: subcategoryId
+          }
+        ];
+
+        // Update the item
+        item.categoryId = new Types.ObjectId(categoryId);
+        item.subcategoryId = new Types.ObjectId(subcategoryId);
+        await item.save();
+
+        // Create version entry
+        await this.createVersion(profileId, itemId, changes, {
+          changedBy: profileId,
+          changeReason: 'Batch move'
+        });
+
+        results.successful.push(itemId);
+      } catch (error) {
+        results.failed.push({
+          itemId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    return results;
   }
 }
 

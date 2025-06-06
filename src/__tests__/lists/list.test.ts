@@ -720,6 +720,109 @@ describe('List Tests', () => {
     });
   });
 
+  describe('Shareable Link Functionality', () => {
+    let testList: IList;
+
+    beforeEach(async () => {
+      testList = await List.create({
+        name: 'Test List',
+        type: ListType.Todo,
+        importance: ImportanceLevel.Medium,
+        createdBy: testUser._id,
+        profile: testProfile._id,
+        items: []
+      });
+    });
+
+    it('should generate a shareable link with view access', async () => {
+      const response = await request(app)
+        .post(`/api/lists/${testList._id}/shareable-link`)
+        .send({
+          profileId: testProfile._id,
+          access: 'view'
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.shareableLink).toBeDefined();
+      expect(response.body.data.linkAccess).toBe('view');
+    });
+
+    it('should generate a shareable link with edit access', async () => {
+      const response = await request(app)
+        .post(`/api/lists/${testList._id}/shareable-link`)
+        .send({
+          profileId: testProfile._id,
+          access: 'edit'
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.shareableLink).toBeDefined();
+      expect(response.body.data.linkAccess).toBe('edit');
+    });
+
+    it('should disable a shareable link', async () => {
+      // First generate a link
+      await request(app)
+        .post(`/api/lists/${testList._id}/shareable-link`)
+        .send({
+          profileId: testProfile._id,
+          access: 'view'
+        });
+
+      // Then disable it
+      const response = await request(app)
+        .delete(`/api/lists/${testList._id}/shareable-link`)
+        .send({
+          profileId: testProfile._id
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.shareableLink).toBe('');
+      expect(response.body.data.linkAccess).toBe('none');
+    });
+
+    it('should get a list by shareable link', async () => {
+      // First generate a link
+      const generateResponse = await request(app)
+        .post(`/api/lists/${testList._id}/shareable-link`)
+        .send({
+          profileId: testProfile._id,
+          access: 'view'
+        });
+
+      const shareableLink = generateResponse.body.data.shareableLink;
+
+      // Then get the list using the link
+      const response = await request(app)
+        .get(`/api/lists/shared/${shareableLink}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data._id.toString()).toBe((testList._id as mongoose.Types.ObjectId).toString());
+    });
+
+    it('should return 404 for invalid shareable link', async () => {
+      const response = await request(app)
+        .get('/api/lists/shareable/invalid-link');
+
+      expect(response.status).toBe(404);
+    });
+
+    it('should return 400 for invalid access type', async () => {
+      const response = await request(app)
+        .post(`/api/lists/${testList._id}/shareable-link`)
+        .send({
+          profileId: testProfile._id,
+          access: 'invalid'
+        });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
   describe('Error Handling', () => {
     it('should handle invalid list ID', async () => {
       const response = await request(app)

@@ -74,9 +74,9 @@ jest.mock('../../services/participant.service', () => ({
 
 describe('Event System Tests', () => {
   let mongoServer: MongoMemoryServer;
-  let app: express.Application;
-  let testUser: IUser;
+  let testUser: any;
   let testProfile: any;
+  let app: express.Application;
   let authToken: string;
 
   beforeAll(async () => {
@@ -84,8 +84,49 @@ describe('Event System Tests', () => {
     mongoServer = await MongoMemoryServer.create();
     const mongoUri = mongoServer.getUri();
     await mongoose.connect(mongoUri);
+  });
 
-    // Setup Express app
+  beforeEach(async () => {
+    // Clear database
+    await Event.deleteMany({});
+    await User.deleteMany({});
+    await ProfileModel.deleteMany({});
+
+    // Create test user
+    testUser = await User.create({
+      email: 'test@example.com',
+      firstName: 'Test',
+      lastName: 'User',
+      fullName: 'Test User',
+      username: 'testuser',
+      dateOfBirth: new Date('1990-01-01'),
+      countryOfResidence: 'US',
+      phoneNumber: '+1234567890',
+      accountType: 'MYSELF',
+      accountCategory: 'PRIMARY_ACCOUNT',
+      verificationMethod: 'EMAIL',
+      signupType: 'email',
+      password: 'hashedpassword'
+    });
+
+    // Create test profile
+    testProfile = await ProfileModel.create({
+      profileInformation: {
+        username: 'testprofile',
+        profileLink: 'test-profile-link',
+        connectLink: 'test-connect-link',
+        followLink: 'test-follow-link',
+        creator: testUser._id
+      },
+      templatedId: new mongoose.Types.ObjectId(),
+      profileType: 'personal',
+      profileCategory: 'individual'
+    });
+
+    // Generate auth token
+    authToken = jwt.sign({ userId: testUser._id }, 'test-secret');
+
+    // Setup Express app after testUser is created
     app = express();
     app.use(express.json());
     
@@ -130,47 +171,6 @@ describe('Event System Tests', () => {
         message: error.message || 'Internal Server Error'
       });
     });
-  });
-
-  beforeEach(async () => {
-    // Clear database
-    await Event.deleteMany({});
-    await User.deleteMany({});
-    await ProfileModel.deleteMany({});
-
-    // Create test user
-    testUser = await User.create({
-      email: 'test@example.com',
-      firstName: 'Test',
-      lastName: 'User',
-      fullName: 'Test User',
-      username: 'testuser',
-      dateOfBirth: new Date('1990-01-01'),
-      countryOfResidence: 'US',
-      phoneNumber: '+1234567890',
-      accountType: 'MYSELF',
-      accountCategory: 'PRIMARY_ACCOUNT',
-      verificationMethod: 'EMAIL',
-      signupType: 'email',
-      password: 'hashedpassword'
-    });
-
-    // Create test profile
-    testProfile = await ProfileModel.create({
-      profileInformation: {
-        username: 'testprofile',
-        profileLink: 'test-profile-link',
-        connectLink: 'test-connect-link',
-        followLink: 'test-follow-link',
-        creator: testUser._id
-      },
-      templatedId: new mongoose.Types.ObjectId(),
-      profileType: 'personal',
-      profileCategory: 'individual'
-    });
-
-    // Generate auth token
-    authToken = jwt.sign({ userId: testUser._id }, 'test-secret');
   });
 
   afterAll(async () => {

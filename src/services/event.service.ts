@@ -1742,7 +1742,7 @@ class EventService {
      */
     private async createListsFromAgendaItems(event: IEvent): Promise<void> {
         const listPromise = new List({
-            name: `${event.title} - Agenda` || 'Event Agenda',
+            name: event.title ? `${event.title} - Agenda` : 'Event Agenda',
             type: ListType.Todo,
             createdBy: event.createdBy,
             profile: event.profile,
@@ -1753,7 +1753,7 @@ class EventService {
                 createdAt: new Date()
             })),
             // Copy relevant properties from the event
-            visibility: mapExternalToInternal(event.visibility as any),
+            visibility: 'Public',
             color: event.color,
             importance: this.mapPriorityToImportance(event.priority),
             category: event.category

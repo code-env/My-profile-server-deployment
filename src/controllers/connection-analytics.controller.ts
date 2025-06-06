@@ -30,7 +30,7 @@ export class ConnectionAnalyticsController {
           strength,
           summary: {
             score: strength.score,
-            level: this.getStrengthLevel(strength.score),
+            level: ConnectionAnalyticsController.getStrengthLevel(strength.score),
             strongPoints: strength.metadata.strongestFactors,
             suggestions: strength.metadata.suggestedActions
           }
