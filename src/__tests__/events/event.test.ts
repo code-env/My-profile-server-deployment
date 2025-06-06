@@ -74,9 +74,9 @@ jest.mock('../../services/participant.service', () => ({
 
 describe('Event System Tests', () => {
   let mongoServer: MongoMemoryServer;
-  let app: express.Application;
-  let testUser: IUser;
+  let testUser: any;
   let testProfile: any;
+  let app: express.Application;
   let authToken: string;
 
   beforeAll(async () => {
@@ -84,52 +84,6 @@ describe('Event System Tests', () => {
     mongoServer = await MongoMemoryServer.create();
     const mongoUri = mongoServer.getUri();
     await mongoose.connect(mongoUri);
-
-    // Setup Express app
-    app = express();
-    app.use(express.json());
-    
-    // Mock authentication middleware
-    app.use((req: any, res, next) => {
-      req.user = testUser;
-      next();
-    });
-
-    // Setup routes
-    app.post('/events', eventController.createEvent);
-    app.get('/events/:id', eventController.getEventById);
-    app.get('/events', eventController.getUserEvents);
-    app.put('/events/:id', eventController.updateEvent);
-    app.delete('/events/:id', eventController.deleteEvent);
-    app.post('/events/:id/agenda', eventController.addAgendaItem);
-    app.put('/events/:id/agenda/:agendaItemIndex', eventController.updateAgendaItem);
-    app.delete('/events/:id/agenda/:agendaItemIndex', eventController.deleteAgendaItem);
-    app.post('/events/:id/attachments', eventController.addAttachment);
-    app.delete('/events/:id/attachments/:attachmentIndex', eventController.removeAttachment);
-    app.put('/events/:id/service-provider', eventController.setServiceProvider);
-    app.post('/events/:id/comments', eventController.addComment);
-    app.post('/events/:id/like', eventController.likeEvent);
-    app.post('/events/:id/comments/:commentIndex/like', eventController.likeComment);
-    app.post('/events/booking', eventController.createBooking);
-    app.patch('/events/:id/booking/status', eventController.updateBookingStatus);
-    app.patch('/events/:id/booking/reward', eventController.updateBookingReward);
-    app.patch('/events/:id/booking/reschedule', eventController.rescheduleBooking);
-    app.get('/events/provider/:profileId/bookings', eventController.getProviderBookings);
-    app.post('/events/celebration', eventController.createCelebration);
-    app.post('/events/:id/gifts', eventController.addGift);
-    app.patch('/events/:id/gifts/:giftIndex/received', eventController.markGiftReceived);
-    app.post('/events/:id/social-media', eventController.addSocialMediaPost);
-    app.patch('/events/:id/celebration/status', eventController.updateCelebrationStatus);
-    app.patch('/events/:id/status', eventController.updateEventStatus);
-    app.patch('/events/bulk/status', eventController.bulkUpdateEventStatus);
-
-    // Error handling middleware
-    app.use((error: any, req: any, res: any, next: any) => {
-      res.status(error.status || 500).json({
-        success: false,
-        message: error.message || 'Internal Server Error'
-      });
-    });
   });
 
   beforeEach(async () => {
@@ -171,6 +125,52 @@ describe('Event System Tests', () => {
 
     // Generate auth token
     authToken = jwt.sign({ userId: testUser._id }, 'test-secret');
+
+    // Setup Express app after testUser is created
+    app = express();
+    app.use(express.json());
+    
+    // Mock authentication middleware
+    app.use((req: any, res, next) => {
+      req.user = testUser;
+      next();
+    });
+
+    // Setup routes
+    app.post('/events', eventController.createEvent);
+    app.get('/events/:id', eventController.getEventById);
+    app.get('/events', eventController.getUserEvents);
+    app.put('/events/:id', eventController.updateEvent);
+    app.delete('/events/:id', eventController.deleteEvent);
+    app.post('/events/:id/agenda', eventController.addAgendaItem);
+    app.put('/events/:id/agenda/:agendaItemIndex', eventController.updateAgendaItem);
+    app.delete('/events/:id/agenda/:agendaItemIndex', eventController.deleteAgendaItem);
+    app.post('/events/:id/attachment', eventController.addAttachment);
+    app.delete('/events/:id/attachment/:attachmentIndex', eventController.removeAttachment);
+    app.put('/events/:id/service-provider', eventController.setServiceProvider);
+    app.post('/events/:id/comments', eventController.addComment);
+    app.post('/events/:id/like', eventController.likeEvent);
+    app.post('/events/:id/comments/:commentIndex/like', eventController.likeComment);
+    app.post('/events/booking', eventController.createBooking);
+    app.patch('/events/:id/booking/status', eventController.updateBookingStatus);
+    app.patch('/events/:id/booking/reward', eventController.updateBookingReward);
+    app.patch('/events/:id/booking/reschedule', eventController.rescheduleBooking);
+    app.get('/events/provider/:profileId/bookings', eventController.getProviderBookings);
+    app.post('/events/celebration', eventController.createCelebration);
+    app.post('/events/:id/gifts', eventController.addGift);
+    app.patch('/events/:id/gifts/:giftIndex/received', eventController.markGiftReceived);
+    app.post('/events/:id/social-media', eventController.addSocialMediaPost);
+    app.patch('/events/:id/celebration/status', eventController.updateCelebrationStatus);
+    app.patch('/events/:id/status', eventController.updateEventStatus);
+    app.patch('/events/bulk/status', eventController.bulkUpdateEventStatus);
+
+    // Error handling middleware
+    app.use((error: any, req: any, res: any, next: any) => {
+      res.status(error.status || 500).json({
+        success: false,
+        message: error.message || 'Internal Server Error'
+      });
+    });
   });
 
   afterAll(async () => {
@@ -554,7 +554,7 @@ describe('Event System Tests', () => {
         };
 
         const response = await request(app)
-          .post(`/events/${event._id.toString()}/attachments`)
+          .post(`/events/${event._id.toString()}/attachment`)
           .send(attachmentData)
           .expect(200);
 
@@ -578,7 +578,7 @@ describe('Event System Tests', () => {
         });
 
         const response = await request(app)
-          .delete(`/events/${event._id.toString()}/attachments/0`)
+          .delete(`/events/${event._id.toString()}/attachment/0`)
           .send({ profileId: testProfile._id })
           .expect(200);
 

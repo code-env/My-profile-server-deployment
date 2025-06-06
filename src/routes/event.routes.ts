@@ -44,10 +44,10 @@ router.post('/:id/comments/:commentIndex/like', likeComment);
 
 // Event interaction routes
 router.post('/:id/agenda', addAgendaItem);
-router.put('/:id/agenda/:itemId', updateAgendaItem);
-router.delete('/:id/agenda/:itemId', deleteAgendaItem);
+router.put('/:id/agenda/:agendaItemIndex', updateAgendaItem);
+router.delete('/:id/agenda/:agendaItemIndex', deleteAgendaItem);
 router.post('/:id/attachment', addAttachment);
-router.delete('/:id/attachment/:attachmentId', removeAttachment);
+router.delete('/:id/attachment/:attachmentIndex', removeAttachment);
 router.post('/:id/like', likeEvent);
 
 // Event status routes

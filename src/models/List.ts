@@ -23,6 +23,11 @@ export interface IList extends Document {
   relatedTask?: mongoose.Types.ObjectId | ITask;
   likes: Like[];
   comments: Comment[];
+  favorite: boolean;
+  shareHistory: ShareHistory[];
+  shareableLink: string;
+  linkAccess: 'view' | 'edit' | 'none';
+  accessHistory: AccessHistory[];
 }
 
 export interface ListItem {
@@ -74,6 +79,21 @@ export interface Reward {
   points: number;
 }
 
+export interface ShareHistory {
+  sharedBy: mongoose.Types.ObjectId | IProfile;
+  sharedWith: mongoose.Types.ObjectId | IProfile;
+  sharedAt: Date;
+  action: 'shared' | 'unshared';
+}
+
+export interface AccessHistory {
+  accessedBy: mongoose.Types.ObjectId | IProfile;
+  accessedAt: Date;
+  accessType: 'view' | 'edit';
+  ipAddress?: string;
+  userAgent?: string;
+}
+
 const attachmentSchema = new Schema<Attachment>({
   url: { type: String, required: true },
   type: { type: String, required: true },
@@ -118,6 +138,47 @@ const rewardSchema = new Schema<Reward>({
   points: { type: Number, required: true, min: 0 }
 });
 
+const shareHistorySchema = new Schema<ShareHistory>({
+  sharedBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'Profile',
+    required: true
+  },
+  sharedWith: {
+    type: Schema.Types.ObjectId,
+    ref: 'Profile',
+    required: true
+  },
+  sharedAt: {
+    type: Date,
+    default: Date.now
+  },
+  action: {
+    type: String,
+    enum: ['shared', 'unshared'],
+    required: true
+  }
+});
+
+const accessHistorySchema = new Schema<AccessHistory>({
+  accessedBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'Profile',
+    required: true
+  },
+  accessedAt: {
+    type: Date,
+    default: Date.now
+  },
+  accessType: {
+    type: String,
+    enum: ['view', 'edit'],
+    required: true
+  },
+  ipAddress: String,
+  userAgent: String
+});
+
 const listSchema = new Schema<IList>(
   {
     name: { type: String, required: true },
@@ -155,7 +216,21 @@ const listSchema = new Schema<IList>(
       ref: 'Task'
     },
     likes: [likeSchema],
-    comments: [commentSchema]
+    comments: [commentSchema],
+    favorite: { type: Boolean, default: false },
+    shareHistory: [shareHistorySchema],
+    shareableLink: { 
+      type: String,
+      unique: true,
+      sparse: true,
+      required: false
+    },
+    linkAccess: {
+      type: String,
+      enum: ['view', 'edit', 'none'],
+      default: 'none'
+    },
+    accessHistory: [accessHistorySchema]
   },
   {
     timestamps: true,

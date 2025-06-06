@@ -4,12 +4,19 @@ import { Request, Response } from 'express';
 import createHttpError from 'http-errors';
 import { vaultService } from '../services/vault.service';
 
-
 interface ItemFilters {
   categoryId?: string;
   subcategoryId?: string;
   type?: string;
   search?: string;
+  // Enhanced filters
+  accessLevel?: 'private' | 'shared' | 'public';
+  isEncrypted?: boolean;
+  processingStatus?: 'pending' | 'completed' | 'failed';
+  cardNetwork?: 'visa' | 'mastercard' | 'amex' | 'discover' | 'other';
+  isVerified?: boolean;
+  isExpired?: boolean;
+  extractedText?: string;
 }
 
 interface AddItemRequest {
@@ -20,6 +27,13 @@ interface AddItemRequest {
   description?: string;
   fileData?: string;
   metadata?: Record<string, any>;
+  
+  // Enhanced security fields
+  accessLevel?: 'private' | 'shared' | 'public';
+  sharedWith?: string[];
+  pinRequired?: boolean;
+  biometricRequired?: boolean;
+  
   card?: {
     number?: string;
     cvv?: string;
@@ -28,6 +42,7 @@ interface AddItemRequest {
     issueDate?: Date;
     issuer?: string;
     holderName?: string;
+    cardNetwork?: 'visa' | 'mastercard' | 'amex' | 'discover' | 'other';
     images?: {
       front?: { fileData?: string };
       back?: { fileData?: string };
@@ -75,7 +90,21 @@ interface AddItemRequest {
       additional?: Array<{ fileData?: string; description?: string }>;
     };
   };
+  // Enhanced media information
+  media?: {
+    albumId?: string;
+    isProfilePicture?: boolean;
+    isCoverPhoto?: boolean;
+    originalFilename?: string;
+  };
 }
+
+// Enhanced activity context extraction
+const getActivityContext = (req: Request) => ({
+  ipAddress: req.ip || req.connection.remoteAddress,
+  userAgent: req.get('User-Agent'),
+  location: req.body.location || undefined // Optional location data from client
+});
 
 // Get user's vault
 const getUserVault = asyncHandler(async (req: Request, res: Response) => {
@@ -100,35 +129,41 @@ const getUserVault = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-// Get items with optional filters
+// Enhanced get items with new filters
 const getItems = asyncHandler(async (req: Request, res: Response) => {
-  const { profileId, categoryId, subcategoryId, type, search } = req.query;
+  const { 
+    profileId, 
+    categoryId, 
+    subcategoryId, 
+    type, 
+    search,
+    accessLevel,
+    isEncrypted,
+    processingStatus,
+    cardNetwork,
+    isVerified,
+    isExpired,
+    extractedText
+  } = req.query;
   
   if (!profileId || typeof profileId !== 'string') {
     throw createHttpError(400, 'Profile ID is required as a query parameter');
   }
 
-  // Validate and type check query parameters
+  // Enhanced filters with new capabilities
   const filters: ItemFilters = {};
   
-  if (categoryId) {
-    filters.categoryId = categoryId as string;
-  }
-
-  if (subcategoryId) {
-    filters.subcategoryId = subcategoryId as string;
-  }
-
-  if (type) {
-    filters.type = type as string;
-  }
-
-  if (search) {
-    if (typeof search !== 'string') {
-      throw createHttpError(400, 'Search parameter must be a string');
-    }
-    filters.search = search;
-  }
+  if (categoryId) filters.categoryId = categoryId as string;
+  if (subcategoryId) filters.subcategoryId = subcategoryId as string;
+  if (type) filters.type = type as string;
+  if (search) filters.search = search as string;
+  if (accessLevel) filters.accessLevel = accessLevel as 'private' | 'shared' | 'public';
+  if (isEncrypted) filters.isEncrypted = isEncrypted === 'true';
+  if (processingStatus) filters.processingStatus = processingStatus as 'pending' | 'completed' | 'failed';
+  if (cardNetwork) filters.cardNetwork = cardNetwork as 'visa' | 'mastercard' | 'amex' | 'discover' | 'other';
+  if (isVerified) filters.isVerified = isVerified === 'true';
+  if (isExpired) filters.isExpired = isExpired === 'true';
+  if (extractedText) filters.extractedText = extractedText as string;
 
   const result = await vaultService.getItems(profileId, filters);
   if (!result) {
@@ -140,23 +175,21 @@ const getItems = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-// Get items by category
+// Get items by category (enhanced)
 const getItemsByCategory = asyncHandler(async (req: Request, res: Response) => {
   const { categoryId } = req.params;
-  const { profileId } = req.query;
+  const { profileId, type, search, accessLevel, processingStatus } = req.query;
 
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
   }
 
-  // if (!categoryId || !Types.ObjectId.isValid(categoryId)) {
-  //   throw createHttpError(400, 'Valid category ID is required');
-  // }
-
   const filters: ItemFilters = {
     categoryId,
-    type: req.query.type as string,
-    search: req.query.search as string
+    type: type as string,
+    search: search as string,
+    accessLevel: accessLevel as 'private' | 'shared' | 'public',
+    processingStatus: processingStatus as 'pending' | 'completed' | 'failed'
   };
 
   const result = await vaultService.getItems(profileId as string, filters);
@@ -171,12 +204,10 @@ const getItemsByCategory = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-// Get items by subcategory
+// Get items by subcategory (enhanced)
 const getItemsBySubcategory = asyncHandler(async (req: Request, res: Response) => {
   const { subcategoryId } = req.params;
-  const { profileId } = req.query;
-
-  console.log(profileId, subcategoryId);
+  const { profileId, type, search, accessLevel } = req.query;
 
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
@@ -188,8 +219,9 @@ const getItemsBySubcategory = asyncHandler(async (req: Request, res: Response) =
 
   const filters: ItemFilters = {
     subcategoryId,
-    type: req.query.type as string,
-    search: req.query.search as string
+    type: type as string,
+    search: search as string,
+    accessLevel: accessLevel as 'private' | 'shared' | 'public'
   };
 
   const result = await vaultService.getItems(profileId as string, filters);
@@ -204,9 +236,11 @@ const getItemsBySubcategory = asyncHandler(async (req: Request, res: Response) =
   });
 });
 
-// Add item to vault
+// Enhanced add item with new features
 const addItem = asyncHandler(async (req: Request, res: Response) => {
-  const { profileId, category, subcategoryId, ...itemData } = req.body;
+  const user: any = req.user!;
+  const { profileId, category, subcategoryId, ...itemData }: AddItemRequest & { profileId: string; subcategoryId: string } = req.body;
+
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
   }
@@ -215,68 +249,45 @@ const addItem = asyncHandler(async (req: Request, res: Response) => {
     throw createHttpError(400, 'Category and subcategory ID are required');
   }
 
-  if (!Types.ObjectId.isValid(subcategoryId)) {
-    throw createHttpError(400, 'Invalid subcategory ID format');
-  }
-
-  // Type check the item data
-  const item = itemData as AddItemRequest;
-  const { type, title } = item;
-
-  // Validate required fields
-  if (!title) {
-    throw createHttpError(400, 'Title is required');
+  if (!itemData.title) {
+    throw createHttpError(400, 'Item title is required');
   }
 
   // Validate card data if present
-  if (type === 'card' && item.card) {
-    if (item.card.number && !/^\d{13,19}$/.test(item.card.number)) {
-      throw createHttpError(400, 'Invalid card number format');
-    }
-    if (item.card.cvv && !/^\d{3,4}$/.test(item.card.cvv)) {
-      throw createHttpError(400, 'Invalid CVV format');
-    }
+  if (itemData.card?.number && !/^\d{13,19}$/.test(itemData.card.number.replace(/\s/g, ''))) {
+    throw createHttpError(400, 'Invalid card number format');
   }
 
-  // Validate document data if present
-  if (type === 'document' && item.document) {
-    if (item.document.expiryDate && new Date(item.document.expiryDate) < new Date()) {
-      throw createHttpError(400, 'Document expiry date cannot be in the past');
-    }
+  try {
+    const result = await vaultService.addItem(user._id, profileId, category, subcategoryId, itemData);
+
+    res.status(201).json({
+      message: 'Item added successfully',
+      item: result.item
+    });
+  } catch (error) {
+    throw createHttpError(500, `Failed to add item: ${(error as Error).message}`);
   }
-
-  // Validate identification data if present
-  if (type === 'identification' && item.identification) {
-    if (item.identification.expiryDate && new Date(item.identification.expiryDate) < new Date()) {
-      throw createHttpError(400, 'Identification expiry date cannot be in the past');
-    }
-  }
-
-  const result = await vaultService.addItem(
-    profileId,
-    profileId,
-    category,
-    subcategoryId,
-    item
-  );
-
-  res.status(201).json({
-    message: 'Item added successfully',
-    item: result
-  });
 });
 
 // Update item
 const updateItem = asyncHandler(async (req: Request, res: Response) => {
   const { itemId } = req.params;
   const { profileId, ...updates } = req.body;
+  const user: any = req.user!;
   
   if (!profileId) {
-    throw createHttpError(400, 'Profile ID is required');
+    res.status(400).json({ error: 'Profile ID is required' });
+    return;
   }
 
   if (!itemId || !Types.ObjectId.isValid(itemId)) {
     throw createHttpError(400, 'Invalid item ID');
+  }
+
+  // Handle file upload if present
+  if (req.file) {
+    updates.fileData = req.file.buffer.toString('base64');
   }
 
   // Validate type if present
@@ -311,7 +322,7 @@ const updateItem = asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  const item = await vaultService.updateItem(profileId, itemId, updates);
+  const item = await vaultService.updateItem(user._id, profileId, itemId, updates);
   if (!item) {
     throw createHttpError(404, 'Item not found');
   }
@@ -491,7 +502,7 @@ const getSubcategories = asyncHandler(async (req: Request, res: Response) => {
 
 // Move subcategory
 const moveSubcategory = asyncHandler(async (req: Request, res: Response) => {
-  const { profileId, subcategoryId, newParentId } = req.body;
+  const { profileId, subcategoryId, newCategoryId, newParentSubcategoryId } = req.body;
 
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
@@ -501,10 +512,14 @@ const moveSubcategory = asyncHandler(async (req: Request, res: Response) => {
     throw createHttpError(400, 'Subcategory ID is required');
   }
 
+  if (!newCategoryId) {
+    throw createHttpError(400, 'New Category ID is required');
+  }
+
   const subcategory = await vaultService.moveSubcategory(
     profileId,
     subcategoryId,
-    newParentId
+    newParentSubcategoryId
   );
 
   res.json({
@@ -544,7 +559,7 @@ const getNestedSubcategories = asyncHandler(async (req: Request, res: Response) 
 
 // Delete subcategory and its items
 const deleteSubcategory = asyncHandler(async (req: Request, res: Response) => {
-  const { profileId, subcategoryId } = req.query;
+  const { profileId, subcategoryId } = req.body;
 
   if (!profileId) {
     throw createHttpError(400, 'Profile ID is required');
@@ -644,6 +659,294 @@ const deleteUserVault = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+// Enhanced search with new capabilities
+const advancedSearch = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.query as { profileId: string };
+  const searchCriteria = req.body;
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  try {
+    const results = await vaultService.advancedSearch(profileId, searchCriteria);
+    res.json({
+      success: true,
+      message: 'Search completed successfully',
+      data: results,
+      criteria: searchCriteria
+    });
+  } catch (error) {
+    throw createHttpError(500, `Search failed: ${(error as Error).message}`);
+  }
+});
+
+// Get vault analytics with enhanced metrics
+const getVaultAnalytics = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.params;
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  try {
+    const analytics = await vaultService.getVaultAnalytics(profileId);
+    res.json({
+      success: true,
+      message: 'Analytics fetched successfully',
+      data: analytics
+    });
+  } catch (error) {
+    throw createHttpError(500, `Failed to get analytics: ${(error as Error).message}`);
+  }
+});
+
+// Get audit trail
+const getAuditTrail = asyncHandler(async (req: Request, res: Response) => {
+  const { profileId } = req.query as { profileId: string };
+  const { itemId } = req.params;
+  const { limit, offset } = req.query;
+
+  if (!profileId) {
+    throw createHttpError(400, 'Profile ID is required');
+  }
+
+  if (!itemId) {
+    throw createHttpError(400, 'Item ID is required');
+  }
+
+  const options = {
+    limit: limit ? parseInt(limit as string) : undefined,
+    offset: offset ? parseInt(offset as string) : undefined
+  };
+
+  const auditTrail = await vaultService.getAuditTrail(profileId, itemId, options);
+  res.json({
+    success: true,
+    data: auditTrail
+  });
+});
+
+// Track access (middleware)
+const trackAccess = asyncHandler(async (req: Request, res: Response, next: Function) => {
+  const { profileId } = req.query as { profileId: string };
+  const { itemId } = req.params;
+  
+  // Map HTTP methods to audit actions
+  const actionMap: { [key: string]: string } = {
+    get: 'view',
+    post: 'create',
+    put: 'update',
+    delete: 'delete'
+  };
+  
+  const action = actionMap[req.method.toLowerCase()] || 'view';
+
+  if (profileId && itemId) {
+    await vaultService.trackAccess(profileId, itemId, action, {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+  }
+
+  next();
+});
+
+async function getVersions(req: Request, res: Response) {
+  try {
+    const { itemId } = req.params;
+    const { profileId } = req.query;
+    const { limit, offset } = req.query;
+
+    if (!profileId) {
+      return res.status(400).json({ error: 'Profile ID is required' });
+    }
+
+    const versions = await vaultService.getVersions(
+      profileId.toString(),
+      itemId,
+      {
+        limit: limit ? parseInt(limit.toString()) : undefined,
+        offset: offset ? parseInt(offset.toString()) : undefined
+      }
+    );
+
+    res.json({
+      success: true,
+      data: versions
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Vault item not found') {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to get versions'
+    });
+  }
+}
+
+async function restoreVersion(req: Request, res: Response) {
+  try {
+    const { itemId } = req.params;
+    const { profileId } = req.query;
+    const { version } = req.body;
+
+    if (!profileId) {
+      return res.status(400).json({ error: 'Profile ID is required' });
+    }
+
+    if (!version) {
+      return res.status(400).json({ error: 'Version number is required' });
+    }
+
+    const restoredItem = await vaultService.restoreVersion(
+      profileId.toString(),
+      itemId,
+      version
+    );
+
+    res.json({
+      success: true,
+      data: restoredItem
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Version not found') {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+    if (error instanceof Error && error.message === 'Vault item not found') {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to restore version'
+    });
+  }
+}
+
+async function batchUpdate(req: Request, res: Response) {
+  try {
+    const { profileId } = req.query;
+    const { updates } = req.body;
+
+    if (!profileId) {
+      return res.status(400).json({ error: 'Profile ID is required' });
+    }
+
+    if (!Array.isArray(updates)) {
+      return res.status(400).json({ error: 'Updates must be an array' });
+    }
+
+    const results = await vaultService.batchUpdate(
+      profileId.toString(),
+      updates
+    );
+
+    res.json({
+      success: true,
+      data: results
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to perform batch update'
+    });
+  }
+}
+
+async function batchDelete(req: Request, res: Response) {
+  try {
+    const { profileId } = req.query;
+    const { itemIds } = req.body;
+
+    if (!profileId) {
+      return res.status(400).json({ error: 'Profile ID is required' });
+    }
+
+    if (!Array.isArray(itemIds)) {
+      return res.status(400).json({ error: 'Item IDs must be an array' });
+    }
+
+    const results = await vaultService.batchDelete(
+      profileId.toString(),
+      itemIds
+    );
+
+    res.json({
+      success: true,
+      data: results
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to perform batch delete'
+    });
+  }
+}
+
+async function batchMove(req: Request, res: Response) {
+  try {
+    const { profileId } = req.query;
+    const { items } = req.body;
+
+    if (!profileId) {
+      return res.status(400).json({ error: 'Profile ID is required' });
+    }
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'Items must be an array' });
+    }
+
+    const results = await vaultService.batchMove(
+      profileId.toString(),
+      items
+    );
+
+    res.json({
+      success: true,
+      data: results
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to perform batch move'
+    });
+  }
+}
+
+// Enhanced share item endpoint
+const shareItem = asyncHandler(async (req: Request, res: Response) => {
+  const { itemId } = req.params;
+  const user: any = req.user!;
+  const { shareWithProfileIds, accessLevel, pinRequired, biometricRequired } = req.body;
+
+  if (!itemId || !Types.ObjectId.isValid(itemId)) {
+    throw createHttpError(400, 'Valid item ID is required');
+  }
+
+  if (!shareWithProfileIds || !Array.isArray(shareWithProfileIds)) {
+    throw createHttpError(400, 'shareWithProfileIds must be an array');
+  }
+
+  try {
+    // Update item with sharing settings
+    const result = await vaultService.updateItem(
+      user._id,
+      user.profileId,
+      itemId,
+      {
+        accessLevel: accessLevel || 'shared',
+        sharedWith: shareWithProfileIds,
+        pinRequired: pinRequired || false,
+        biometricRequired: biometricRequired || false
+      }
+    );
+
+    res.json({
+      message: 'Item shared successfully',
+      item: result,
+      sharedWith: shareWithProfileIds
+    });
+  } catch (error) {
+    throw createHttpError(500, `Failed to share item: ${(error as Error).message}`);
+  }
+});
+
 export {
   getUserVault,
   deleteUserVault,
@@ -665,5 +968,15 @@ export {
   uploadAndAddToVault,
   getVaultSettings,
   updateVaultSettings,
-  getVaultAccessSummary
+  getVaultAccessSummary,
+  advancedSearch,
+  getVaultAnalytics,
+  getAuditTrail,
+  trackAccess,
+  getVersions,
+  restoreVersion,
+  batchUpdate,
+  batchDelete,
+  batchMove,
+  shareItem
 }; 
