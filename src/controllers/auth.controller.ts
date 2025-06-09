@@ -356,108 +356,95 @@ export class AuthController {
    */
   static async login(req: Request, res: Response) {
     try {
-
-      console.log("🔍 Login Request", req);
       const validatedData = await loginSchema.parseAsync(req.body);
       const { identifier, password, rememberMe } = validatedData;
-
+  
       const result = await AuthService.login({ identifier, password, rememberMe }, req);
-
-      console.log("🚀 ~ AuthController ~ login ~ result:", result);
+  
       if (!result.success || !result.tokens) {
-        res.status(401).json({
+        return res.status(401).json({
           success: false,
-          user: {
-            id: result.userId,
-          },
-          message:
-            result.message || "Invalid credentials or token generation failed",
+          user: { id: result.userId },
+          message: result.message || "Invalid credentials or token generation failed",
         });
-        return;
       }
 
-      // Use tokens directly from the AuthService.login result
       const tokens = result.tokens;
-
-      // Get client info for session tracking
-      const clientInfo = await getClientInfo(req);
-
-      console.log("Client info:", clientInfo);
-
+      
       // Store session information
       const userDoc = await User.findById(result.userId);
       if (userDoc) {
-        // Initialize sessions array if it doesn't exist
         if (!userDoc.sessions) {
           userDoc.sessions = [];
         }
 
-
-        const currentIp = req.ip || req.socket.remoteAddress || "Unknown";
-        const currentUserAgent = req.headers["user-agent"] || "Unknown";
-        const currentDevice = `${currentIp}::${currentUserAgent}`; // Unique device identifier
+        // Get client info consistently
+        const clientInfo = await getClientInfo(req);
+        const currentIp = clientInfo.ip;
+        const currentUserAgent = clientInfo.userAgent;
+        const currentDevice = `${currentIp}::${currentUserAgent}`;
         
-        console.log("🔍 Current IP:", currentIp);
-        // Count only valid sessions without removing any
+        console.log("🔍 Current device identifier:", currentDevice);
+        console.log("🔍 Client info:", { ip: currentIp, userAgent: currentUserAgent });
+        
+        // Categorize sessions
         const validSessions: any[] = [];
         const expiredSessions: any[] = [];
         const invalidSessions: any[] = [];
         
-        userDoc.sessions.forEach((session: any) => {
-          if (session.refreshToken) {
+        console.log("🔍 Total sessions before categorization:", userDoc.sessions.length);
+        
+        userDoc.sessions.forEach((session: any, index: number) => {
+          console.log(`🔍 Session ${index}:`, {
+            hasRefreshToken: !!session.refreshToken,
+            deviceInfo: session.deviceInfo,
+            isActive: session.isActive
+          });
+          
+          if (session.refreshToken && session.isActive) {
             try {
-              // decode to check expiration of existing session
-              const decodedRefreshToken = jwt.verify(session.refreshToken, config.JWT_SECRET) as any;
-              
-              // check expiration - if token is expired, track but don't remove
-              if (decodedRefreshToken.exp && decodedRefreshToken.exp >= Date.now() / 1000) {
+              const decoded = jwt.verify(session.refreshToken, config.JWT_REFRESH_SECRET) as any;
+              if (decoded.exp && decoded.exp >= Date.now() / 1000) {
                 validSessions.push(session);
+                console.log(`✅ Session ${index} is valid`);
               } else {
                 expiredSessions.push(session);
-                console.log(`⚠️ Found expired session for device: ${session.deviceInfo?.ip}::${session.deviceInfo?.userAgent} (not removing)`);
+                console.log(`⏰ Session ${index} is expired`);
               }
             } catch (error) {
-              // If token verification fails, track but don't remove
               invalidSessions.push(session);
-              console.log(`⚠️ Found invalid session token for device: ${session.deviceInfo?.ip}::${session.deviceInfo?.userAgent} (not removing)`);
+              console.log(`❌ Session ${index} is invalid:`, (error as Error).message);
             }
+          } else {
+            console.log(`⚠️ Session ${index} skipped - no refresh token or inactive`);
           }
         });
-
-        // Group all sessions by device (IP + User Agent combination)
+        
+        console.log("🔍 Session categorization:", {
+          valid: validSessions.length,
+          expired: expiredSessions.length,
+          invalid: invalidSessions.length
+        });
+        
+        // Group valid sessions by device
         const deviceGroups = new Map<string, any[]>();
-        userDoc.sessions.forEach((session: any) => {
+        validSessions.forEach((session, index) => {
           const ip = session.deviceInfo?.ip || "Unknown";
           const userAgent = session.deviceInfo?.userAgent || "Unknown";
           const deviceId = `${ip}::${userAgent}`;
+          
+          console.log(`🔍 Session ${index} device ID: "${deviceId}"`);
           
           if (!deviceGroups.has(deviceId)) {
             deviceGroups.set(deviceId, []);
           }
           deviceGroups.get(deviceId)!.push(session);
         });
-
-        console.log(`📱 Current device: ${currentDevice}`);
-        console.log(`📊 Total devices with sessions: ${deviceGroups.size}`);
-        console.log(`🔍 Device breakdown:`, Array.from(deviceGroups.keys()).map(deviceId => ({
-          device: deviceId.split('::')[0] + ' - ' + deviceId.split('::')[1].substring(0, 50) + '...',
-          sessions: deviceGroups.get(deviceId)?.length || 0
-        })));
-
-        // Detailed debugging for current device
-        const currentDeviceSessionsDebug = deviceGroups.get(currentDevice) || [];
-        console.log(`🔍 Current device sessions count: ${currentDeviceSessionsDebug.length}`);
-        console.log(`🔍 Current device sessions details:`, currentDeviceSessionsDebug.map((session, index) => ({
-          index: index + 1,
-          ip: session.deviceInfo?.ip,
-          userAgent: session.deviceInfo?.userAgent?.substring(0, 50) + '...',
-          hasRefreshToken: !!session.refreshToken,
-          refreshTokenPreview: session.refreshToken ? session.refreshToken.substring(0, 20) + '...' : 'none',
-          createdAt: session.createdAt,
-          lastUsed: session.lastUsed
-        })));
-
-        // Check if we have more than 3 different devices
+        
+        console.log("🔍 Device groups:", Array.from(deviceGroups.keys()));
+        console.log("🔍 Current device sessions count:", deviceGroups.get(currentDevice)?.length || 0);
+        
+        // Check device limit (only if this is a new device)
         const maxDevices = 3;
         if (deviceGroups.size >= maxDevices && !deviceGroups.has(currentDevice)) {
           return res.status(400).json({
@@ -465,85 +452,34 @@ export class AuthController {
             message: "You have exceeded the maximum number of devices (3). Please sign out from other devices before logging in again.",
             currentDevices: deviceGroups.size,
             maxAllowedDevices: maxDevices,
-            action: "logout_required",
-            deviceList: Array.from(deviceGroups.keys()).map(deviceId => {
-              const [ip, userAgent] = deviceId.split('::');
-              return {
-                ip,
-                browser: userAgent.substring(0, 50) + (userAgent.length > 50 ? '...' : ''),
-                sessions: deviceGroups.get(deviceId)?.length || 0
-              };
-            })
+            action: "logout_required"
           });
         }
-
-        // Check sessions per current device before adding new session
+        
+        // Check sessions per current device
         const maxSessionsPerDevice = 5;
         const currentDeviceSessions = deviceGroups.get(currentDevice) || [];
+
+        console.log("🔍 Current device sessions:", currentDeviceSessions.length);
         
         if (currentDeviceSessions.length >= maxSessionsPerDevice) {
-          const validCurrentDeviceSessions = currentDeviceSessions.filter(session => 
-            validSessions.some(validSession => validSession.refreshToken === session.refreshToken)
-          );
-          const expiredCurrentDeviceSessions = currentDeviceSessions.filter(session => 
-            expiredSessions.some(expiredSession => expiredSession.refreshToken === session.refreshToken)
-          );
-          const invalidCurrentDeviceSessions = currentDeviceSessions.filter(session => 
-            invalidSessions.some(invalidSession => invalidSession.refreshToken === session.refreshToken)
-          );
-
           return res.status(400).json({
             success: false,
             message: "You have reached the maximum number of sessions (5) for this device. Please sign out from other sessions on this device before logging in again.",
             currentSessions: currentDeviceSessions.length,
             maxAllowed: maxSessionsPerDevice,
-            device: {
-              ip: currentIp,
-              browser: currentUserAgent.substring(0, 100) + (currentUserAgent.length > 100 ? '...' : '')
-            },
-            sessionBreakdown: {
-              valid: validCurrentDeviceSessions.length,
-              expired: expiredCurrentDeviceSessions.length,
-              invalid: invalidCurrentDeviceSessions.length
-            },
-            action: "logout_required",
-            hint: expiredCurrentDeviceSessions.length > 0 || invalidCurrentDeviceSessions.length > 0 
-              ? "Some of your sessions may be expired or invalid. Try logging out from all sessions to clean up." 
-              : "You have active sessions that need to be logged out manually."
+            action: "logout_required"
           });
         }
-
-        // Now add the new session (no sessions were removed)
-        userDoc.sessions.push({
-          refreshToken: tokens.refreshToken,
-          deviceInfo: {
-            userAgent: currentUserAgent,
-            ip: currentIp,
-            deviceType: clientInfo.device || "Unknown",
-          },
-          lastUsed: new Date(),
-          createdAt: new Date(),
-          isActive: true,
-        });
-
-        console.log(`✅ Added new session for device ${currentDevice}. Total sessions for this device: ${currentDeviceSessions.length + 1}`);
-        console.log(`📊 Total unique devices: ${deviceGroups.has(currentDevice) ? deviceGroups.size : deviceGroups.size + 1}`);
-        console.log(`💾 About to save user with ${userDoc.sessions.length} total sessions`);
-
-        // Update last login time
+    
         userDoc.lastLogin = new Date();
-
         await userDoc.save();
-        console.log(`✅ User sessions saved successfully. Total sessions in DB: ${userDoc.sessions.length}`);
       }
-
-      // Set tokens in HTTP-only cookies with proper settings
-      // Note: The cookie-config middleware will handle SameSite and Secure settings in production
-      // Convert JWT expiration strings to milliseconds
-      const accessExpMs = parseDuration(config.JWT_ACCESS_EXPIRATION);
-      const refreshExpMs = parseDuration(config.JWT_REFRESH_EXPIRATION);
-
-      // Set cookies with proper configuration
+  
+      // Set cookies
+      const accessExpMs = AuthController.parseDuration(config.JWT_ACCESS_EXPIRATION);
+      const refreshExpMs = AuthController.parseDuration(config.JWT_REFRESH_EXPIRATION);
+  
       res.cookie("accesstoken", tokens.accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -551,7 +487,7 @@ export class AuthController {
         path: "/",
         maxAge: accessExpMs,
       });
-
+  
       res.cookie("refreshtoken", tokens.refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -559,39 +495,55 @@ export class AuthController {
         path: "/",
         maxAge: refreshExpMs,
       });
-
-      // Helper function to parse duration strings like "24h", "30d" to milliseconds
-      function parseDuration(duration: string): number {
-        const unit = duration.slice(-1);
-        const value = parseInt(duration.slice(0, -1));
-
-        switch(unit) {
-          case 'h': return value * 60 * 60 * 1000;
-          case 'd': return value * 24 * 60 * 60 * 1000;
-          default: return 24 * 60 * 60 * 1000; // Default 24 hours
-        }
-      }
-
-      // Include tokens in response for localStorage backup
-      console.log("Setting tokens in response for localStorage backup");
-
-      res.status(200).json({
+  
+      const userSessions = await AuthService.getAllUserSessions(result.userId as string);
+      return res.status(200).json({
         success: true,
-        user: {
-          id: result.userId,
-        },
+        user: { id: result.userId },
         message: "Login successful",
         tokens: {
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
-        },
+        }
       });
+
     } catch (error) {
       logger.error("Login error:", error);
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: error instanceof Error ? error.message : "Login failed",
       });
+    }
+  }
+
+  static parseDuration(duration: string): number {
+    if (!duration || typeof duration !== 'string') {
+      // Default to 24 hours if duration is invalid or not provided
+      logger.warn(`Invalid or missing duration string: "${duration}". Defaulting to 24 hours.`);
+      return 24 * 60 * 60 * 1000;
+    }
+
+    const unit = duration.slice(-1);
+    const valueString = duration.slice(0, -1);
+    const value = parseInt(valueString, 10);
+
+    if (isNaN(value) || value <= 0) {
+      logger.warn(`Invalid duration value: "${valueString}". Defaulting to 24 hours.`);
+      return 24 * 60 * 60 * 1000; // Default 24 hours
+    }
+
+    switch (unit) {
+      case 's': // seconds
+        return value * 1000;
+      case 'm': // minutes
+        return value * 60 * 1000;
+      case 'h': // hours
+        return value * 60 * 60 * 1000;
+      case 'd': // days
+        return value * 24 * 60 * 60 * 1000;
+      default:
+        logger.warn(`Unknown duration unit: "${unit}" in duration string "${duration}". Defaulting to 24 hours.`);
+        return 24 * 60 * 60 * 1000; // Default 24 hours if unit is unrecognized
     }
   }
 
@@ -857,8 +809,8 @@ export class AuthController {
               const tokens = AuthService.generateTokens(_id, user!.email);
 
               // Convert JWT expiration strings to milliseconds
-              const accessExpMs = parseDuration(config.JWT_ACCESS_EXPIRATION);
-              const refreshExpMs = parseDuration(config.JWT_REFRESH_EXPIRATION);
+              const accessExpMs = AuthController.parseDuration(config.JWT_ACCESS_EXPIRATION);
+              const refreshExpMs = AuthController.parseDuration(config.JWT_REFRESH_EXPIRATION);
 
               res.cookie("accesstoken", tokens.accessToken, {
                 httpOnly: true,
@@ -975,8 +927,8 @@ export class AuthController {
       );
 
       // Convert JWT expiration strings to milliseconds
-      const accessExpMs = parseDuration(config.JWT_ACCESS_EXPIRATION);
-      const refreshExpMs = parseDuration(config.JWT_REFRESH_EXPIRATION);
+      const accessExpMs = AuthController.parseDuration(config.JWT_ACCESS_EXPIRATION);
+      const refreshExpMs = AuthController.parseDuration(config.JWT_REFRESH_EXPIRATION);
 
       // Set new tokens in HTTP-only cookies with proper security settings
       res.cookie("accesstoken", result.accessToken, {
@@ -2280,34 +2232,4 @@ export async function socialAuthCallback(req: Request, res: Response) {
   }
 
 
-}
-function parseDuration(duration: string): number {
-  if (!duration || typeof duration !== 'string') {
-    // Default to 24 hours if duration is invalid or not provided
-    logger.warn(`Invalid or missing duration string: "${duration}". Defaulting to 24 hours.`);
-    return 24 * 60 * 60 * 1000;
-  }
-
-  const unit = duration.slice(-1);
-  const valueString = duration.slice(0, -1);
-  const value = parseInt(valueString, 10);
-
-  if (isNaN(value) || value <= 0) {
-    logger.warn(`Invalid duration value: "${valueString}". Defaulting to 24 hours.`);
-    return 24 * 60 * 60 * 1000; // Default 24 hours
-  }
-
-  switch (unit) {
-    case 's': // seconds
-      return value * 1000;
-    case 'm': // minutes
-      return value * 60 * 1000;
-    case 'h': // hours
-      return value * 60 * 60 * 1000;
-    case 'd': // days
-      return value * 24 * 60 * 60 * 1000;
-    default:
-      logger.warn(`Unknown duration unit: "${unit}" in duration string "${duration}". Defaulting to 24 hours.`);
-      return 24 * 60 * 60 * 1000; // Default 24 hours if unit is unrecognized
-  }
 }

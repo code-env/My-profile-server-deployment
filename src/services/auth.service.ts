@@ -15,7 +15,8 @@ import { CustomError } from "../utils/errors";
 import { sanitizeFilter } from "mongoose";
 import { ProfileReferralService } from "./profile-referral.service";
 import { SettingsService } from "./settings.service";
-
+import { getClientInfo } from "../utils/controllerUtils";
+import { Request } from 'express';
 
 const settingsService = new SettingsService();
 
@@ -172,7 +173,7 @@ export class AuthService {
 
   static async login(
     input: LoginInput & { rememberMe?: boolean },
-    req: unknown
+    req: Request
   ): Promise<{ success: boolean, userId?: string, message?: string, tokens?: AuthTokens }> {
     try {
       // Find user by email or username
@@ -244,29 +245,34 @@ export class AuthService {
       const now = new Date();
       if (!user.sessions) {
         user.sessions = [];
+      
       }
+
+      // get client info
+      const clientInfo = await getClientInfo(req);
+
 
       // Add new session
       user.sessions.push({
         refreshToken: tokens.refreshToken,
         deviceInfo: {
-          userAgent: 'Login session',
-          ip: 'Unknown',
-          deviceType: 'Unknown'
+          userAgent: clientInfo.userAgent,
+          ip: clientInfo.ip,
+          deviceType: clientInfo.device || 'Unknown'
         },
         lastUsed: now,
         createdAt: now,
         isActive: true
       });
 
-      // Limit the number of sessions to 3
-      if (user.sessions.length > 3) {
-        // Sort by lastUsed (most recent first) and keep only the 3 most recent
-        user.sessions.sort((a: any, b: any) =>
-          new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
-        );
-        user.sessions = user.sessions.slice(0, 3);
-      }
+      // // Limit the number of sessions to 3
+      // if (user.sessions.length > 3) {
+      //   // Sort by lastUsed (most recent first) and keep only the 3 most recent
+      //   user.sessions.sort((a: any, b: any) =>
+      //     new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
+      //   );
+      //   user.sessions = user.sessions.slice(0, 3);
+      // }
 
       user.lastLogin = new Date();
       await user.save();
@@ -980,6 +986,27 @@ export class AuthService {
       throw error;
     }
   }
+
+  /**
+   * Get all active sessions for a user
+   * @param userId User's ID
+   * @returns Array of active sessions with their refresh tokens
+   */
+  static async getAllUserSessions(userId: string): Promise<{ refreshToken: string }[]> {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        throw new CustomError("USER_NOT_FOUND", "User not found");
+      }
+
+      return user.sessions;
+
+    } catch (error) {
+      logger.error("Get all user sessions error:", error);
+      throw error;
+    }
+  }
+  
 
   /**
    * Validate a reset token without actually resetting anything
