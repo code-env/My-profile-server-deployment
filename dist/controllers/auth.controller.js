@@ -70,6 +70,8 @@ const auth_types_1 = require("../types/auth.types");
 // import { getClientInfo } from "../utils/controllerUtils";
 const twilio_service_1 = __importDefault(require("../services/twilio.service"));
 const ua_parser_js_1 = __importDefault(require("ua-parser-js")); // Default import
+const Country_1 = __importDefault(require("../models/Country"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 // Implemented getClientInfo using ua-parser-js
 async function getClientInfo(req) {
     var _a, _b, _c;
@@ -152,6 +154,8 @@ class AuthController {
                 email: validatedData.email,
                 password: validatedData.password,
                 fullName: validatedData.fullName,
+                firstName: validatedData.firstName,
+                lastName: validatedData.lastName,
                 username: validatedData.username,
                 dateOfBirth: validatedData.dateOfBirth,
                 countryOfResidence: validatedData.countryOfResidence,
@@ -181,6 +185,12 @@ class AuthController {
                 loginHistory: [], // Added missing property
                 securityQuestions: [], // Added missing property
             };
+            // find the country in the db
+            const country = await Country_1.default.findOne({ code: validatedData.countryOfResidence });
+            if (!country) {
+                return res.status(400).json({ error: 'Invalid country code' });
+            }
+            user.countryOfResidence = country;
             const clientInfo = await getClientInfo(req);
             console.log("🔐 Registration request from:", clientInfo.ip, clientInfo.os);
             // Check if referral code was provided
@@ -322,11 +332,49 @@ class AuthController {
                     createdAt: new Date(),
                     isActive: true,
                 });
-                // Limit the number of sessions to 10
-                if (userDoc.sessions.length > 10) {
-                    // Sort by lastUsed (most recent first) and keep only the 10 most recent
-                    userDoc.sessions.sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime());
-                    userDoc.sessions = userDoc.sessions.slice(0, 10);
+                // Limit sessions to 3 different IP addresses
+                const currentIp = req.ip || req.socket.remoteAddress || "Unknown";
+                const ipGroups = new Map();
+                // Group sessions by IP address
+                userDoc.sessions.forEach((session) => {
+                    var _a;
+                    const ip = ((_a = session.deviceInfo) === null || _a === void 0 ? void 0 : _a.ip) || "Unknown";
+                    // only push if the session token is valid
+                    if (session.refreshToken) {
+                        try {
+                            // decode to check expiration of existing session
+                            const decodedRefreshToken = jsonwebtoken_1.default.verify(session.refreshToken, config_1.config.JWT_SECRET);
+                            // check expiration - if token is expired, skip this session
+                            if (decodedRefreshToken.exp && decodedRefreshToken.exp >= Date.now() / 1000) {
+                                if (!ipGroups.has(ip)) {
+                                    ipGroups.set(ip, []);
+                                }
+                                ipGroups.get(ip).push(session);
+                            }
+                        }
+                        catch (error) {
+                            // If token verification fails, skip this session (it's invalid)
+                            console.log(`🗑️ Skipping invalid session token for IP: ${ip}`);
+                        }
+                    }
+                });
+                // If we have more than 3 different IPs, remove sessions from the oldest IP
+                if (ipGroups.size > 3) {
+                    // return an error message to the user
+                    return res.status(400).json({
+                        success: false,
+                        message: "You have exceeded the maximum number of sessions from different IP addresses. Please try again later or logout from other sessions."
+                    });
+                }
+                // Also limit sessions per IP to prevent abuse from single IP
+                const maxSessionsPerIp = 5;
+                const currentIpSessions = userDoc.sessions.filter((session) => { var _a; return ((_a = session.deviceInfo) === null || _a === void 0 ? void 0 : _a.ip) === currentIp; });
+                if (currentIpSessions.length > maxSessionsPerIp) {
+                    // Sort current IP sessions by lastUsed (oldest first) and remove excess
+                    currentIpSessions.sort((a, b) => new Date(a.lastUsed).getTime() - new Date(b.lastUsed).getTime());
+                    const sessionsToRemove = currentIpSessions.slice(0, currentIpSessions.length - maxSessionsPerIp);
+                    userDoc.sessions = userDoc.sessions.filter((session) => !sessionsToRemove.some((toRemove) => toRemove.refreshToken === session.refreshToken));
+                    console.log(`🔄 Limited sessions for IP ${currentIp} to ${maxSessionsPerIp}`);
                 }
                 // Update last login time
                 userDoc.lastLogin = new Date();

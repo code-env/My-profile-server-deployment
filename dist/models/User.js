@@ -62,6 +62,20 @@ const userSchema = new mongoose_1.Schema({
         required: true,
         unique: true,
     },
+    firstName: {
+        type: String,
+        required: function () {
+            // Only required if not a social login or if social login is complete
+            return !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
+        },
+    },
+    lastName: {
+        type: String,
+        required: function () {
+            // Only required if not a social login or if social login is complete
+            return !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
+        },
+    },
     dateOfBirth: {
         type: Date,
         required: function () {
@@ -307,7 +321,40 @@ const userSchema = new mongoose_1.Schema({
             // Social auth users need to complete it separately
             return this.signupType === 'email';
         }
-    }
+    },
+    // Admin management fields
+    isBanned: {
+        type: Boolean,
+        default: false,
+    },
+    banReason: {
+        type: String,
+        required: function () {
+            return this.isBanned;
+        },
+    },
+    banDate: {
+        type: Date,
+        required: function () {
+            return this.isBanned;
+        },
+    },
+    isAccountLocked: {
+        type: Boolean,
+        default: false,
+    },
+    lockReason: {
+        type: String,
+        required: function () {
+            return this.isAccountLocked;
+        },
+    },
+    lockDate: {
+        type: Date,
+        required: function () {
+            return this.isAccountLocked;
+        },
+    },
 }, {
     timestamps: true,
 });
@@ -378,6 +425,28 @@ userSchema.pre('save', async function (next) {
         next(error);
     }
 });
+// Compare password method
+userSchema.methods.comparePassword = async function (candidatePassword) {
+    try {
+        const isMatch = await bcryptjs_1.default.compare(candidatePassword, this.password);
+        if (!isMatch) {
+            logger_1.logger.warn(`Failed login attempt for user ${this.email}`);
+            this.failedLoginAttempts += 1;
+            await this.save();
+        }
+        else if (this.failedLoginAttempts > 0) {
+            logger_1.logger.info(`Successful login after failed attempts for user ${this.email} - resetting counter`);
+            this.failedLoginAttempts = 0;
+            this.lockUntil = undefined;
+            await this.save();
+        }
+        return isMatch;
+    }
+    catch (error) {
+        logger_1.logger.error(`Error comparing password for user ${this.email}:`, error);
+        return false;
+    }
+};
 // Create indexes
 userSchema.index({ phoneNumber: 1 }, { sparse: true });
 userSchema.index({ googleId: 1 }, { sparse: true });
@@ -386,5 +455,11 @@ userSchema.index({ linkedinId: 1 }, { sparse: true });
 userSchema.index({ verificationToken: 1 }, { sparse: true });
 userSchema.index({ resetPasswordToken: 1 }, { sparse: true });
 userSchema.index({ otpData: 1 }, { sparse: true });
+userSchema.index({ isBanned: 1 });
+userSchema.index({ isAccountLocked: 1 });
+userSchema.index({ role: 1 });
+userSchema.index({ isEmailVerified: 1 });
+userSchema.index({ isPhoneVerified: 1 });
+userSchema.index({ createdAt: 1 });
 logger_1.logger.info('User model indexes created successfully');
 exports.User = mongoose_1.default.model('User', userSchema);

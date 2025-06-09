@@ -69,6 +69,8 @@ import WhatsAppService from "../services/whatsapp.service";
 // import { getClientInfo } from "../utils/controllerUtils";
 import TwilioService from "../services/twilio.service";
 import UAParser from "ua-parser-js"; // Default import
+import CountryModel from "../models/Country";
+import jwt from "jsonwebtoken";
 
 
 
@@ -194,6 +196,8 @@ export class AuthController {
         email: validatedData.email,
         password: validatedData.password,
         fullName: validatedData.fullName,
+        firstName: validatedData.firstName,
+        lastName: validatedData.lastName,
         username: validatedData.username,
         dateOfBirth: validatedData.dateOfBirth,
         countryOfResidence: validatedData.countryOfResidence,
@@ -223,6 +227,23 @@ export class AuthController {
         loginHistory: [], // Added missing property
         securityQuestions: [], // Added missing property
       };
+
+      // find the country in the db by name or code
+      const country = await CountryModel.findOne({ 
+        $or: [
+          { code: validatedData.countryOfResidence },
+          { name: validatedData.countryOfResidence }
+        ]
+      });
+
+      if(!country) {
+        return res.status(400).json({ error: 'Invalid country code or name' });
+      }
+      
+      user.countryOfResidence = country;
+      
+
+
       const clientInfo = await getClientInfo(req);
       console.log("🔐 Registration request from:", clientInfo.ip, clientInfo.os);
 
@@ -335,6 +356,8 @@ export class AuthController {
    */
   static async login(req: Request, res: Response) {
     try {
+
+      console.log("🔍 Login Request", req);
       const validatedData = await loginSchema.parseAsync(req.body);
       const { identifier, password, rememberMe } = validatedData;
 
@@ -359,6 +382,8 @@ export class AuthController {
       // Get client info for session tracking
       const clientInfo = await getClientInfo(req);
 
+      console.log("Client info:", clientInfo);
+
       // Store session information
       const userDoc = await User.findById(result.userId);
       if (userDoc) {
@@ -367,12 +392,133 @@ export class AuthController {
           userDoc.sessions = [];
         }
 
-        // Add refresh token to sessions with device info
+
+        const currentIp = req.ip || req.socket.remoteAddress || "Unknown";
+        const currentUserAgent = req.headers["user-agent"] || "Unknown";
+        const currentDevice = `${currentIp}::${currentUserAgent}`; // Unique device identifier
+        
+        console.log("🔍 Current IP:", currentIp);
+        // Count only valid sessions without removing any
+        const validSessions: any[] = [];
+        const expiredSessions: any[] = [];
+        const invalidSessions: any[] = [];
+        
+        userDoc.sessions.forEach((session: any) => {
+          if (session.refreshToken) {
+            try {
+              // decode to check expiration of existing session
+              const decodedRefreshToken = jwt.verify(session.refreshToken, config.JWT_SECRET) as any;
+              
+              // check expiration - if token is expired, track but don't remove
+              if (decodedRefreshToken.exp && decodedRefreshToken.exp >= Date.now() / 1000) {
+                validSessions.push(session);
+              } else {
+                expiredSessions.push(session);
+                console.log(`⚠️ Found expired session for device: ${session.deviceInfo?.ip}::${session.deviceInfo?.userAgent} (not removing)`);
+              }
+            } catch (error) {
+              // If token verification fails, track but don't remove
+              invalidSessions.push(session);
+              console.log(`⚠️ Found invalid session token for device: ${session.deviceInfo?.ip}::${session.deviceInfo?.userAgent} (not removing)`);
+            }
+          }
+        });
+
+        // Group all sessions by device (IP + User Agent combination)
+        const deviceGroups = new Map<string, any[]>();
+        userDoc.sessions.forEach((session: any) => {
+          const ip = session.deviceInfo?.ip || "Unknown";
+          const userAgent = session.deviceInfo?.userAgent || "Unknown";
+          const deviceId = `${ip}::${userAgent}`;
+          
+          if (!deviceGroups.has(deviceId)) {
+            deviceGroups.set(deviceId, []);
+          }
+          deviceGroups.get(deviceId)!.push(session);
+        });
+
+        console.log(`📱 Current device: ${currentDevice}`);
+        console.log(`📊 Total devices with sessions: ${deviceGroups.size}`);
+        console.log(`🔍 Device breakdown:`, Array.from(deviceGroups.keys()).map(deviceId => ({
+          device: deviceId.split('::')[0] + ' - ' + deviceId.split('::')[1].substring(0, 50) + '...',
+          sessions: deviceGroups.get(deviceId)?.length || 0
+        })));
+
+        // Detailed debugging for current device
+        const currentDeviceSessionsDebug = deviceGroups.get(currentDevice) || [];
+        console.log(`🔍 Current device sessions count: ${currentDeviceSessionsDebug.length}`);
+        console.log(`🔍 Current device sessions details:`, currentDeviceSessionsDebug.map((session, index) => ({
+          index: index + 1,
+          ip: session.deviceInfo?.ip,
+          userAgent: session.deviceInfo?.userAgent?.substring(0, 50) + '...',
+          hasRefreshToken: !!session.refreshToken,
+          refreshTokenPreview: session.refreshToken ? session.refreshToken.substring(0, 20) + '...' : 'none',
+          createdAt: session.createdAt,
+          lastUsed: session.lastUsed
+        })));
+
+        // Check if we have more than 3 different devices
+        const maxDevices = 3;
+        if (deviceGroups.size >= maxDevices && !deviceGroups.has(currentDevice)) {
+          return res.status(400).json({
+            success: false,
+            message: "You have exceeded the maximum number of devices (3). Please sign out from other devices before logging in again.",
+            currentDevices: deviceGroups.size,
+            maxAllowedDevices: maxDevices,
+            action: "logout_required",
+            deviceList: Array.from(deviceGroups.keys()).map(deviceId => {
+              const [ip, userAgent] = deviceId.split('::');
+              return {
+                ip,
+                browser: userAgent.substring(0, 50) + (userAgent.length > 50 ? '...' : ''),
+                sessions: deviceGroups.get(deviceId)?.length || 0
+              };
+            })
+          });
+        }
+
+        // Check sessions per current device before adding new session
+        const maxSessionsPerDevice = 5;
+        const currentDeviceSessions = deviceGroups.get(currentDevice) || [];
+        
+        if (currentDeviceSessions.length >= maxSessionsPerDevice) {
+          const validCurrentDeviceSessions = currentDeviceSessions.filter(session => 
+            validSessions.some(validSession => validSession.refreshToken === session.refreshToken)
+          );
+          const expiredCurrentDeviceSessions = currentDeviceSessions.filter(session => 
+            expiredSessions.some(expiredSession => expiredSession.refreshToken === session.refreshToken)
+          );
+          const invalidCurrentDeviceSessions = currentDeviceSessions.filter(session => 
+            invalidSessions.some(invalidSession => invalidSession.refreshToken === session.refreshToken)
+          );
+
+          return res.status(400).json({
+            success: false,
+            message: "You have reached the maximum number of sessions (5) for this device. Please sign out from other sessions on this device before logging in again.",
+            currentSessions: currentDeviceSessions.length,
+            maxAllowed: maxSessionsPerDevice,
+            device: {
+              ip: currentIp,
+              browser: currentUserAgent.substring(0, 100) + (currentUserAgent.length > 100 ? '...' : '')
+            },
+            sessionBreakdown: {
+              valid: validCurrentDeviceSessions.length,
+              expired: expiredCurrentDeviceSessions.length,
+              invalid: invalidCurrentDeviceSessions.length
+            },
+            action: "logout_required",
+            hint: expiredCurrentDeviceSessions.length > 0 || invalidCurrentDeviceSessions.length > 0 
+              ? "Some of your sessions may be expired or invalid. Try logging out from all sessions to clean up." 
+              : "You have active sessions that need to be logged out manually."
+          });
+        }
+
+        // Now add the new session (no sessions were removed)
         userDoc.sessions.push({
           refreshToken: tokens.refreshToken,
           deviceInfo: {
-            userAgent: req.headers["user-agent"] || "Unknown",
-            ip: req.ip || req.socket.remoteAddress || "Unknown",
+            userAgent: currentUserAgent,
+            ip: currentIp,
             deviceType: clientInfo.device || "Unknown",
           },
           lastUsed: new Date(),
@@ -380,20 +526,15 @@ export class AuthController {
           isActive: true,
         });
 
-        // Limit the number of sessions to 10
-        if (userDoc.sessions.length > 10) {
-          // Sort by lastUsed (most recent first) and keep only the 10 most recent
-          userDoc.sessions.sort(
-            (a: any, b: any) =>
-              new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
-          );
-          userDoc.sessions = userDoc.sessions.slice(0, 10);
-        }
+        console.log(`✅ Added new session for device ${currentDevice}. Total sessions for this device: ${currentDeviceSessions.length + 1}`);
+        console.log(`📊 Total unique devices: ${deviceGroups.has(currentDevice) ? deviceGroups.size : deviceGroups.size + 1}`);
+        console.log(`💾 About to save user with ${userDoc.sessions.length} total sessions`);
 
         // Update last login time
         userDoc.lastLogin = new Date();
 
         await userDoc.save();
+        console.log(`✅ User sessions saved successfully. Total sessions in DB: ${userDoc.sessions.length}`);
       }
 
       // Set tokens in HTTP-only cookies with proper settings

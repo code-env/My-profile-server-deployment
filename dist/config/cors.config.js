@@ -23,6 +23,7 @@ exports.whitelistOrigins = [
     "https://new-backend-chat-system.onrender.com",
     "https://my-profile-server-api.onrender.com",
     "https://my-pts.vercel.app",
+    "https://mypts-admin.vercel.app",
     // Environment variables
     process.env.CLIENT_URL,
     process.env.FRONTEND_URL,

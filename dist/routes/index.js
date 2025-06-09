@@ -44,6 +44,7 @@ const auth_routes_1 = __importDefault(require("./auth.routes"));
 const user_routes_1 = __importDefault(require("./user.routes"));
 const profile_routes_1 = __importDefault(require("./profile.routes"));
 const connection_routes_1 = __importDefault(require("./connection.routes"));
+const connection_analytics_routes_1 = __importDefault(require("./connection-analytics.routes"));
 // import profileConnectionRoutes from './profile-connection.routes';
 const contact_route_1 = __importDefault(require("./contact.route"));
 const relationshipType_routes_1 = __importDefault(require("./relationshipType.routes"));
@@ -53,6 +54,7 @@ const my_pts_value_routes_1 = __importDefault(require("./my-pts-value.routes"));
 const my_pts_hub_routes_1 = __importDefault(require("./my-pts-hub.routes"));
 const admin_routes_1 = __importDefault(require("./admin.routes"));
 const admin_notification_routes_1 = __importDefault(require("./admin-notification.routes"));
+const admin_user_routes_1 = __importDefault(require("./admin-user.routes"));
 const index_1 = __importDefault(require("./admin/index"));
 const stripe_routes_1 = __importDefault(require("./stripe.routes"));
 const task_routes_1 = __importDefault(require("./task.routes"));
@@ -85,6 +87,7 @@ const plans_routes_1 = __importDefault(require("./plans.routes"));
 const community_routes_1 = __importDefault(require("./community.routes"));
 const profile_full_routes_1 = __importDefault(require("./profile-full.routes"));
 const fraud_routes_1 = __importDefault(require("./fraud.routes"));
+const country_routes_1 = __importDefault(require("./country.routes"));
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -155,6 +158,7 @@ const setupRoutes = (app) => {
     app.use('/api/users', user_routes_1.default);
     app.use('/api/auth/social', auth_social_routes_1.default);
     app.use('/api/profile-full', profile_full_routes_1.default);
+    app.use('/api/countries', country_routes_1.default);
     // settings routes
     app.use('/api/settings', auth_middleware_1.protect, settings_routes_1.default);
     // profile data routes
@@ -166,6 +170,7 @@ const setupRoutes = (app) => {
     app.use('/api/vault', auth_middleware_1.protect, vault_routes_1.default);
     // app.use('/api/connections', protect, connectionRoutes);
     app.use('/api/p/connections', auth_middleware_1.protect, connection_routes_1.default);
+    app.use('/api/connections/analytics', auth_middleware_1.protect, connection_analytics_routes_1.default);
     app.use('/api/contacts', auth_middleware_1.protect, contact_route_1.default);
     app.use('/api/tasks', auth_middleware_1.protect, task_routes_1.default);
     app.use('/api/lists', auth_middleware_1.protect, list_routes_1.default);
@@ -180,6 +185,7 @@ const setupRoutes = (app) => {
     app.use('/api/my-pts-hub', auth_middleware_1.protect, my_pts_hub_routes_1.default);
     app.use('/api/admin', auth_middleware_1.protect, admin_routes_1.default);
     app.use('/api/admin/notifications', auth_middleware_1.protect, admin_notification_routes_1.default);
+    app.use('/api/admin/users', admin_user_routes_1.default);
     app.use('/api/admin', index_1.default);
     app.use('/api/fraud', fraud_routes_1.default);
     app.use('/api/stripe', stripe_routes_1.default);

@@ -50,6 +50,7 @@ import myPtsValueRoutes from './my-pts-value.routes';
 import myPtsHubRoutes from './my-pts-hub.routes';
 import adminRoutes from './admin.routes';
 import adminNotificationRoutes from './admin-notification.routes';
+import adminUserRoutes from './admin-user.routes';
 import adminModuleRoutes from './admin/index';
 import stripeRoutes from './stripe.routes';
 import taskRoutes from './task.routes';
@@ -82,6 +83,7 @@ import plansRoutes from './plans.routes';
 import communityRoutes from './community.routes';
 import profileFullRoutes from './profile-full.routes';
 import fraudRoutes from './fraud.routes';
+import countryRoutes from './country.routes';
 /**
  * Configures and sets up all API routes for the application
  * @param app Express application instance
@@ -175,6 +177,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/users', userRoutes);
   app.use('/api/auth/social', socialAuthRoutes);
   app.use('/api/profile-full', profileFullRoutes);
+  app.use('/api/countries', countryRoutes);
 
     // settings routes
   app.use('/api/settings', protect, settingsRoutes);
@@ -208,6 +211,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/my-pts-hub', protect, myPtsHubRoutes);
   app.use('/api/admin', protect, adminRoutes);
   app.use('/api/admin/notifications', protect, adminNotificationRoutes);
+  app.use('/api/admin/users', adminUserRoutes);
   app.use('/api/admin', adminModuleRoutes);
   app.use('/api/fraud', fraudRoutes);
   app.use('/api/stripe', stripeRoutes);

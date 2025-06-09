@@ -276,6 +276,7 @@ export class UserControllers {
       // Get the user data from the request body
       const {
         fullName,
+        
         email,
         phoneNumber,
         countryOfResidence,
