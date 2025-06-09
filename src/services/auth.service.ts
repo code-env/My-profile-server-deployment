@@ -497,9 +497,8 @@ export class AuthService {
 
       // Mark all sessions as inactive
       if (user.sessions?.length > 0) {
-        user.sessions.forEach((session: any) => {
-          session.isActive = false;
-        });
+        // set all to empty
+        user.sessions = [];
       }
 
       await user.save();

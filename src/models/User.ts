@@ -192,18 +192,11 @@ const userSchema = new Schema<IUser>(
 
     firstName: {
       type: String,
-      required: function() {
-        return this.isNew && !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
-      },
     },
 
     lastName: {
       type: String,
-      required: function() {
-        return this.isNew && !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
-      },
     },
-
 
     dateOfBirth: {
       type: Date,

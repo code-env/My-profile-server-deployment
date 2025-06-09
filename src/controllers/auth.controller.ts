@@ -61,18 +61,13 @@ import EmailService from "../services/email.service";
 import { randomBytes } from "crypto";
 import { config } from "../config/config";
 import TwoFactorService from "../services/twoFactor.service";
-import {
-  registerSchema,
-  loginSchema,
-} from "../types/auth.types";
+import { registerSchema, loginSchema } from "../types/auth.types";
 import WhatsAppService from "../services/whatsapp.service";
 // import { getClientInfo } from "../utils/controllerUtils";
 import TwilioService from "../services/twilio.service";
 import UAParser from "ua-parser-js"; // Default import
 import CountryModel from "../models/Country";
 import jwt from "jsonwebtoken";
-
-
 
 // Implemented getClientInfo using ua-parser-js
 async function getClientInfo(req: Request): Promise<{
@@ -111,8 +106,6 @@ async function getClientInfo(req: Request): Promise<{
     userAgent: uaString,
   };
 }
-
-
 
 /**
  * Extends Express Request to include authenticated user data.
@@ -177,8 +170,6 @@ declare global {
  * ```
  */
 
-
-
 export class AuthController {
   /**
    * Register a new user
@@ -229,33 +220,41 @@ export class AuthController {
       };
 
       // find the country in the db by name or code
-      const country = await CountryModel.findOne({ 
+      const country = await CountryModel.findOne({
         $or: [
           { code: validatedData.countryOfResidence },
-          { name: validatedData.countryOfResidence }
-        ]
+          { name: validatedData.countryOfResidence },
+        ],
       });
 
-      if(!country) {
-        return res.status(400).json({ error: 'Invalid country code or name' });
+      if (!country) {
+        return res.status(400).json({ error: "Invalid country code or name" });
       }
-      
-      user.countryOfResidence = country;
-      
 
+      user.countryOfResidence = country;
 
       const clientInfo = await getClientInfo(req);
-      console.log("🔐 Registration request from:", clientInfo.ip, clientInfo.os);
+      console.log(
+        "🔐 Registration request from:",
+        clientInfo.ip,
+        clientInfo.os
+      );
 
       // Check if referral code was provided
       const referralCode = validatedData.referralCode || undefined;
 
-      const result: any = await AuthService.register(user, clientInfo.ip, clientInfo.os, referralCode);
+      const result: any = await AuthService.register(
+        user,
+        clientInfo.ip,
+        clientInfo.os,
+        referralCode
+      );
 
       // CRITICAL: Link user to device fingerprint after successful registration
-      logger.info('🔗 Attempting to link user to device fingerprint', {
+      logger.info("🔗 Attempting to link user to device fingerprint", {
         hasDeviceFingerprint: !!req.deviceFingerprint,
-        fingerprintValue: req.deviceFingerprint?.fingerprint?.substring(0, 8) + '...',
+        fingerprintValue:
+          req.deviceFingerprint?.fingerprint?.substring(0, 8) + "...",
         hasUserId: !!result.user?._id,
         userId: result.user?._id,
         email: result.user?.email,
@@ -263,23 +262,29 @@ export class AuthController {
 
       if (req.deviceFingerprint?.fingerprint && result.user?._id) {
         try {
-          const { FraudDetectionService } = require('../services/fraudDetection.service');
+          const {
+            FraudDetectionService,
+          } = require("../services/fraudDetection.service");
           await FraudDetectionService.linkUserToDevice(
             req.deviceFingerprint.fingerprint,
             result.user._id.toString(),
             result.user.email
           );
-          logger.info('✅ User successfully linked to device fingerprint', {
+          logger.info("✅ User successfully linked to device fingerprint", {
             userId: result.user._id,
             email: result.user.email,
-            fingerprint: req.deviceFingerprint.fingerprint.substring(0, 8) + '...',
+            fingerprint:
+              req.deviceFingerprint.fingerprint.substring(0, 8) + "...",
           });
         } catch (linkError) {
-          logger.error('❌ Failed to link user to device fingerprint:', linkError);
+          logger.error(
+            "❌ Failed to link user to device fingerprint:",
+            linkError
+          );
           // Don't fail registration if linking fails, but log it
         }
       } else {
-        logger.warn('⚠️ Cannot link user to device - missing data', {
+        logger.warn("⚠️ Cannot link user to device - missing data", {
           hasDeviceFingerprint: !!req.deviceFingerprint,
           hasFingerprint: !!req.deviceFingerprint?.fingerprint,
           hasUserId: !!result.user?._id,
@@ -358,128 +363,179 @@ export class AuthController {
     try {
       const validatedData = await loginSchema.parseAsync(req.body);
       const { identifier, password, rememberMe } = validatedData;
-  
-      const result = await AuthService.login({ identifier, password, rememberMe }, req);
-  
-      if (!result.success || !result.tokens) {
+
+      // Find user first to check sessions BEFORE authentication
+      const userDoc = await User.findOne({
+        $or: [{ email: identifier }, { username: identifier }],
+      });
+
+      if (!userDoc) {
         return res.status(401).json({
           success: false,
-          user: { id: result.userId },
-          message: result.message || "Invalid credentials or token generation failed",
+          message: "Invalid credentials",
         });
       }
 
-      const tokens = result.tokens;
-      
-      // Store session information
-      const userDoc = await User.findById(result.userId);
-      if (userDoc) {
-        if (!userDoc.sessions) {
-          userDoc.sessions = [];
-        }
-
+      // Check session limits BEFORE authentication
+      if (userDoc.sessions && userDoc.sessions.length > 0) {
         // Get client info consistently
         const clientInfo = await getClientInfo(req);
         const currentIp = clientInfo.ip;
         const currentUserAgent = clientInfo.userAgent;
         const currentDevice = `${currentIp}::${currentUserAgent}`;
-        
-        console.log("🔍 Current device identifier:", currentDevice);
-        console.log("🔍 Client info:", { ip: currentIp, userAgent: currentUserAgent });
-        
+
+        console.log(
+          "🔍 Pre-auth session check - Current device identifier:",
+          currentDevice
+        );
+        console.log("🔍 Pre-auth session check - Client info:", {
+          ip: currentIp,
+          userAgent: currentUserAgent,
+        });
+
         // Categorize sessions
         const validSessions: any[] = [];
         const expiredSessions: any[] = [];
         const invalidSessions: any[] = [];
-        
-        console.log("🔍 Total sessions before categorization:", userDoc.sessions.length);
-        
+
+        console.log(
+          "🔍 Pre-auth - Total sessions before categorization:",
+          userDoc.sessions.length
+        );
+
         userDoc.sessions.forEach((session: any, index: number) => {
-          console.log(`🔍 Session ${index}:`, {
+          console.log(`🔍 Pre-auth Session ${index}:`, {
             hasRefreshToken: !!session.refreshToken,
             deviceInfo: session.deviceInfo,
-            isActive: session.isActive
+            isActive: session.isActive,
           });
-          
+
           if (session.refreshToken && session.isActive) {
             try {
-              const decoded = jwt.verify(session.refreshToken, config.JWT_REFRESH_SECRET) as any;
+              const decoded = jwt.verify(
+                session.refreshToken,
+                config.JWT_REFRESH_SECRET
+              ) as any;
               if (decoded.exp && decoded.exp >= Date.now() / 1000) {
                 validSessions.push(session);
-                console.log(`✅ Session ${index} is valid`);
+                console.log(`✅ Pre-auth Session ${index} is valid`);
               } else {
                 expiredSessions.push(session);
-                console.log(`⏰ Session ${index} is expired`);
+                console.log(`⏰ Pre-auth Session ${index} is expired`);
               }
             } catch (error) {
               invalidSessions.push(session);
-              console.log(`❌ Session ${index} is invalid:`, (error as Error).message);
+              console.log(
+                `❌ Pre-auth Session ${index} is invalid:`,
+                (error as Error).message
+              );
             }
           } else {
-            console.log(`⚠️ Session ${index} skipped - no refresh token or inactive`);
+            console.log(
+              `⚠️ Pre-auth Session ${index} skipped - no refresh token or inactive`
+            );
           }
         });
-        
-        console.log("🔍 Session categorization:", {
+
+        console.log("🔍 Pre-auth Session categorization:", {
           valid: validSessions.length,
           expired: expiredSessions.length,
-          invalid: invalidSessions.length
+          invalid: invalidSessions.length,
         });
-        
+
         // Group valid sessions by device
         const deviceGroups = new Map<string, any[]>();
         validSessions.forEach((session, index) => {
           const ip = session.deviceInfo?.ip || "Unknown";
           const userAgent = session.deviceInfo?.userAgent || "Unknown";
           const deviceId = `${ip}::${userAgent}`;
-          
-          console.log(`🔍 Session ${index} device ID: "${deviceId}"`);
-          
+
+          console.log(`🔍 Pre-auth Session ${index} device ID: "${deviceId}"`);
+
           if (!deviceGroups.has(deviceId)) {
             deviceGroups.set(deviceId, []);
           }
           deviceGroups.get(deviceId)!.push(session);
         });
-        
-        console.log("🔍 Device groups:", Array.from(deviceGroups.keys()));
-        console.log("🔍 Current device sessions count:", deviceGroups.get(currentDevice)?.length || 0);
-        
+
+        console.log(
+          "🔍 Pre-auth Device groups:",
+          Array.from(deviceGroups.keys())
+        );
+        console.log(
+          "🔍 Pre-auth Current device sessions count:",
+          deviceGroups.get(currentDevice)?.length || 0
+        );
+
         // Check device limit (only if this is a new device)
         const maxDevices = 3;
-        if (deviceGroups.size >= maxDevices && !deviceGroups.has(currentDevice)) {
+        if (
+          deviceGroups.size >= maxDevices &&
+          !deviceGroups.has(currentDevice)
+        ) {
           return res.status(400).json({
             success: false,
-            message: "You have exceeded the maximum number of devices (3). Please sign out from other devices before logging in again.",
+            message:
+              "You have exceeded the maximum number of devices (3). Please sign out from other devices before logging in again.",
             currentDevices: deviceGroups.size,
             maxAllowedDevices: maxDevices,
-            action: "logout_required"
+            action: "logout_required",
           });
         }
-        
+
         // Check sessions per current device
         const maxSessionsPerDevice = 5;
         const currentDeviceSessions = deviceGroups.get(currentDevice) || [];
 
-        console.log("🔍 Current device sessions:", currentDeviceSessions.length);
-        
+        console.log(
+          "🔍 Pre-auth Current device sessions:",
+          currentDeviceSessions.length
+        );
+
         if (currentDeviceSessions.length >= maxSessionsPerDevice) {
           return res.status(400).json({
             success: false,
-            message: "You have reached the maximum number of sessions (5) for this device. Please sign out from other sessions on this device before logging in again.",
+            message:
+              "You have reached the maximum number of sessions (5) for this device. Please sign out from other sessions on this device before logging in again.",
             currentSessions: currentDeviceSessions.length,
             maxAllowed: maxSessionsPerDevice,
-            action: "logout_required"
+            action: "logout_required",
           });
         }
-    
-        userDoc.lastLogin = new Date();
-        await userDoc.save();
       }
-  
+
+      // Now proceed with authentication since session limits are OK
+      const result = await AuthService.login(
+        { identifier, password, rememberMe },
+        req
+      );
+
+      if (!result.success || !result.tokens) {
+        return res.status(401).json({
+          success: false,
+          user: { id: result.userId },
+          message:
+            result.message || "Invalid credentials or token generation failed",
+        });
+      }
+
+      const tokens = result.tokens;
+
+      // Update user document after successful authentication
+      const updatedUserDoc = await User.findById(result.userId);
+      if (updatedUserDoc) {
+        updatedUserDoc.lastLogin = new Date();
+        await updatedUserDoc.save();
+      }
+
       // Set cookies
-      const accessExpMs = AuthController.parseDuration(config.JWT_ACCESS_EXPIRATION);
-      const refreshExpMs = AuthController.parseDuration(config.JWT_REFRESH_EXPIRATION);
-  
+      const accessExpMs = AuthController.parseDuration(
+        config.JWT_ACCESS_EXPIRATION
+      );
+      const refreshExpMs = AuthController.parseDuration(
+        config.JWT_REFRESH_EXPIRATION
+      );
+
       res.cookie("accesstoken", tokens.accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -487,7 +543,7 @@ export class AuthController {
         path: "/",
         maxAge: accessExpMs,
       });
-  
+
       res.cookie("refreshtoken", tokens.refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -495,8 +551,10 @@ export class AuthController {
         path: "/",
         maxAge: refreshExpMs,
       });
-  
-      const userSessions = await AuthService.getAllUserSessions(result.userId as string);
+
+      const userSessions = await AuthService.getAllUserSessions(
+        result.userId as string
+      );
       return res.status(200).json({
         success: true,
         user: { id: result.userId },
@@ -504,9 +562,8 @@ export class AuthController {
         tokens: {
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
-        }
+        },
       });
-
     } catch (error) {
       logger.error("Login error:", error);
       return res.status(400).json({
@@ -517,9 +574,11 @@ export class AuthController {
   }
 
   static parseDuration(duration: string): number {
-    if (!duration || typeof duration !== 'string') {
+    if (!duration || typeof duration !== "string") {
       // Default to 24 hours if duration is invalid or not provided
-      logger.warn(`Invalid or missing duration string: "${duration}". Defaulting to 24 hours.`);
+      logger.warn(
+        `Invalid or missing duration string: "${duration}". Defaulting to 24 hours.`
+      );
       return 24 * 60 * 60 * 1000;
     }
 
@@ -528,25 +587,28 @@ export class AuthController {
     const value = parseInt(valueString, 10);
 
     if (isNaN(value) || value <= 0) {
-      logger.warn(`Invalid duration value: "${valueString}". Defaulting to 24 hours.`);
+      logger.warn(
+        `Invalid duration value: "${valueString}". Defaulting to 24 hours.`
+      );
       return 24 * 60 * 60 * 1000; // Default 24 hours
     }
 
     switch (unit) {
-      case 's': // seconds
+      case "s": // seconds
         return value * 1000;
-      case 'm': // minutes
+      case "m": // minutes
         return value * 60 * 1000;
-      case 'h': // hours
+      case "h": // hours
         return value * 60 * 60 * 1000;
-      case 'd': // days
+      case "d": // days
         return value * 24 * 60 * 60 * 1000;
       default:
-        logger.warn(`Unknown duration unit: "${unit}" in duration string "${duration}". Defaulting to 24 hours.`);
+        logger.warn(
+          `Unknown duration unit: "${unit}" in duration string "${duration}". Defaulting to 24 hours.`
+        );
         return 24 * 60 * 60 * 1000; // Default 24 hours if unit is unrecognized
     }
   }
-
 
   /**
    * Get active sessions for the authenticated user
@@ -631,7 +693,7 @@ export class AuthController {
   static async logoutAll(req: Request, res: Response) {
     try {
       const user: any = req.user;
-      await AuthService.logout(user._id, ""); // Pass empty refresh token to clear all tokens
+      await AuthService.logoutAll(user._id);
 
       // Clear auth cookies
       console.log("🗑️  Clearing auth cookies for all sessions...");
@@ -648,6 +710,48 @@ export class AuthController {
           error instanceof Error
             ? error.message
             : "Failed to logout from all sessions",
+      });
+    }
+  }
+
+  static async logoutAllSessions(req: Request, res: Response) {
+    try {
+      // get the user email from the body and send an otp to the email
+      const { email } = req.body;
+      const user = await User.findOne({ email });
+      const clientInfo = await getClientInfo(req);
+      if (!user) {
+        return res
+          .status(400)
+          .json({ success: false, message: "User not found" });
+      }
+      const otp = generateOTP(6);
+      console.log("🔑 OTP:", otp);
+      const otpExpiry = new Date();
+      otpExpiry.setMinutes(otpExpiry.getMinutes() + 10);
+      const verificationData = {
+        otp,
+        otpExpiry,
+        ipAddress: clientInfo.ip,
+        userAgent: clientInfo.os,
+      };
+
+      await User.findByIdAndUpdate(user._id, { $set: { verificationData } });
+
+      await EmailService.sendLogoutAllSessionsEmail(
+        user.email,
+        otp,
+        verificationData
+      );
+      res.json({ success: true, message: "OTP sent to email" });
+    } catch (error) {
+      logger.error("Logout all sessions error:", error);
+      res.status(400).json({
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to logout all sessions",
       });
     }
   }
@@ -700,7 +804,7 @@ export class AuthController {
    * }
    * ```
    */
- /**
+  /**
    * Verify One-Time Password (OTP) for account verification
    *
    * @route POST /api/auth/verify-otp
@@ -748,15 +852,50 @@ export class AuthController {
    * }
    * ```
    */
- static async verifyOTP(req: Request, res: Response) {
+  static async verifyOTP(req: Request, res: Response) {
     try {
-      const { _id, otp, verificationMethod, issue } = req.body;
+      const { _id, otp, verificationMethod, issue, email } = req.body;
       const motive = req.body.motive || "login"; // Default to "login"
 
-      if (!_id || !otp || !verificationMethod) {
+      if ((!_id && !otp && !verificationMethod) || (email && motive !== "logout_all_sessions")) {
         return res.status(400).json({
           success: false,
           message: "Missing required fields: _id, otp, or verificationMethod",
+        });
+      }
+
+      // look for the user with given email if the email is not null
+      if (email && motive === "logout_all_sessions") {
+        const foundUser: any = await User.findOne({ email });
+        if (!foundUser) {
+          return res.status(400).json({
+            success: false,
+            message: "User not found",
+          });
+        }
+
+        // Call the verifyOTP method
+        const result = await AuthService.verifyOTPResponse(
+          foundUser._id,
+          otp,
+          verificationMethod.toLowerCase()
+        );
+
+        if (!result.success) {
+          return res.status(400).json({
+            success: false,
+            message: result.message,
+          });
+        }
+
+        // call the logout all sessions function
+        await AuthService.logoutAll(foundUser._id);
+
+        return res.json({
+          success: true,
+          message:
+            "OTP verified successfully. All sessions have been logged out.",
+          email: foundUser?.email,
         });
       }
 
@@ -776,22 +915,23 @@ export class AuthController {
             return res.json({
               success: true,
               message: "Username retrieved successfully",
-              username: user?.username
+              username: user?.username,
             });
 
           case "forgot_email":
             return res.json({
               success: true,
               message: "Email retrieved successfully",
-              email: user?.email
+              email: user?.email,
             });
 
           case "forgot_password":
             // For password reset, we still need to let them set a new password
             return res.json({
               success: true,
-              message: "OTP verified successfully. You can now reset your password.",
-              email: user?.email
+              message:
+                "OTP verified successfully. You can now reset your password.",
+              email: user?.email,
             });
 
           case "phone_number_change":
@@ -799,8 +939,12 @@ export class AuthController {
             // For changes, we verify their identity first, then they can make the change
             return res.json({
               success: true,
-              message: "Identity verified successfully. You can now make the requested change.",
-              currentValue: issue === "phone_number_change" ? user?.phoneNumber : user?.email
+              message:
+                "Identity verified successfully. You can now make the requested change.",
+              currentValue:
+                issue === "phone_number_change"
+                  ? user?.phoneNumber
+                  : user?.email,
             });
 
           default:
@@ -809,13 +953,18 @@ export class AuthController {
               const tokens = AuthService.generateTokens(_id, user!.email);
 
               // Convert JWT expiration strings to milliseconds
-              const accessExpMs = AuthController.parseDuration(config.JWT_ACCESS_EXPIRATION);
-              const refreshExpMs = AuthController.parseDuration(config.JWT_REFRESH_EXPIRATION);
+              const accessExpMs = AuthController.parseDuration(
+                config.JWT_ACCESS_EXPIRATION
+              );
+              const refreshExpMs = AuthController.parseDuration(
+                config.JWT_REFRESH_EXPIRATION
+              );
 
               res.cookie("accesstoken", tokens.accessToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
-                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+                sameSite:
+                  process.env.NODE_ENV === "production" ? "none" : "lax",
                 path: "/",
                 maxAge: accessExpMs,
               });
@@ -823,7 +972,8 @@ export class AuthController {
               res.cookie("refreshtoken", tokens.refreshToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
-                sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+                sameSite:
+                  process.env.NODE_ENV === "production" ? "none" : "lax",
                 path: "/",
                 maxAge: refreshExpMs,
               });
@@ -837,13 +987,13 @@ export class AuthController {
                   email: user?.email,
                   username: user?.username,
                   fullname: user?.fullName,
-                }
+                },
               });
             }
 
             return res.json({
               success: true,
-              message: "OTP verified successfully"
+              message: "OTP verified successfully",
             });
         }
       }
@@ -856,12 +1006,11 @@ export class AuthController {
       logger.error("OTP verification error:", error);
       res.status(400).json({
         success: false,
-        message: error instanceof Error ? error.message : "Failed to verify OTP",
+        message:
+          error instanceof Error ? error.message : "Failed to verify OTP",
       });
     }
   }
-
-
 
   /**
    * Refresh user's access token using a valid refresh token
@@ -905,20 +1054,24 @@ export class AuthController {
 
       // If not in body, try to get from cookies
       if (!refreshToken) {
-        refreshToken = req.cookies.refreshtoken || req.cookies.refreshToken ||
-                      req.cookies['better-auth.refresh-token'];
+        refreshToken =
+          req.cookies.refreshtoken ||
+          req.cookies.refreshToken ||
+          req.cookies["better-auth.refresh-token"];
       }
 
       const deviceInfo = await getClientInfo(req); // Get device info
 
       if (!refreshToken) {
-        logger.warn('Refresh token missing in request');
+        logger.warn("Refresh token missing in request");
         return res
           .status(400)
           .json({ success: false, message: "Refresh token is required" });
       }
 
-      logger.debug(`Attempting to refresh token: ${refreshToken.substring(0, 10)}...`);
+      logger.debug(
+        `Attempting to refresh token: ${refreshToken.substring(0, 10)}...`
+      );
 
       // Try to refresh the token
       const result = await AuthService.refreshAccessToken(
@@ -927,8 +1080,12 @@ export class AuthController {
       );
 
       // Convert JWT expiration strings to milliseconds
-      const accessExpMs = AuthController.parseDuration(config.JWT_ACCESS_EXPIRATION);
-      const refreshExpMs = AuthController.parseDuration(config.JWT_REFRESH_EXPIRATION);
+      const accessExpMs = AuthController.parseDuration(
+        config.JWT_ACCESS_EXPIRATION
+      );
+      const refreshExpMs = AuthController.parseDuration(
+        config.JWT_REFRESH_EXPIRATION
+      );
 
       // Set new tokens in HTTP-only cookies with proper security settings
       res.cookie("accesstoken", result.accessToken, {
@@ -962,7 +1119,10 @@ export class AuthController {
         });
       }
 
-      if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
+      if (
+        error.name === "JsonWebTokenError" ||
+        error.name === "TokenExpiredError"
+      ) {
         return res.status(401).json({
           success: false,
           message: "Invalid or expired refresh token",
@@ -970,12 +1130,12 @@ export class AuthController {
       }
 
       // For development mode, provide more details
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === "development") {
         return res.status(500).json({
           success: false,
           message: "Failed to refresh token",
           error: error.message,
-          stack: error.stack
+          stack: error.stack,
         });
       }
 
@@ -1033,13 +1193,18 @@ export class AuthController {
       }
 
       // Fetch user first to ensure email exists and get name
-      const user = await User.findOne({ email }).select('fullName');
+      const user = await User.findOne({ email }).select("fullName");
 
       // Always return success message for security, even if user not found
       // But only proceed if user exists
       if (user) {
         const resetToken = randomBytes(32).toString("hex");
-        await AuthService.setResetToken(email, resetToken, 'reset_password', 'email');
+        await AuthService.setResetToken(
+          email,
+          resetToken,
+          "reset_password",
+          "email"
+        );
 
         const clientInfo = await getClientInfo(req);
 
@@ -1050,7 +1215,8 @@ export class AuthController {
         const encodedToken = encodeURIComponent(resetToken);
 
         // Make sure we have a valid CLIENT_URL, with fallback to the hardcoded production URL
-        const clientUrl = config.CLIENT_URL || 'https://my-pts-dashboard-management.vercel.app';
+        const clientUrl =
+          config.CLIENT_URL || "https://my-pts-dashboard-management.vercel.app";
         const resetUrl = `${clientUrl}/reset-password?token=${encodedToken}`;
 
         logger.info(`Generated reset URL in auth controller: ${resetUrl}`);
@@ -1058,13 +1224,15 @@ export class AuthController {
         await EmailService.sendPasswordResetEmail(
           email,
           resetUrl, // Pass the full URL
-          user.fullName || 'User', // Pass user's name (or default)
+          user.fullName || "User", // Pass user's name (or default)
           expiryMinutes, // Pass expiry time
           { ipAddress: clientInfo.ip, userAgent: clientInfo.os }
         );
       } else {
         // Log if user not found, but don't reveal this to the client
-        logger.warn(`Password reset requested for non-existent email: ${email}`);
+        logger.warn(
+          `Password reset requested for non-existent email: ${email}`
+        );
       }
 
       res.json({
@@ -1131,7 +1299,7 @@ export class AuthController {
         );
       }
 
-      await AuthService.resetPassword(token, password, 'reset_password');
+      await AuthService.resetPassword(token, password, "reset_password");
       res.json({
         success: true,
         message: "Password reset successful",
@@ -1220,7 +1388,7 @@ export class AuthController {
       if (!token) {
         return res.status(400).json({
           success: false,
-          message: "Verification token is required"
+          message: "Verification token is required",
         });
       }
 
@@ -1228,11 +1396,11 @@ export class AuthController {
       const clientInfo = await getClientInfo(req);
 
       // First find user by verification token
-      const user: any = await User.findOne({ 'verificationData.token': token });
+      const user: any = await User.findOne({ "verificationData.token": token });
       if (!user) {
         return res.status(400).json({
           success: false,
-          message: "Invalid verification token"
+          message: "Invalid verification token",
         });
       }
 
@@ -1255,19 +1423,19 @@ export class AuthController {
         // Send success response
         return res.status(200).json({
           success: true,
-          message: "Email verified successfully"
+          message: "Email verified successfully",
         });
       }
 
       return res.status(400).json({
         success: false,
-        message: result.message || "Email verification failed"
+        message: result.message || "Email verification failed",
       });
     } catch (error) {
       logger.error("Email verification error:", error);
       res.status(500).json({
         success: false,
-        message: "An error occurred during email verification"
+        message: "An error occurred during email verification",
       });
     }
   }
@@ -1322,15 +1490,19 @@ export class AuthController {
       const clientInfo = await getClientInfo(req);
 
       // Send 2FA code via email with security info
-      await EmailService.sendLoginVerificationOTP(user.email, secretData.secret, { 
-        ipAddress: clientInfo.ip, 
-        userAgent: clientInfo.os,
-        location: `${clientInfo.device || 'Unknown Device'} - ${clientInfo.browser || 'Unknown Browser'}`
-      });
+      await EmailService.sendLoginVerificationOTP(
+        user.email,
+        secretData.secret,
+        {
+          ipAddress: clientInfo.ip,
+          userAgent: clientInfo.os,
+          location: `${clientInfo.device || "Unknown Device"} - ${clientInfo.browser || "Unknown Browser"}`,
+        }
+      );
 
       res.status(200).json({
         message: "2FA code sent successfully",
-        qrCode: secretData.qrCode
+        qrCode: secretData.qrCode,
       });
     } catch (error) {
       logger.error("Error generating 2FA:", error);
@@ -1437,8 +1609,6 @@ export class AuthController {
     }
   }
 
-
-
   /**
    * Resend OTP
    * @route POST /auth/resend-otp
@@ -1470,8 +1640,6 @@ export class AuthController {
         });
       }
 
-
-
       user.verificationMethod = verificationMethod;
 
       // Generate new OTP
@@ -1496,7 +1664,10 @@ export class AuthController {
 
       // Send OTP based on verification method
       if (user.verificationMethod.toLowerCase() === "email") {
-        await EmailService.sendVerificationEmail(user.email, otp, { ipAddress: clientInfo.ip, userAgent: clientInfo.os });
+        await EmailService.sendVerificationEmail(user.email, otp, {
+          ipAddress: clientInfo.ip,
+          userAgent: clientInfo.os,
+        });
         logger.info(`🟣 Registration OTP (Email): ${otp}`);
       } else if (
         user.verificationMethod.toLowerCase() === "phone" &&
@@ -1511,7 +1682,7 @@ export class AuthController {
         success: true,
         message: `OTP resent successfully via ${user.verificationMethod}:  ${user.verificationMethod.toLowerCase() === "phone" ? user.phoneNumber : user.email} `,
         userId: user._id,
-        otp: otp
+        otp: otp,
       });
     } catch (error) {
       logger.error("Resend OTP error:", error);
@@ -1560,7 +1731,9 @@ export class AuthController {
       res.status(400).json({
         success: false,
         message:
-          error instanceof Error ? error.message : "Failed to send OTP verification method",
+          error instanceof Error
+            ? error.message
+            : "Failed to send OTP verification method",
       });
     }
   }
@@ -1581,13 +1754,13 @@ export class AuthController {
 
       res.json({
         available: !user,
-        message: user ? 'Email is already registered' : 'Email is available'
+        message: user ? "Email is already registered" : "Email is available",
       });
     } catch (error) {
-      logger.error('Check email error:', error);
+      logger.error("Check email error:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to check email availability'
+        message: "Failed to check email availability",
       });
     }
   }
@@ -1608,13 +1781,13 @@ export class AuthController {
 
       res.json({
         available: !user,
-        message: user ? 'Username is already taken' : 'Username is available'
+        message: user ? "Username is already taken" : "Username is available",
       });
     } catch (error) {
-      logger.error('Check username error:', error);
+      logger.error("Check username error:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to check username availability'
+        message: "Failed to check username availability",
       });
     }
   }
@@ -1630,15 +1803,16 @@ export class AuthController {
       if (!token || !infoType) {
         return res.status(400).json({
           success: false,
-          message: "Token and infoType are required"
+          message: "Token and infoType are required",
         });
       }
 
       // Validate infoType
-      if (!['email', 'username', 'phone_number'].includes(infoType)) {
+      if (!["email", "username", "phone_number"].includes(infoType)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid infoType. Must be 'email', 'username', or 'phone_number'"
+          message:
+            "Invalid infoType. Must be 'email', 'username', or 'phone_number'",
         });
       }
 
@@ -1648,19 +1822,19 @@ export class AuthController {
         return res.json({
           success: true,
           message: `Your ${infoType} has been retrieved successfully`,
-          [infoType]: result.info
+          [infoType]: result.info,
         });
       }
 
       return res.status(400).json({
         success: false,
-        message: result.message || "Failed to retrieve information"
+        message: result.message || "Failed to retrieve information",
       });
     } catch (error) {
       logger.error("Error retrieving forgotten info:", error);
       return res.status(500).json({
         success: false,
-        message: "Error retrieving information"
+        message: "Error retrieving information",
       });
     }
   }
@@ -1715,7 +1889,10 @@ export class AuthController {
       }
 
       // Function to get next steps based on issue
-      const getNextSteps = (method: "EMAIL" | "PHONE", issue: string): string[] => {
+      const getNextSteps = (
+        method: "EMAIL" | "PHONE",
+        issue: string
+      ): string[] => {
         const commonSteps: { [key: string]: string[] } = {
           account_locked: [
             "Your account will automatically unlock after 1 hour",
@@ -1735,18 +1912,24 @@ export class AuthController {
           ],
         };
 
-        if (issue === "forgot_password" || "forgot_username" || "forgot_email" || "phone_number_change" || "email_change") {
+        if (
+          issue === "forgot_password" ||
+          "forgot_username" ||
+          "forgot_email" ||
+          "phone_number_change" ||
+          "email_change"
+        ) {
           return method === "EMAIL"
             ? [
-              "Check your email for a verification code",
-              "Enter the code to reset your password",
-              "If you don't receive the email, check your spam folder",
-            ]
+                "Check your email for a verification code",
+                "Enter the code to reset your password",
+                "If you don't receive the email, check your spam folder",
+              ]
             : [
-              "Check your phone for a verification code",
-              "Enter the code to reset your password",
-              "If you don't receive the SMS, check your network signal",
-            ];
+                "Check your phone for a verification code",
+                "Enter the code to reset your password",
+                "If you don't receive the SMS, check your network signal",
+              ];
         }
 
         return commonSteps[issue] || commonSteps.default;
@@ -1759,7 +1942,9 @@ export class AuthController {
         issue: string
       ): Promise<string> => {
         const otp = generateOTP(6); // Generate 6-digit OTP
-        const expiry = new Date(Date.now() + AuthService.OTP_EXPIRY_MINUTES * 60 * 1000);
+        const expiry = new Date(
+          Date.now() + AuthService.OTP_EXPIRY_MINUTES * 60 * 1000
+        );
 
         // Store OTP in user record
         user.verificationData = {
@@ -1775,65 +1960,76 @@ export class AuthController {
         // Determine reset context based on issue
         const getResetContext = (issue: string) => {
           switch (issue) {
-            case 'forgot_username':
+            case "forgot_username":
               return {
-                type: 'username' as const,
+                type: "username" as const,
                 identifier: user.email,
-                requestedBy: 'username recovery'
+                requestedBy: "username recovery",
               };
-            case 'forgot_email':
+            case "forgot_email":
               return {
-                type: 'email' as const,
+                type: "email" as const,
                 identifier: user.username || user.email,
-                requestedBy: 'email recovery'
+                requestedBy: "email recovery",
               };
-            case 'phone_number_change':
+            case "phone_number_change":
               return {
-                type: 'phone' as const,
+                type: "phone" as const,
                 identifier: user.email,
-                requestedBy: 'phone number change'
+                requestedBy: "phone number change",
               };
-            case 'email_change':
+            case "email_change":
               return {
-                type: 'email' as const,
+                type: "email" as const,
                 identifier: user.email,
-                requestedBy: 'email change'
+                requestedBy: "email change",
               };
-            case 'forgot_password':
+            case "forgot_password":
             default:
               return {
-                type: 'password' as const,
+                type: "password" as const,
                 identifier: user.email,
-                requestedBy: 'password reset'
+                requestedBy: "password reset",
               };
           }
         };
 
         if (method === "EMAIL") {
           await EmailService.sendPasswordResetOTP(
-            user.email, 
-            otp, 
-            user.fullName || user.username || 'User',
+            user.email,
+            otp,
+            user.fullName || user.username || "User",
             getResetContext(issue)
           );
-          logger.info(`${getResetContext(issue).requestedBy} OTP sent via email to ${user.email}`);
+          logger.info(
+            `${getResetContext(issue).requestedBy} OTP sent via email to ${user.email}`
+          );
         } else if (method === "PHONE") {
           try {
             await TwilioService.sendOTPMessage(user.phoneNumber, otp);
-            logger.info(`${getResetContext(issue).requestedBy} OTP sent via SMS to ${user.phoneNumber}`);
+            logger.info(
+              `${getResetContext(issue).requestedBy} OTP sent via SMS to ${user.phoneNumber}`
+            );
           } catch (error) {
-            logger.error('Failed to send SMS OTP:', error);
-            throw new Error('Failed to send SMS verification. Please try email verification.');
+            logger.error("Failed to send SMS OTP:", error);
+            throw new Error(
+              "Failed to send SMS verification. Please try email verification."
+            );
           }
         }
 
         return otp;
       };
 
-
       // Trigger password reset if necessary
       let otpSent = null;
-      const resetIssues = ["forgot_password", "forgot_username", "forgot_email", "phone_number_change", "email_change"];
+      const resetIssues = [
+        "forgot_password",
+        "forgot_username",
+        "forgot_email",
+        "phone_number_change",
+        "email_change",
+      ];
       if (resetIssues.includes(issue)) {
         otpSent = await handlePasswordReset(
           verificationMethod as "EMAIL" | "PHONE",
@@ -1872,16 +2068,19 @@ export class AuthController {
       if (!userId || !newEmail) {
         return res.status(400).json({
           success: false,
-          message: "User ID and new email are required"
+          message: "User ID and new email are required",
         });
       }
 
       // Check if email is already in use
-      const existingUser = await User.findOne({ email: newEmail, _id: { $ne: userId } });
+      const existingUser = await User.findOne({
+        email: newEmail,
+        _id: { $ne: userId },
+      });
       if (existingUser) {
         return res.status(400).json({
           success: false,
-          message: "Email is already in use"
+          message: "Email is already in use",
         });
       }
 
@@ -1890,7 +2089,7 @@ export class AuthController {
         userId,
         {
           email: newEmail,
-          isEmailVerified: true // Since they've already verified through OTP
+          isEmailVerified: true, // Since they've already verified through OTP
         },
         { new: true }
       );
@@ -1898,20 +2097,20 @@ export class AuthController {
       if (!user) {
         return res.status(404).json({
           success: false,
-          message: "User not found"
+          message: "User not found",
         });
       }
 
       return res.json({
         success: true,
         message: "Email updated successfully",
-        email: newEmail
+        email: newEmail,
       });
     } catch (error) {
       logger.error("Change email error:", error);
       return res.status(500).json({
         success: false,
-        message: "Failed to update email"
+        message: "Failed to update email",
       });
     }
   }
@@ -1927,16 +2126,19 @@ export class AuthController {
       if (!userId || !newPhoneNumber) {
         return res.status(400).json({
           success: false,
-          message: "User ID and new phone number are required"
+          message: "User ID and new phone number are required",
         });
       }
 
       // Check if phone number is already in use
-      const existingUser = await User.findOne({ phoneNumber: newPhoneNumber, _id: { $ne: userId } });
+      const existingUser = await User.findOne({
+        phoneNumber: newPhoneNumber,
+        _id: { $ne: userId },
+      });
       if (existingUser) {
         return res.status(400).json({
           success: false,
-          message: "Phone number is already in use"
+          message: "Phone number is already in use",
         });
       }
 
@@ -1946,7 +2148,7 @@ export class AuthController {
         {
           phoneNumber: newPhoneNumber,
           formattedPhoneNumber: formattedPhoneNumber || newPhoneNumber,
-          isPhoneVerified: true // Since they've already verified through OTP
+          isPhoneVerified: true, // Since they've already verified through OTP
         },
         { new: true }
       );
@@ -1954,7 +2156,7 @@ export class AuthController {
       if (!user) {
         return res.status(404).json({
           success: false,
-          message: "User not found"
+          message: "User not found",
         });
       }
 
@@ -1962,13 +2164,13 @@ export class AuthController {
         success: true,
         message: "Phone number updated successfully",
         phoneNumber: newPhoneNumber,
-        formattedPhoneNumber: formattedPhoneNumber || newPhoneNumber
+        formattedPhoneNumber: formattedPhoneNumber || newPhoneNumber,
       });
     } catch (error) {
       logger.error("Change phone number error:", error);
       return res.status(500).json({
         success: false,
-        message: "Failed to update phone number"
+        message: "Failed to update phone number",
       });
     }
   }
@@ -1984,16 +2186,19 @@ export class AuthController {
       if (!userId || !newUsername) {
         return res.status(400).json({
           success: false,
-          message: "User ID and new username are required"
+          message: "User ID and new username are required",
         });
       }
 
       // Check if username is already in use
-      const existingUser = await User.findOne({ username: newUsername.toLowerCase(), _id: { $ne: userId } });
+      const existingUser = await User.findOne({
+        username: newUsername.toLowerCase(),
+        _id: { $ne: userId },
+      });
       if (existingUser) {
         return res.status(400).json({
           success: false,
-          message: "Username is already taken"
+          message: "Username is already taken",
         });
       }
 
@@ -2007,20 +2212,20 @@ export class AuthController {
       if (!user) {
         return res.status(404).json({
           success: false,
-          message: "User not found"
+          message: "User not found",
         });
       }
 
       return res.json({
         success: true,
         message: "Username updated successfully",
-        username: newUsername.toLowerCase()
+        username: newUsername.toLowerCase(),
       });
     } catch (error) {
       logger.error("Change username error:", error);
       return res.status(500).json({
         success: false,
-        message: "Failed to update username"
+        message: "Failed to update username",
       });
     }
   }
@@ -2037,18 +2242,20 @@ export class AuthController {
       if (!userId || !identifierType || !newValue) {
         return res.status(400).json({
           success: false,
-          message: "Missing required fields: userId, identifierType, or newValue"
+          message:
+            "Missing required fields: userId, identifierType, or newValue",
         });
       }
 
       // Validate identifier type
-      const validTypes = ['email', 'username', 'phone'] as const;
-      type IdentifierType = typeof validTypes[number];
+      const validTypes = ["email", "username", "phone"] as const;
+      type IdentifierType = (typeof validTypes)[number];
 
       if (!validTypes.includes(identifierType as IdentifierType)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid identifier type. Must be one of: email, username, phone"
+          message:
+            "Invalid identifier type. Must be one of: email, username, phone",
         });
       }
 
@@ -2057,20 +2264,26 @@ export class AuthController {
       if (!user) {
         return res.status(404).json({
           success: false,
-          message: "User not found"
+          message: "User not found",
         });
       }
 
       // Check if new value is already in use by another user
       const existingUser = await User.findOne({
-        [identifierType]: identifierType === 'phone' ? newValue.replace(/[^+\d]/g, "").replace("+", "").replace(" ", "") : newValue.toLowerCase(),
-        _id: { $ne: userId }
+        [identifierType]:
+          identifierType === "phone"
+            ? newValue
+                .replace(/[^+\d]/g, "")
+                .replace("+", "")
+                .replace(" ", "")
+            : newValue.toLowerCase(),
+        _id: { $ne: userId },
       });
 
       if (existingUser) {
         return res.status(400).json({
           success: false,
-          message: `${identifierType.charAt(0).toUpperCase() + identifierType.slice(1)} is already in use`
+          message: `${identifierType.charAt(0).toUpperCase() + identifierType.slice(1)} is already in use`,
         });
       }
 
@@ -2078,31 +2291,32 @@ export class AuthController {
       const updateData: Partial<IUser> = {};
 
       switch (identifierType as IdentifierType) {
-        case 'email':
+        case "email":
           updateData.email = newValue.toLowerCase();
           updateData.isEmailVerified = true; // Since they've already verified through OTP
           break;
-        case 'username':
+        case "username":
           updateData.username = newValue.toLowerCase();
           break;
-         case 'phone':
-          updateData.phoneNumber =  newValue.replace(/[^+\d]/g, "").replace("+", "").replace(" ", "");
+        case "phone":
+          updateData.phoneNumber = newValue
+            .replace(/[^+\d]/g, "")
+            .replace("+", "")
+            .replace(" ", "");
           updateData.formattedPhoneNumber = formattedValue || newValue;
           updateData.isPhoneVerified = true;
           break;
       }
 
       // Update user's identifier
-      const updatedUser = await User.findByIdAndUpdate(
-        userId,
-        updateData,
-        { new: true }
-      );
+      const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
+        new: true,
+      });
 
       if (!updatedUser) {
         return res.status(500).json({
           success: false,
-          message: "Failed to update identifier"
+          message: "Failed to update identifier",
         });
       }
 
@@ -2110,24 +2324,26 @@ export class AuthController {
       const clientInfo = await getClientInfo(req);
 
       // Log the change for security audit
-      logger.info(`User ${userId} changed their ${identifierType} from ${user[identifierType as keyof IUser]} to ${newValue}`, {
-        userId,
-        oldValue: user[identifierType as keyof IUser],
-        newValue,
-        ipAddress: clientInfo.ip,
-        userAgent: clientInfo.userAgent,
-        timestamp: new Date()
-      });
+      logger.info(
+        `User ${userId} changed their ${identifierType} from ${user[identifierType as keyof IUser]} to ${newValue}`,
+        {
+          userId,
+          oldValue: user[identifierType as keyof IUser],
+          newValue,
+          ipAddress: clientInfo.ip,
+          userAgent: clientInfo.userAgent,
+          timestamp: new Date(),
+        }
+      );
 
       // Send notification email about the change
-      if (identifierType === 'email') {
+      if (identifierType === "email") {
         // Send to old email
-        await EmailService.sendVerificationEmail(
-          user.email,
-          'email',
-          { ipAddress: clientInfo.ip, userAgent: clientInfo.os }
-        );
-      } else if (identifierType === 'phone') {
+        await EmailService.sendVerificationEmail(user.email, "email", {
+          ipAddress: clientInfo.ip,
+          userAgent: clientInfo.os,
+        });
+      } else if (identifierType === "phone") {
         // Send SMS notification to old phone
         // TODO: Send SMS
         // await TwilioService.sendOTPMessage(
@@ -2139,64 +2355,75 @@ export class AuthController {
       return res.json({
         success: true,
         message: `${identifierType.charAt(0).toUpperCase() + identifierType.slice(1)} updated successfully`,
-        [identifierType]: newValue
+        [identifierType]: newValue,
       });
     } catch (error) {
       logger.error("Change identifier error:", error);
       return res.status(500).json({
         success: false,
-        message: "Failed to update identifier"
+        message: "Failed to update identifier",
       });
     }
   }
   /**
- * Verifies the validity of an access token (JWT) and returns user info if valid.
- * Endpoint: POST /api/auth/verify
- */
-static async  verifyToken(req: Request, res: Response) {
-  try {
-    // Accept token from Authorization header or cookie
-    let token = req.header('Authorization');
-    if (token && token.startsWith('Bearer ')) {
-      token = token.replace('Bearer ', '');
-    }
-    if (!token && req.cookies) {
-      token = req.cookies['accessToken'] || req.cookies['accesstoken'] || req.cookies['better-auth.access-token'];
-    }
-    if (!token) {
-      return res.status(401).json({ success: false, message: 'No token provided' });
-    }
-    // Verify the token
-    const jsonwebtoken = require('jsonwebtoken');
-    const decoded = jsonwebtoken.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    // Find the user
-    const user = await User.findById(decoded.userId || decoded.id);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-    // Return sanitized user data
-    return res.json({
-      success: true,
-      user: {
-        id: user._id,
-        email: user.email,
-        fullName: user.fullName,
-        username: user.username,
-        isAdmin:user.role === 'admin',
-        role: user.role,
-        profileImage: user.profileImage,
-        phoneNumber: user.phoneNumber,
-        countryOfResidence: user.countryOfResidence,
-        dateOfBirth: user.dateOfBirth,
-        isProfileComplete: user.isProfileComplete
+   * Verifies the validity of an access token (JWT) and returns user info if valid.
+   * Endpoint: POST /api/auth/verify
+   */
+  static async verifyToken(req: Request, res: Response) {
+    try {
+      // Accept token from Authorization header or cookie
+      let token = req.header("Authorization");
+      if (token && token.startsWith("Bearer ")) {
+        token = token.replace("Bearer ", "");
       }
-    });
-  } catch (err: any) {
-    console.error('Token verification error:', err);
-    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+      if (!token && req.cookies) {
+        token =
+          req.cookies["accessToken"] ||
+          req.cookies["accesstoken"] ||
+          req.cookies["better-auth.access-token"];
+      }
+      if (!token) {
+        return res
+          .status(401)
+          .json({ success: false, message: "No token provided" });
+      }
+      // Verify the token
+      const jsonwebtoken = require("jsonwebtoken");
+      const decoded = jsonwebtoken.verify(
+        token,
+        process.env.JWT_SECRET || "your-secret-key"
+      );
+      // Find the user
+      const user = await User.findById(decoded.userId || decoded.id);
+      if (!user) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
+      }
+      // Return sanitized user data
+      return res.json({
+        success: true,
+        user: {
+          id: user._id,
+          email: user.email,
+          fullName: user.fullName,
+          username: user.username,
+          isAdmin: user.role === "admin",
+          role: user.role,
+          profileImage: user.profileImage,
+          phoneNumber: user.phoneNumber,
+          countryOfResidence: user.countryOfResidence,
+          dateOfBirth: user.dateOfBirth,
+          isProfileComplete: user.isProfileComplete,
+        },
+      });
+    } catch (err: any) {
+      console.error("Token verification error:", err);
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid or expired token" });
+    }
   }
-};
-
 }
 
 function generateOTP(length: number) {
@@ -2230,6 +2457,4 @@ export async function socialAuthCallback(req: Request, res: Response) {
           : "Failed to authenticate with social provider",
     });
   }
-
-
 }

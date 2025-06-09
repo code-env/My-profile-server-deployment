@@ -218,6 +218,31 @@ class EmailService {
     }
   }
 
+  public static async sendLogoutAllSessionsEmail(
+    email: string,
+    otp: string,
+    deviceInfo?: { ipAddress?: string; userAgent?: string }
+  ): Promise<void> {
+    try {
+      const template = await this.loadTemplate('logout-all-sessions-email');
+
+      const html = template({
+        otp,
+        ipAddress: deviceInfo?.ipAddress || 'Unknown',
+        deviceInfo: deviceInfo?.userAgent || 'Unknown Device',
+      });
+
+      await this.sendEmail(
+        email,
+        `Logout All Sessions - ${config.APP_NAME}`,
+        html
+      );
+    } catch (error: unknown) {
+      logger.error('Failed to send logout all sessions email:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to send logout all sessions email');
+    }
+  }
+
   public static async sendPasswordResetEmail(
     email: string,
     resetUrl: string,
