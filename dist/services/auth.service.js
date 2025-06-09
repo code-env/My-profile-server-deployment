@@ -46,6 +46,7 @@ const email_service_1 = __importDefault(require("./email.service"));
 const whatsapp_service_1 = __importDefault(require("./whatsapp.service"));
 const errors_1 = require("../utils/errors");
 const settings_service_1 = require("./settings.service");
+const controllerUtils_1 = require("../utils/controllerUtils");
 const settingsService = new settings_service_1.SettingsService();
 /**
  * Advanced Authentication & Authorization Service
@@ -225,26 +226,30 @@ class AuthService {
             if (!user.sessions) {
                 user.sessions = [];
             }
+            // get client info
+            const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
             // Add new session
             user.sessions.push({
                 refreshToken: tokens.refreshToken,
                 deviceInfo: {
-                    userAgent: 'Login session',
-                    ip: 'Unknown',
-                    deviceType: 'Unknown'
+                    userAgent: clientInfo.userAgent,
+                    ip: clientInfo.ip,
+                    deviceType: clientInfo.device || 'Unknown'
                 },
                 lastUsed: now,
                 createdAt: now,
                 isActive: true
             });
-            // Limit the number of sessions to 3
-            if (user.sessions.length > 3) {
-                // Sort by lastUsed (most recent first) and keep only the 3 most recent
-                user.sessions.sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime());
-                user.sessions = user.sessions.slice(0, 3);
-            }
+            // // Limit the number of sessions to 3
+            // if (user.sessions.length > 3) {
+            //   // Sort by lastUsed (most recent first) and keep only the 3 most recent
+            //   user.sessions.sort((a: any, b: any) =>
+            //     new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
+            //   );
+            //   user.sessions = user.sessions.slice(0, 3);
+            // }
             user.lastLogin = new Date();
-            await user.save();
+            await user.save({ validateBeforeSave: false });
             return { success: true, userId: user._id.toString(), tokens };
         }
         catch (error) {
@@ -811,6 +816,24 @@ class AuthService {
         }
         catch (error) {
             logger_1.logger.error("Get user sessions error:", error);
+            throw error;
+        }
+    }
+    /**
+     * Get all active sessions for a user
+     * @param userId User's ID
+     * @returns Array of active sessions with their refresh tokens
+     */
+    static async getAllUserSessions(userId) {
+        try {
+            const user = await User_1.User.findById(userId);
+            if (!user) {
+                throw new errors_1.CustomError("USER_NOT_FOUND", "User not found");
+            }
+            return user.sessions;
+        }
+        catch (error) {
+            logger_1.logger.error("Get all user sessions error:", error);
             throw error;
         }
     }
