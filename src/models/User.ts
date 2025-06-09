@@ -193,16 +193,14 @@ const userSchema = new Schema<IUser>(
     firstName: {
       type: String,
       required: function() {
-        // Only required if not a social login or if social login is complete
-        return !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
+        return this.isNew && !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
       },
     },
 
     lastName: {
       type: String,
       required: function() {
-        // Only required if not a social login or if social login is complete
-        return !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
+        return this.isNew && !(this.signupType === 'google' || this.signupType === 'facebook' || this.signupType === 'linkedin');
       },
     },
 

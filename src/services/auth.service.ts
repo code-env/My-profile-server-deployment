@@ -275,7 +275,7 @@ export class AuthService {
       // }
 
       user.lastLogin = new Date();
-      await user.save({ validateBeforeSave: false });
+      await user.save();
 
       return { success: true, userId: user._id.toString(), tokens };
     } catch (error:any) {
