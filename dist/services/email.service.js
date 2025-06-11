@@ -166,6 +166,21 @@ class EmailService {
             throw new Error(error instanceof Error ? error.message : 'Failed to send verification email');
         }
     }
+    static async sendLogoutAllSessionsEmail(email, otp, deviceInfo) {
+        try {
+            const template = await this.loadTemplate('logout-all-sessions-email');
+            const html = template({
+                otp,
+                ipAddress: (deviceInfo === null || deviceInfo === void 0 ? void 0 : deviceInfo.ipAddress) || 'Unknown',
+                deviceInfo: (deviceInfo === null || deviceInfo === void 0 ? void 0 : deviceInfo.userAgent) || 'Unknown Device',
+            });
+            await this.sendEmail(email, `Logout All Sessions - ${config_1.config.APP_NAME}`, html);
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to send logout all sessions email:', error);
+            throw new Error(error instanceof Error ? error.message : 'Failed to send logout all sessions email');
+        }
+    }
     static async sendPasswordResetEmail(email, resetUrl, name, expiryMinutes, deviceInfo) {
         try {
             // Ensure the reset URL is properly encoded

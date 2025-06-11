@@ -249,7 +249,7 @@ class AuthService {
             //   user.sessions = user.sessions.slice(0, 3);
             // }
             user.lastLogin = new Date();
-            await user.save({ validateBeforeSave: false });
+            await user.save();
             return { success: true, userId: user._id.toString(), tokens };
         }
         catch (error) {
@@ -421,9 +421,8 @@ class AuthService {
             user.refreshTokens = [];
             // Mark all sessions as inactive
             if (((_a = user.sessions) === null || _a === void 0 ? void 0 : _a.length) > 0) {
-                user.sessions.forEach((session) => {
-                    session.isActive = false;
-                });
+                // set all to empty
+                user.sessions = [];
             }
             await user.save();
         }

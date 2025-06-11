@@ -52,6 +52,76 @@ export const createTemplate = async (
   }
 };
 
+export const bulkCreateTemplates = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const adminId = getAdminId(req);
+    const templates = req.body.templates as TemplateInput[];
+
+    if (!Array.isArray(templates) || templates.length === 0) {
+      throw createHttpError(400, 'Templates array is required and must not be empty');
+    }
+
+    const results = {
+      created: [] as any[],
+      errors: [] as { index: number; template: TemplateInput; error: string }[]
+    };
+
+    for (let i = 0; i < templates.length; i++) {
+      const template = templates[i];
+      
+      try {
+        // Validate required category fields for each template
+        if (template.categories) {
+          for (const category of template.categories) {
+            if (!category.name || !category.label) {
+              throw new Error('Category name and label are required');
+            }
+            if (category.fields) {
+              for (const field of category.fields) {
+                if (!field.name || !field.label || field.order === undefined) {
+                  throw new Error('Field name, label, and order are required');
+                }
+              }
+            }
+          }
+        }
+
+        const createdTemplate = await service.createTemplate(adminId, template);
+        results.created.push({
+          index: i,
+          template: createdTemplate,
+          templateType: template.profileType
+        });
+      } catch (error) {
+        results.errors.push({
+          index: i,
+          template: template,
+          error: error instanceof Error ? error.message : 'Unknown error occurred'
+        });
+      }
+    }
+
+    const statusCode = results.errors.length === 0 ? 201 : 
+                      results.created.length === 0 ? 400 : 207; // 207 = Multi-Status
+
+    res.status(statusCode).json({
+      message: `Bulk creation completed. ${results.created.length} templates created, ${results.errors.length} errors.`,
+      summary: {
+        totalRequested: templates.length,
+        successCount: results.created.length,
+        errorCount: results.errors.length
+      },
+      results
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const listTemplates = async (
   req: Request,
   res: Response,

@@ -15,6 +15,7 @@ const profileController = new profile_controller_1.ProfileController();
 // router.use(authenticateToken);
 // Admin routes for managing profile templates
 router.post('/t/create', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), admin_profile_template_controller_1.createTemplate);
+router.post('/t/bulk-create', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), admin_profile_template_controller_1.bulkCreateTemplates);
 router.get('/t/list', authMiddleware_1.authenticateToken, admin_profile_template_controller_1.listTemplates);
 router.get('/t/:id', authMiddleware_1.authenticateToken, admin_profile_template_controller_1.getTemplateById);
 router.put('/t/:id', authMiddleware_1.authenticateToken, (0, roleMiddleware_1.requireRole)(['user', 'admin', 'superadmin']), admin_profile_template_controller_1.updateTemplate);

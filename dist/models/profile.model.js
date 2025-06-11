@@ -49,8 +49,11 @@ const ProfileSchema = new mongoose_1.Schema({
         type: String,
         required: true,
         enum: [
+            // individual
             'personal', 'academic', 'work', 'professional', 'proprietor', 'freelancer', 'artist', 'influencer', 'athlete', 'provider', 'merchant', 'vendor',
+            // accessory
             'emergency', 'medical', 'pet', 'ecommerce', 'home', 'transportation', 'driver', 'event', 'dependent', 'rider',
+            // group
             'group', 'team', 'family', 'neighborhood', 'company', 'business', 'association', 'organization', 'institution', 'community'
         ],
         index: true

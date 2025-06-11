@@ -80,6 +80,7 @@ router.post("/login", (0, fraudDetection_middleware_1.deviceFingerprintMiddlewar
 router.post("/refresh-token", auth_controller_1.AuthController.refreshToken);
 router.post("/logout", authMiddleware_1.authenticateToken, auth_controller_1.AuthController.logout);
 router.post("/logout-all", authMiddleware_1.authenticateToken, auth_controller_1.AuthController.logoutAll);
+router.post("/logout-all-sessions", authMiddleware_1.authenticateToken, auth_controller_1.AuthController.logoutAllSessions);
 router.post("/trouble-login", auth_controller_1.AuthController.troubleLogin);
 router.get("/sessions", authMiddleware_1.authenticateToken, auth_controller_1.AuthController.getSessions);
 router.post("/forgot-password", auth_controller_1.AuthController.forgotPassword);

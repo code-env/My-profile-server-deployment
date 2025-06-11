@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/roleMiddleware';
 import { ProfileController } from '../controllers/profile.controller';
 import {
   createTemplate,
+  bulkCreateTemplates,
   listTemplates,
   getTemplateById,
   updateTemplate,
@@ -20,6 +21,7 @@ const profileController = new ProfileController();
 
 // Admin routes for managing profile templates
 router.post('/t/create', authenticateToken, requireRole(['user', 'admin', 'superadmin']), createTemplate);
+router.post('/t/bulk-create', authenticateToken, requireRole(['user', 'admin', 'superadmin']), bulkCreateTemplates);
 router.get('/t/list', authenticateToken, listTemplates);
 router.get('/t/:id', authenticateToken, getTemplateById);
 router.put('/t/:id', authenticateToken, requireRole(['user','admin', 'superadmin']), updateTemplate);
