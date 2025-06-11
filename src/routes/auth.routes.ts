@@ -97,7 +97,7 @@ router.post("/login",
 router.post("/refresh-token", AuthController.refreshToken);
 router.post("/logout", authenticateToken, AuthController.logout);
 router.post("/logout-all", authenticateToken, AuthController.logoutAll);
-router.post("/logout-all-sessions", authenticateToken, AuthController.logoutAllSessions);
+router.post("/logout-all-sessions", AuthController.logoutAllSessions);
 router.post("/trouble-login", AuthController.troubleLogin);
 router.get("/sessions", authenticateToken, AuthController.getSessions);
 router.post("/forgot-password", AuthController.forgotPassword);
