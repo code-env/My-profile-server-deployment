@@ -365,11 +365,17 @@ export class AdminVerificationService {
           const user = await User.findById(verification.userId);
           if (user) {
             const verificationTypeText = action.type === 'kyc' ? 'identity' : action.type;
-            await EmailService.sendVerificationApprovalEmail(
-              user.email,
-              user.fullName,
-              verificationTypeText
-            );
+            const subject = `Your ${verificationTypeText} verification has been approved`;
+            const html = `
+              <h2>Verification Approved</h2>
+              <p>Hello ${user.fullName},</p>
+              <p>Your ${verificationTypeText} verification has been successfully approved by our admin team.</p>
+              <p>You can now access all features associated with your verification level.</p>
+              <p>Thank you for your patience during the review process.</p>
+              <br>
+              <p>Best regards,<br>The MyPts Team</p>
+            `;
+            await EmailService.sendEmail(user.email, subject, html);
           }
         } catch (emailError) {
           logger.error('Failed to send approval email:', emailError);
