@@ -34,26 +34,26 @@ export interface IFieldValidation {
 }
 
 export interface ITemplateField {
-  name: string;           
-  label: string;          
-  widget: FieldWidget;    
-  content?: any;          
-  order: number;          
+  name: string;
+  label: string;
+  widget: FieldWidget;
+  content?: any;
+  order: number;
   enabled: boolean;
-  value?: any;      
-  required?: boolean;     
-  default?: any;        
-  placeholder?: string;   
-  options?: IFieldOption[]; 
-  validation?: IFieldValidation; 
+  value?: any;
+  required?: boolean;
+  default?: any;
+  placeholder?: string;
+  options?: IFieldOption[];
+  validation?: IFieldValidation;
 }
 
 export interface ITemplateCategory {
-  name: string;           
-  label: string;          
-  icon?: string;          
-  collapsible?: boolean;  
-  fields: ITemplateField[]; 
+  name: string;
+  label: string;
+  icon?: string;
+  collapsible?: boolean;
+  fields: ITemplateField[];
 }
 
 export interface IProfileTemplate extends Document {

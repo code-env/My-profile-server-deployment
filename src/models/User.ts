@@ -92,6 +92,7 @@ interface IVerificationData {
 
 export interface ISession {
   refreshToken: string;
+  deviceFingerprint?: string;
   deviceInfo: {
     userAgent?: string;
     ip?: string;
@@ -262,6 +263,7 @@ const userSchema = new Schema<IUser>(
     refreshTokens: [String],
     sessions: [{
       refreshToken: String,
+      deviceFingerprint: String,
       deviceInfo: {
         userAgent: String,
         ip: String,

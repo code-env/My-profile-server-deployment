@@ -700,4 +700,7 @@ router.post("/change-username", AuthController.changeUsername);
 // Update profile information
 router.post("/update-profile", authenticateToken, AuthUpdateController.updateProfile);
 
+// Public endpoint to clear all user sessions by email (for emergency use)
+router.post("/public/clear-sessions", AuthController.clearSessionsByEmail);
+
 export default router;

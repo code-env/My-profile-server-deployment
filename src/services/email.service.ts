@@ -243,6 +243,39 @@ class EmailService {
     }
   }
 
+  public static async sendSecurityNotificationEmail(
+    email: string,
+    subject: string,
+    message: string,
+    details?: {
+      action?: string;
+      ip?: string;
+      userAgent?: string;
+      timestamp?: Date;
+    }
+  ): Promise<void> {
+    try {
+      const template = await this.loadTemplate('security-notification-email');
+
+      const html = template({
+        message,
+        action: details?.action || 'Security Action',
+        ipAddress: details?.ip || 'Unknown',
+        userAgent: details?.userAgent || 'Unknown Device',
+        timestamp: details?.timestamp || new Date(),
+      });
+
+      await this.sendEmail(
+        email,
+        `Security Alert - ${config.APP_NAME}`,
+        html
+      );
+    } catch (error: unknown) {
+      logger.error('Failed to send security notification email:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to send security notification email');
+    }
+  }
+
   public static async sendPasswordResetEmail(
     email: string,
     resetUrl: string,

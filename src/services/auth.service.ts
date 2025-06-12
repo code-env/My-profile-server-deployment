@@ -251,10 +251,13 @@ export class AuthService {
       // get client info
       const clientInfo = await getClientInfo(req);
 
+      // Get device fingerprint from request
+      const deviceFingerprint = req.deviceFingerprint?.fingerprint;
 
       // Add new session
       user.sessions.push({
         refreshToken: tokens.refreshToken,
+        deviceFingerprint: deviceFingerprint, // Store device fingerprint
         deviceInfo: {
           userAgent: clientInfo.userAgent,
           ip: clientInfo.ip,
