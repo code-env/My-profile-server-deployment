@@ -51,6 +51,7 @@ import myPtsHubRoutes from './my-pts-hub.routes';
 import adminRoutes from './admin.routes';
 import adminNotificationRoutes from './admin-notification.routes';
 import adminUserRoutes from './admin-user.routes';
+import adminVerificationRoutes from './admin/verification-admin.routes';
 import adminModuleRoutes from './admin/index';
 import stripeRoutes from './stripe.routes';
 import taskRoutes from './task.routes';
@@ -212,6 +213,7 @@ export const setupRoutes = (app: Application): void => {
   app.use('/api/admin', protect, adminRoutes);
   app.use('/api/admin/notifications', protect, adminNotificationRoutes);
   app.use('/api/admin/users', adminUserRoutes);
+  app.use('/api/admin/verification', protect, adminVerificationRoutes);
   app.use('/api/admin', adminModuleRoutes);
   app.use('/api/fraud', fraudRoutes);
   app.use('/api/stripe', stripeRoutes);

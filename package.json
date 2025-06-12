@@ -41,7 +41,11 @@
     "retroactive:platform-join": "ts-node src/scripts/retroactive-platform-join-rewards.ts",
     "test:mypts-rewards": "ts-node src/scripts/test-mypts-rewards.ts",
     "check:database-state": "ts-node src/scripts/check-database-state.ts",
-    "verify:mypts-system": "npm run check:database-state && npm run seed:activity-rewards && npm run test:mypts-rewards"
+    "verify:mypts-system": "npm run check:database-state && npm run seed:activity-rewards && npm run test:mypts-rewards",
+    "script:init-verification": "ts-node scripts/initialize-verification.ts",
+    "script:init-verification:dry-run": "ts-node scripts/initialize-verification.ts --dry-run",
+    "script:init-verification:prod": "node dist/scripts/initialize-verification.js",
+    "script:init-verification:prod:dry-run": "node dist/scripts/initialize-verification.js --dry-run"
   },
   "keywords": [
     "authentication",
