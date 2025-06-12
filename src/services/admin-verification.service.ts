@@ -356,7 +356,7 @@ export class AdminVerificationService {
       await ProfileVerification.findByIdAndUpdate(action.verificationId, updateFields);
 
       // Add history entry
-      verification.addHistoryEntry(historyAction, action.action === 'approve' ? 'verified' : 'failed', action.adminId);
+      verification.addHistoryEntry(historyAction, action.action === 'approve' ? 'verified' : 'failed', new mongoose.Types.ObjectId(action.adminId));
       await verification.save();
 
       // Send email notification if approved
