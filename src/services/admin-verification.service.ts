@@ -1,8 +1,9 @@
 import { ProfileVerification } from '../models/profile-verification.model';
-import { Profile } from '../models/profile.model';
+import { ProfileModel } from '../models/profile.model';
 import { User } from '../models/User';
 import { logger } from '../utils/logger';
-import { EmailService } from './email.service';
+import EmailService from './email.service';
+import mongoose from 'mongoose';
 
 export interface AdminVerificationStats {
   totalPending: number;
@@ -192,7 +193,7 @@ export class AdminVerificationService {
         };
       }
 
-      const pipeline = [
+      const pipeline: any[] = [
         { $match: matchConditions },
         {
           $lookup: {
