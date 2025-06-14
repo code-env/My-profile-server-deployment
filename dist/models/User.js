@@ -131,6 +131,7 @@ const userSchema = new mongoose_1.Schema({
     refreshTokens: [String],
     sessions: [{
             refreshToken: String,
+            deviceFingerprint: String,
             deviceInfo: {
                 userAgent: String,
                 ip: String,

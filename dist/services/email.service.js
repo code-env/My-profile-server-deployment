@@ -181,6 +181,23 @@ class EmailService {
             throw new Error(error instanceof Error ? error.message : 'Failed to send logout all sessions email');
         }
     }
+    static async sendSecurityNotificationEmail(email, subject, message, details) {
+        try {
+            const template = await this.loadTemplate('security-notification-email');
+            const html = template({
+                message,
+                action: (details === null || details === void 0 ? void 0 : details.action) || 'Security Action',
+                ipAddress: (details === null || details === void 0 ? void 0 : details.ip) || 'Unknown',
+                userAgent: (details === null || details === void 0 ? void 0 : details.userAgent) || 'Unknown Device',
+                timestamp: (details === null || details === void 0 ? void 0 : details.timestamp) || new Date(),
+            });
+            await this.sendEmail(email, `Security Alert - ${config_1.config.APP_NAME}`, html);
+        }
+        catch (error) {
+            logger_1.logger.error('Failed to send security notification email:', error);
+            throw new Error(error instanceof Error ? error.message : 'Failed to send security notification email');
+        }
+    }
     static async sendPasswordResetEmail(email, resetUrl, name, expiryMinutes, deviceInfo) {
         try {
             // Ensure the reset URL is properly encoded

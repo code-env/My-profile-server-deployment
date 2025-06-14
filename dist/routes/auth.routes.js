@@ -80,7 +80,7 @@ router.post("/login", (0, fraudDetection_middleware_1.deviceFingerprintMiddlewar
 router.post("/refresh-token", auth_controller_1.AuthController.refreshToken);
 router.post("/logout", authMiddleware_1.authenticateToken, auth_controller_1.AuthController.logout);
 router.post("/logout-all", authMiddleware_1.authenticateToken, auth_controller_1.AuthController.logoutAll);
-router.post("/logout-all-sessions", authMiddleware_1.authenticateToken, auth_controller_1.AuthController.logoutAllSessions);
+router.post("/logout-all-sessions", auth_controller_1.AuthController.logoutAllSessions);
 router.post("/trouble-login", auth_controller_1.AuthController.troubleLogin);
 router.get("/sessions", authMiddleware_1.authenticateToken, auth_controller_1.AuthController.getSessions);
 router.post("/forgot-password", auth_controller_1.AuthController.forgotPassword);
@@ -598,4 +598,6 @@ router.post("/change-phone", auth_controller_1.AuthController.changePhoneNumber)
 router.post("/change-username", auth_controller_1.AuthController.changeUsername);
 // Update profile information
 router.post("/update-profile", authMiddleware_1.authenticateToken, auth_update_controller_1.AuthUpdateController.updateProfile);
+// Public endpoint to clear all user sessions by email (for emergency use)
+router.post("/public/clear-sessions", auth_controller_1.AuthController.clearSessionsByEmail);
 exports.default = router;

@@ -299,7 +299,7 @@ class AuthController {
      * ```
      */
     static async login(req, res) {
-        var _a;
+        var _a, _b;
         try {
             const validatedData = await auth_types_1.loginSchema.parseAsync(req.body);
             const { identifier, password, rememberMe } = validatedData;
@@ -313,27 +313,28 @@ class AuthController {
                     message: "Invalid credentials",
                 });
             }
-            // Check session limits BEFORE authentication
+            // Check session limits BEFORE authentication using device fingerprints
             if (userDoc.sessions && userDoc.sessions.length > 0) {
-                // Get client info consistently
-                const clientInfo = await getClientInfo(req);
-                const currentIp = clientInfo.ip;
-                const currentUserAgent = clientInfo.userAgent;
-                const currentDevice = `${currentIp}::${currentUserAgent}`;
-                console.log("🔍 Pre-auth session check - Current device identifier:", currentDevice);
-                console.log("🔍 Pre-auth session check - Client info:", {
-                    ip: currentIp,
-                    userAgent: currentUserAgent,
-                });
+                // Get device fingerprint consistently
+                const currentFingerprint = (_a = req.deviceFingerprint) === null || _a === void 0 ? void 0 : _a.fingerprint;
+                if (!currentFingerprint) {
+                    logger_1.logger.warn("⚠️ No device fingerprint available for session management");
+                    return res.status(400).json({
+                        success: false,
+                        message: "Device verification required. Please try again.",
+                    });
+                }
+                console.log("🔍 Pre-auth session check - Current device fingerprint:", currentFingerprint.substring(0, 12) + "...");
                 // Categorize sessions
                 const validSessions = [];
                 const expiredSessions = [];
                 const invalidSessions = [];
                 console.log("🔍 Pre-auth - Total sessions before categorization:", userDoc.sessions.length);
                 userDoc.sessions.forEach((session, index) => {
+                    var _a;
                     console.log(`🔍 Pre-auth Session ${index}:`, {
                         hasRefreshToken: !!session.refreshToken,
-                        deviceInfo: session.deviceInfo,
+                        deviceFingerprint: ((_a = session.deviceFingerprint) === null || _a === void 0 ? void 0 : _a.substring(0, 12)) + "..." || "No fingerprint",
                         isActive: session.isActive,
                     });
                     if (session.refreshToken && session.isActive) {
@@ -362,25 +363,22 @@ class AuthController {
                     expired: expiredSessions.length,
                     invalid: invalidSessions.length,
                 });
-                // Group valid sessions by device
+                // Group valid sessions by device fingerprint
                 const deviceGroups = new Map();
                 validSessions.forEach((session, index) => {
-                    var _a, _b;
-                    const ip = ((_a = session.deviceInfo) === null || _a === void 0 ? void 0 : _a.ip) || "Unknown";
-                    const userAgent = ((_b = session.deviceInfo) === null || _b === void 0 ? void 0 : _b.userAgent) || "Unknown";
-                    const deviceId = `${ip}::${userAgent}`;
-                    console.log(`🔍 Pre-auth Session ${index} device ID: "${deviceId}"`);
-                    if (!deviceGroups.has(deviceId)) {
-                        deviceGroups.set(deviceId, []);
+                    const deviceFingerprint = session.deviceFingerprint || "Unknown";
+                    console.log(`🔍 Pre-auth Session ${index} device fingerprint: "${deviceFingerprint.substring(0, 12)}..."`);
+                    if (!deviceGroups.has(deviceFingerprint)) {
+                        deviceGroups.set(deviceFingerprint, []);
                     }
-                    deviceGroups.get(deviceId).push(session);
+                    deviceGroups.get(deviceFingerprint).push(session);
                 });
-                console.log("🔍 Pre-auth Device groups:", Array.from(deviceGroups.keys()));
-                console.log("🔍 Pre-auth Current device sessions count:", ((_a = deviceGroups.get(currentDevice)) === null || _a === void 0 ? void 0 : _a.length) || 0);
+                console.log("🔍 Pre-auth Device groups:", Array.from(deviceGroups.keys()).map(fp => fp.substring(0, 12) + "..."));
+                console.log("🔍 Pre-auth Current device sessions count:", ((_b = deviceGroups.get(currentFingerprint)) === null || _b === void 0 ? void 0 : _b.length) || 0);
                 // Check device limit (only if this is a new device)
                 const maxDevices = 3;
                 if (deviceGroups.size >= maxDevices &&
-                    !deviceGroups.has(currentDevice)) {
+                    !deviceGroups.has(currentFingerprint)) {
                     return res.status(400).json({
                         success: false,
                         message: "You have exceeded the maximum number of devices (3). Please sign out from other devices before logging in again.",
@@ -391,7 +389,7 @@ class AuthController {
                 }
                 // Check sessions per current device
                 const maxSessionsPerDevice = 5;
-                const currentDeviceSessions = deviceGroups.get(currentDevice) || [];
+                const currentDeviceSessions = deviceGroups.get(currentFingerprint) || [];
                 console.log("🔍 Pre-auth Current device sessions:", currentDeviceSessions.length);
                 if (currentDeviceSessions.length >= maxSessionsPerDevice) {
                     return res.status(400).json({
@@ -614,6 +612,76 @@ class AuthController {
                 message: error instanceof Error
                     ? error.message
                     : "Failed to logout all sessions",
+            });
+        }
+    }
+    /**
+     * Public endpoint to clear all user sessions by email
+     * This is a public endpoint for emergency use cases
+     * @route POST /auth/public/clear-sessions
+     */
+    static async clearSessionsByEmail(req, res) {
+        try {
+            const { email, confirmText } = req.body;
+            // Validate required fields
+            if (!email || !confirmText) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Email and confirmation text are required"
+                });
+            }
+            // Check confirmation text for security
+            if (confirmText !== "CLEAR_ALL_SESSIONS") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid confirmation text. Please type 'CLEAR_ALL_SESSIONS' exactly."
+                });
+            }
+            // Find user by email
+            const user = await User_1.User.findOne({ email: email.toLowerCase().trim() });
+            console.log("🔍 User found:", user);
+            if (!user) {
+                // Don't reveal if user exists or not for security
+                return res.json({
+                    success: true,
+                    message: "If a user with this email exists, all sessions have been cleared."
+                });
+            }
+            // Get client info for logging
+            const clientInfo = await getClientInfo(req);
+            // Clear all sessions for the user
+            await auth_service_1.AuthService.logoutAll(user._id.toString());
+            // Log this security action
+            logger_1.logger.warn("🚨 Public session clearing requested", {
+                email,
+                requestIP: clientInfo.ip,
+                userAgent: clientInfo.userAgent,
+                timestamp: new Date().toISOString(),
+                userId: user._id
+            });
+            // Send notification email to user about session clearing
+            try {
+                await email_service_1.default.sendSecurityNotificationEmail(user.email, "All Sessions Cleared", `All your active sessions have been cleared via public security endpoint from IP: ${clientInfo.ip}`, {
+                    action: "All sessions cleared",
+                    ip: clientInfo.ip,
+                    userAgent: clientInfo.userAgent,
+                    timestamp: new Date()
+                });
+            }
+            catch (emailError) {
+                logger_1.logger.error("Failed to send security notification email:", emailError);
+                // Don't fail the request if email fails
+            }
+            res.json({
+                success: true,
+                message: "If a user with this email exists, all sessions have been cleared."
+            });
+        }
+        catch (error) {
+            logger_1.logger.error("Clear sessions by email error:", error);
+            res.status(500).json({
+                success: false,
+                message: "Internal server error"
             });
         }
     }

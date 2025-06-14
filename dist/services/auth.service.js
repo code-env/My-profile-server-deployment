@@ -171,6 +171,7 @@ class AuthService {
         }
     }
     static async login(input, req) {
+        var _a;
         try {
             // Find user by email or username
             const user = (await User_1.User.findOne({
@@ -228,9 +229,12 @@ class AuthService {
             }
             // get client info
             const clientInfo = await (0, controllerUtils_1.getClientInfo)(req);
+            // Get device fingerprint from request
+            const deviceFingerprint = (_a = req.deviceFingerprint) === null || _a === void 0 ? void 0 : _a.fingerprint;
             // Add new session
             user.sessions.push({
                 refreshToken: tokens.refreshToken,
+                deviceFingerprint: deviceFingerprint, // Store device fingerprint
                 deviceInfo: {
                     userAgent: clientInfo.userAgent,
                     ip: clientInfo.ip,
