@@ -2,20 +2,110 @@ import { Request, Response } from "express";
 import { User } from "../models/User";
 import mongoose from "mongoose";
 import { ProfileModel as Profile } from "../models/profile.model";
-import { isValidObjectId } from "mongoose";
 
 export class UserControllers {
   /**
    * Get all users
    * @route GET /auth/users
    */
+  /**
+   * Get all users with pagination and search
+   * @route GET /auth/users
+   * @param req - Express request object (supports ?page, ?limit, ?search)
+   * @param res - Express response object
+   */
   static async GetAllUsers(req: Request, res: Response) {
     try {
-      const users = await User.find(
-        {},
-        "_id email fullName username profileImage phoneNumber formattedPhoneNumber"
+      const page = Math.max(1, parseInt(req.query.page as string) || 1);
+      const limit = Math.max(
+        1,
+        Math.min(100, parseInt(req.query.limit as string) || 10)
       );
-      res.status(200).json({ success: true, users });
+      const search = (req.query.search as string)?.trim();
+
+      const query: any = {};
+      if (search && search.length > 0 && search !== "undefined") {
+        const regex = new RegExp(search, "i");
+        query.$or = [
+          { email: { $regex: regex } },
+          { fullName: { $regex: regex } },
+          { username: { $regex: regex } },
+          { phoneNumber: { $regex: regex } },
+        ];
+      }
+
+      const users = await User.find(
+        query,
+        "_id email fullName username profileImage phoneNumber formattedPhoneNumber countryOfResidence isEmailVerified isPhoneVerified accountType role"
+      )
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean();
+
+      const total = await User.countDocuments(query);
+
+      const sortedUsers = users
+        .sort((a, b) => {
+          const nameA = a.fullName?.toLowerCase() || "";
+          const nameB = b.fullName?.toLowerCase() || "";
+          if (nameA < nameB) return -1;
+          if (nameA > nameB) return 1;
+          // If names are equal, sort by email
+          const emailA = a.email?.toLowerCase() || "";
+          const emailB = b.email?.toLowerCase() || "";
+          if (emailA < emailB) return -1;
+          if (emailA > emailB) return 1;
+          return 0; // Names and emails are equal
+        })
+        .map(({ _id, ...u }) => ({
+          ...u,
+          id: _id,
+        }));
+
+      const userWithProfiles = await Promise.all(
+        sortedUsers.map(async (user) => {
+          try {
+            // Get the user's profiles
+            const profiles = await Profile.find({
+              "profileInformation.creator": user.id,
+            });
+
+            // Get profile information
+            const profileInfo = profiles.map((profile) => ({
+              _id: profile._id,
+              name: profile.profileInformation.title || "Untitled Profile",
+              currentBalance: profile.ProfileMypts?.currentBalance || 0,
+              lifetimeMypts: profile.ProfileMypts?.lifetimeMypts || 0,
+            }));
+
+            return {
+              ...user,
+              profiles: profileInfo,
+            };
+          } catch (error) {
+            console.error("Error fetching profiles for user:", user.id, error);
+            return {
+              ...user,
+              profiles: [],
+            };
+          }
+        })
+      );
+
+      // console.log(
+      //   `Fetched ${userWithProfiles.length} users on page ${page} with limit ${limit}`
+      // );
+
+      res.status(200).json({
+        success: true,
+        users: userWithProfiles,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
     } catch (error: any) {
       console.error(error.message);
       res.status(500).json({
@@ -117,9 +207,9 @@ export class UserControllers {
                 errorMessage: error.message,
                 userId: req.params.id,
                 connectionState: mongoose.connection.readyState,
-                stack: error.stack
+                stack: error.stack,
               }
-            : undefined
+            : undefined,
       });
     }
   }
@@ -143,7 +233,9 @@ export class UserControllers {
       }
 
       // Get the user's profiles
-      const profiles = await Profile.find({ 'profileInformation.creator': user._id });
+      const profiles = await Profile.find({
+        "profileInformation.creator": user._id,
+      });
       const userFromDb = await User.findById(user._id).lean();
       if (!userFromDb) {
         return res
@@ -157,20 +249,23 @@ export class UserControllers {
           try {
             // Get profile information
             const profileInfo = profile.profileInformation || {};
-            const profileMyPts = profile.ProfileMypts || { currentBalance: 0, lifetimeMypts: 0 };
+            const profileMyPts = profile.ProfileMypts || {
+              currentBalance: 0,
+              lifetimeMypts: 0,
+            };
 
             // Default value information
             const valueInfo = {
               valuePerPts: 0.024, // Default base value
-              currency: 'USD',
-              symbol: '$',
+              currency: "USD",
+              symbol: "$",
               totalValue: profileMyPts.currentBalance * 0.024,
-              formattedValue: `$${(profileMyPts.currentBalance * 0.024).toFixed(2)}`
+              formattedValue: `$${(profileMyPts.currentBalance * 0.024).toFixed(2)}`,
             };
 
             return {
               _id: profile._id,
-              name: profileInfo.title || 'Untitled Profile',
+              name: profileInfo.title || "Untitled Profile",
               type: {
                 category: profile.profileCategory || "unknown",
                 subtype: profile.profileType || "unknown",
@@ -183,21 +278,24 @@ export class UserControllers {
                 lifetimeEarned: profileMyPts.lifetimeMypts || 0,
                 lifetimeSpent: 0, // Not available in new model
                 lastTransaction: null, // Not available in new model
-                value: valueInfo
-              }
+                value: valueInfo,
+              },
             };
           } catch (error) {
-            console.error(`Error getting profile info for profile ${profile._id}:`, error);
+            console.error(
+              `Error getting profile info for profile ${profile._id}:`,
+              error
+            );
             // Return profile with minimal information if there's an error
             return {
               _id: profile._id,
-              name: profile.profileInformation?.title || 'Untitled Profile',
+              name: profile.profileInformation?.title || "Untitled Profile",
               type: {
                 category: profile.profileCategory || "unknown",
                 subtype: profile.profileType || "unknown",
               },
               description: "",
-              accessToken: ""
+              accessToken: "",
             };
           }
         })
@@ -276,13 +374,13 @@ export class UserControllers {
       // Get the user data from the request body
       const {
         fullName,
-        
+
         email,
         phoneNumber,
         countryOfResidence,
         dateOfBirth,
         isTwoFactorEnabled,
-        notifications
+        notifications,
       } = req.body;
 
       // Find the user in the database
@@ -299,18 +397,32 @@ export class UserControllers {
       if (fullName !== undefined) user.fullName = fullName;
       if (email !== undefined) user.email = email;
       if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
-      if (countryOfResidence !== undefined) user.countryOfResidence = countryOfResidence;
+      if (countryOfResidence !== undefined)
+        user.countryOfResidence = countryOfResidence;
       if (dateOfBirth !== undefined) user.dateOfBirth = new Date(dateOfBirth);
-      if (isTwoFactorEnabled !== undefined) user.isTwoFactorEnabled = isTwoFactorEnabled;
+      if (isTwoFactorEnabled !== undefined)
+        user.isTwoFactorEnabled = isTwoFactorEnabled;
 
       // Update notification preferences if provided
       if (notifications) {
         // Create a basic notification preferences object based on the provided data
         const updatedNotifications = {
-          email: notifications.email?.enabled !== undefined ? notifications.email.enabled : user.notifications?.email || true,
-          push: notifications.push?.enabled !== undefined ? notifications.push.enabled : user.notifications?.push || true,
-          sms: notifications.sms?.enabled !== undefined ? notifications.sms.enabled : user.notifications?.sms || false,
-          marketing: notifications.email?.marketing !== undefined ? notifications.email.marketing : user.notifications?.marketing || false
+          email:
+            notifications.email?.enabled !== undefined
+              ? notifications.email.enabled
+              : user.notifications?.email || true,
+          push:
+            notifications.push?.enabled !== undefined
+              ? notifications.push.enabled
+              : user.notifications?.push || true,
+          sms:
+            notifications.sms?.enabled !== undefined
+              ? notifications.sms.enabled
+              : user.notifications?.sms || false,
+          marketing:
+            notifications.email?.marketing !== undefined
+              ? notifications.email.marketing
+              : user.notifications?.marketing || false,
         };
 
         // Update the user's notification preferences
@@ -321,7 +433,7 @@ export class UserControllers {
           if (!user.telegramNotifications) {
             user.telegramNotifications = {
               enabled: false,
-              username: '',
+              username: "",
               preferences: {
                 transactions: true,
                 transactionUpdates: true,
@@ -329,8 +441,8 @@ export class UserControllers {
                 saleConfirmations: true,
                 security: true,
                 connectionRequests: false,
-                messages: false
-              }
+                messages: false,
+              },
             };
           }
 
@@ -340,7 +452,8 @@ export class UserControllers {
           }
 
           if (notifications.telegram.username) {
-            user.telegramNotifications.username = notifications.telegram.username;
+            user.telegramNotifications.username =
+              notifications.telegram.username;
           }
 
           // Update telegram preferences if provided
@@ -351,11 +464,13 @@ export class UserControllers {
           }
 
           if (notifications.telegram.transactionUpdates !== undefined) {
-            prefs.transactionUpdates = notifications.telegram.transactionUpdates;
+            prefs.transactionUpdates =
+              notifications.telegram.transactionUpdates;
           }
 
           if (notifications.telegram.purchaseConfirmations !== undefined) {
-            prefs.purchaseConfirmations = notifications.telegram.purchaseConfirmations;
+            prefs.purchaseConfirmations =
+              notifications.telegram.purchaseConfirmations;
           }
 
           if (notifications.telegram.saleConfirmations !== undefined) {
@@ -367,7 +482,8 @@ export class UserControllers {
           }
 
           if (notifications.telegram.connectionRequests !== undefined) {
-            prefs.connectionRequests = notifications.telegram.connectionRequests;
+            prefs.connectionRequests =
+              notifications.telegram.connectionRequests;
           }
 
           if (notifications.telegram.messages !== undefined) {
@@ -382,11 +498,16 @@ export class UserControllers {
       // Update country information in all profiles if country was changed
       if (countryOfResidence !== undefined) {
         try {
-          const { updateUserProfileCountries } = require('../scripts/update-user-profile-country');
-          const updateResult = await updateUserProfileCountries(authenticatedUser._id, false);
+          const {
+            updateUserProfileCountries,
+          } = require("../scripts/update-user-profile-country");
+          const updateResult = await updateUserProfileCountries(
+            authenticatedUser._id,
+            false
+          );
           console.log(`Profile country update result: ${updateResult.message}`);
         } catch (error) {
-          console.error('Error updating profile countries:', error);
+          console.error("Error updating profile countries:", error);
           // Just log the error, don't fail the main operation
         }
       }
@@ -409,7 +530,7 @@ export class UserControllers {
           accountType: user.accountType,
           role: user.role,
           isTwoFactorEnabled: user.isTwoFactorEnabled,
-          notifications: user.notifications
+          notifications: user.notifications,
         },
       });
     } catch (error: any) {
@@ -417,7 +538,9 @@ export class UserControllers {
       res.status(500).json({
         success: false,
         message:
-          error instanceof Error ? error.message : "Failed to update user information",
+          error instanceof Error
+            ? error.message
+            : "Failed to update user information",
       });
     }
   }
@@ -480,7 +603,9 @@ export class UserControllers {
       res.status(500).json({
         success: false,
         message:
-          error instanceof Error ? error.message : "Failed to update profile image",
+          error instanceof Error
+            ? error.message
+            : "Failed to update profile image",
       });
     }
   }
@@ -608,21 +733,32 @@ export class UserControllers {
    */
   static async AdminUpdateUserById(req: Request, res: Response) {
     try {
-      console.log('Admin update user request:', {
+      console.log("Admin update user request:", {
         userId: req.params.id,
         body: req.body,
-        user: req.user ? `User ID: ${(req.user as any)?._id}` : 'No user in request'
+        user: req.user
+          ? `User ID: ${(req.user as any)?._id}`
+          : "No user in request",
       });
 
       // Require admin - temporarily disable for testing
       const requester = req.user as any;
-      if (req.user && requester && (requester.role !== 'admin' && requester.role !== 'superadmin')) {
-        return res.status(403).json({ success: false, message: 'Admin access required' });
+      if (
+        req.user &&
+        requester &&
+        requester.role !== "admin" &&
+        requester.role !== "superadmin"
+      ) {
+        return res
+          .status(403)
+          .json({ success: false, message: "Admin access required" });
       }
 
       const { id } = req.params;
       if (!mongoose.Types.ObjectId.isValid(id)) {
-        return res.status(400).json({ success: false, message: 'Invalid user ID' });
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid user ID" });
       }
 
       const {
@@ -632,42 +768,48 @@ export class UserControllers {
         countryOfResidence,
         dateOfBirth,
         isTwoFactorEnabled,
-        notifications
+        notifications,
       } = req.body;
 
       const user = await User.findById(id);
       if (!user) {
         console.log(`User not found with ID: ${id}`);
-        return res.status(404).json({ success: false, message: 'User not found' });
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
       }
 
-      console.log('Found user to update:', {
+      console.log("Found user to update:", {
         userId: user._id,
         email: user.email,
-        fullName: user.fullName
+        fullName: user.fullName,
       });
 
       if (fullName !== undefined) user.fullName = fullName;
       if (email !== undefined) user.email = email;
       if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
-      if (countryOfResidence !== undefined) user.countryOfResidence = countryOfResidence;
+      if (countryOfResidence !== undefined)
+        user.countryOfResidence = countryOfResidence;
       if (dateOfBirth !== undefined) user.dateOfBirth = new Date(dateOfBirth);
-      if (isTwoFactorEnabled !== undefined) user.isTwoFactorEnabled = isTwoFactorEnabled;
+      if (isTwoFactorEnabled !== undefined)
+        user.isTwoFactorEnabled = isTwoFactorEnabled;
       if (notifications) user.notifications = notifications;
       // Save the updated user
-      console.log('Saving updated user...');
+      console.log("Saving updated user...");
       await user.save();
-      console.log('User updated successfully');
+      console.log("User updated successfully");
 
       // Update country information in all profiles associated with this user
       // Import and use the profile country update function only if countryOfResidence was updated
       if (countryOfResidence !== undefined) {
         try {
-          const { updateUserProfileCountries } = require('../scripts/update-user-profile-country');
+          const {
+            updateUserProfileCountries,
+          } = require("../scripts/update-user-profile-country");
           const updateResult = await updateUserProfileCountries(id, false); // false means don't establish a new DB connection
           console.log(`Profile country update result: ${updateResult.message}`);
         } catch (error) {
-          console.error('Error updating profile countries:', error);
+          console.error("Error updating profile countries:", error);
           // Don't throw error, just log it - we don't want to fail the main operation
         }
       }
@@ -675,7 +817,7 @@ export class UserControllers {
       // Return the updated user data
       res.status(200).json({
         success: true,
-        message: 'User updated successfully',
+        message: "User updated successfully",
         user: {
           _id: user._id,
           email: user.email,
@@ -690,19 +832,23 @@ export class UserControllers {
           accountType: user.accountType,
           role: user.role,
           isTwoFactorEnabled: user.isTwoFactorEnabled,
-          notifications: user.notifications
+          notifications: user.notifications,
         },
       });
     } catch (error: any) {
-      console.error('Error in AdminUpdateUserById:', error);
+      console.error("Error in AdminUpdateUserById:", error);
       res.status(500).json({
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to update user',
-        debug: process.env.NODE_ENV === 'development' ? {
-          errorType: error.constructor.name,
-          errorMessage: error.message,
-          userId: req.params.id
-        } : undefined
+        message:
+          error instanceof Error ? error.message : "Failed to update user",
+        debug:
+          process.env.NODE_ENV === "development"
+            ? {
+                errorType: error.constructor.name,
+                errorMessage: error.message,
+                userId: req.params.id,
+              }
+            : undefined,
       });
     }
   }
