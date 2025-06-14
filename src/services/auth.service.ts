@@ -463,19 +463,16 @@ export class AuthService {
           );
 
           if (sessionIndex !== -1) {
-            // Mark the session as inactive instead of removing it
-            user.sessions[sessionIndex].isActive = false;
+            // remove the session from the array
+            user.sessions.splice(sessionIndex, 1);
           }
         }
       } else {
         // If no specific token is provided, clear all sessions
         user.refreshTokens = [];
-
         if (user.sessions?.length > 0) {
-          // Mark all sessions as inactive
-          user.sessions.forEach((session: any) => {
-            session.isActive = false;
-          });
+          // Completely remove all sessions
+          user.sessions = [];
         }
       }
 
