@@ -487,6 +487,41 @@ export class AuthService {
   }
 
   /**
+   * Remove a specific session for a user
+   * @param userId User's ID
+   * @param sessionId Session ID to remove
+   */
+  static async removeSession(userId: string, sessionId: string): Promise<void> {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      if (!user.sessions || user.sessions.length === 0) {
+        throw new Error("No sessions found for user");
+      }
+
+      // Find the session index
+      const sessionIndex = user.sessions.findIndex(
+        (session: any) => session._id.toString() === sessionId
+      );
+
+      if (sessionIndex === -1) {
+        throw new Error("Session not found");
+      }
+
+      // Remove the session from the array
+      user.sessions.splice(sessionIndex, 1);
+
+      await user.save();
+    } catch (error) {
+      logger.error("Remove session error:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Logout from all devices
    * @param userId User ID
    */

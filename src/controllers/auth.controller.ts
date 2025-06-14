@@ -1264,6 +1264,44 @@ export class AuthController {
   }
 
   /**
+   * Remove a specific session
+   * @route DELETE /auth/sessions/:sessionId
+   */
+  static async removeSession(req: Request, res: Response) {
+    try {
+      const { sessionId } = req.params;
+      const userId = (req as any).user?.userId;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: User not authenticated"
+        });
+      }
+
+      if (!sessionId) {
+        return res.status(400).json({
+          success: false,
+          message: "Session ID is required"
+        });
+      }
+
+      await AuthService.removeSession(userId, sessionId);
+
+      res.status(200).json({
+        success: true,
+        message: "Session removed successfully"
+      });
+    } catch (error: any) {
+      logger.error("Remove session error:", error.message);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Failed to remove session"
+      });
+    }
+  }
+
+  /**
    * Request password reset
    * @route POST /auth/forgot-password
    */

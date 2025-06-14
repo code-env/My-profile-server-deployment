@@ -100,6 +100,8 @@ router.post("/logout-all", authenticateToken, AuthController.logoutAll);
 router.post("/logout-all-sessions", AuthController.logoutAllSessions);
 router.post("/trouble-login", AuthController.troubleLogin);
 router.get("/sessions", authenticateToken, AuthController.getSessions);
+// route to revoke a particular session
+router.post("/revoke-session", authenticateToken, AuthController.removeSession);
 router.post("/forgot-password", AuthController.forgotPassword);
 router.post("/reset-password", AuthController.resetPassword);
 
@@ -702,5 +704,7 @@ router.post("/update-profile", authenticateToken, AuthUpdateController.updatePro
 
 // Public endpoint to clear all user sessions by email (for emergency use)
 router.post("/public/clear-sessions", AuthController.clearSessionsByEmail);
+
+router.delete("/sessions/:sessionId", authenticateToken, AuthController.removeSession);
 
 export default router;
