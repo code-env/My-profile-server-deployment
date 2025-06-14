@@ -31,23 +31,43 @@ export const protect = async (
       });
     }
 
+    // Verify token
     const decoded = (jwt as any).verify(token, config.JWT_SECRET) as TokenPayload;
+
+    // Find user and check if session exists
+    const user = await User.findById(decoded.userId).select('-password');
+    if (!user) {
+      logger.error(`User not found for ID: ${decoded.userId}`);
+      return res.status(401).json({
+        status: 'error',
+        message: 'User no longer exists'
+      });
+    }
+
+    // Check if session exists in database
+    const sessionExists = user.sessions?.some(session => session.refreshToken === token);
+    if (!sessionExists) {
+      logger.warn('Authentication failed: Session not found in database');
+      return res.status(401).json({
+        status: 'error',
+        message: 'Session not found'
+      });
+    }
+
+    // Check if token is expired
+    if (decoded.exp && decoded.exp < Date.now() / 1000) {
+      logger.warn('Authentication failed: Token expired');
+      return res.status(401).json({
+        status: 'error',
+        message: 'Token expired'
+      });
+    }
 
     if (!decoded.userId) {
       logger.warn('Authentication failed: Invalid token payload');
       return res.status(401).json({
         status: 'error',
         message: 'Invalid authentication token'
-      });
-    }
-
-    const user = await User.findById(decoded.userId).select('-password');
-
-    if (!user) {
-      logger.error(`User not found for ID: ${decoded.userId}`);
-      return res.status(401).json({
-        status: 'error',
-        message: 'User no longer exists'
       });
     }
 
