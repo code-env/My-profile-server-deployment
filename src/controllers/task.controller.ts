@@ -13,6 +13,7 @@ import { vaultService } from '../services/vault.service';
 import createHttpError from 'http-errors';
 import { mapTaskEventDataToInternal, mapTaskEventDataToExternal } from '../utils/visibilityMapper';
 import { SettingsService } from '../services/settings.service';
+import { ProfileService } from '../services/profile.service';
 
 
 // Helper function to validate task data
@@ -199,6 +200,12 @@ export const getUserTasks = asyncHandler(async (req: Request, res: Response) => 
     const profileId = req.query.profileId as string;
     if (!profileId) {
         throw createHttpError(400, 'Profile ID is required');
+    }
+
+    // check if profileId is valid
+    const profile = await new ProfileService().getProfile(profileId);
+    if (!profile) {
+        throw createHttpError(400, 'Invalid profile ID');
     }
 
     // Extract pagination parameters

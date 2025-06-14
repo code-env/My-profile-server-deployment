@@ -143,7 +143,7 @@ export class TaskSettingsIntegration {
      */
     async isTaskVisibleToProfile(task: ITask, viewerProfileId: string, taskOwnerSettings?: SettingsDocument | null): Promise<boolean> {
         // If the task belongs to the viewer's profile, always show it
-        if (task.profile.toString() === viewerProfileId) {
+        if (task.profile && task.profile.toString() === viewerProfileId) {
             return true;
         }
 

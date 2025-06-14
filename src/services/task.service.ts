@@ -122,6 +122,7 @@ class TaskService {
             // Copy relevant properties from the task
             visibility: mapExternalToInternal(task.visibility as any),
             color: task.color,
+            profile: task.profile,
             priority: task.priority,
             category: task.category
         });

@@ -1064,6 +1064,7 @@ export class ProfileService {
    * Get profile availability
    */
   async getAvailability(profileId: string): Promise<any> {
+    logger.info(`Getting availability for profile ${profileId}`);
     const profile = await this.getProfile(profileId);
     if (!profile) {
       throw createHttpError(404, 'Profile not found');

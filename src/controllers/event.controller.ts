@@ -22,6 +22,7 @@ import { User } from '../models/User';
 import { vaultService } from '../services/vault.service';
 import { mapTaskEventDataToInternal, mapTaskEventDataToExternal } from '../utils/visibilityMapper';
 import { ProfileModel } from '../models/profile.model';
+import { ProfileService } from '../services/profile.service';
 
 const notificationService = new NotificationService();
 
@@ -290,6 +291,12 @@ export const getUserEvents = asyncHandler(async (req: Request, res: Response) =>
     if (!profileId) {
         throw createHttpError(400, 'Profile ID is required');
     }
+
+      // check if profileId is valid
+      const profile = await new ProfileService().getProfile(profileId);
+      if (!profile) {
+          throw createHttpError(400, 'Invalid profile ID');
+      }
 
     // Extract pagination parameters
     const page = parseInt(req.query.page as string) || 1;

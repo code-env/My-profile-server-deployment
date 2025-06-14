@@ -3,6 +3,8 @@ import mongoose, { Types } from 'mongoose';
 import listService from '../services/list.service';
 import { ImportanceLevel, ListType } from '../models/List';
 import { emitSocialInteraction } from '../utils/socketEmitter';
+import { ProfileService } from '../services/profile.service';
+import createHttpError from 'http-errors';
 
 // Helper function to validate list data
 const validateListData = (data: any) => {
@@ -47,6 +49,12 @@ export const getUserLists = async (req: Request, res: Response) => {
         if (!profileId) {
             return res.status(400).json({ error: 'Profile ID is required' });
         }
+
+          // check if profileId is valid
+    const profile = await new ProfileService().getProfile(profileId);
+    if (!profile) {
+        throw createHttpError(400, 'Invalid profile ID');
+    }
 
         const filters: any = {};
 
