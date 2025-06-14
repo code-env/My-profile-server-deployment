@@ -44,24 +44,24 @@ export const protect = async (
       });
     }
 
-    // Check if session exists in database
-    const sessionExists = user.sessions?.some(session => session.refreshToken === token);
-    if (!sessionExists) {
-      logger.warn('Authentication failed: Session not found in database');
-      return res.status(401).json({
-        status: 'error',
-        message: 'Session not found'
-      });
-    }
+    // // Check if session exists in database
+    // const sessionExists = user.sessions?.some(session => session.refreshToken === token);
+    // if (!sessionExists) {
+    //   logger.warn('Authentication failed: Session not found in database');
+    //   return res.status(401).json({
+    //     status: 'error',
+    //     message: 'Session not found'
+    //   });
+    // }
 
     // Check if token is expired
-    if (decoded.exp && decoded.exp < Date.now() / 1000) {
-      logger.warn('Authentication failed: Token expired');
-      return res.status(401).json({
-        status: 'error',
-        message: 'Token expired'
-      });
-    }
+    // if (decoded.exp && decoded.exp < Date.now() / 1000) {
+    //   logger.warn('Authentication failed: Token expired');
+    //   return res.status(401).json({
+    //     status: 'error',
+    //     message: 'Token expired'
+    //   });
+    // }
 
     if (!decoded.userId) {
       logger.warn('Authentication failed: Invalid token payload');
