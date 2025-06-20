@@ -36,7 +36,7 @@ export class UserControllers {
 
       const users = await User.find(
         query,
-        "_id email fullName username profileImage phoneNumber formattedPhoneNumber countryOfResidence isEmailVerified isPhoneVerified accountType role"
+        "_id email fullName username profileImage phoneNumber formattedPhoneNumber countryOfResidence isEmailVerified isPhoneVerified accountType role createdAt updatedAt referralCode referredBy referralCount isTwoFactorEnabled "
       )
         .skip((page - 1) * limit)
         .limit(limit)
